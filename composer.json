@@ -1,0 +1,17 @@
+{
+  "name": "industrialdev/wicket-wp-memberships",
+  "description": "Wicket Memberships",
+  "keywords": ["wordpress", "plugin"],
+  "homepage": "https://github.com/industrialdev/wicket-wp-memberships",
+  "authors": [
+    {
+      "name": "Wicket",
+      "homepage": "https://wicket.io"
+    }
+  ],
+  "type": "wordpress-plugin",
+  "require": {
+    "php": ">=8.2",
+    "jeffreyvanrossum/wp-settings": "1.2.1"
+  }
+}
