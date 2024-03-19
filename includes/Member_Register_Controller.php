@@ -22,16 +22,16 @@ class Member_Register_Controller {
       'custom-fields',
     );
     $labels = array(
-      'name' => _x('Wicket Member', 'plural'),
+      'name' => _x('Members', 'plural'),
     );
     $args = array(
       'supports' => $supports,
       'labels' => $labels,
-      'description'        => __( 'Wicket Memberships', 'wicket' ),
+      'description'        => __( 'Members of the Wicket Memberships', 'wicket' ),
       'public'             => true,
       'publicly_queryable' => true,
       'show_ui'            => true,
-      'show_in_menu'       => true,
+      'show_in_menu'       => WICKET_MEMBER_PLUGIN_SLUG,
       'query_var'          => true,
       'rewrite'            => array( 'slug' => 'wicket_member' ),
       'capability_type'    => 'post',

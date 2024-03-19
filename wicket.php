@@ -45,6 +45,7 @@ if ( ! defined( 'WICKET_MEMBER_PLUGIN_SLUG' ) ) {
 	define( 'WICKET_MEMBER_PLUGIN_SLUG', 'wicket_member_wp' );
 }
 
+use Wicket_Memberships\Admin_Controller;
 use Wicket_Memberships\Member_Controller;
 use Wicket_Memberships\Member_Register_Controller;
 
@@ -62,6 +63,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
     public function __construct() {
 			// Load the main plugin classes
+			new Admin_Controller;
 			new Member_Register_Controller;
 			new Member_Controller;
 
