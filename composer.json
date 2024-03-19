@@ -10,6 +10,11 @@
     }
   ],
   "type": "wordpress-plugin",
+  "autoload": {
+    "psr-4": {
+      "Wicket_Memberships\\": "includes/"
+    }
+  },
   "require": {
     "php": ">=8.2",
     "jeffreyvanrossum/wp-settings": "1.2.1"

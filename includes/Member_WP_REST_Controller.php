@@ -1,11 +1,11 @@
 <?php
 
-namespace WicketMember;
+namespace Wicket_Memberships;
 
 /**
  * Rest routes and methods
  */
-class Wicket_Member_WP_REST_Controller extends \WP_REST_Controller {
+class Member_WP_REST_Controller extends \WP_REST_Controller {
 
   public function __construct() {
       $this->namespace     = 'wicket_member/v1';
@@ -80,7 +80,7 @@ class Wicket_Member_WP_REST_Controller extends \WP_REST_Controller {
           'key'     => 'user_id',
           'value'   => $user_id,
           'compare' => '='
-        ) 
+        )
       )
     );
 
@@ -104,10 +104,10 @@ class Wicket_Member_WP_REST_Controller extends \WP_REST_Controller {
    * Get the pagination headers
    */
   public function get_pagination_headers( $query, $response ) {
-    $total = $query->found_posts; 	
-    $pages = $query->max_num_pages;   	
-    $response->header( 'X-WP-Total', $total ); 	
-    $response->header( 'X-WP-TotalPages', $pages );  	
+    $total = $query->found_posts;
+    $pages = $query->max_num_pages;
+    $response->header( 'X-WP-Total', $total );
+    $response->header( 'X-WP-TotalPages', $pages );
     return $response;
   }
 
@@ -179,13 +179,13 @@ class Wicket_Member_WP_REST_Controller extends \WP_REST_Controller {
               'type'         => 'string',
               'context'      => array( 'view', 'edit', 'embed' ),
               'readonly'     => false,
-          ),       
+          ),
           'member_type' => array(
               'type'         => 'string',
               'context'      => array( 'view', 'edit', 'embed' ),
               'readonly'     => false,
-          ),      
-        ), 
+          ),
+        ),
       ),
     );
     return $this->schema;
@@ -238,12 +238,12 @@ class Wicket_Member_WP_REST_Controller extends \WP_REST_Controller {
             'type'         => 'string',
             'context'      => array( 'view', 'edit', 'embed' ),
             'readonly'     => false,
-        ),       
+        ),
         'member_type' => array(
             'type'         => 'string',
             'context'      => array( 'view', 'edit', 'embed' ),
             'readonly'     => false,
-        ),       
+        ),
       ),
     );
     return $this->schema;

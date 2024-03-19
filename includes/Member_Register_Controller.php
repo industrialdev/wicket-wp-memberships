@@ -1,11 +1,11 @@
 <?php
 
-namespace WicketMember;
+namespace Wicket_Memberships;
 
 /**
  * Wicket Member base-functionality
  */
-class Wicket_Member_Register_Controller {
+class Member_Register_Controller {
 
   public function __construct() {
     add_action('init', [ $this, 'register_post_type' ]);
@@ -41,7 +41,7 @@ class Wicket_Member_Register_Controller {
       'menu_position'      => null,
       'show_in_rest'       => true,
       'rest_base'          => 'wicket_member',
-      'rest_controller_class' => 'WP_REST_Wicket_Member_Controller',
+      'rest_controller_class' => 'Wicket_Memberships\Member_WP_REST_Controller',
     );
     register_post_type('wicket_member', $args);
     $args = array(
@@ -108,7 +108,7 @@ class Wicket_Member_Register_Controller {
     unset($columns['date']);
     return $columns;
   }
-  
+
   /**
    * Customize Wicket Member List Page Contents
    */
@@ -118,8 +118,8 @@ class Wicket_Member_Register_Controller {
     foreach ($keys as $key) {
         if( $column_name == $key) {
             echo $meta[$key][0];
-        }    
-    }    
+        }
+    }
   }
   /**
    * Customize Wicket Member List Page Title COlumn
@@ -128,7 +128,7 @@ class Wicket_Member_Register_Controller {
     if( get_post_type( $id ) !== 'wicket_member') {
       return $title;
     }
-      
+
     $wicket_uuid = get_post_meta( $id, 'wicket_uuid', true );
     if( empty( $wicket_uuid ) ) {
         return '(Unsynced)';
@@ -137,5 +137,3 @@ class Wicket_Member_Register_Controller {
     }
   }
 }
-
-new Wicket_Member_Register_Controller();

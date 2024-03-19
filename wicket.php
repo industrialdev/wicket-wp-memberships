@@ -1,5 +1,5 @@
 <?php
-namespace WicketMember;
+namespace Wicket_Memberships;
 
 /**
  * Plugin Name: Wicket - Memberships
@@ -45,11 +45,14 @@ if ( ! defined( 'WICKET_MEMBER_PLUGIN_SLUG' ) ) {
 	define( 'WICKET_MEMBER_PLUGIN_SLUG', 'wicket_member_wp' );
 }
 
+use Wicket_Memberships\Member_Controller;
+use Wicket_Memberships\Member_Register_Controller;
+
 if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
 	// Add vendor plugins with composer autoloader
-	if (is_file(plugin_dir_path( __FILE__ ) . 'vendor/autoload.php')) {
-		require_once plugin_dir_path( __FILE__ ) . 'vendor/autoload.php';
+	if (is_file(WICKET_MEMBER_PLUGIN_DIR . 'vendor/autoload.php')) {
+		require_once WICKET_MEMBER_PLUGIN_DIR . 'vendor/autoload.php';
 	}
 
 	/**
@@ -58,9 +61,10 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 	class Wicket_Memberships {
 
     public function __construct() {
-			include_once WICKET_MEMBER_PLUGIN_DIR . 'includes/wicket-member-controller.php';
-			include_once WICKET_MEMBER_PLUGIN_DIR . 'includes/wicket-member-register-controller.php';
-			include_once WICKET_MEMBER_PLUGIN_DIR . 'includes/wicket-member-wp-rest-controller.php';
+			// Load the main plugin classes
+			new Member_Register_Controller;
+			new Member_Controller;
+
 			register_activation_hook( WICKET_MEMBER_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
 			add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
     }

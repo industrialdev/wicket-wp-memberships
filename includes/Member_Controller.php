@@ -1,11 +1,11 @@
 <?php
 
-namespace WicketMember;
+namespace Wicket_Memberships;
 
 /**
  * Main controller methods
  */
-class Wicket_Member_Controller {
+class Member_Controller {
 
   public function __construct() {
     add_action( 'wicket_member_create_record', array( $this, 'create_membership_record'), 10, 1 );
@@ -36,5 +36,3 @@ class Wicket_Member_Controller {
     ));
   }
 }
-
-new Wicket_Member_Controller();
