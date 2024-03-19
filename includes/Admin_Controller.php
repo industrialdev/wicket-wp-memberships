@@ -19,7 +19,7 @@ class Admin_Controller {
 		$capability = 'manage_options';
 
 		add_menu_page(
-			esc_attr__( 'Dashboard', 'wicket-memberships' ),
+			esc_attr__( 'Wicket Memberships', 'wicket-memberships' ),
 			esc_attr__( 'Wicket Memberships', 'wicket-memberships' ),
 			$capability,
 			$menu_slug,
