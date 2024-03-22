@@ -47,8 +47,8 @@ if ( ! defined( 'WICKET_MEMBER_PLUGIN_SLUG' ) ) {
 
 use Wicket_Memberships\Admin_Controller;
 use Wicket_Memberships\Member_Controller;
-use Wicket_Memberships\Member_Register_Controller;
-use Wicket_Memberships\Membership_Config_Register_Controller;
+use Wicket_Memberships\Member_CPT_Hooks;
+use Wicket_Memberships\Membership_Post_Types;
 
 if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
@@ -65,9 +65,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
     public function __construct() {
 			// Load the main plugin classes
 			new Admin_Controller;
-			new Member_Register_Controller;
+			new Membership_Post_Types;
+			new Member_CPT_Hooks;
 			new Member_Controller;
-			new Membership_Config_Register_Controller;
 
 			register_activation_hook( WICKET_MEMBER_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
 			add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
