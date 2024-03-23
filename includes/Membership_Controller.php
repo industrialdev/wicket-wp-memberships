@@ -4,8 +4,9 @@ namespace Wicket_Memberships;
 
 /**
  * Main controller methods
+ * @package Wicket_Memberships
  */
-class Member_Controller {
+class Membership_Controller {
 
   public function __construct() {
     add_action( 'wicket_member_create_record', array( $this, 'create_membership_record'), 10, 1 );

@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
 /**
  * Rest routes and methods
  */
-class Member_WP_REST_Controller extends \WP_REST_Controller {
+class Membership_WP_REST_Controller extends \WP_REST_Controller {
 
   public function __construct() {
       $this->namespace     = 'wicket_member/v1';

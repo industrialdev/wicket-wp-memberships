@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
 /**
  * Wicket Member base-functionality
  */
-class Member_CPT_Hooks {
+class Membership_CPT_Hooks {
 
   public function __construct() {
     add_filter('manage_wicket_member_posts_columns', [ $this, 'table_head']);
