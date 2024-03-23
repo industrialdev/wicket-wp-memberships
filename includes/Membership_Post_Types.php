@@ -89,12 +89,12 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
-      'description'       => 'The number of days after end date membership expires.',
+      'description'       => 'The expiry date (end_date plus grace_period) of the membership in wordpress.',
       'single'            => true,
       'show_in_rest'      => true,
     );
 
-    register_post_meta('wicket_member', 'grace_period', $args);
+    register_post_meta('wicket_member', 'expiry_date', $args);
 
     $args = array(
       'type'              => 'string',
@@ -104,6 +104,15 @@ class Membership_Post_Types {
     );
 
     register_post_meta('wicket_member', 'member_type', $args);
+
+    $args = array(
+      'type'              => 'string',
+      'description'       => 'MDP Membership ID.',
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta('wicket_member', 'membership_uuid', $args);
   }
 
 

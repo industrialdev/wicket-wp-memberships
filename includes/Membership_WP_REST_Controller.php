@@ -175,7 +175,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
               'context'      => array( 'view', 'edit', 'embed' ),
               'readonly'     => false,
           ),
-          'grace_period' => array(
+          'expiry_date' => array(
               'type'         => 'string',
               'context'      => array( 'view', 'edit', 'embed' ),
               'readonly'     => false,
@@ -184,6 +184,11 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
               'type'         => 'string',
               'context'      => array( 'view', 'edit', 'embed' ),
               'readonly'     => false,
+          ),
+          'membership_uuid' => array(
+            'type'         => 'string',
+            'context'      => array( 'view', 'edit', 'embed' ),
+            'readonly'     => false,
           ),
         ),
       ),
@@ -234,7 +239,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
             'context'      => array( 'view', 'edit', 'embed' ),
             'readonly'     => false,
         ),
-        'grace_period' => array(
+        'expiry_date' => array(
             'type'         => 'string',
             'context'      => array( 'view', 'edit', 'embed' ),
             'readonly'     => false,
@@ -243,6 +248,11 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
             'type'         => 'string',
             'context'      => array( 'view', 'edit', 'embed' ),
             'readonly'     => false,
+        ),
+        'membership_uuid' => array(
+          'type'         => 'string',
+          'context'      => array( 'view', 'edit', 'embed' ),
+          'readonly'     => false,
         ),
       ),
     );

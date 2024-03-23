@@ -19,11 +19,12 @@ class Membership_CPT_Hooks {
   public function table_head( $columns ) {
     $columns['title'] = 'Wicket UUID';
     $columns['member_type']  = 'Type';
+    $columns['membership_uuid']  = 'Membership ID';
     $columns['user_id']  = 'User ID';
     $columns['status']  = 'Status';
     $columns['start_date']  = 'Start Date';
     $columns['end_date']  = 'End Date';
-    $columns['grace_period']  = 'Grace Period';
+    $columns['expiry_date']  = 'Expiry Date';
     unset($columns['date']);
     return $columns;
   }
