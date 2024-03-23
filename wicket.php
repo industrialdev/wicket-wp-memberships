@@ -45,11 +45,6 @@ if ( ! defined( 'WICKET_MEMBER_PLUGIN_SLUG' ) ) {
 	define( 'WICKET_MEMBER_PLUGIN_SLUG', 'wicket_member_wp' );
 }
 
-include_once 'includes/Admin_Controller.php';
-include_once 'includes/Membership_Controller.php';
-include_once 'includes/Membership_CPT_Hooks.php';
-include_once 'includes/Membership_Post_Types.php';
-
 use Wicket_Memberships\Admin_Controller;
 use Wicket_Memberships\Membership_Controller;
 use Wicket_Memberships\Membership_CPT_Hooks;
