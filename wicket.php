@@ -25,8 +25,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-if ( ! defined( 'WICKET_MEMBER_URL' ) ) {
-	define( 'WICKET_MEMBER_URL', plugin_dir_url( __FILE__ ) );
+if ( ! defined( 'WICKET_MEMBER_PLUGIN_URL' ) ) {
+	define( 'WICKET_MEMBER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 }
 
 if ( ! defined( 'WICKET_MEMBER_BASENAME' ) ) {
@@ -49,6 +49,7 @@ use Wicket_Memberships\Admin_Controller;
 use Wicket_Memberships\Membership_Controller;
 use Wicket_Memberships\Membership_CPT_Hooks;
 use Wicket_Memberships\Membership_Post_Types;
+use Wicket_Memberships\Membership_Config_CPT_Hooks;
 
 if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
@@ -68,6 +69,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 			new Membership_Post_Types;
 			new Membership_CPT_Hooks;
 			new Membership_Controller;
+			new Membership_Config_CPT_Hooks;
 
 			register_activation_hook( WICKET_MEMBER_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
 			add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
@@ -87,3 +89,4 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 	} // end Class Wicket_Memberships.
 	new Wicket_Memberships();
 }
+

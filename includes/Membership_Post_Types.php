@@ -1,10 +1,16 @@
 <?php
 namespace Wicket_Memberships;
 
+use Wicket_Memberships\Helper;
+
 defined( 'ABSPATH' ) || exit;
 
 class Membership_Post_Types {
+
+  private $membership_config_cpt_slug = '';
+
   public function __construct() {
+    $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
     add_action('init', [ $this, 'register_member_post_type' ]);
     add_action('init', [ $this, 'register_membership_config_post_type' ]);
   }
@@ -115,7 +121,6 @@ class Membership_Post_Types {
     register_post_meta('wicket_member', 'membership_uuid', $args);
   }
 
-
   /**
    * Create the Wicket Membership Config post type
    */
@@ -169,6 +174,24 @@ class Membership_Post_Types {
       'capability_type'       => 'page',
     );
 
-    register_post_type( 'wicket_mship_config', $args );
+    register_post_type( $this->membership_config_cpt_slug, $args );
+
+    // Register the meta fields
+    register_post_meta( $this->membership_config_cpt_slug, 'renewal_window_data', [
+      'type' => 'object',
+      'single' => true,
+      'description' => __( 'Renewal window data', 'wicket-memberships' ),
+      'show_in_rest' => array(
+        'schema' => array(
+          'type'       => 'object',
+          'items' => array(
+            'days_count' => array(
+              'type' => 'integer',
+            ),
+          ),
+        ),
+      ),
+    ] );
   }
+
 }
