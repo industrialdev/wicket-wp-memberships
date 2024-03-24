@@ -13,6 +13,7 @@ class Admin_Controller {
    */
   public function __construct() {
     add_action( 'admin_menu', array( $this, 'init_menu' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
   }
 
 	/**
@@ -30,5 +31,17 @@ class Admin_Controller {
 			'',
 			'dashicons-list-view'
 		);
+	}
+
+	/**
+	 * Enqueue scripts and styles
+	 */
+	public function enqueue_scripts() {
+		wp_enqueue_style(
+      WICKET_MEMBER_PLUGIN_SLUG . '_styles',
+      WICKET_MEMBER_PLUGIN_URL . '/assets/css/wicket-memberships-main.css',
+      [ 'wp-components' ],
+      false
+    );
 	}
 }
