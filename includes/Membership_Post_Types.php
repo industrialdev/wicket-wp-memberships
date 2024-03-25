@@ -172,6 +172,7 @@ class Membership_Post_Types {
       'exclude_from_search'   => false,
       'publicly_queryable'    => false,
       'capability_type'       => 'page',
+      'show_in_rest'          => true,
     );
 
     register_post_type( $this->membership_config_cpt_slug, $args );

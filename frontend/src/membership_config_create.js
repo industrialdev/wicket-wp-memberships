@@ -3,11 +3,15 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl } from '@wordpress/components';
+import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock } from '@wordpress/components';
 import styled from 'styled-components';
 
 const Wrap = styled.div`
 	max-width: 600px;
+`;
+
+const ActionRow = styled.div`
+	margin-top: 20px;
 `;
 
 const CreateMembershipConfig = () => {
@@ -15,11 +19,12 @@ const CreateMembershipConfig = () => {
 	const [isRenewalWindowCalloutModalOpen, setRenewalWindowCalloutModalOpen] = useState(false);
 	const openRenewalWindowCalloutModal = () => setRenewalWindowCalloutModalOpen(true);
 	const closeRenewalWindowCalloutModal = () => setRenewalWindowCalloutModalOpen(false);
+	const [isSubmitting, setSubmitting] = useState(false);
 
 	const [form, setForm] = useState({
 		name: '',
 		renewalWindowData: {
-			daysCount: null,
+			daysCount: 0,
 			calloutHeader: '',
 			calloutContent: '',
 			calloutButtonLabel: ''
@@ -64,6 +69,33 @@ const CreateMembershipConfig = () => {
 		});
 	}
 
+	const handleSubmit = (e) => {
+		setSubmitting(true);
+		console.log('Saving membership config');
+
+		// I need to create new Wordpress CPT with the form data
+		apiFetch({
+			path: '/wp/v2/wicket_mship_config',
+			method: 'POST',
+			data: {
+				title: form.name,
+				status: 'publish',
+				// TODO: add all custom meta fields here
+				// meta: {
+				// 	renewal_window_data: form.renewalWindowData
+				// }
+			}
+		}).then((response) => {
+			console.log(response);
+			setSubmitting(false);
+		}).catch((error) => {
+			console.log(error);
+			setSubmitting(false);
+		});
+
+	}
+
+	// TODO: Fetch by ID if editing
 	// useEffect(() => {
 	// 	const queryParams = { include: [781, 756, 3] };
 
@@ -82,41 +114,94 @@ const CreateMembershipConfig = () => {
 				<hr className="wp-header-end"></hr>
 
 				<Wrap>
-					<Flex
-						align='end'
-						justify='start'
-						gap={5}
-						direction={[
-							'column',
-							'row'
-						]}
-					>
-						<FlexItem>
-							<TextControl
-								label={__('Membership Configuration Name', 'wicket-memberships')}
-								onChange={value => {
-									setForm({
-										...form,
-										name: value
-									});
-								}}
-								value={form.name}
-								__nextHasNoMarginBottom={true}
-							/>
-						</FlexItem>
-						<FlexItem>
-							<Button
-								variant="primary"
-								onClick={
-									() => {
-										reInitRenewalWindowCallout()
+					<form onSubmit={handleSubmit}>
+						<Flex
+							align='end'
+							justify='start'
+							gap={5}
+							direction={[
+								'column',
+								'row'
+							]}
+						>
+							<FlexBlock>
+								<TextControl
+									label={__('Membership Configuration Name', 'wicket-memberships')}
+									onChange={value => {
+										setForm({
+											...form,
+											name: value
+										});
+									}}
+									value={form.name}
+								/>
+							</FlexBlock>
+						</Flex>
+
+						<Flex
+							align='end'
+							justify='start'
+							gap={5}
+							direction={[
+								'column',
+								'row'
+							]}
+						>
+							<FlexBlock>
+								<TextControl
+									label={__('Renewal Window (Days)', 'wicket-memberships')}
+									type="number"
+									onChange={value => {
+										setForm({
+											...form,
+											renewalWindowData: {
+												...form.renewalWindowData,
+												daysCount: value
+											}
+										});
+									}}
+									value={form.renewalWindowData.daysCount}
+									__nextHasNoMarginBottom={true}
+								/>
+							</FlexBlock>
+							<FlexItem>
+								<Button
+									variant="secondary"
+									onClick={
+										() => {
+											reInitRenewalWindowCallout()
+										}
 									}
-								}
+								>
+									{__('Callout Configuration', 'wicket-memberships')}
+								</Button>
+							</FlexItem>
+						</Flex>
+
+						<ActionRow>
+							<Flex
+								align='end'
+								justify='end'
+								gap={5}
+								direction={[
+									'column',
+									'row'
+								]}
 							>
-								{__('Callout Configuration', 'wicket-memberships')}
-							</Button>
-						</FlexItem>
-					</Flex>
+								<FlexItem>
+									<Button
+										isBusy={isSubmitting}
+										disabled={isSubmitting}
+										variant="primary"
+										onClick={handleSubmit}
+									>
+										{isSubmitting && __('Saving now...', 'wicket-memberships')}
+										{!isSubmitting && __('Save Membership Configuration', 'wicket-memberships')}
+									</Button>
+								</FlexItem>
+							</Flex>
+						</ActionRow>
+					</form>
 				</Wrap>
 
 				{isRenewalWindowCalloutModalOpen && (

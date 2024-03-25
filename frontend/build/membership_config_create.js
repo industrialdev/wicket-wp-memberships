@@ -1832,14 +1832,18 @@ __webpack_require__.r(__webpack_exports__);
 const Wrap = styled_components__WEBPACK_IMPORTED_MODULE_6__["default"].div`
 	max-width: 600px;
 `;
+const ActionRow = styled_components__WEBPACK_IMPORTED_MODULE_6__["default"].div`
+	margin-top: 20px;
+`;
 const CreateMembershipConfig = () => {
   const [isRenewalWindowCalloutModalOpen, setRenewalWindowCalloutModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   const openRenewalWindowCalloutModal = () => setRenewalWindowCalloutModalOpen(true);
   const closeRenewalWindowCalloutModal = () => setRenewalWindowCalloutModalOpen(false);
+  const [isSubmitting, setSubmitting] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   const [form, setForm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     name: '',
     renewalWindowData: {
-      daysCount: null,
+      daysCount: 0,
       calloutHeader: '',
       calloutContent: '',
       calloutButtonLabel: ''
@@ -1882,7 +1886,32 @@ const CreateMembershipConfig = () => {
       }
     });
   };
+  const handleSubmit = e => {
+    setSubmitting(true);
+    console.log('Saving membership config');
 
+    // I need to create new Wordpress CPT with the form data
+    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
+      path: '/wp/v2/wicket_mship_config',
+      method: 'POST',
+      data: {
+        title: form.name,
+        status: 'publish'
+        // TODO: add all custom meta fields here
+        // meta: {
+        // 	renewal_window_data: form.renewalWindowData
+        // }
+      }
+    }).then(response => {
+      console.log(response);
+      setSubmitting(false);
+    }).catch(error => {
+      console.log(error);
+      setSubmitting(false);
+    });
+  };
+
+  // TODO: Fetch by ID if editing
   // useEffect(() => {
   // 	const queryParams = { include: [781, 756, 3] };
 
@@ -1899,12 +1928,14 @@ const CreateMembershipConfig = () => {
     className: "wp-heading-inline"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add New Membership Config', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("hr", {
     className: "wp-header-end"
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Wrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Wrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+    onSubmit: handleSubmit
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "end",
     justify: "start",
     gap: 5,
     direction: ['column', 'row']
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership Configuration Name', 'wicket-memberships'),
     onChange: value => {
       setForm({
@@ -1912,14 +1943,42 @@ const CreateMembershipConfig = () => {
         name: value
       });
     },
-    value: form.name,
+    value: form.name
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+    align: "end",
+    justify: "start",
+    gap: 5,
+    direction: ['column', 'row']
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renewal Window (Days)', 'wicket-memberships'),
+    type: "number",
+    onChange: value => {
+      setForm({
+        ...form,
+        renewalWindowData: {
+          ...form.renewalWindowData,
+          daysCount: value
+        }
+      });
+    },
+    value: form.renewalWindowData.daysCount,
     __nextHasNoMarginBottom: true
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    variant: "primary",
+    variant: "secondary",
     onClick: () => {
       reInitRenewalWindowCallout();
     }
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Configuration', 'wicket-memberships'))))), isRenewalWindowCalloutModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Modal, {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Configuration', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+    align: "end",
+    justify: "end",
+    gap: 5,
+    direction: ['column', 'row']
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+    isBusy: isSubmitting,
+    disabled: isSubmitting,
+    variant: "primary",
+    onClick: handleSubmit
+  }, isSubmitting && (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Saving now...', 'wicket-memberships'), !isSubmitting && (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Save Membership Configuration', 'wicket-memberships'))))))), isRenewalWindowCalloutModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Modal, {
     title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renewal Window - Callout Configuration', 'wicket-memberships'),
     onRequestClose: closeRenewalWindowCalloutModal,
     size: "large"
