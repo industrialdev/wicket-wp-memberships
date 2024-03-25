@@ -82,7 +82,7 @@ class Membership_Controller {
   private function create_mdp_record( $membership ) {
     $wicket_uuid = $this->check_mdp_membership_record_exists( $membership );
     if( empty( $wicket_uuid ) ) {
-      $response = mdp_wicket_assign_individual_membership( 
+      $response = wicket_assign_individual_membership( 
         $membership['person_uuid'],
         $membership['membership_uuid'], 
         $membership['starts_at'],
@@ -103,7 +103,7 @@ class Membership_Controller {
    * Check if MDP Membership Record already exists
    */
   private function check_mdp_membership_record_exists( $membership ) {
-    $wicket_uuid = mdp_wicket_get_person_membership_exists(
+    $wicket_uuid = wicket_get_person_membership_exists(
       $membership['person_uuid'], 
       $membership['membership_uuid'], 
       $membership['starts_at'], 
