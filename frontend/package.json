@@ -1,4 +1,8 @@
 {
+  "name": "wicket_memberships_wp_frontend",
+  "description": "Frontend for Wicket Memberships WordPress plugin",
+  "version": "0.0.1",
+  "author": "Wicket",
   "devDependencies": {
     "@wordpress/scripts": "^27.5.0"
   },
@@ -7,5 +11,6 @@
     "start": "wp-scripts start"
   },
   "dependencies": {
+    "styled-components": "^6.1.8"
   }
 }
