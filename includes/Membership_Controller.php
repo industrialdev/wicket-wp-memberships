@@ -2,6 +2,8 @@
 
 namespace Wicket_Memberships;
 
+use Wicket_Memberships\Helper;
+
 /**
  * Main controller methods
  * @package Wicket_Memberships
@@ -9,8 +11,14 @@ namespace Wicket_Memberships;
 class Membership_Controller {
 
   private $error_message = '';
+  private $membership_cpt_slug = '';
+  private $membership_config_cpt_slug = '';
+  private $membership_tier_cpt_slug = '';
 
   public function __construct() {
+    $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
+    $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
+    $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
     add_action( 'woocommerce_order_status_completed', array ( $this, 'catch_order_completed' ), 10, 1);
     add_action( 'wicket_member_create_record', array( $this, 'create_membership_record'), 10, 1 );
   }
@@ -118,7 +126,7 @@ class Membership_Controller {
   private function create_local_membership_record( $membership, $wicket_uuid ) {
     if( ! $this->check_local_membership_record_exists( $membership )) {
       return wp_insert_post( array (
-        'post_type' => 'wicket_member',
+        'post_type' => $this->membership_cpt_slug,
         'post_status' => 'publish',
         'meta_input'  => [
           'status' => 'active',
@@ -139,7 +147,7 @@ class Membership_Controller {
    */
   private function check_local_membership_record_exists( $membership ) {
     $args = array(
-      'post_type' => 'wicket_member',
+      'post_type' => $this->membership_cpt_slug,
       'post_status' => 'publish',
       'posts_per_page' => -1,
       'meta_query'     => array(

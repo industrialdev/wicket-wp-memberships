@@ -8,8 +8,8 @@ namespace Wicket_Memberships;
 class Membership_CPT_Hooks {
 
   public function __construct() {
-    add_filter('manage_wicket_member_posts_columns', [ $this, 'table_head']);
-    add_action('manage_wicket_member_posts_custom_column', [ $this, 'table_content'], 10, 2 );
+    add_filter('manage_wicket_membership_posts_columns', [ $this, 'table_head']);
+    add_action('manage_wicket_membership_posts_custom_column', [ $this, 'table_content'], 10, 2 );
     add_filter('the_title', [ $this, 'replace_title' ],10, 2);
   }
 
@@ -46,7 +46,7 @@ class Membership_CPT_Hooks {
    * Customize Wicket Member List Page Title COlumn
    */
   public function replace_title($title, $id) {
-    if( get_post_type( $id ) !== 'wicket_member') {
+    if( get_post_type( $id ) !== 'wicket_membership') {
       return $title;
     }
 
