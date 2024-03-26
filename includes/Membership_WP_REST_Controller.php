@@ -8,32 +8,53 @@ namespace Wicket_Memberships;
 class Membership_WP_REST_Controller extends \WP_REST_Controller {
 
   public function __construct() {
+    add_action( 'rest_api_init', [ $this, 'register_routes' ]);
       $this->namespace     = 'wicket_member/v1';
-      $this->resource_name = 'membership';
   }
 
   /**
    * Register routes
    */
   public function register_routes() {
-    register_rest_route( $this->namespace, '/user/(?P<user_id>[\d]+)/' . $this->resource_name, array(
+    register_rest_route( $this->namespace, '/membership_tiers', array(
       array(
-        'methods'   => 'GET',
-        'callback'  => array( $this, 'get_user_memberships' ),
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_tiers_mdp' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, 'get_user_memberships_schema' ),
-    ) );
-
-    register_rest_route( $this->namespace, '/' . $this->resource_name . '/' . '(?P<id>[\d]+)', array(
-      array(
-        'methods'   => 'GET',
-        'callback'  => array( $this, 'get_membership' ),
-        'permission_callback' => array( $this, 'permissions_check_read' ),
-      ),
-      'schema' => array( $this, 'get_membership_schema' ),
+      'schema' => array( $this, 'get_membership_tiers_schema' ),
     ) );
   }
+
+  public function get_tiers_mdp() {
+    $categories = wicket_get_option( 'wicket_admin_settings_membership_categories' );
+    $memberships = $this->get_memberships_table_data($categories);
+    return rest_ensure_response( $memberships );
+  }
+
+
+	public function get_memberships_table_data($categories = null)
+	{
+		$memberships = [];
+		$individual_memberships = get_individual_memberships();
+		if($individual_memberships && isset($individual_memberships['data'])) {
+
+			foreach ($individual_memberships['data'] as $key => $value) {
+				$has_category = false;
+        $membership_uuid = $value['id'];
+				$membership_slug = ($value['attributes']['slug']) ?? $value['attributes']['slug'];
+
+				if(($has_category && $categories) || (!$categories)){
+					$memberships[$key]['status'] = (isset($value['attributes']['active']) && $value['attributes']['active'] == 1) ? 'Active' : 'Inactive';
+					$memberships[$key]['type'] = ($value['attributes']['type']) ?? $value['attributes']['type'];
+					$memberships[$key]['name'] = ($value['attributes']['name_en']) ?? $value['attributes']['name_en'];
+					$memberships[$key]['slug'] = $membership_slug;
+					$memberships[$key]['uuid'] = $membership_uuid;
+				}
+			}
+		}
+		return $memberships;
+	}
 
   /**
    * Check permissions to read
@@ -45,219 +66,6 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     return true;
   }
 
-  /**
-   * Get membership by ID
-   */
-  public function get_membership( $request ) {
-    $id = (int) $request['id'];
-    $post = get_post( $id );
-    if ( empty( $post ) ) {
-      return rest_ensure_response( array() );
-    }
-    $response = $this->prepare_membership_for_response( $post, $request );
-    return rest_ensure_response( $response );
-  }
-
-  /**
-   * Get a users memberships by UserID
-   */
-  public function get_user_memberships( $request ) {
-    $offset = 0;
-    $page = (int) $request['page'];
-    $per_page = (int) $request['per_page'];
-    if($page > 1) {
-      $offset = (($page - 1) * $per_page);
-    }
-    $user_id = (int) $request['user_id'];
-
-    $args = array(
-      'post_type' => 'wicket_member',
-      'post_status' => 'publish',
-      'posts_per_page' => $per_page,
-      'offset' => $offset,
-      'meta_query'     => array(
-        array(
-          'key'     => 'user_id',
-          'value'   => $user_id,
-          'compare' => '='
-        )
-      )
-    );
-
-    $posts = new \WP_Query( $args );
-    $data = array();
-
-    if ( empty( $posts ) ) {
-        return rest_ensure_response( $data );
-    }
-
-    foreach ( $posts->posts as $post ) {
-        $response = $this->prepare_membership_for_response( $post, $request );
-        $data[] = $this->prepare_response_for_collection( $response );
-    }
-    $response = rest_ensure_response( $data );
-    $response = $this->get_pagination_headers( $posts, $response );
-    return $response;
-  }
-
-  /**
-   * Get the pagination headers
-   */
-  public function get_pagination_headers( $query, $response ) {
-    $total = $query->found_posts;
-    $pages = $query->max_num_pages;
-    $response->header( 'X-WP-Total', $total );
-    $response->header( 'X-WP-TotalPages', $pages );
-    return $response;
-  }
-
-  /**
-   * Apply the schema
-   */
-  public function prepare_membership_for_response( $post, $request ) {
-    $post_data = array();
-    $schema = $this->get_membership_schema( $request );
-
-    $post_data['id'] = $post->ID;
-    foreach($schema['properties'] as $key => $property) {
-      if( !empty( $post->{$key} ) ) {
-        $post_data[$key] = $post->{$key};
-        settype($post->{$key}, $property['type']);
-      } else if( $key == 'wicket_uuid') {
-        $post_data['wicket_uuid'] = 'no-sync';
-      }
-    }
-    return $post_data;
-  }
-
-  /**
-   * Get our user memberships collection schema
-   */
-  public function get_user_memberships_schema( $request ) {
-    if ( $this->schema ) {
-      return $this->schema;
-    }
-
-
-    $this->schema = array(
-      '$schema'              => 'http://json-schema.org/draft-04/schema#',
-      'title'                => 'post',
-      'type'                 => 'object',
-      'properties'           => array(
-        array (
-          'id' => array(
-              'type'         => 'integer',
-              'context'      => array( 'view', 'edit', 'embed' ),
-              'readonly'     => true,
-          ),
-          'user_id' => array(
-              'type'         => 'int',
-              'context'      => array( 'view', 'edit', 'embed' ),
-              'readonly'     => true,
-          ),
-          'wicket_uuid' => array(
-              'type'         => 'string',
-              'context'      => array( 'view', 'edit', 'embed' ),
-              'readonly'     => true,
-          ),
-          'status' => array(
-              'type'         => 'string',
-              'context'      => array( 'view', 'edit', 'embed' ),
-              'readonly'     => true,
-          ),
-          'start_date' => array(
-              'type'         => 'string',
-              'context'      => array( 'view', 'edit', 'embed' ),
-              'readonly'     => true,
-          ),
-          'end_date' => array(
-              'type'         => 'string',
-              'context'      => array( 'view', 'edit', 'embed' ),
-              'readonly'     => false,
-          ),
-          'expiry_date' => array(
-              'type'         => 'string',
-              'context'      => array( 'view', 'edit', 'embed' ),
-              'readonly'     => false,
-          ),
-          'member_type' => array(
-              'type'         => 'string',
-              'context'      => array( 'view', 'edit', 'embed' ),
-              'readonly'     => false,
-          ),
-          'membership_uuid' => array(
-            'type'         => 'string',
-            'context'      => array( 'view', 'edit', 'embed' ),
-            'readonly'     => false,
-          ),
-        ),
-      ),
-    );
-    return $this->schema;
-  }
-
-  /**
-   * Get our membership item schema
-   */
-  public function get_membership_schema( $request ) {
-    if ( $this->schema ) {
-      return $this->schema;
-    }
-
-    $this->schema = array(
-      '$schema'              => 'http://json-schema.org/draft-04/schema#',
-      'title'                => 'post',
-      'type'                 => 'object',
-      'properties'           => array(
-        'id' => array(
-            'type'         => 'integer',
-            'context'      => array( 'view', 'edit', 'embed' ),
-            'readonly'     => true,
-        ),
-        'user_id' => array(
-            'type'         => 'int',
-            'context'      => array( 'view', 'edit', 'embed' ),
-            'readonly'     => true,
-        ),
-        'wicket_uuid' => array(
-            'type'         => 'string',
-            'context'      => array( 'view', 'edit', 'embed' ),
-            'readonly'     => true,
-        ),
-        'status' => array(
-            'type'         => 'string',
-            'context'      => array( 'view', 'edit', 'embed' ),
-            'readonly'     => true,
-        ),
-        'start_date' => array(
-            'type'         => 'string',
-            'context'      => array( 'view', 'edit', 'embed' ),
-            'readonly'     => true,
-        ),
-        'end_date' => array(
-            'type'         => 'string',
-            'context'      => array( 'view', 'edit', 'embed' ),
-            'readonly'     => false,
-        ),
-        'expiry_date' => array(
-            'type'         => 'string',
-            'context'      => array( 'view', 'edit', 'embed' ),
-            'readonly'     => false,
-        ),
-        'member_type' => array(
-            'type'         => 'string',
-            'context'      => array( 'view', 'edit', 'embed' ),
-            'readonly'     => false,
-        ),
-        'membership_uuid' => array(
-          'type'         => 'string',
-          'context'      => array( 'view', 'edit', 'embed' ),
-          'readonly'     => false,
-        ),
-      ),
-    );
-    return $this->schema;
-  }
 
   public function authorization_status_code() {
     $status = 401;
@@ -267,10 +75,3 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     return $status;
   }
 }
-
-function wicket_member_register_my_rest_routes() {
-  $controller = new WP_REST_Wicket_Member_Controller();
-  $controller->register_routes();
-}
-
-add_action( 'rest_api_init', __NAMESPACE__ . '\wicket_member_register_my_rest_routes' );

@@ -253,6 +253,52 @@ class Membership_Post_Types {
     );
 
     register_post_type( $this->membership_tier_cpt_slug, $args );
+
+    // Register the meta fields
+    register_post_meta( $this->membership_tier_cpt_slug, 'wicket_mship_tier_record', [
+      'type' => 'object',
+      'single' => true,
+      'description' => __( 'A Membership Tier Data Record', 'wicket-memberships' ),
+      'show_in_rest' => array(
+        'schema' => array(
+          'type' => 'object',
+          'properties' => array(
+            'approval_required' => array(
+              'type' => 'boolean',
+            ),
+            'tier_uuid' => array(
+              'type' => 'string',
+            ),
+            'next_tier_uuid' => array(
+              'type' => 'string',
+            ),
+            'config_id' => array(
+              'type' => 'integer',
+            ),
+            'wc_products' => array(
+              'type' => 'object',
+              'items' => array (
+                'wc_product_id' => array (
+                  'type' => 'integer'
+                ),
+                'seats' => array (
+                  /* 
+                  0 = individual 
+                  1 = org per seat 
+                  5 = org seat range (1-5)
+                  10 = org seat range (6-10) etc.
+                  */
+                  'type' => 'integer' 
+                )
+              )
+            ),
+            'tier_type' => array(
+              'type' => 'string', // 'individual / organization
+            ),
+          ),
+        ),
+      ),
+    ] );
   }
 
 }
