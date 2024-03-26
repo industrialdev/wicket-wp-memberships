@@ -50,6 +50,7 @@ use Wicket_Memberships\Membership_Controller;
 use Wicket_Memberships\Membership_CPT_Hooks;
 use Wicket_Memberships\Membership_Post_Types;
 use Wicket_Memberships\Membership_Config_CPT_Hooks;
+use Wicket_Memberships\Membership_WP_REST_Controller;
 
 if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
@@ -70,6 +71,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 			new Membership_CPT_Hooks;
 			new Membership_Controller;
 			new Membership_Config_CPT_Hooks;
+      new Membership_WP_REST_Controller;
 
 			register_activation_hook( WICKET_MEMBER_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
 			add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
