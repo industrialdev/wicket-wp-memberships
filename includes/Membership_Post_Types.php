@@ -254,51 +254,91 @@ class Membership_Post_Types {
 
     register_post_type( $this->membership_tier_cpt_slug, $args );
 
-    // Register the meta fields
-    register_post_meta( $this->membership_tier_cpt_slug, 'wicket_mship_tier_record', [
-      'type' => 'object',
-      'single' => true,
-      'description' => __( 'A Membership Tier Data Record', 'wicket-memberships' ),
-      'show_in_rest' => array(
+    $args = array(
+      'type'              => 'boolean',
+      'description'       => 'Approval required.',
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_tier_cpt_slug, 'approval_required', $args);
+
+    $args = array(
+      'type'              => 'string',
+      'description'       => 'The membership tier name.',
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_tier_cpt_slug, 'tier_name', $args);
+
+    $args = array(
+      'type'              => 'string',
+      'description'       => 'The membership tier uuid.',
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_tier_cpt_slug, 'tier_uuid', $args);
+
+    $args = array(
+      'type'              => 'string',
+      'description'       => 'The next membership tier uuid in sequence.',
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_tier_cpt_slug, 'next_tier_uuid', $args);
+
+    $args = array(
+      'type'              => 'integer',
+      'description'       => 'The associated config id.',
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_tier_cpt_slug, 'config_id', $args);
+
+    $args = array(
+      'type'              => 'string',
+      'description'       => 'individual or organization type membership.',
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_tier_cpt_slug, 'type', $args);
+
+    $args = array(
+      'type'              => 'integer',
+      'description'       => 'The associated config id.',
+      'single'            => true,
+      'show_in_rest'      => array (
         'schema' => array(
           'type' => 'object',
           'properties' => array(
-            'approval_required' => array(
-              'type' => 'boolean',
-            ),
-            'tier_uuid' => array(
-              'type' => 'string',
-            ),
-            'next_tier_uuid' => array(
-              'type' => 'string',
-            ),
-            'config_id' => array(
-              'type' => 'integer',
-            ),
             'wc_products' => array(
               'type' => 'object',
               'items' => array (
                 'wc_product_id' => array (
                   'type' => 'integer'
                 ),
-                'seats' => array (
                   /* 
                   0 = individual 
                   1 = org per seat 
                   5 = org seat range (1-5)
                   10 = org seat range (6-10) etc.
                   */
-                  'type' => 'integer' 
+                  'seats' => array (
+                    'type' => 'integer' 
                 )
               )
             ),
-            'tier_type' => array(
-              'type' => 'string', // 'individual / organization
-            ),
           ),
         ),
-      ),
-    ] );
+      )
+    );
+
+    register_post_meta($this->membership_tier_cpt_slug, 'wc_products', $args);
   }
 
 }
