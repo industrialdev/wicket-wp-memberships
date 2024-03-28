@@ -249,7 +249,7 @@ class Membership_Post_Types {
       'exclude_from_search'   => false,
       'publicly_queryable'    => false,
       'capability_type'       => 'page',
-      'show_in_rest'          => true,
+      'show_in_rest'          => true
     );
 
     register_post_type( $this->membership_tier_cpt_slug, $args );
@@ -305,19 +305,32 @@ class Membership_Post_Types {
       'single'            => true,
       'show_in_rest'      => true,
     );
-
     register_post_meta($this->membership_tier_cpt_slug, 'type', $args);
 
+
+    /**
+     * Seat Range and Org/Ind Type
+     * 
+      {
+        "status": "publish",
+        "meta": {
+            "tier_name": "Membership Tier Vert",
+            "tier_uuid": "u-u-i-d",
+            "next_tier_uuid": "u-u-i-d-2",
+            "type": "organization",
+            "approval_required": true,
+            "config_id": 1,
+            "wc_products": [{"wc_product_id": 1, "seats": 5 }]
+        }
+      }
+     */
     $args = array(
-      'type'              => 'integer',
-      'description'       => 'The associated config id.',
+      'type'              => 'object',
+      'description'       => 'The associated products - seats.',
       'single'            => true,
       'show_in_rest'      => array (
         'schema' => array(
-          'type' => 'object',
-          'properties' => array(
-            'wc_products' => array(
-              'type' => 'object',
+              'type' => 'array',
               'items' => array (
                 'wc_product_id' => array (
                   'type' => 'integer'
@@ -334,8 +347,6 @@ class Membership_Post_Types {
               )
             ),
           ),
-        ),
-      )
     );
 
     register_post_meta($this->membership_tier_cpt_slug, 'wc_products', $args);
