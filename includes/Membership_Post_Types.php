@@ -184,13 +184,102 @@ class Membership_Post_Types {
     register_post_meta( $this->membership_config_cpt_slug, 'renewal_window_data', [
       'type' => 'object',
       'single' => true,
-      'description' => __( 'Renewal window data', 'wicket-memberships' ),
+      'description' => __( 'Renewal Window Data', 'wicket-memberships' ),
       'show_in_rest' => array(
         'schema' => array(
-          'type'       => 'object',
-          'items' => array(
+          'type'  => 'object',
+          'properties' => array(
             'days_count' => array(
               'type' => 'integer',
+            ),
+            'callout_header' => array(
+              'type' => 'string',
+            ),
+            'callout_content' => array(
+              'type' => 'string',
+            ),
+            'callout_button_label' => array(
+              'type' => 'string',
+            ),
+          ),
+        ),
+      ),
+    ] );
+
+    register_post_meta( $this->membership_config_cpt_slug, 'late_fee_window_data', [
+      'type' => 'object',
+      'single' => true,
+      'description' => __( 'Late Fee Window Data', 'wicket-memberships' ),
+      'show_in_rest' => array(
+        'schema' => array(
+          'type'  => 'object',
+          'properties' => array(
+            'days_count' => array(
+              'type' => 'integer',
+            ),
+            'product_id' => array(
+              'type' => 'integer',
+            ),
+            'callout_header' => array(
+              'type' => 'string',
+            ),
+            'callout_content' => array(
+              'type' => 'string',
+            ),
+            'callout_button_label' => array(
+              'type' => 'string',
+            ),
+          ),
+        ),
+      ),
+    ] );
+
+    register_post_meta( $this->membership_config_cpt_slug, 'cycle_data', [
+      'type' => 'object',
+      'single' => true,
+      'description' => __( 'Cycle Data', 'wicket-memberships' ),
+      // TODO: Add sanitize callback to accept only valid data
+      // 'sanitize_callback' => [ $this, 'sanitize_late_fee_window_data' ],
+      'show_in_rest' => array(
+        'schema' => array(
+          'type'  => 'object',
+          'properties' => array(
+            'cycle_type' => array(
+              'type' => 'string', // calendar/anniversary
+            ),
+            'anniversary_data' => array(
+              'type' => 'object',
+              'properties' => array(
+                'period_count' => array(
+                  'type' => 'integer',
+                ),
+                'period_type' => array(
+                  'type' => 'string', // year/month/week
+                ),
+                'align_end_dates_enabled' => array(
+                  'type' => 'boolean',
+                ),
+                'align_end_dates_type' => array(
+                  'type' => 'string', // first-day-of-month | 15th-of-month | last-day-of-month
+                ),
+              ),
+            ),
+            'calendar_items' => array(
+              'type' => 'array',
+              'properties' => array(
+                'season_name' => array(
+                  'type' => 'string',
+                ),
+                'active' => array(
+                  'type' => 'boolean',
+                ),
+                'start_date' => array(
+                  'type' => 'string',
+                ),
+                'end_date' => array(
+                  'type' => 'string',
+                ),
+              ),
             ),
           ),
         ),
@@ -310,7 +399,7 @@ class Membership_Post_Types {
 
     /**
      * Seat Range and Org/Ind Type
-     * 
+     *
       {
         "status": "publish",
         "meta": {
@@ -335,14 +424,14 @@ class Membership_Post_Types {
                 'wc_product_id' => array (
                   'type' => 'integer'
                 ),
-                  /* 
-                  0 = individual 
-                  1 = org per seat 
+                  /*
+                  0 = individual
+                  1 = org per seat
                   5 = org seat range (1-5)
                   10 = org seat range (6-10) etc.
                   */
                   'seats' => array (
-                    'type' => 'integer' 
+                    'type' => 'integer'
                 )
               )
             ),

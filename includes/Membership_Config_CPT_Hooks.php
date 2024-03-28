@@ -4,17 +4,24 @@ namespace Wicket_Memberships;
 
 use Wicket_Memberships\Helper;
 
+defined( 'ABSPATH' ) || exit;
+
 /**
  * Membership Config CPT Hooks
  */
 class Membership_Config_CPT_Hooks {
 
   const EDIT_PAGE_SLUG = 'wicket_membership_config_edit';
+  private $membership_config_cpt_slug = '';
 
   public function __construct() {
+    $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
+
 	  add_action( 'admin_menu', [ $this, 'add_edit_page' ] );
     add_action( 'admin_init', [ $this, 'create_edit_page_redirects' ] );
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
+    add_action('manage_'.$this->membership_config_cpt_slug.'_posts_columns', [ $this, 'table_head'] );
+    add_action('manage_'.$this->membership_config_cpt_slug.'_posts_custom_column', [ $this, 'table_content'], 10, 2 );
   }
 
   function add_edit_page() {
@@ -69,6 +76,44 @@ class Membership_Config_CPT_Hooks {
       $asset_file['version'],
       true
     );
+  }
+
+
+  /**
+   * Customize Wicket Member List Page Header
+   */
+  public function table_head( $columns ) {
+    $columns['renewal_window_data'] = __( 'Renewal Window Data', 'wicket-memberships' );
+    $columns['late_fee_window_data'] = __( 'Late Fee Window Data', 'wicket-memberships' );
+    unset($columns['date']);
+    return $columns;
+  }
+
+    /**
+   * Customize Wicket Member List Page Contents
+   */
+  public function table_content( $column_name, $post_id ) {
+
+    if ( $column_name === 'renewal_window_data' ) {
+      $meta = get_post_meta( $post_id, 'renewal_window_data', true );
+
+      echo '<pre>';
+      var_dump($meta);
+      echo '</pre>';
+    } else if ( $column_name === 'late_fee_window_data' ) {
+      $meta = get_post_meta( $post_id, 'late_fee_window_data', true );
+
+      echo '<pre>';
+      var_dump($meta);
+      echo '</pre>';
+    }
+
+    // $keys = array_keys($meta);
+    // foreach ($keys as $key) {
+    //   if( $column_name == $key) {
+    //     echo $meta[$key][0];
+    //   }
+    // }
   }
 
 }
