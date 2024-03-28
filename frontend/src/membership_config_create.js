@@ -3,8 +3,12 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl } from '@wordpress/components';
+import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled } from '@wordpress/components';
 import styled from 'styled-components';
+
+const CustomDisabled = styled(Disabled)`
+	opacity: .5;
+`;
 
 const Wrap = styled.div`
 	max-width: 600px;
@@ -23,6 +27,12 @@ const ErrorsRow = styled.div`
 	margin-left: -15px;
 `;
 
+const BorderedBox = styled.div`
+	border: 1px solid #c3c4c7;
+	padding: 15px;
+	margin-top: 15px;
+`;
+
 const CreateMembershipConfig = () => {
 
 	const [isRenewalWindowCalloutModalOpen, setRenewalWindowCalloutModalOpen] = useState(false);
@@ -35,6 +45,12 @@ const CreateMembershipConfig = () => {
 
 	const [isSubmitting, setSubmitting] = useState(false);
 	const [errors, setErrors] = useState({});
+	const [wcProductOptions, setWcProductOptions] = useState([
+		{
+			label: __('Loading products...', 'wicket-memberships'),
+			value: -1
+		}
+	]);
 
 	const [form, setForm] = useState({
 		name: '',
@@ -46,15 +62,15 @@ const CreateMembershipConfig = () => {
 		},
 		late_fee_window_data: {
 			days_count: 0,
-			product_id: -1,
+			product_id: '-1',
 			callout_header: '',
 			callout_content: '',
 			callout_button_label: ''
 		},
 		cycle_data: {
-			cycle_type: 'calendar', // calendar or anniversary
+			cycle_type: 'anniversary', // calendar or anniversary
 			anniversary_data: {
-				period_count: null,
+				period_count: 365,
 				period_type: 'year', // year/month/week
 				align_end_dates_enabled: false,
 				align_end_dates_type: 'first-day-of-month' // first-day-of-month | 15th-of-month | last-day-of-month
@@ -116,6 +132,11 @@ const CreateMembershipConfig = () => {
 			isValid = false
 		}
 
+		if (form.late_fee_window_data.product_id === '-1') {
+			newErrors.lateFeeProduct = __('Late Fee Window Product is required', 'wicket-memberships')
+			isValid = false
+		}
+
     setErrors(newErrors)
     return isValid
   }
@@ -165,6 +186,7 @@ const CreateMembershipConfig = () => {
 				meta: {
 					renewal_window_data: form.renewal_window_data,
 					late_fee_window_data: form.late_fee_window_data,
+					cycle_data: form.cycle_data
 				}
 			}
 		}).then((response) => {
@@ -180,10 +202,31 @@ const CreateMembershipConfig = () => {
 	// TODO: Fetch by ID if editing
 	useEffect(() => {
 		// const queryParams = { include: [781, 756, 3] };
-		const queryParams = {  };
-
+		let queryParams = {};
 		apiFetch({ path: addQueryArgs('/wp/v2/wicket_mship_config', queryParams) }).then((posts) => {
 			console.log(posts);
+		});
+
+		// Fetch WooCommerce products
+		queryParams = { status: 'publish' };
+		apiFetch({ path: addQueryArgs('/wp/v2/product', queryParams) }).then((products) => {
+			console.log(products);
+
+			let options = products.map((product) => {
+				return {
+					label: `${product.title.rendered} | (ID: ${product.id})`,
+					value: product.id
+				}
+			});
+
+			options.unshift({
+				label: __('Select a product', 'wicket-memberships'),
+				value: -1
+			});
+
+			console.log(options);
+
+			setWcProductOptions(options);
 		});
 
 	}, []);
@@ -259,12 +302,9 @@ const CreateMembershipConfig = () => {
 							<FlexItem>
 								<Button
 									variant="secondary"
-									onClick={
-										() => {
-											reInitRenewalWindowCallout()
-										}
-									}
+									onClick={reInitRenewalWindowCallout}
 								>
+									<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
 									{__('Callout Configuration', 'wicket-memberships')}
 								</Button>
 							</FlexItem>
@@ -296,7 +336,7 @@ const CreateMembershipConfig = () => {
 									__nextHasNoMarginBottom={true}
 								/>
 							</FlexBlock>
-							<FlexItem>
+							<FlexBlock>
 								<SelectControl
 									label={__('Product', 'wicket-memberships')}
 									value={form.late_fee_window_data.product_id}
@@ -310,24 +350,201 @@ const CreateMembershipConfig = () => {
 											}
 										});
 									}}
-									options={[
-										{ label: __('Select Product', 'wicket-memberships'), value: -1 },
-										{ label: __('Product 1', 'wicket-memberships'), value: 1 },
-										{ label: __('Product 2', 'wicket-memberships'), value: 2 },
-										{ label: __('Product 3', 'wicket-memberships'), value: 3 }
-									]}
+									options={wcProductOptions}
 								/>
-							</FlexItem>
+							</FlexBlock>
 							<FlexItem>
 								<Button
 									variant="secondary"
 									onClick={reInitLateFeeWindowCallout}
 								>
+									<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
 									{__('Callout Configuration', 'wicket-memberships')}
 								</Button>
 							</FlexItem>
 						</FormFlex>
 
+						{/* Cycle Data */}
+						<BorderedBox>
+							<Flex
+								align='end'
+								gap={5}
+								direction={[
+									'column',
+									'row'
+								]}
+							>
+								<FlexBlock>
+									<SelectControl
+										label={__('Cycle', 'wicket-memberships')}
+										value={form.cycle_data.cycle_type}
+										__nextHasNoMarginBottom={true}
+										onChange={value => {
+											setForm({
+												...form,
+												cycle_data: {
+													...form.cycle_data,
+													cycle_type: value
+												}
+											});
+										}}
+										options={[
+											{
+												label: __('Calendar', 'wicket-memberships'),
+												value: 'calendar'
+											},
+											{
+												label: __('Anniversary', 'wicket-memberships'),
+												value: 'anniversary'
+											}
+										]}
+									/>
+								</FlexBlock>
+								{ form.cycle_data.cycle_type === 'calendar' && (
+									<FlexItem>
+										<Button
+											variant="secondary"
+										>
+											<span className="dashicons dashicons-plus-alt"></span>&nbsp;
+											{__('Add Season', 'wicket-memberships')}
+										</Button>
+									</FlexItem>
+								)}
+							</Flex>
+
+							<FormFlex
+								align='end'
+								gap={5}
+								direction={[
+									'column',
+									'row'
+								]}
+							>
+								<FlexBlock>
+									<TextControl
+										label={__('Membership Period', 'wicket-memberships')}
+										type="number"
+										__nextHasNoMarginBottom={true}
+										onChange={value => {
+											setForm({
+												...form,
+												cycle_data: {
+													...form.cycle_data,
+													anniversary_data: {
+														...form.cycle_data.anniversary_data,
+														period_count: value
+													}
+												}
+											});
+										}}
+										value={form.cycle_data.anniversary_data.period_count}
+									/>
+								</FlexBlock>
+								<FlexBlock>
+									<SelectControl
+										label=''
+										value={form.cycle_data.anniversary_data.period_type}
+										__nextHasNoMarginBottom={true}
+										onChange={value => {
+											setForm({
+												...form,
+												cycle_data: {
+													...form.cycle_data,
+													anniversary_data: {
+														...form.cycle_data.anniversary_data,
+														period_type: value
+													}
+												}
+											});
+										}}
+										options={[
+											{
+												label: __('Year', 'wicket-memberships'),
+												value: 'year'
+											},
+											{
+												label: __('Month', 'wicket-memberships'),
+												value: 'month'
+											},
+											{
+												label: __('Week', 'wicket-memberships'),
+												value: 'week'
+											}
+										]}
+									/>
+								</FlexBlock>
+							</FormFlex>
+							<BorderedBox>
+								<Flex
+									align='end'
+									justify='start'
+									gap={5}
+									direction={[
+										'column',
+										'row'
+									]}
+								>
+									<FlexItem>
+										<CheckboxControl
+											checked={form.cycle_data.anniversary_data.align_end_dates_enabled}
+											label={__('Align End Dates', 'wicket-memberships')}
+											__nextHasNoMarginBottom={true}
+											onChange={value => {
+												setForm({
+													...form,
+													cycle_data: {
+														...form.cycle_data,
+														anniversary_data: {
+															...form.cycle_data.anniversary_data,
+															align_end_dates_enabled: value
+														}
+													}
+												});
+											}}
+										/>
+									</FlexItem>
+									<FlexBlock>
+										<CustomDisabled
+											isDisabled={!form.cycle_data.anniversary_data.align_end_dates_enabled}
+										>
+											<SelectControl
+												label={__('Align by', 'wicket-memberships')}
+												value={form.cycle_data.anniversary_data.align_end_dates_type}
+												__nextHasNoMarginBottom={true}
+												onChange={value => {
+													setForm({
+														...form,
+														cycle_data: {
+															...form.cycle_data,
+															anniversary_data: {
+																...form.cycle_data.anniversary_data,
+																align_end_dates_type: value
+															}
+														}
+													});
+												}}
+												options={[
+													{
+														label: __('First Day of Month', 'wicket-memberships'),
+														value: 'first-day-of-month'
+													},
+													{
+														label: __('15th of Month', 'wicket-memberships'),
+														value: '15th-of-month'
+													},
+													{
+														label: __('Last Day of Month', 'wicket-memberships'),
+														value: 'last-day-of-month'
+													}
+												]}
+											/>
+										</CustomDisabled>
+									</FlexBlock>
+								</Flex>
+							</BorderedBox>
+						</BorderedBox>
+
+						{/* Submit row */}
 						<ActionRow>
 							<Flex
 								align='end'

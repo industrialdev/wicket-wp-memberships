@@ -85,6 +85,7 @@ class Membership_Config_CPT_Hooks {
   public function table_head( $columns ) {
     $columns['renewal_window_data'] = __( 'Renewal Window Data', 'wicket-memberships' );
     $columns['late_fee_window_data'] = __( 'Late Fee Window Data', 'wicket-memberships' );
+    $columns['cycle_data'] = __( 'Cycle Data', 'wicket-memberships' );
     unset($columns['date']);
     return $columns;
   }
@@ -102,6 +103,12 @@ class Membership_Config_CPT_Hooks {
       echo '</pre>';
     } else if ( $column_name === 'late_fee_window_data' ) {
       $meta = get_post_meta( $post_id, 'late_fee_window_data', true );
+
+      echo '<pre>';
+      var_dump($meta);
+      echo '</pre>';
+    } else if ( $column_name === 'cycle_data' ) {
+      $meta = get_post_meta( $post_id, 'cycle_data', true );
 
       echo '<pre>';
       var_dump($meta);
