@@ -59,7 +59,6 @@ class Membership_CPT_Hooks {
    */
   public function wicket_mship_tier_table_head( $columns ) {
     add_filter('the_title', [ $this, 'replace_title' ],10, 2);
-    $columns['title'] = 'Tier Name';
     $columns['tier_uuid'] = 'Membership UUID';
     $columns['next_tier_uuid']  = 'Next Membership UUID';
     $columns['config_id']  = 'Config ID';
@@ -79,7 +78,11 @@ class Membership_CPT_Hooks {
     $keys = array_keys($meta);
     foreach ($keys as $key) {
       if( $column_name == $key) {
-        echo $meta[$key][0];
+        if($key == 'wc_products') {
+          print_r(unserialize($meta[$key][0]));
+        } else {
+          echo $meta[$key][0];
+        }
       }
     }
   }
