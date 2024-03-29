@@ -36,7 +36,8 @@ class Membership_Config_CPT_Hooks {
   }
 
   function render_page() {
-    echo '<div id="create_membership_config" ></div>';
+    $config_list_page = admin_url( 'edit.php?post_type=' . $this->membership_config_cpt_slug );
+    echo "<div id='create_membership_config' data-config-cpt-slug='{$this->membership_config_cpt_slug}' data-config-list-url='{$config_list_page}' ></div>";
   }
 
   function create_edit_page_redirects() {
@@ -85,6 +86,7 @@ class Membership_Config_CPT_Hooks {
   public function table_head( $columns ) {
     $columns['renewal_window_data'] = __( 'Renewal Window Data', 'wicket-memberships' );
     $columns['late_fee_window_data'] = __( 'Late Fee Window Data', 'wicket-memberships' );
+    $columns['cycle_data'] = __( 'Cycle Data', 'wicket-memberships' );
     unset($columns['date']);
     return $columns;
   }
@@ -102,6 +104,12 @@ class Membership_Config_CPT_Hooks {
       echo '</pre>';
     } else if ( $column_name === 'late_fee_window_data' ) {
       $meta = get_post_meta( $post_id, 'late_fee_window_data', true );
+
+      echo '<pre>';
+      var_dump($meta);
+      echo '</pre>';
+    } else if ( $column_name === 'cycle_data' ) {
+      $meta = get_post_meta( $post_id, 'cycle_data', true );
 
       echo '<pre>';
       var_dump($meta);

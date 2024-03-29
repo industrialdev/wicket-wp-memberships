@@ -11,6 +11,7 @@
     "start": "wp-scripts start"
   },
   "dependencies": {
+    "@wordpress/components": "^27.2.0",
     "styled-components": "^6.1.8"
   }
 }
