@@ -1850,7 +1850,21 @@ const BorderedBox = styled_components__WEBPACK_IMPORTED_MODULE_6__["default"].di
 	padding: 15px;
 	margin-top: 15px;
 `;
-const CreateMembershipConfig = () => {
+const CreateMembershipConfig = ({
+  configCptSlug,
+  configListUrl
+}) => {
+  const [currentSeasonIndex, setCurrentSeasonIndex] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [tempSeason, setTempSeason] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
+    season_name: '',
+    active: true,
+    // true or false
+    start_date: '',
+    end_date: ''
+  });
+  const [isCreateSeasonModalOpen, setCreateSeasonModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const openCreateSeasonModalOpen = () => setCreateSeasonModalOpen(true);
+  const closeCreateSeasonModalOpen = () => setCreateSeasonModalOpen(false);
   const [isRenewalWindowCalloutModalOpen, setRenewalWindowCalloutModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   const openRenewalWindowCalloutModal = () => setRenewalWindowCalloutModalOpen(true);
   const closeRenewalWindowCalloutModal = () => setRenewalWindowCalloutModalOpen(false);
@@ -1859,30 +1873,31 @@ const CreateMembershipConfig = () => {
   const closeLateFeeWindowCalloutModal = () => setLateFeeWindowCalloutModalOpen(false);
   const [isSubmitting, setSubmitting] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   const [errors, setErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({});
+  const [seasonErrors, setSeasonErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({});
   const [wcProductOptions, setWcProductOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([{
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Loading products...', 'wicket-memberships'),
-    value: -1
+    value: '-1'
   }]);
   const [form, setForm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     name: '',
     renewal_window_data: {
-      days_count: 0,
+      days_count: '0',
       callout_header: '',
       callout_content: '',
       callout_button_label: ''
     },
     late_fee_window_data: {
-      days_count: 0,
+      days_count: '0',
       product_id: '-1',
       callout_header: '',
       callout_content: '',
       callout_button_label: ''
     },
     cycle_data: {
-      cycle_type: 'anniversary',
-      // calendar or anniversary
+      cycle_type: 'calendar',
+      // calendar/anniversary
       anniversary_data: {
-        period_count: 365,
+        period_count: '365',
         period_type: 'year',
         // year/month/week
         align_end_dates_enabled: false,
@@ -1946,6 +1961,26 @@ const CreateMembershipConfig = () => {
     setErrors(newErrors);
     return isValid;
   };
+  const initSeasonModal = season_index => {
+    setCurrentSeasonIndex(season_index);
+    if (season_index === null) {
+      // Creating
+      console.log('Creating season');
+      setSeasonErrors({});
+      setTempSeason({
+        season_name: '',
+        active: true,
+        start_date: '',
+        end_date: ''
+      });
+    } else {
+      // Editing
+      console.log('Editing season');
+      const season = form.cycle_data.calendar_items[season_index];
+      setTempSeason(season);
+    }
+    openCreateSeasonModalOpen();
+  };
   const saveRenewalWindowCallout = () => {
     console.log('Saving renewal window callout');
     setForm({
@@ -1970,6 +2005,67 @@ const CreateMembershipConfig = () => {
       }
     });
   };
+  const validateSeason = () => {
+    let isValid = true;
+    const newErrors = {};
+    if (tempSeason.season_name.length === 0) {
+      newErrors.seasonName = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Season Name is required', 'wicket-memberships');
+      isValid = false;
+    }
+
+    // TODO: Add date validation
+    if (tempSeason.start_date.length === 0) {
+      newErrors.seasonStartDate = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Season Start Date is required', 'wicket-memberships');
+      isValid = false;
+    }
+    if (tempSeason.end_date.length === 0) {
+      newErrors.seasonEndDate = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Season End Date is required', 'wicket-memberships');
+      isValid = false;
+    }
+    setSeasonErrors(newErrors);
+    return isValid;
+  };
+  const handleCreateSeasonSubmit = e => {
+    e.preventDefault();
+    console.log('Saving season');
+    if (!validateSeason()) {
+      return;
+    }
+    if (currentSeasonIndex === null) {
+      setForm({
+        ...form,
+        cycle_data: {
+          ...form.cycle_data,
+          calendar_items: [...form.cycle_data.calendar_items, {
+            season_name: tempSeason.season_name,
+            active: tempSeason.active,
+            start_date: tempSeason.start_date,
+            end_date: tempSeason.end_date
+          }]
+        }
+      });
+    } else {
+      const seasons = form.cycle_data.calendar_items.map((season, index) => {
+        if (index === currentSeasonIndex) {
+          return {
+            season_name: tempSeason.season_name,
+            active: tempSeason.active,
+            start_date: tempSeason.start_date,
+            end_date: tempSeason.end_date
+          };
+        }
+        return season;
+      });
+      setForm({
+        ...form,
+        cycle_data: {
+          ...form.cycle_data,
+          calendar_items: seasons
+        }
+      });
+    }
+    closeCreateSeasonModalOpen();
+  };
   const handleSubmit = e => {
     e.preventDefault();
     if (!validateForm()) {
@@ -1980,7 +2076,7 @@ const CreateMembershipConfig = () => {
 
     // I need to create new Wordpress CPT with the form data
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
-      path: '/wp/v2/wicket_mship_config',
+      path: `/wp/v2/${configCptSlug}`,
       method: 'POST',
       data: {
         title: form.name,
@@ -1993,10 +2089,12 @@ const CreateMembershipConfig = () => {
       }
     }).then(response => {
       console.log(response);
-      setSubmitting(false);
+      if (response.id) {
+        // Redirect to the cpt list page
+        window.location.href = configListUrl;
+      }
     }).catch(error => {
       console.log(error);
-      setSubmitting(false);
     });
   };
 
@@ -2005,7 +2103,7 @@ const CreateMembershipConfig = () => {
     // const queryParams = { include: [781, 756, 3] };
     let queryParams = {};
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
-      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)('/wp/v2/wicket_mship_config', queryParams)
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`/wp/v2/${configCptSlug}`, queryParams)
     }).then(posts => {
       console.log(posts);
     });
@@ -2146,10 +2244,11 @@ const CreateMembershipConfig = () => {
       value: 'anniversary'
     }]
   })), form.cycle_data.cycle_type === 'calendar' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    variant: "secondary"
+    variant: "secondary",
+    onClick: () => initSeasonModal(null)
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     className: "dashicons dashicons-plus-alt"
-  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Season', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(FormFlex, {
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Season', 'wicket-memberships')))), form.cycle_data.cycle_type === 'anniversary' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(FormFlex, {
     align: "end",
     gap: 5,
     direction: ['column', 'row']
@@ -2245,7 +2344,42 @@ const CreateMembershipConfig = () => {
       label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Last Day of Month', 'wicket-memberships'),
       value: 'last-day-of-month'
     }]
-  })))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+  })))))), form.cycle_data.cycle_type === 'calendar' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.__experimentalHeading, {
+    level: "4",
+    weight: "300"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Seasons', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
+    className: "widefat",
+    cellSpacing: "0"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Season Name', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Status', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "check-column"
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, form.cycle_data.calendar_items.map((season, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
+    key: index,
+    className: index % 2 === 0 ? 'alternate' : ''
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, season.season_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, season.active ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Active', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Inactive', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, season.start_date), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, season.end_date), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+    onClick: () => initSeasonModal(index)
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "dashicons dashicons-edit"
+  })))))))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "end",
     justify: "end",
     gap: 5,
@@ -2347,11 +2481,93 @@ const CreateMembershipConfig = () => {
       saveLateFeeWindowCallout();
       closeLateFeeWindowCalloutModal();
     }
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Save', 'wicket-memberships')))));
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Save', 'wicket-memberships'))), isCreateSeasonModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Modal, {
+    title: currentSeasonIndex === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Season', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Edit Season', 'wicket-memberships'),
+    onRequestClose: closeCreateSeasonModalOpen,
+    style: {
+      maxWidth: '840px',
+      width: '100%'
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+    onSubmit: handleCreateSeasonSubmit
+  }, Object.keys(seasonErrors).length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ErrorsRow, null, Object.keys(seasonErrors).map(key => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Notice, {
+    isDismissible: false,
+    key: key,
+    status: "warning"
+  }, seasonErrors[key]))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Season Name', 'wicket-memberships'),
+    onChange: value => {
+      setTempSeason({
+        ...tempSeason,
+        season_name: value
+      });
+    },
+    value: tempSeason.season_name
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.SelectControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Status', 'wicket-memberships'),
+    value: tempSeason.active ? 'true' : 'false',
+    onChange: value => {
+      setTempSeason({
+        ...tempSeason,
+        active: value === 'true'
+      });
+    },
+    options: [{
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Active', 'wicket-memberships'),
+      value: 'true'
+    }, {
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Inactive', 'wicket-memberships'),
+      value: 'false'
+    }]
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships'),
+    type: "date",
+    value: tempSeason.start_date,
+    onChange: value => {
+      setTempSeason({
+        ...tempSeason,
+        start_date: value
+      });
+    }
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships'),
+    type: "date",
+    value: tempSeason.end_date,
+    onChange: value => {
+      setTempSeason({
+        ...tempSeason,
+        end_date: value
+      });
+    }
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+    align: "end",
+    gap: 5,
+    direction: ['column', 'row']
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, currentSeasonIndex !== null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+    isDestructive: true,
+    onClick: () => {
+      const seasons = form.cycle_data.calendar_items.filter((_, index) => index !== currentSeasonIndex);
+      setForm({
+        ...form,
+        cycle_data: {
+          ...form.cycle_data,
+          calendar_items: seasons
+        }
+      });
+      closeCreateSeasonModalOpen();
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
+    icon: "archive"
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Archive', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+    variant: "primary",
+    type: "submit"
+  }, currentSeasonIndex === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Season', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Update Season', 'wicket-memberships')))))))));
 };
-const rootElement = document.getElementById('create_membership_config');
-if (rootElement) {
-  (0,react_dom_client__WEBPACK_IMPORTED_MODULE_2__.createRoot)(rootElement).render((0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(CreateMembershipConfig, null));
+const app = document.getElementById('create_membership_config');
+if (app) {
+  (0,react_dom_client__WEBPACK_IMPORTED_MODULE_2__.createRoot)(app).render((0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(CreateMembershipConfig, {
+    ...app.dataset
+  }));
 }
 })();
 

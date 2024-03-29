@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled } from '@wordpress/components';
+import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled, __experimentalHeading as Heading, Icon } from '@wordpress/components';
 import styled from 'styled-components';
 
 const CustomDisabled = styled(Disabled)`
@@ -33,7 +33,20 @@ const BorderedBox = styled.div`
 	margin-top: 15px;
 `;
 
-const CreateMembershipConfig = () => {
+const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
+
+	const [currentSeasonIndex, setCurrentSeasonIndex] = useState(null);
+
+	const [tempSeason, setTempSeason] = useState({
+		season_name: '',
+		active: true, // true or false
+		start_date: '',
+		end_date: ''
+	});
+
+	const [isCreateSeasonModalOpen, setCreateSeasonModalOpen] = useState(false);
+	const openCreateSeasonModalOpen = () => setCreateSeasonModalOpen(true);
+	const closeCreateSeasonModalOpen = () => setCreateSeasonModalOpen(false);
 
 	const [isRenewalWindowCalloutModalOpen, setRenewalWindowCalloutModalOpen] = useState(false);
 	const openRenewalWindowCalloutModal = () => setRenewalWindowCalloutModalOpen(true);
@@ -45,32 +58,33 @@ const CreateMembershipConfig = () => {
 
 	const [isSubmitting, setSubmitting] = useState(false);
 	const [errors, setErrors] = useState({});
+	const [seasonErrors, setSeasonErrors] = useState({});
 	const [wcProductOptions, setWcProductOptions] = useState([
 		{
 			label: __('Loading products...', 'wicket-memberships'),
-			value: -1
+			value: '-1'
 		}
 	]);
 
 	const [form, setForm] = useState({
 		name: '',
 		renewal_window_data: {
-			days_count: 0,
+			days_count: '0',
 			callout_header: '',
 			callout_content: '',
 			callout_button_label: ''
 		},
 		late_fee_window_data: {
-			days_count: 0,
+			days_count: '0',
 			product_id: '-1',
 			callout_header: '',
 			callout_content: '',
 			callout_button_label: ''
 		},
 		cycle_data: {
-			cycle_type: 'anniversary', // calendar or anniversary
+			cycle_type: 'calendar', // calendar/anniversary
 			anniversary_data: {
-				period_count: 365,
+				period_count: '365',
 				period_type: 'year', // year/month/week
 				align_end_dates_enabled: false,
 				align_end_dates_type: 'first-day-of-month' // first-day-of-month | 15th-of-month | last-day-of-month
@@ -141,6 +155,30 @@ const CreateMembershipConfig = () => {
     return isValid
   }
 
+	const initSeasonModal = (season_index) => {
+		setCurrentSeasonIndex(season_index);
+
+		if (season_index === null) {
+			// Creating
+			console.log('Creating season');
+
+			setSeasonErrors({});
+
+			setTempSeason({
+				season_name: '',
+				active: true,
+				start_date: '',
+				end_date: ''
+			});
+		} else {
+			// Editing
+			console.log('Editing season');
+			const season = form.cycle_data.calendar_items[season_index];
+			setTempSeason(season);
+		}
+		openCreateSeasonModalOpen();
+	}
+
 	const saveRenewalWindowCallout = () => {
 		console.log('Saving renewal window callout');
 
@@ -169,6 +207,79 @@ const CreateMembershipConfig = () => {
 		});
 	}
 
+	const validateSeason = () => {
+		let isValid = true;
+		const newErrors = {};
+
+		if (tempSeason.season_name.length === 0) {
+			newErrors.seasonName = __('Season Name is required', 'wicket-memberships')
+			isValid = false
+		}
+
+		// TODO: Add date validation
+		if (tempSeason.start_date.length === 0) {
+			newErrors.seasonStartDate = __('Season Start Date is required', 'wicket-memberships')
+			isValid = false
+		}
+
+		if (tempSeason.end_date.length === 0) {
+			newErrors.seasonEndDate = __('Season End Date is required', 'wicket-memberships')
+			isValid = false
+		}
+
+		setSeasonErrors(newErrors)
+
+		return isValid
+	}
+
+	const handleCreateSeasonSubmit = (e) => {
+		e.preventDefault();
+
+		console.log('Saving season')
+
+		if (!validateSeason()) { return }
+
+		if (currentSeasonIndex === null) {
+			setForm({
+				...form,
+				cycle_data: {
+					...form.cycle_data,
+					calendar_items: [
+						...form.cycle_data.calendar_items,
+						{
+							season_name: tempSeason.season_name,
+							active: tempSeason.active,
+							start_date: tempSeason.start_date,
+							end_date: tempSeason.end_date
+						}
+					]
+				}
+			});
+		} else {
+			const seasons = form.cycle_data.calendar_items.map((season, index) => {
+				if (index === currentSeasonIndex) {
+					return {
+						season_name: tempSeason.season_name,
+						active: tempSeason.active,
+						start_date: tempSeason.start_date,
+						end_date: tempSeason.end_date
+					}
+				}
+				return season;
+			});
+
+			setForm({
+				...form,
+				cycle_data: {
+					...form.cycle_data,
+					calendar_items: seasons
+				}
+			});
+		}
+
+		closeCreateSeasonModalOpen()
+	}
+
 	const handleSubmit = (e) => {
 		e.preventDefault();
 		if (!validateForm()) { return }
@@ -178,7 +289,7 @@ const CreateMembershipConfig = () => {
 
 		// I need to create new Wordpress CPT with the form data
 		apiFetch({
-			path: '/wp/v2/wicket_mship_config',
+			path: `/wp/v2/${configCptSlug}`,
 			method: 'POST',
 			data: {
 				title: form.name,
@@ -191,10 +302,12 @@ const CreateMembershipConfig = () => {
 			}
 		}).then((response) => {
 			console.log(response);
-			setSubmitting(false);
+			if (response.id) {
+				// Redirect to the cpt list page
+				window.location.href = configListUrl;
+			}
 		}).catch((error) => {
 			console.log(error);
-			setSubmitting(false);
 		});
 
 	}
@@ -203,7 +316,7 @@ const CreateMembershipConfig = () => {
 	useEffect(() => {
 		// const queryParams = { include: [781, 756, 3] };
 		let queryParams = {};
-		apiFetch({ path: addQueryArgs('/wp/v2/wicket_mship_config', queryParams) }).then((posts) => {
+		apiFetch({ path: addQueryArgs(`/wp/v2/${configCptSlug}`, queryParams) }).then((posts) => {
 			console.log(posts);
 		});
 
@@ -404,6 +517,7 @@ const CreateMembershipConfig = () => {
 									<FlexItem>
 										<Button
 											variant="secondary"
+											onClick={() => initSeasonModal(null)}
 										>
 											<span className="dashicons dashicons-plus-alt"></span>&nbsp;
 											{__('Add Season', 'wicket-memberships')}
@@ -412,104 +526,21 @@ const CreateMembershipConfig = () => {
 								)}
 							</Flex>
 
-							<FormFlex
-								align='end'
-								gap={5}
-								direction={[
-									'column',
-									'row'
-								]}
-							>
-								<FlexBlock>
-									<TextControl
-										label={__('Membership Period', 'wicket-memberships')}
-										type="number"
-										__nextHasNoMarginBottom={true}
-										onChange={value => {
-											setForm({
-												...form,
-												cycle_data: {
-													...form.cycle_data,
-													anniversary_data: {
-														...form.cycle_data.anniversary_data,
-														period_count: value
-													}
-												}
-											});
-										}}
-										value={form.cycle_data.anniversary_data.period_count}
-									/>
-								</FlexBlock>
-								<FlexBlock>
-									<SelectControl
-										label=''
-										value={form.cycle_data.anniversary_data.period_type}
-										__nextHasNoMarginBottom={true}
-										onChange={value => {
-											setForm({
-												...form,
-												cycle_data: {
-													...form.cycle_data,
-													anniversary_data: {
-														...form.cycle_data.anniversary_data,
-														period_type: value
-													}
-												}
-											});
-										}}
-										options={[
-											{
-												label: __('Year', 'wicket-memberships'),
-												value: 'year'
-											},
-											{
-												label: __('Month', 'wicket-memberships'),
-												value: 'month'
-											},
-											{
-												label: __('Week', 'wicket-memberships'),
-												value: 'week'
-											}
+							{/* Anniversary Data */}
+							{form.cycle_data.cycle_type === 'anniversary' && (
+								<>
+									<FormFlex
+										align='end'
+										gap={5}
+										direction={[
+											'column',
+											'row'
 										]}
-									/>
-								</FlexBlock>
-							</FormFlex>
-							<BorderedBox>
-								<Flex
-									align='end'
-									justify='start'
-									gap={5}
-									direction={[
-										'column',
-										'row'
-									]}
-								>
-									<FlexItem>
-										<CheckboxControl
-											checked={form.cycle_data.anniversary_data.align_end_dates_enabled}
-											label={__('Align End Dates', 'wicket-memberships')}
-											__nextHasNoMarginBottom={true}
-											onChange={value => {
-												setForm({
-													...form,
-													cycle_data: {
-														...form.cycle_data,
-														anniversary_data: {
-															...form.cycle_data.anniversary_data,
-															align_end_dates_enabled: value
-														}
-													}
-												});
-											}}
-										/>
-									</FlexItem>
-									<FlexBlock>
-										<CustomDisabled
-											isDisabled={!form.cycle_data.anniversary_data.align_end_dates_enabled}
-										>
-											<SelectControl
-												label={__('Align by', 'wicket-memberships')}
-												value={form.cycle_data.anniversary_data.align_end_dates_type}
+									>
+										<FlexBlock>
+											<TextControl
+												label={__('Membership Period', 'wicket-memberships')}
+												type="number"
 												__nextHasNoMarginBottom={true}
 												onChange={value => {
 													setForm({
@@ -518,30 +549,177 @@ const CreateMembershipConfig = () => {
 															...form.cycle_data,
 															anniversary_data: {
 																...form.cycle_data.anniversary_data,
-																align_end_dates_type: value
+																period_count: value
+															}
+														}
+													});
+												}}
+												value={form.cycle_data.anniversary_data.period_count}
+											/>
+										</FlexBlock>
+										<FlexBlock>
+											<SelectControl
+												label=''
+												value={form.cycle_data.anniversary_data.period_type}
+												__nextHasNoMarginBottom={true}
+												onChange={value => {
+													setForm({
+														...form,
+														cycle_data: {
+															...form.cycle_data,
+															anniversary_data: {
+																...form.cycle_data.anniversary_data,
+																period_type: value
 															}
 														}
 													});
 												}}
 												options={[
 													{
-														label: __('First Day of Month', 'wicket-memberships'),
-														value: 'first-day-of-month'
+														label: __('Year', 'wicket-memberships'),
+														value: 'year'
 													},
 													{
-														label: __('15th of Month', 'wicket-memberships'),
-														value: '15th-of-month'
+														label: __('Month', 'wicket-memberships'),
+														value: 'month'
 													},
 													{
-														label: __('Last Day of Month', 'wicket-memberships'),
-														value: 'last-day-of-month'
+														label: __('Week', 'wicket-memberships'),
+														value: 'week'
 													}
 												]}
 											/>
-										</CustomDisabled>
-									</FlexBlock>
-								</Flex>
-							</BorderedBox>
+										</FlexBlock>
+									</FormFlex>
+
+									<BorderedBox>
+										<Flex
+											align='end'
+											justify='start'
+											gap={5}
+											direction={[
+												'column',
+												'row'
+											]}
+										>
+											<FlexItem>
+												<CheckboxControl
+													checked={form.cycle_data.anniversary_data.align_end_dates_enabled}
+													label={__('Align End Dates', 'wicket-memberships')}
+													__nextHasNoMarginBottom={true}
+													onChange={value => {
+														setForm({
+															...form,
+															cycle_data: {
+																...form.cycle_data,
+																anniversary_data: {
+																	...form.cycle_data.anniversary_data,
+																	align_end_dates_enabled: value
+																}
+															}
+														});
+													}}
+												/>
+											</FlexItem>
+											<FlexBlock>
+												<CustomDisabled
+													isDisabled={!form.cycle_data.anniversary_data.align_end_dates_enabled}
+												>
+													<SelectControl
+														label={__('Align by', 'wicket-memberships')}
+														value={form.cycle_data.anniversary_data.align_end_dates_type}
+														__nextHasNoMarginBottom={true}
+														onChange={value => {
+															setForm({
+																...form,
+																cycle_data: {
+																	...form.cycle_data,
+																	anniversary_data: {
+																		...form.cycle_data.anniversary_data,
+																		align_end_dates_type: value
+																	}
+																}
+															});
+														}}
+														options={[
+															{
+																label: __('First Day of Month', 'wicket-memberships'),
+																value: 'first-day-of-month'
+															},
+															{
+																label: __('15th of Month', 'wicket-memberships'),
+																value: '15th-of-month'
+															},
+															{
+																label: __('Last Day of Month', 'wicket-memberships'),
+																value: 'last-day-of-month'
+															}
+														]}
+													/>
+												</CustomDisabled>
+											</FlexBlock>
+										</Flex>
+									</BorderedBox>
+								</>
+							)}
+
+							{/* Calendar Items */}
+							{form.cycle_data.cycle_type === 'calendar' && (
+								<>
+									<FormFlex>
+										<Heading level='4' weight='300' >
+											{__('Seasons', 'wicket-memberships')}
+										</Heading>
+									</FormFlex>
+									<FormFlex>
+										<table className="widefat" cellSpacing="0">
+											<thead>
+												<tr>
+													<th className="manage-column column-columnname" scope="col">
+														{__('Season Name', 'wicket-memberships')}
+													</th>
+													<th className="manage-column column-columnname" scope="col">
+														{__('Status', 'wicket-memberships')}
+													</th>
+													<th className="manage-column column-columnname" scope="col">
+														{__('Start Date', 'wicket-memberships')}
+													</th>
+													<th className="manage-column column-columnname" scope="col">
+														{__('End Date', 'wicket-memberships')}
+													</th>
+													<th className='check-column'></th>
+												</tr>
+											</thead>
+											<tbody>
+												{form.cycle_data.calendar_items.map((season, index) => (
+														<tr key={index} className={index % 2 === 0 ? 'alternate' : ''}>
+															<td className="column-columnname">
+																{season.season_name}
+															</td>
+															<td className="column-columnname">
+																{season.active ? __('Active', 'wicket-memberships') : __('Inactive', 'wicket-memberships')}
+															</td>
+															<td className="column-columnname">
+																{season.start_date}
+															</td>
+															<td className="column-columnname">
+																{season.end_date}
+															</td>
+															<td>
+																<Button
+																	onClick={() => initSeasonModal(index)}
+																>
+																	<span className="dashicons dashicons-edit"></span>
+																</Button>
+															</td>
+														</tr>
+													)
+												)}
+											</tbody>
+										</table>
+									</FormFlex>
+								</>
+							)}
 						</BorderedBox>
 
 						{/* Submit row */}
@@ -692,12 +870,137 @@ const CreateMembershipConfig = () => {
 						</Button>
 					</Modal>
 				)}
+
+				{/* Season Modal */}
+				{isCreateSeasonModalOpen && (
+					<Modal
+						title={currentSeasonIndex === null ? __('Add Season', 'wicket-memberships') : __('Edit Season', 'wicket-memberships')}
+						onRequestClose={closeCreateSeasonModalOpen}
+						style={
+							{
+								maxWidth: '840px',
+								width: '100%'
+							}
+						}
+					>
+						<form onSubmit={handleCreateSeasonSubmit}>
+
+							{Object.keys(seasonErrors).length > 0 && (
+								<ErrorsRow>
+									{Object.keys(seasonErrors).map((key) => (
+										<Notice isDismissible={false} key={key} status="warning">{seasonErrors[key]}</Notice>
+									))}
+								</ErrorsRow>
+							)}
+
+							<TextControl
+								label={__('Season Name', 'wicket-memberships')}
+								onChange={value => {
+									setTempSeason({
+										...tempSeason,
+										season_name: value
+									});
+								}}
+								value={tempSeason.season_name}
+							/>
+
+							<SelectControl
+								label={__('Status', 'wicket-memberships')}
+								value={tempSeason.active ? 'true' : 'false'}
+								onChange={value => {
+									setTempSeason({
+										...tempSeason,
+										active: value === 'true'
+									});
+								}}
+								options={[
+									{
+										label: __('Active', 'wicket-memberships'),
+										value: 'true'
+									},
+									{
+										label: __('Inactive', 'wicket-memberships'),
+										value: 'false'
+									}
+								]}
+							/>
+
+							<FormFlex>
+								<FlexBlock>
+									<TextControl
+										label={__('Start Date', 'wicket-memberships')}
+										type="date"
+										value={tempSeason.start_date}
+										onChange={value => {
+											setTempSeason({
+												...tempSeason,
+												start_date: value
+											});
+										}
+									} />
+								</FlexBlock>
+								<FlexBlock>
+									<TextControl
+										label={__('End Date', 'wicket-memberships')}
+										type="date"
+										value={tempSeason.end_date}
+										onChange={value => {
+											setTempSeason({
+												...tempSeason,
+												end_date: value
+											});
+										}
+									} />
+								</FlexBlock>
+							</FormFlex>
+
+							<ActionRow>
+								<Flex
+									align='end'
+									gap={5}
+									direction={[
+										'column',
+										'row'
+									]}
+								>
+									<FlexItem>
+										{currentSeasonIndex !== null && (
+											<Button
+												isDestructive={true}
+												onClick={() => {
+													const seasons = form.cycle_data.calendar_items.filter((_, index) => index !== currentSeasonIndex);
+													setForm({
+														...form,
+														cycle_data: {
+															...form.cycle_data,
+															calendar_items: seasons
+														}
+													});
+													closeCreateSeasonModalOpen();
+												}}
+											>
+												<Icon icon="archive" />&nbsp;
+												{__('Archive', 'wicket-memberships')}
+											</Button>
+										)}
+									</FlexItem>
+									<FlexItem>
+										<Button variant="primary" type='submit'>
+											{currentSeasonIndex === null ? __('Add Season', 'wicket-memberships') : __('Update Season', 'wicket-memberships')}
+										</Button>
+									</FlexItem>
+								</Flex>
+
+							</ActionRow>
+						</form>
+					</Modal>
+				)}
 			</div>
 		</>
 	);
 };
 
-const rootElement = document.getElementById('create_membership_config');
-if (rootElement) {
-	createRoot(rootElement).render(<CreateMembershipConfig />);
+const app = document.getElementById('create_membership_config');
+if (app) {
+	createRoot(app).render(<CreateMembershipConfig {...app.dataset} />);
 }

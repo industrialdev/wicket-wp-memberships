@@ -36,7 +36,8 @@ class Membership_Config_CPT_Hooks {
   }
 
   function render_page() {
-    echo '<div id="create_membership_config" ></div>';
+    $config_list_page = admin_url( 'edit.php?post_type=' . $this->membership_config_cpt_slug );
+    echo "<div id='create_membership_config' data-config-cpt-slug='{$this->membership_config_cpt_slug}' data-config-list-url='{$config_list_page}' ></div>";
   }
 
   function create_edit_page_redirects() {
