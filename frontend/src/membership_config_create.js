@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled, __experimentalHeading as Heading, Icon } from '@wordpress/components';
 import styled from 'styled-components';
+import { API_URL } from './constants';
+import he from 'he';
 
 const CustomDisabled = styled(Disabled)`
 	opacity: .5;
@@ -20,6 +22,10 @@ const ActionRow = styled.div`
 
 const FormFlex = styled(Flex)`
 	margin-top: 15px;
+
+	@media screen and (max-width: 767px) {
+		align-items: normal !important;
+	}
 `;
 
 const ErrorsRow = styled.div`
@@ -93,8 +99,8 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 				// {
 				// 	season_name: '',
 				// 	active: true, // true or false
-				// 	start_date: null,
-				// 	end_date: null
+				// 	start_date: '',
+				// 	end_date: ''
 				// }
 			]
 		}
@@ -158,12 +164,12 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 	const initSeasonModal = (season_index) => {
 		setCurrentSeasonIndex(season_index);
 
+		// Clear errors
+		setSeasonErrors({});
+
 		if (season_index === null) {
 			// Creating
 			console.log('Creating season');
-
-			setSeasonErrors({});
-
 			setTempSeason({
 				season_name: '',
 				active: true,
@@ -216,7 +222,6 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 			isValid = false
 		}
 
-		// TODO: Add date validation
 		if (tempSeason.start_date.length === 0) {
 			newErrors.seasonStartDate = __('Season Start Date is required', 'wicket-memberships')
 			isValid = false
@@ -225,6 +230,16 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 		if (tempSeason.end_date.length === 0) {
 			newErrors.seasonEndDate = __('Season End Date is required', 'wicket-memberships')
 			isValid = false
+		}
+
+		if (tempSeason.start_date.length > 0 && tempSeason.end_date.length > 0) {
+			const startDate = new Date(tempSeason.start_date);
+			const endDate = new Date(tempSeason.end_date);
+
+			if (startDate > endDate) {
+				newErrors.seasonEndDate = __('Season End Date must be greater than Start Date', 'wicket-memberships')
+				isValid = false
+			}
 		}
 
 		setSeasonErrors(newErrors)
@@ -287,7 +302,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 		setSubmitting(true);
 		console.log('Saving membership config');
 
-		const endpoint = postId ? `/wp/v2/${configCptSlug}/${postId}` : `/wp/v2/${configCptSlug}`;
+		const endpoint = postId ? `${API_URL}/${configCptSlug}/${postId}` : `${API_URL}/${configCptSlug}`;
 
 		// I need to create new Wordpress CPT with the form data
 		apiFetch({
@@ -316,25 +331,31 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 
 	useEffect(() => {
 		let queryParams = {};
-		apiFetch({ path: addQueryArgs(`/wp/v2/${configCptSlug}/${postId}`, queryParams) }).then((post) => {
-			console.log(post);
 
-			setForm({
-				name: post.title.rendered,
-				renewal_window_data: post.meta.renewal_window_data,
-				late_fee_window_data: post.meta.late_fee_window_data,
-				cycle_data: post.meta.cycle_data
+		// Fetch the membership configuration
+		if (postId) {
+			apiFetch({ path: addQueryArgs(`${API_URL}/${configCptSlug}/${postId}`, queryParams) }).then((post) => {
+				console.log(post);
+
+				const decodedTitle = he.decode(post.title.rendered);
+				setForm({
+					name: decodedTitle,
+					renewal_window_data: post.meta.renewal_window_data,
+					late_fee_window_data: post.meta.late_fee_window_data,
+					cycle_data: post.meta.cycle_data
+				});
 			});
-		});
+		}
 
 		// Fetch WooCommerce products
 		queryParams = { status: 'publish' };
-		apiFetch({ path: addQueryArgs('/wp/v2/product', queryParams) }).then((products) => {
+		apiFetch({ path: addQueryArgs(`${API_URL}/product`, queryParams) }).then((products) => {
 			console.log(products);
 
 			let options = products.map((product) => {
+				const decodedTitle = he.decode(product.title.rendered);
 				return {
-					label: `${product.title.rendered} | (ID: ${product.id})`,
+					label: `${decodedTitle} | (ID: ${product.id})`,
 					value: product.id
 				}
 			});
@@ -763,7 +784,12 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 					<Modal
 						title={__('Renewal Window - Callout Configuration', 'wicket-memberships')}
 						onRequestClose={closeRenewalWindowCalloutModal}
-						size="large"
+						style={
+							{
+								maxWidth: '840px',
+								width: '100%'
+							}
+						}
 					>
 
 						<TextControl
@@ -824,7 +850,12 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 					<Modal
 						title={__('Late Fee Window - Callout Configuration', 'wicket-memberships')}
 						onRequestClose={closeLateFeeWindowCalloutModal}
-						size="large"
+						style={
+							{
+								maxWidth: '840px',
+								width: '100%'
+							}
+						}
 					>
 
 						<TextControl
