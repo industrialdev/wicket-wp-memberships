@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@wordpress/components": "^27.2.0",
+    "he": "^1.2.0",
     "styled-components": "^6.1.8"
   }
 }

@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled, __experimentalHeading as Heading, Icon } from '@wordpress/components';
 import styled from 'styled-components';
+import { API_URL } from './constants';
+import he from 'he';
 
 const CustomDisabled = styled(Disabled)`
 	opacity: .5;
@@ -20,6 +22,10 @@ const ActionRow = styled.div`
 
 const FormFlex = styled(Flex)`
 	margin-top: 15px;
+
+	@media screen and (max-width: 767px) {
+		align-items: normal !important;
+	}
 `;
 
 const ErrorsRow = styled.div`
@@ -33,7 +39,7 @@ const BorderedBox = styled.div`
 	margin-top: 15px;
 `;
 
-const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
+const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 
 	const [currentSeasonIndex, setCurrentSeasonIndex] = useState(null);
 
@@ -69,13 +75,13 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 	const [form, setForm] = useState({
 		name: '',
 		renewal_window_data: {
-			days_count: '0',
+			days_count: '1',
 			callout_header: '',
 			callout_content: '',
 			callout_button_label: ''
 		},
 		late_fee_window_data: {
-			days_count: '0',
+			days_count: '1',
 			product_id: '-1',
 			callout_header: '',
 			callout_content: '',
@@ -84,7 +90,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 		cycle_data: {
 			cycle_type: 'calendar', // calendar/anniversary
 			anniversary_data: {
-				period_count: '365',
+				period_count: '1',
 				period_type: 'year', // year/month/week
 				align_end_dates_enabled: false,
 				align_end_dates_type: 'first-day-of-month' // first-day-of-month | 15th-of-month | last-day-of-month
@@ -93,8 +99,8 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 				// {
 				// 	season_name: '',
 				// 	active: true, // true or false
-				// 	start_date: null,
-				// 	end_date: null
+				// 	start_date: '',
+				// 	end_date: ''
 				// }
 			]
 		}
@@ -151,6 +157,13 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 			isValid = false
 		}
 
+		if (form.cycle_data.cycle_type === 'calendar') {
+			if (form.cycle_data.calendar_items.length === 0) {
+				newErrors.calendarItems = __('At least one season is required', 'wicket-memberships')
+				isValid = false
+			}
+		}
+
     setErrors(newErrors)
     return isValid
   }
@@ -158,12 +171,12 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 	const initSeasonModal = (season_index) => {
 		setCurrentSeasonIndex(season_index);
 
+		// Clear errors
+		setSeasonErrors({});
+
 		if (season_index === null) {
 			// Creating
 			console.log('Creating season');
-
-			setSeasonErrors({});
-
 			setTempSeason({
 				season_name: '',
 				active: true,
@@ -216,7 +229,6 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 			isValid = false
 		}
 
-		// TODO: Add date validation
 		if (tempSeason.start_date.length === 0) {
 			newErrors.seasonStartDate = __('Season Start Date is required', 'wicket-memberships')
 			isValid = false
@@ -225,6 +237,16 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 		if (tempSeason.end_date.length === 0) {
 			newErrors.seasonEndDate = __('Season End Date is required', 'wicket-memberships')
 			isValid = false
+		}
+
+		if (tempSeason.start_date.length > 0 && tempSeason.end_date.length > 0) {
+			const startDate = new Date(tempSeason.start_date);
+			const endDate = new Date(tempSeason.end_date);
+
+			if (startDate > endDate) {
+				newErrors.seasonEndDate = __('Season End Date must be greater than Start Date', 'wicket-memberships')
+				isValid = false
+			}
 		}
 
 		setSeasonErrors(newErrors)
@@ -287,9 +309,11 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 		setSubmitting(true);
 		console.log('Saving membership config');
 
+		const endpoint = postId ? `${API_URL}/${configCptSlug}/${postId}` : `${API_URL}/${configCptSlug}`;
+
 		// I need to create new Wordpress CPT with the form data
 		apiFetch({
-			path: `/wp/v2/${configCptSlug}`,
+			path: endpoint,
 			method: 'POST',
 			data: {
 				title: form.name,
@@ -312,22 +336,33 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 
 	}
 
-	// TODO: Fetch by ID if editing
 	useEffect(() => {
-		// const queryParams = { include: [781, 756, 3] };
 		let queryParams = {};
-		apiFetch({ path: addQueryArgs(`/wp/v2/${configCptSlug}`, queryParams) }).then((posts) => {
-			console.log(posts);
-		});
+
+		// Fetch the membership configuration
+		if (postId) {
+			apiFetch({ path: addQueryArgs(`${API_URL}/${configCptSlug}/${postId}`, queryParams) }).then((post) => {
+				console.log(post);
+
+				const decodedTitle = he.decode(post.title.rendered);
+				setForm({
+					name: decodedTitle,
+					renewal_window_data: post.meta.renewal_window_data,
+					late_fee_window_data: post.meta.late_fee_window_data,
+					cycle_data: post.meta.cycle_data
+				});
+			});
+		}
 
 		// Fetch WooCommerce products
 		queryParams = { status: 'publish' };
-		apiFetch({ path: addQueryArgs('/wp/v2/product', queryParams) }).then((products) => {
+		apiFetch({ path: addQueryArgs(`${API_URL}/product`, queryParams) }).then((products) => {
 			console.log(products);
 
 			let options = products.map((product) => {
+				const decodedTitle = he.decode(product.title.rendered);
 				return {
-					label: `${product.title.rendered} | (ID: ${product.id})`,
+					label: `${decodedTitle} | (ID: ${product.id})`,
 					value: product.id
 				}
 			});
@@ -350,7 +385,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 	return (
 		<>
 			<div className="wrap" >
-				<h1 className="wp-heading-inline">{__('Add New Membership Config', 'wicket-memberships')}</h1>
+				<h1 className="wp-heading-inline">
+					{postId ? __('Edit Membership Configuration', 'wicket-memberships') : __('Add New Membership Configuration', 'wicket-memberships')}
+				</h1>
 				<hr className="wp-header-end"></hr>
 
 				<Wrap>
@@ -399,6 +436,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 								<TextControl
 									label={__('Renewal Window (Days)', 'wicket-memberships')}
 									type="number"
+									min="1"
 									onChange={value => {
 										setForm({
 											...form,
@@ -436,6 +474,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 								<TextControl
 									label={__('Late Fee Window (Days)', 'wicket-memberships')}
 									type="number"
+									min="1"
 									onChange={value => {
 										setForm({
 											...form,
@@ -541,6 +580,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 											<TextControl
 												label={__('Membership Period', 'wicket-memberships')}
 												type="number"
+												min="1"
 												__nextHasNoMarginBottom={true}
 												onChange={value => {
 													setForm({
@@ -754,7 +794,12 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 					<Modal
 						title={__('Renewal Window - Callout Configuration', 'wicket-memberships')}
 						onRequestClose={closeRenewalWindowCalloutModal}
-						size="large"
+						style={
+							{
+								maxWidth: '840px',
+								width: '100%'
+							}
+						}
 					>
 
 						<TextControl
@@ -815,7 +860,12 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 					<Modal
 						title={__('Late Fee Window - Callout Configuration', 'wicket-memberships')}
 						onRequestClose={closeLateFeeWindowCalloutModal}
-						size="large"
+						style={
+							{
+								maxWidth: '840px',
+								width: '100%'
+							}
+						}
 					>
 
 						<TextControl

@@ -37,7 +37,16 @@ class Membership_Config_CPT_Hooks {
 
   function render_page() {
     $config_list_page = admin_url( 'edit.php?post_type=' . $this->membership_config_cpt_slug );
-    echo "<div id='create_membership_config' data-config-cpt-slug='{$this->membership_config_cpt_slug}' data-config-list-url='{$config_list_page}' ></div>";
+
+    $post_id = isset( $_GET['post_id'] ) ? $_GET['post_id'] : '';
+
+    echo <<<HTML
+      <div
+        id="create_membership_config"
+        data-config-cpt-slug="{$this->membership_config_cpt_slug}"
+        data-config-list-url="{$config_list_page}"
+        data-post-id="{$post_id}"></div>
+    HTML;
   }
 
   function create_edit_page_redirects() {
@@ -48,11 +57,18 @@ class Membership_Config_CPT_Hooks {
       exit;
     }
 
-    // TODO: Edit page redirect
-    // if ( $pagenow == 'post.php' && isset( $_GET['post_type'] ) && $_GET['post_type'] == 'wicket_mship_config' ) {
-    //   wp_safe_redirect( admin_url( '/post-new.php?post_type=page' ) );
-    //   exit;
-    // }
+    if ( $pagenow == 'post.php' &&
+        isset( $_GET['post'] ) &&
+        ( isset( $_GET['action'] ) && $_GET['action'] == 'edit' )
+      ) {
+      $post_id = $_GET['post'];
+      $post_type = get_post_type( $post_id );
+
+      if ( $post_type === Helper::get_membership_config_cpt_slug() ) {
+        wp_safe_redirect( admin_url( '/admin.php?page=' . self::EDIT_PAGE_SLUG . '&post_id=' . $post_id ) );
+        exit;
+      }
+    }
   }
 
   function enqueue_scripts() {
@@ -100,19 +116,19 @@ class Membership_Config_CPT_Hooks {
       $meta = get_post_meta( $post_id, 'renewal_window_data', true );
 
       echo '<pre>';
-      var_dump($meta);
+      print_r($meta);
       echo '</pre>';
     } else if ( $column_name === 'late_fee_window_data' ) {
       $meta = get_post_meta( $post_id, 'late_fee_window_data', true );
 
       echo '<pre>';
-      var_dump($meta);
+      print_r($meta);
       echo '</pre>';
     } else if ( $column_name === 'cycle_data' ) {
       $meta = get_post_meta( $post_id, 'cycle_data', true );
 
       echo '<pre>';
-      var_dump($meta);
+      print_r($meta);
       echo '</pre>';
     }
 
