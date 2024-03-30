@@ -157,6 +157,13 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 			isValid = false
 		}
 
+		if (form.cycle_data.cycle_type === 'calendar') {
+			if (form.cycle_data.calendar_items.length === 0) {
+				newErrors.calendarItems = __('At least one season is required', 'wicket-memberships')
+				isValid = false
+			}
+		}
+
     setErrors(newErrors)
     return isValid
   }

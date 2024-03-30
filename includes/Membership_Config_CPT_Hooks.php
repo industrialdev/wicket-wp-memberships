@@ -116,19 +116,19 @@ class Membership_Config_CPT_Hooks {
       $meta = get_post_meta( $post_id, 'renewal_window_data', true );
 
       echo '<pre>';
-      var_dump($meta);
+      print_r($meta);
       echo '</pre>';
     } else if ( $column_name === 'late_fee_window_data' ) {
       $meta = get_post_meta( $post_id, 'late_fee_window_data', true );
 
       echo '<pre>';
-      var_dump($meta);
+      print_r($meta);
       echo '</pre>';
     } else if ( $column_name === 'cycle_data' ) {
       $meta = get_post_meta( $post_id, 'cycle_data', true );
 
       echo '<pre>';
-      var_dump($meta);
+      print_r($meta);
       echo '</pre>';
     }
 

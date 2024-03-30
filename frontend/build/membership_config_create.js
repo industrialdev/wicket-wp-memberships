@@ -2352,6 +2352,12 @@ const CreateMembershipConfig = ({
       newErrors.lateFeeProduct = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Late Fee Window Product is required', 'wicket-memberships');
       isValid = false;
     }
+    if (form.cycle_data.cycle_type === 'calendar') {
+      if (form.cycle_data.calendar_items.length === 0) {
+        newErrors.calendarItems = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('At least one season is required', 'wicket-memberships');
+        isValid = false;
+      }
+    }
     setErrors(newErrors);
     return isValid;
   };
