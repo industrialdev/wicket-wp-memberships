@@ -75,13 +75,13 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 	const [form, setForm] = useState({
 		name: '',
 		renewal_window_data: {
-			days_count: '0',
+			days_count: '1',
 			callout_header: '',
 			callout_content: '',
 			callout_button_label: ''
 		},
 		late_fee_window_data: {
-			days_count: '0',
+			days_count: '1',
 			product_id: '-1',
 			callout_header: '',
 			callout_content: '',
@@ -90,7 +90,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 		cycle_data: {
 			cycle_type: 'calendar', // calendar/anniversary
 			anniversary_data: {
-				period_count: '365',
+				period_count: '1',
 				period_type: 'year', // year/month/week
 				align_end_dates_enabled: false,
 				align_end_dates_type: 'first-day-of-month' // first-day-of-month | 15th-of-month | last-day-of-month
@@ -436,6 +436,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 								<TextControl
 									label={__('Renewal Window (Days)', 'wicket-memberships')}
 									type="number"
+									min="1"
 									onChange={value => {
 										setForm({
 											...form,
@@ -473,6 +474,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 								<TextControl
 									label={__('Late Fee Window (Days)', 'wicket-memberships')}
 									type="number"
+									min="1"
 									onChange={value => {
 										setForm({
 											...form,
@@ -578,6 +580,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 											<TextControl
 												label={__('Membership Period', 'wicket-memberships')}
 												type="number"
+												min="1"
 												__nextHasNoMarginBottom={true}
 												onChange={value => {
 													setForm({

@@ -2275,13 +2275,13 @@ const CreateMembershipConfig = ({
   const [form, setForm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     name: '',
     renewal_window_data: {
-      days_count: '0',
+      days_count: '1',
       callout_header: '',
       callout_content: '',
       callout_button_label: ''
     },
     late_fee_window_data: {
-      days_count: '0',
+      days_count: '1',
       product_id: '-1',
       callout_header: '',
       callout_content: '',
@@ -2291,7 +2291,7 @@ const CreateMembershipConfig = ({
       cycle_type: 'calendar',
       // calendar/anniversary
       anniversary_data: {
-        period_count: '365',
+        period_count: '1',
         period_type: 'year',
         // year/month/week
         align_end_dates_enabled: false,
@@ -2584,6 +2584,7 @@ const CreateMembershipConfig = ({
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renewal Window (Days)', 'wicket-memberships'),
     type: "number",
+    min: "1",
     onChange: value => {
       setForm({
         ...form,
@@ -2607,6 +2608,7 @@ const CreateMembershipConfig = ({
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Late Fee Window (Days)', 'wicket-memberships'),
     type: "number",
+    min: "1",
     onChange: value => {
       setForm({
         ...form,
@@ -2673,6 +2675,7 @@ const CreateMembershipConfig = ({
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership Period', 'wicket-memberships'),
     type: "number",
+    min: "1",
     __nextHasNoMarginBottom: true,
     onChange: value => {
       setForm({
