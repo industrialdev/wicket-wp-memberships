@@ -33,7 +33,7 @@ const BorderedBox = styled.div`
 	margin-top: 15px;
 `;
 
-const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
+const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 
 	const [currentSeasonIndex, setCurrentSeasonIndex] = useState(null);
 
@@ -287,9 +287,11 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 		setSubmitting(true);
 		console.log('Saving membership config');
 
+		const endpoint = postId ? `/wp/v2/${configCptSlug}/${postId}` : `/wp/v2/${configCptSlug}`;
+
 		// I need to create new Wordpress CPT with the form data
 		apiFetch({
-			path: `/wp/v2/${configCptSlug}`,
+			path: endpoint,
 			method: 'POST',
 			data: {
 				title: form.name,
@@ -312,12 +314,17 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 
 	}
 
-	// TODO: Fetch by ID if editing
 	useEffect(() => {
-		// const queryParams = { include: [781, 756, 3] };
 		let queryParams = {};
-		apiFetch({ path: addQueryArgs(`/wp/v2/${configCptSlug}`, queryParams) }).then((posts) => {
-			console.log(posts);
+		apiFetch({ path: addQueryArgs(`/wp/v2/${configCptSlug}/${postId}`, queryParams) }).then((post) => {
+			console.log(post);
+
+			setForm({
+				name: post.title.rendered,
+				renewal_window_data: post.meta.renewal_window_data,
+				late_fee_window_data: post.meta.late_fee_window_data,
+				cycle_data: post.meta.cycle_data
+			});
 		});
 
 		// Fetch WooCommerce products
@@ -350,7 +357,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl }) => {
 	return (
 		<>
 			<div className="wrap" >
-				<h1 className="wp-heading-inline">{__('Add New Membership Config', 'wicket-memberships')}</h1>
+				<h1 className="wp-heading-inline">
+					{postId ? __('Edit Membership Configuration', 'wicket-memberships') : __('Add New Membership Configuration', 'wicket-memberships')}
+				</h1>
 				<hr className="wp-header-end"></hr>
 
 				<Wrap>

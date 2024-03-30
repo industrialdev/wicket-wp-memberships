@@ -1852,7 +1852,8 @@ const BorderedBox = styled_components__WEBPACK_IMPORTED_MODULE_6__["default"].di
 `;
 const CreateMembershipConfig = ({
   configCptSlug,
-  configListUrl
+  configListUrl,
+  postId
 }) => {
   const [currentSeasonIndex, setCurrentSeasonIndex] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [tempSeason, setTempSeason] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
@@ -2073,10 +2074,11 @@ const CreateMembershipConfig = ({
     }
     setSubmitting(true);
     console.log('Saving membership config');
+    const endpoint = postId ? `/wp/v2/${configCptSlug}/${postId}` : `/wp/v2/${configCptSlug}`;
 
     // I need to create new Wordpress CPT with the form data
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
-      path: `/wp/v2/${configCptSlug}`,
+      path: endpoint,
       method: 'POST',
       data: {
         title: form.name,
@@ -2097,15 +2099,18 @@ const CreateMembershipConfig = ({
       console.log(error);
     });
   };
-
-  // TODO: Fetch by ID if editing
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    // const queryParams = { include: [781, 756, 3] };
     let queryParams = {};
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
-      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`/wp/v2/${configCptSlug}`, queryParams)
-    }).then(posts => {
-      console.log(posts);
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`/wp/v2/${configCptSlug}/${postId}`, queryParams)
+    }).then(post => {
+      console.log(post);
+      setForm({
+        name: post.title.rendered,
+        renewal_window_data: post.meta.renewal_window_data,
+        late_fee_window_data: post.meta.late_fee_window_data,
+        cycle_data: post.meta.cycle_data
+      });
     });
 
     // Fetch WooCommerce products
@@ -2136,7 +2141,7 @@ const CreateMembershipConfig = ({
     className: "wrap"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("h1", {
     className: "wp-heading-inline"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add New Membership Config', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("hr", {
+  }, postId ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Edit Membership Configuration', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add New Membership Configuration', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("hr", {
     className: "wp-header-end"
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Wrap, null, Object.keys(errors).length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ErrorsRow, null, Object.keys(errors).map(key => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Notice, {
     isDismissible: false,
