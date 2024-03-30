@@ -194,7 +194,7 @@ class Membership_Controller {
    * Display an error notice
    */
   public function error_notice() {
-    $error_message = '<p><strong>WICKET MDP MEMBERSHIP PROCESSING ERROR</strong></p>';
+    $error_message = '<p><strong>' . __( 'WICKET MDP MEMBERSHIP PROCESSING ERROR', 'wicket-memberships' ). '</strong></p>';
     $error_message .= '<p>'.$this->error_message.'</p>';
       echo "<div class=\"notice notice-error is-dismissible\"> <p>$error_message</p></div>"; 
   }

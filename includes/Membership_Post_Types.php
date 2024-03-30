@@ -30,13 +30,13 @@ class Membership_Post_Types {
     );
 
     $labels = array(
-      'name' => _x('Memberships', 'plural'),
+      'name' => _x('Memberships', 'plural', 'wicket-memberships' ),
     );
 
     $args = array(
       'supports' => $supports,
       'labels' => $labels,
-      'description'        => __( 'Records of the Wicket Memberships', 'wicket' ),
+      'description'        => __( 'Records of the Wicket Memberships', 'wicket-memberships' ),
       'public'             => true,
       'publicly_queryable' => true,
       'show_ui'            => true,
@@ -63,7 +63,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'integer',
-      'description'       => 'The UserID owns this membership record',
+      'description'       => __( 'The UserID owns this membership record', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -72,7 +72,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
-      'description'       => 'The UUID in wicket of this membership record',
+      'description'       => __( 'The UUID in wicket of this membership record', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -80,7 +80,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
-      'description'       => 'The start date membership.',
+      'description'       => __( 'The start date membership.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -89,7 +89,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
-      'description'       => 'The end date membership.',
+      'description'       => __( 'The end date membership.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -98,7 +98,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
-      'description'       => 'The expiry date (end_date plus grace_period) of the membership in wordpress.',
+      'description'       => __( 'The expiry date of the membership in wordpress.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -107,7 +107,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
-      'description'       => 'Person or Org membership.',
+      'description'       => __( 'Person or Org membership.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -116,7 +116,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
-      'description'       => 'MDP Membership ID.',
+      'description'       => __( 'MDP Membership ID.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -345,7 +345,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'boolean',
-      'description'       => 'Approval required.',
+      'description'       => __( 'Approval required.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -354,7 +354,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
-      'description'       => 'The membership tier name.',
+      'description'       => __( 'The membership tier name.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -363,7 +363,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
-      'description'       => 'The membership tier uuid.',
+      'description'       => __( 'The membership tier uuid.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -372,7 +372,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
-      'description'       => 'The next membership tier uuid in sequence.',
+      'description'       => __( 'The next membership tier uuid in sequence.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -381,7 +381,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'integer',
-      'description'       => 'The associated config id.',
+      'description'       => __( 'The associated config id.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -390,7 +390,7 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
-      'description'       => 'individual or organization type membership.',
+      'description'       => __( 'Individual or organization type membership.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
@@ -415,7 +415,7 @@ class Membership_Post_Types {
      */
     $args = array(
       'type'              => 'object',
-      'description'       => 'The associated products - seats.',
+      'description'       => __( 'The associated products - seats.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => array (
         'schema' => array(

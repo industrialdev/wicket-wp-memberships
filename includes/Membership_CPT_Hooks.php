@@ -29,14 +29,14 @@ class Membership_CPT_Hooks {
    */
   public function wicket_membership_table_head( $columns ) {
     add_filter('the_title', [ $this, 'replace_title' ],10, 2);
-    $columns['title'] = 'Wicket UUID';
-    $columns['member_type']  = 'Type';
-    $columns['membership_uuid']  = 'Membership ID';
-    $columns['user_id']  = 'User ID';
-    $columns['status']  = 'Status';
-    $columns['start_date']  = 'Start Date';
-    $columns['end_date']  = 'End Date';
-    $columns['expiry_date']  = 'Expiry Date';
+    $columns['title'] = __( 'Wicket UUID', 'wicket-memberships' );
+    $columns['member_type']  = __( 'Type', 'wicket-memberships' );
+    $columns['membership_uuid']  = __( 'Membership ID', 'wicket-memberships' );
+    $columns['user_id']  = __( 'User ID', 'wicket-memberships' );
+    $columns['status']  = __( 'Status', 'wicket-memberships' );
+    $columns['start_date']  = __( 'Start Date', 'wicket-memberships' );
+    $columns['end_date']  = __( 'End Date', 'wicket-memberships' );
+    $columns['expiry_date']  = __( 'Expiry Date', 'wicket-memberships' );
     unset($columns['date']);
     return $columns;
   }
@@ -59,12 +59,12 @@ class Membership_CPT_Hooks {
    */
   public function wicket_mship_tier_table_head( $columns ) {
     add_filter('the_title', [ $this, 'replace_title' ],10, 2);
-    $columns['tier_uuid'] = 'Membership UUID';
-    $columns['next_tier_uuid']  = 'Next Membership UUID';
-    $columns['config_id']  = 'Config ID';
-    $columns['type']  = 'Membership Type';
-    $columns['wc_products']  = 'Assigned Products';
-    $columns['approval_required']  = 'Approval Required';
+    $columns['tier_uuid'] = __( 'Membership UUID', 'wicket-memberships' );
+    $columns['next_tier_uuid']  = __( 'Next Membership UUID', 'wicket-memberships' );
+    $columns['config_id']  = __( 'Config ID', 'wicket-memberships' );
+    $columns['type']  = __( 'Membership Type', 'wicket-memberships' );
+    $columns['wc_products']  = __( 'Assigned Products', 'wicket-memberships' );
+    $columns['approval_required']  = __( 'Approval Required', 'wicket-memberships' );
     unset($columns['date']);
     //unset($columns['title']);
     return $columns;
