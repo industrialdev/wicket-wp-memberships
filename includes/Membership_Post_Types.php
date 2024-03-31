@@ -396,49 +396,21 @@ class Membership_Post_Types {
     );
     register_post_meta($this->membership_tier_cpt_slug, 'type', $args);
 
-
-    /**
-     * Seat Range and Org/Ind Type
-     *
-      {
-        "status": "publish",
-        "meta": {
-            "tier_name": "Membership Tier Vert",
-            "tier_uuid": "u-u-i-d",
-            "next_tier_uuid": "u-u-i-d-2",
-            "type": "organization",
-            "approval_required": true,
-            "config_id": 1,
-            "wc_products": [{"wc_product_id": 1, "seats": 5 }]
-        }
-      }
-     */
     $args = array(
-      'type'              => 'object',
-      'description'       => __( 'The associated products - seats.', 'wicket-memberships' ),
+      'type'              => 'integer',
+      'description'       => __( 'Organization seats.', 'wicket-memberships' ),
       'single'            => true,
-      'show_in_rest'      => array (
-        'schema' => array(
-              'type' => 'array',
-              'items' => array (
-                'wc_product_id' => array (
-                  'type' => 'integer'
-                ),
-                  /*
-                  0 = individual
-                  1 = org per seat
-                  5 = org seat range (1-5)
-                  10 = org seat range (6-10) etc.
-                  */
-                  'seats' => array (
-                    'type' => 'integer'
-                )
-              )
-            ),
-          ),
+      'show_in_rest'      => true,
     );
+    register_post_meta($this->membership_tier_cpt_slug, 'seats', $args);
 
-    register_post_meta($this->membership_tier_cpt_slug, 'wc_products', $args);
+    $args = array(
+      'type'              => 'integer',
+      'description'       => __( 'Product IDs using this membership level.', 'wicket-memberships' ),
+      'single'            => false,
+      'show_in_rest'      => true,
+    );
+    register_post_meta($this->membership_tier_cpt_slug, 'wc_product', $args);
   }
 
 }

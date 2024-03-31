@@ -63,7 +63,8 @@ class Membership_CPT_Hooks {
     $columns['next_tier_uuid']  = __( 'Next Membership UUID', 'wicket-memberships' );
     $columns['config_id']  = __( 'Config ID', 'wicket-memberships' );
     $columns['type']  = __( 'Membership Type', 'wicket-memberships' );
-    $columns['wc_products']  = __( 'Assigned Products', 'wicket-memberships' );
+    $columns['wc_product']  = __( 'Assigned Products', 'wicket-memberships' );
+    $columns['seats']  = __( 'Org seats', 'wicket-memberships' );
     $columns['approval_required']  = __( 'Approval Required', 'wicket-memberships' );
     unset($columns['date']);
     //unset($columns['title']);
@@ -77,11 +78,12 @@ class Membership_CPT_Hooks {
     $meta = get_post_meta( $post_id );
     $keys = array_keys($meta);
     foreach ($keys as $key) {
-      if( $column_name == $key) {
-        if($key == 'wc_products') {
-          print_r(unserialize($meta[$key][0]));
+      if( $key == $column_name ) {
+        if( 'wc_product' == $key) {
+            $meta_product = get_post_meta( $post_id , 'wc_product', false);
+            echo implode(", ", $meta_product);
         } else {
-          echo $meta[$key][0];
+            echo $meta[$key][0];
         }
       }
     }

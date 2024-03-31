@@ -24,6 +24,138 @@ class Membership_Controller {
   }
 
   /**
+   * -=-=-=- Setup membership record data based on products in order -=-=-=- 
+   */
+
+   /**
+   * Get all the membership data from the products on the order
+   */
+  private function get_membership_data_from_order( $order ) {
+    $memberships = [];
+    foreach( $order->get_items( 'line_item' ) as $item ) {
+      $product_id = $item->get_product_id();
+      $product = wc_get_product( $product_id );
+      /*
+      * TEMPORARY: Currently added as product attributes
+      * PERMANENT: Use Membership Configuration Posts data
+      * DON'T FORGET to add ['expires_at'] = 'ends_at' + 'grace_period'
+      */
+      $memberships[] = [
+        'membership_uuid' => $product->get_attribute( 'membership_uuid' ),
+        'starts_at' => $product->get_attribute( 'starts_at' ),
+        'ends_at' => $product->get_attribute( 'ends_at' ),
+      ];
+    }
+    return $memberships;
+  }
+
+  /**
+   * Get memberships with config from tier by products on the order
+   */
+  private function get_memberships_data_from_products( $order ) {
+
+    $memberships = [];
+    foreach( $order->get_items( 'line_item' ) as $item ) {
+      $product_id = $item->get_product_id();
+      $membership_tiers = $this->get_tiers_from_product( $product_id );
+      if( !empty( $membership_tiers )) {
+        foreach ($membership_tiers as $membership_tier) {
+          $config = get_post_meta( $membership_tier['config_id'], 'cycle_data' );      
+          if( $config[0]['cycle_type'] == 'anniversary' ) {
+            $dates = $this->get_anniversary_dates( $config );
+          } else {
+            $dates = $this->get_calendar_dates( $config );
+          }
+          $memberships[] = [
+            'membership_wp_id' => $membership_tier->ID,
+            'membership_uuid' => $membership_tier->tier_uuid,
+            'member_type' => $membership_tier->type,
+            'starts_at' => $dates['start_date'],
+            'ends_at' =>  $dates['end_date'],
+          ];
+        }  
+      }
+    }
+    return $memberships;
+  }
+
+  /**
+   * Determine the STart And ENd Date based on Anniversary settings
+   * array(1) {
+  [0]=>
+  array(3) {
+    ["cycle_type"]=>
+    string(11) "anniversary"
+    ["anniversary_data"]=>
+    array(4) {
+      ["period_count"]=>
+      int(1)
+      ["period_type"]=>
+      string(4) "year"
+      ["align_end_dates_enabled"]=>
+      bool(true)
+      ["align_end_dates_type"]=>
+      string(13) "15th-of-month"
+    }
+    ["calendar_items"]=>
+    array(0) {
+    }
+  }
+}
+   */
+  public function get_anniversary_dates( $config = null ) {
+    if( ! $config[0]['anniversary_data']['align_end_dates_enabled'] ) {
+      switch( $config[0]['anniversary_data']["period_type"]){
+        case 'year':
+          $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime("+1 year")), wp_timezone() ))->format('c');
+          break;
+        case 'month':
+          $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime("+1 month")), wp_timezone() ))->format('c');
+          break;
+        case 'week':
+          $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime("+1 week")), wp_timezone() ))->format('c');
+          break;
+      }          
+    }
+  }
+
+  /**
+   * Determine the STart and ENd Date based on Calendar settings
+   */
+  private function get_calendar_dates( $config ) {
+
+  }
+
+
+  /**
+   * Get all tiers attached to a product
+   */
+  public function get_tiers_from_product( $product_id ) {
+
+    $args = array(
+      'post_type' => $this->membership_tier_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query'     => array(
+        array(
+          'key'     => 'wc_product',
+          'value'   => $product_id,
+          'compare' => '='
+        ),
+      )
+    );
+    $tiers = get_posts( $args );
+    foreach( $tiers as &$tier ) {
+      $tier->meta = get_post_meta( $tier->ID);
+    }
+    return $tiers;
+  }
+
+  /**
+   * -=-=-=- Process the Order Hook and Create the Wicket MDP Membership
+   */
+
+  /**
    * Catch the Order Status Changed hook
    * Process the order product(s) memberships
    */
@@ -50,28 +182,6 @@ class Membership_Controller {
     foreach ($memberships as $membership) {
       do_action( 'wicket_member_create_record' , $membership );
     }
-  }
-
-  /**
-   * Get all the membership data from the products on the order
-   */
-  private function get_membership_data_from_order( $order ) {
-    $memberships = [];
-    foreach( $order->get_items( 'line_item' ) as $item ) {
-      $product_id = $item->get_product_id();
-      $product = wc_get_product( $product_id );
-      /*
-      * TEMPORARY: Currently added as product attributes
-      * PERMANENT: Use Membership Configuration Posts data
-      * DON'T FORGET to add ['expires_at'] = 'ends_at' + 'grace_period'
-      */
-      $memberships[] = [
-        'membership_uuid' => $product->get_attribute( 'membership_uuid' ),
-        'starts_at' => $product->get_attribute( 'starts_at' ),
-        'ends_at' => $product->get_attribute( 'ends_at' ),
-      ];
-    }
-    return $memberships;
   }
 
   /**
@@ -130,7 +240,7 @@ class Membership_Controller {
         'post_status' => 'publish',
         'meta_input'  => [
           'status' => 'active',
-          'member_type' => 'person',
+          'member_type' => $membership['member_type'],
           'user_id' => $membership['user_id'],
           'start_date' => $membership['starts_at'],
           'end_date' => $membership['ends_at'],
