@@ -84,11 +84,11 @@ class Membership_Config_CPT_Hooks {
       return;
     }
 
-    $asset_file = include( WICKET_MEMBER_PLUGIN_DIR . 'frontend/build/membership_config_create.asset.php' );
+    $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/membership_config_create.asset.php' );
 
     wp_enqueue_script(
-      WICKET_MEMBER_PLUGIN_SLUG . '_membership_config_create',
-      WICKET_MEMBER_PLUGIN_URL . '/frontend/build/membership_config_create.js',
+      WICKET_MEMBERSHIP_PLUGIN_SLUG . '_membership_config_create',
+      WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/membership_config_create.js',
       $asset_file['dependencies'],
       $asset_file['version'],
       true

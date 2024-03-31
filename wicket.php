@@ -25,24 +25,24 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-if ( ! defined( 'WICKET_MEMBER_PLUGIN_URL' ) ) {
-	define( 'WICKET_MEMBER_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+if ( ! defined( 'WICKET_MEMBERSHIP_PLUGIN_URL' ) ) {
+	define( 'WICKET_MEMBERSHIP_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 }
 
-if ( ! defined( 'WICKET_MEMBER_BASENAME' ) ) {
-	define( 'WICKET_MEMBER_BASENAME', plugin_basename( __FILE__ ) );
+if ( ! defined( 'WICKET_MEMBERSHIP_BASENAME' ) ) {
+	define( 'WICKET_MEMBERSHIP_BASENAME', plugin_basename( __FILE__ ) );
 }
 
-if ( ! defined( 'WICKET_MEMBER_PLUGIN_DIR' ) ) {
-	define( 'WICKET_MEMBER_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+if ( ! defined( 'WICKET_MEMBERSHIP_PLUGIN_DIR' ) ) {
+	define( 'WICKET_MEMBERSHIP_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 }
 
-if ( ! defined( 'WICKET_MEMBER_PLUGIN_FILE' ) ) {
-	define( 'WICKET_MEMBER_PLUGIN_FILE', __FILE__ );
+if ( ! defined( 'WICKET_MEMBERSHIP_PLUGIN_FILE' ) ) {
+	define( 'WICKET_MEMBERSHIP_PLUGIN_FILE', __FILE__ );
 }
 
-if ( ! defined( 'WICKET_MEMBER_PLUGIN_SLUG' ) ) {
-	define( 'WICKET_MEMBER_PLUGIN_SLUG', 'wicket_member_wp' );
+if ( ! defined( 'WICKET_MEMBERSHIP_PLUGIN_SLUG' ) ) {
+	define( 'WICKET_MEMBERSHIP_PLUGIN_SLUG', 'wicket_member_wp' );
 }
 
 use Wicket_Memberships\Admin_Controller;
@@ -55,8 +55,8 @@ use Wicket_Memberships\Membership_WP_REST_Controller;
 if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
 	// Add vendor plugins with composer autoloader
-	if (is_file(WICKET_MEMBER_PLUGIN_DIR . 'vendor/autoload.php')) {
-		require_once WICKET_MEMBER_PLUGIN_DIR . 'vendor/autoload.php';
+	if (is_file(WICKET_MEMBERSHIP_PLUGIN_DIR . 'vendor/autoload.php')) {
+		require_once WICKET_MEMBERSHIP_PLUGIN_DIR . 'vendor/autoload.php';
 	}
 
 	/**
@@ -73,7 +73,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 			new Membership_Config_CPT_Hooks;
       new Membership_WP_REST_Controller;
 
-			register_activation_hook( WICKET_MEMBER_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
+			register_activation_hook( WICKET_MEMBERSHIP_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
 			add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
     }
 

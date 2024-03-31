@@ -20,7 +20,7 @@ class Admin_Controller {
    * Initialize the admin menu
    */
 	public function init_menu() {
-    $menu_slug = WICKET_MEMBER_PLUGIN_SLUG;
+    $menu_slug = WICKET_MEMBERSHIP_PLUGIN_SLUG;
 		$capability = 'manage_options';
 
 		add_menu_page(
@@ -38,8 +38,8 @@ class Admin_Controller {
 	 */
 	public function enqueue_scripts() {
 		wp_enqueue_style(
-      WICKET_MEMBER_PLUGIN_SLUG . '_styles',
-      WICKET_MEMBER_PLUGIN_URL . '/assets/css/wicket-memberships-main.css',
+      WICKET_MEMBERSHIP_PLUGIN_SLUG . '_styles',
+      WICKET_MEMBERSHIP_PLUGIN_URL . '/assets/css/wicket-memberships-main.css',
       [ 'wp-components' ],
       false
     );
