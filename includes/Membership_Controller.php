@@ -53,23 +53,27 @@ class Membership_Controller {
    * Get memberships with config from tier by products on the order
    */
   private function get_memberships_data_from_products( $order ) {
-
+    $seats = 0;
     $memberships = [];
     foreach( $order->get_items( 'line_item' ) as $item ) {
       $product_id = $item->get_product_id();
       $membership_tiers = $this->get_tiers_from_product( $product_id );
       if( !empty( $membership_tiers )) {
         foreach ($membership_tiers as $membership_tier) {
-          $config = get_post_meta( $membership_tier['config_id'], 'cycle_data' );      
-          if( $config[0]['cycle_type'] == 'anniversary' ) {
-            $dates = $this->get_anniversary_dates( $config );
-          } else {
-            $dates = $this->get_calendar_dates( $config );
+          if( $membership_tier->type == 'organization') {
+            foreach( $membership_tier->wc_products as $tier_product ) {
+              if( $tier_product['product_id'] == $product_id ) {
+                $seats = $tier_product['seats'];
+              }
+            }
           }
+          $config = get_post_meta( $membership_tier['config_id'], 'cycle_data' );  
+          $dates = $this->get_membership_dates( $config );
           $memberships[] = [
             'membership_wp_id' => $membership_tier->ID,
             'membership_uuid' => $membership_tier->tier_uuid,
             'member_type' => $membership_tier->type,
+            'membership_seats' => $seats,
             'starts_at' => $dates['start_date'],
             'ends_at' =>  $dates['end_date'],
           ];
@@ -81,51 +85,44 @@ class Membership_Controller {
 
   /**
    * Determine the STart And ENd Date based on Anniversary settings
-   * array(1) {
-  [0]=>
-  array(3) {
-    ["cycle_type"]=>
-    string(11) "anniversary"
-    ["anniversary_data"]=>
-    array(4) {
-      ["period_count"]=>
-      int(1)
-      ["period_type"]=>
-      string(4) "year"
-      ["align_end_dates_enabled"]=>
-      bool(true)
-      ["align_end_dates_type"]=>
-      string(13) "15th-of-month"
-    }
-    ["calendar_items"]=>
-    array(0) {
-    }
-  }
-}
    */
-  public function get_anniversary_dates( $config = null ) {
-    if( ! $config[0]['anniversary_data']['align_end_dates_enabled'] ) {
-      switch( $config[0]['anniversary_data']["period_type"]){
-        case 'year':
-          $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime("+1 year")), wp_timezone() ))->format('c');
-          break;
-        case 'month':
-          $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime("+1 month")), wp_timezone() ))->format('c');
-          break;
-        case 'week':
-          $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime("+1 week")), wp_timezone() ))->format('c');
-          break;
-      }          
+  public function get_membership_dates( $config = null ) {
+    if( $config[0]['cycle_type'] == 'anniversary' ) {
+      # some test data
+      #$config[0]['anniversary_data']["period_type"]  = 'year';
+      #$config[0]['anniversary_data']["align_end_dates_enabled"]  = true;
+      #$config[0]['anniversary_data']["align_end_dates_type"]  = 'first-day-of-month';
+      $dates['start_date'] = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+      $period_type  = !in_array( $config[0]['anniversary_data']["period_type"], ['year','month','day'] )
+                        ? 'year' : $config[0]['anniversary_data']["period_type"];
+      $the_end_date = date("Y-m-d", strtotime("+1 ".$period_type));
+      if( in_array( $period_type, ['year', 'month']) && $config[0]['align_end_dates_enabled'] !== false ) {
+        switch( $config[0]['anniversary_data']["align_end_dates_type"] ) {
+          case 'first-day-of-month':
+            $the_end_date = date("Y-m-1", strtotime("+1 ".$period_type));
+            break;
+          case '15th-of-month':
+            $the_end_date = date("Y-m-15", strtotime("+1 ".$period_type));
+            break;
+          case 'last-day-of-month':
+            $the_end_date = date("Y-m-t", strtotime("+1 ".$period_type));
+            break;
+        }
+      }
+      $dates['end_date'] = (new \DateTime( $the_end_date, wp_timezone() ))->format('c');
+    } else {    
+      $dates['start_date'] = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+      $dates['end_date'] = (new \DateTime( strtotime("+1 year"), wp_timezone() ))->format('c');
+      $seasons = $config[0]['calendar_items'];
+      $current_time = current_time( 'timestamp' );
+      foreach( $seasons as $season ) {
+        if( $season['active'] && ( $current_time >= strtotime( $season['start_date'] )) && ( $current_time <= strtotime( $season['end_date'] ))) {
+          $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime( $season['end_date'] )), wp_timezone() ))->format('c');
+        }
+      }
     }
+    return $dates;
   }
-
-  /**
-   * Determine the STart and ENd Date based on Calendar settings
-   */
-  private function get_calendar_dates( $config ) {
-
-  }
-
 
   /**
    * Get all tiers attached to a product
@@ -156,6 +153,8 @@ class Membership_Controller {
    */
 
   /**
+   * **** MISSING organization_uuid ??? *******
+   * 
    * Catch the Order Status Changed hook
    * Process the order product(s) memberships
    */
@@ -164,7 +163,7 @@ class Membership_Controller {
     $self = new self();
 
     //get membership_data
-    $memberships = $self->get_membership_data_from_order( $order );
+    $memberships = $self->get_membership_data_from_order( $order ); //get_memberships_data_from_products
 
     //get_person_uuid
     $user_id = $order->get_user_id();
@@ -200,12 +199,22 @@ class Membership_Controller {
   private function create_mdp_record( $membership ) {
     $wicket_uuid = $this->check_mdp_membership_record_exists( $membership );
     if( empty( $wicket_uuid ) ) {
-      $response = wicket_assign_individual_membership( 
-        $membership['person_uuid'],
-        $membership['membership_uuid'], 
-        $membership['starts_at'],
-        $membership['ends_at']
-      );
+      if( $membership['member_type'] == 'individual' ) {
+        $response = wicket_assign_individual_membership( 
+          $membership['person_uuid'],
+          $membership['membership_uuid'], 
+          $membership['starts_at'],
+          $membership['ends_at']
+        );  
+      } else {
+        $response = wicket_assign_organization_membership( 
+          $membership['person_uuid'],
+          $membership['membership_uuid'], 
+          // $membership['organization_uuid'], // TODO: MISSING ????
+          $membership['starts_at'],
+          $membership['ends_at']
+        );  
+      }
       if( is_wp_error( $response ) ) {
         $this->error_message = $response->get_error_message( 'wicket_api_error' );
         $this->surface_error();
