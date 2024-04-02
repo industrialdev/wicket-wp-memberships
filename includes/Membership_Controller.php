@@ -58,6 +58,8 @@ class Membership_Controller {
     foreach( $order->get_items( 'line_item' ) as $item ) {
       $product_id = $item->get_product_id();
       $membership_tiers = $this->get_tiers_from_product( $product_id );
+      $dates = $this->get_membership_dates( $membership_tier['config_id'] );
+
       if( !empty( $membership_tiers )) {
         foreach ($membership_tiers as $membership_tier) {
           if( $membership_tier->type == 'organization') {
@@ -67,8 +69,6 @@ class Membership_Controller {
               }
             }
           }
-          $config = get_post_meta( $membership_tier['config_id'], 'cycle_data' );  
-          $dates = $this->get_membership_dates( $config );
           $memberships[] = [
             'membership_wp_id' => $membership_tier->ID,
             'membership_uuid' => $membership_tier->tier_uuid,
@@ -84,20 +84,18 @@ class Membership_Controller {
   }
 
   /**
-   * Determine the STart And ENd Date based on Anniversary settings
+   * Determine the STart And ENd Date based on config settings
    */
-  public function get_membership_dates( $config = null ) {
-    if( $config[0]['cycle_type'] == 'anniversary' ) {
-      # some test data
-      #$config[0]['anniversary_data']["period_type"]  = 'year';
-      #$config[0]['anniversary_data']["align_end_dates_enabled"]  = true;
-      #$config[0]['anniversary_data']["align_end_dates_type"]  = 'first-day-of-month';
+  public function get_membership_dates( $config_id ) {
+    $config = new Membership_Config( $config_id );
+    $cycle_data = $config->get_cycle_data();
+    if( $cycle_data['cycle_type'] == 'anniversary' ) {
       $dates['start_date'] = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
-      $period_type  = !in_array( $config[0]['anniversary_data']["period_type"], ['year','month','day'] )
-                        ? 'year' : $config[0]['anniversary_data']["period_type"];
+      $period_type  = !in_array( $cycle_data['anniversary_data']["period_type"], ['year','month','day'] )
+                        ? 'year' : $cycle_data['anniversary_data']["period_type"];
       $the_end_date = date("Y-m-d", strtotime("+1 ".$period_type));
-      if( in_array( $period_type, ['year', 'month']) && $config[0]['align_end_dates_enabled'] !== false ) {
-        switch( $config[0]['anniversary_data']["align_end_dates_type"] ) {
+      if( in_array( $period_type, ['year', 'month']) && $cycle_data['align_end_dates_enabled'] !== false ) {
+        switch( $cycle_data['anniversary_data']["align_end_dates_type"] ) {
           case 'first-day-of-month':
             $the_end_date = date("Y-m-1", strtotime("+1 ".$period_type));
             break;
@@ -112,12 +110,12 @@ class Membership_Controller {
       $dates['end_date'] = (new \DateTime( $the_end_date, wp_timezone() ))->format('c');
     } else {    
       $dates['start_date'] = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
-      $dates['end_date'] = (new \DateTime( strtotime("+1 year"), wp_timezone() ))->format('c');
-      $seasons = $config[0]['calendar_items'];
+      $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime("+1 year")), wp_timezone() ))->format('c');
       $current_time = current_time( 'timestamp' );
+      $seasons = $config->get_calendar_seasons();
       foreach( $seasons as $season ) {
         if( $season['active'] && ( $current_time >= strtotime( $season['start_date'] )) && ( $current_time <= strtotime( $season['end_date'] ))) {
-          $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime( $season['end_date'] )), wp_timezone() ))->format('c');
+          $dates['end_date'] = $season['end_date'];
         }
       }
     }

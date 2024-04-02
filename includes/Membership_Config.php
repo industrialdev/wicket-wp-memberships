@@ -158,7 +158,7 @@ class Membership_Config {
    *
    * @return array|bool Array, false otherwise
    */
-  private function get_cycle_data() {
+  public function get_cycle_data() {
     $cycle_data = get_post_meta( $this->post_id, 'cycle_data', true );
 
     if ( is_array( $cycle_data ) ) {
