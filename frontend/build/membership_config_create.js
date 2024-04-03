@@ -13309,10 +13309,6 @@ const CreateMembershipConfig = ({
           value: product.id
         };
       });
-      options.unshift({
-        label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Select a product', 'wicket-memberships'),
-        value: -1
-      });
       console.log(options);
       setWcProductOptions(options);
     });
@@ -13393,7 +13389,6 @@ const CreateMembershipConfig = ({
     htmlFor: "late_fee_product_id"
   }, "Late Fee Window (Days)"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SelectWpStyled, {
     id: "late_fee_product_id",
-    className: "basic-single",
     classNamePrefix: "select",
     value: wcProductOptions.find(option => option.value === form.late_fee_window_data.product_id),
     isClearable: false,
@@ -13592,6 +13587,11 @@ const CreateMembershipConfig = ({
       maxWidth: '840px',
       width: '100%'
     }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+    onSubmit: () => {
+      saveRenewalWindowCallout();
+      closeRenewalWindowCalloutModal();
+    }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Header', 'wicket-memberships'),
     onChange: value => {
@@ -13630,16 +13630,18 @@ const CreateMembershipConfig = ({
     value: tempForm.renewal_window_data.callout_button_label
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
     variant: "primary",
-    onClick: () => {
-      saveRenewalWindowCallout();
-      closeRenewalWindowCalloutModal();
-    }
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Save', 'wicket-memberships'))), isLateFeeWindowCalloutModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Modal, {
+    type: "submit"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Save', 'wicket-memberships')))), isLateFeeWindowCalloutModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Modal, {
     title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Late Fee Window - Callout Configuration', 'wicket-memberships'),
     onRequestClose: closeLateFeeWindowCalloutModal,
     style: {
       maxWidth: '840px',
       width: '100%'
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+    onSubmit: () => {
+      saveLateFeeWindowCallout();
+      closeLateFeeWindowCalloutModal();
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Header', 'wicket-memberships'),
@@ -13679,11 +13681,8 @@ const CreateMembershipConfig = ({
     value: tempForm.late_fee_window_data.callout_button_label
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
     variant: "primary",
-    onClick: () => {
-      saveLateFeeWindowCallout();
-      closeLateFeeWindowCalloutModal();
-    }
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Save', 'wicket-memberships'))), isCreateSeasonModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Modal, {
+    type: "submit"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Save', 'wicket-memberships')))), isCreateSeasonModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Modal, {
     title: currentSeasonIndex === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Season', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Edit Season', 'wicket-memberships'),
     onRequestClose: closeCreateSeasonModalOpen,
     style: {
