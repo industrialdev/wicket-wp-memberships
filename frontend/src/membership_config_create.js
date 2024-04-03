@@ -7,6 +7,7 @@ import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock,
 import styled from 'styled-components';
 import { API_URL } from './constants';
 import he from 'he';
+import Select from 'react-select'
 
 const CustomDisabled = styled(Disabled)`
 	opacity: .5;
@@ -39,6 +40,42 @@ const BorderedBox = styled.div`
 	margin-top: 15px;
 `;
 
+const SelectWpStyled = styled(Select)`
+	.select__input-container {
+		margin: 0;
+		padding: 0;
+	}
+
+	.select__dropdown-indicator {
+		padding: 0 4px;
+	}
+
+	.select__control {
+		border: 1px solid #949494;
+    border-radius: 2px;
+		min-height: 28px;
+	}
+
+	.select__input {
+		min-height: 28px;
+		box-shadow: none !important;
+	}
+
+	.select__value-container {
+		padding: 0 8px;
+	}
+`;
+
+const LabelWpStyled = styled.label`
+	font-size: 11px;
+	font-weight: 500;
+	line-height: 1.4;
+	text-transform: uppercase;
+	display: inline-block;
+	margin-bottom: 8px;
+	padding: 0px;
+`;
+
 const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 
 	const [currentSeasonIndex, setCurrentSeasonIndex] = useState(null);
@@ -65,12 +102,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 	const [isSubmitting, setSubmitting] = useState(false);
 	const [errors, setErrors] = useState({});
 	const [seasonErrors, setSeasonErrors] = useState({});
-	const [wcProductOptions, setWcProductOptions] = useState([
-		{
-			label: __('Loading products...', 'wicket-memberships'),
-			value: '-1'
-		}
-	]);
+	const [wcProductOptions, setWcProductOptions] = useState([]);
 
 	const [form, setForm] = useState({
 		name: '',
@@ -362,14 +394,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 			let options = products.map((product) => {
 				const decodedTitle = he.decode(product.title.rendered);
 				return {
-					label: `${decodedTitle} | (ID: ${product.id})`,
+					label: `${decodedTitle} | ID: ${product.id}`,
 					value: product.id
 				}
-			});
-
-			options.unshift({
-				label: __('Select a product', 'wicket-memberships'),
-				value: -1
 			});
 
 			console.log(options);
@@ -489,20 +516,24 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 								/>
 							</FlexBlock>
 							<FlexBlock>
-								<SelectControl
-									label={__('Product', 'wicket-memberships')}
-									value={form.late_fee_window_data.product_id}
-									__nextHasNoMarginBottom={true}
-									onChange={value => {
+								<LabelWpStyled htmlFor="late_fee_product_id">Late Fee Window (Days)</LabelWpStyled>
+								<SelectWpStyled
+									id="late_fee_product_id"
+									classNamePrefix="select"
+									value={wcProductOptions.find(option => option.value === form.late_fee_window_data.product_id)}
+									isClearable={false}
+									isSearchable={true}
+									isLoading={wcProductOptions.length === 0}
+									options={wcProductOptions}
+									onChange={selected => {
 										setForm({
 											...form,
 											late_fee_window_data: {
 												...form.late_fee_window_data,
-												product_id: value
+												product_id: selected.value
 											}
 										});
 									}}
-									options={wcProductOptions}
 								/>
 							</FlexBlock>
 							<FlexItem>
@@ -801,57 +832,58 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 							}
 						}
 					>
-
-						<TextControl
-							label={__('Callout Header', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									renewal_window_data: {
-										...tempForm.renewal_window_data,
-										callout_header: value
-									}
-								});
-							}}
-							value={tempForm.renewal_window_data.callout_header}
-						/>
-
-						<TextareaControl
-							label={__('Callout Content', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									renewal_window_data: {
-										...tempForm.renewal_window_data,
-										callout_content: value
-									}
-								});
-							}}
-							value={tempForm.renewal_window_data.callout_content}
-						/>
-
-						<TextControl
-							label={__('Button Label', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									renewal_window_data: {
-										...tempForm.renewal_window_data,
-										callout_button_label: value
-									}
-								});
-							}}
-							value={tempForm.renewal_window_data.callout_button_label}
-						/>
-
-						<Button variant="primary" onClick={
+						<form onSubmit={
 							() => {
 								saveRenewalWindowCallout();
 								closeRenewalWindowCalloutModal();
 							}
 						}>
-							{__('Save', 'wicket-memberships')}
-						</Button>
+							<TextControl
+								label={__('Callout Header', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										renewal_window_data: {
+											...tempForm.renewal_window_data,
+											callout_header: value
+										}
+									});
+								}}
+								value={tempForm.renewal_window_data.callout_header}
+							/>
+
+							<TextareaControl
+								label={__('Callout Content', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										renewal_window_data: {
+											...tempForm.renewal_window_data,
+											callout_content: value
+										}
+									});
+								}}
+								value={tempForm.renewal_window_data.callout_content}
+							/>
+
+							<TextControl
+								label={__('Button Label', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										renewal_window_data: {
+											...tempForm.renewal_window_data,
+											callout_button_label: value
+										}
+									});
+								}}
+								value={tempForm.renewal_window_data.callout_button_label}
+							/>
+
+							<Button variant="primary" type='submit'>
+								{__('Save', 'wicket-memberships')}
+							</Button>
+						</form>
 					</Modal>
 				)}
 
@@ -867,57 +899,58 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 							}
 						}
 					>
-
-						<TextControl
-							label={__('Callout Header', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									late_fee_window_data: {
-										...tempForm.late_fee_window_data,
-										callout_header: value
-									}
-								});
-							}}
-							value={tempForm.late_fee_window_data.callout_header}
-						/>
-
-						<TextareaControl
-							label={__('Callout Content', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									late_fee_window_data: {
-										...tempForm.late_fee_window_data,
-										callout_content: value
-									}
-								});
-							}}
-							value={tempForm.late_fee_window_data.callout_content}
-						/>
-
-						<TextControl
-							label={__('Button Label', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									late_fee_window_data: {
-										...tempForm.late_fee_window_data,
-										callout_button_label: value
-									}
-								});
-							}}
-							value={tempForm.late_fee_window_data.callout_button_label}
-						/>
-
-						<Button variant="primary" onClick={
+						<form onSubmit={
 							() => {
 								saveLateFeeWindowCallout();
 								closeLateFeeWindowCalloutModal();
 							}
 						}>
-							{__('Save', 'wicket-memberships')}
-						</Button>
+							<TextControl
+								label={__('Callout Header', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										late_fee_window_data: {
+											...tempForm.late_fee_window_data,
+											callout_header: value
+										}
+									});
+								}}
+								value={tempForm.late_fee_window_data.callout_header}
+							/>
+
+							<TextareaControl
+								label={__('Callout Content', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										late_fee_window_data: {
+											...tempForm.late_fee_window_data,
+											callout_content: value
+										}
+									});
+								}}
+								value={tempForm.late_fee_window_data.callout_content}
+							/>
+
+							<TextControl
+								label={__('Button Label', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										late_fee_window_data: {
+											...tempForm.late_fee_window_data,
+											callout_button_label: value
+										}
+									});
+								}}
+								value={tempForm.late_fee_window_data.callout_button_label}
+							/>
+
+							<Button variant="primary" type='submit'>
+								{__('Save', 'wicket-memberships')}
+							</Button>
+						</form>
 					</Modal>
 				)}
 
