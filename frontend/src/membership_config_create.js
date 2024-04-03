@@ -394,7 +394,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 			let options = products.map((product) => {
 				const decodedTitle = he.decode(product.title.rendered);
 				return {
-					label: `${decodedTitle} | (ID: ${product.id})`,
+					label: `${decodedTitle} | ID: ${product.id}`,
 					value: product.id
 				}
 			});

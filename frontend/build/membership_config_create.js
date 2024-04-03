@@ -13305,7 +13305,7 @@ const CreateMembershipConfig = ({
       let options = products.map(product => {
         const decodedTitle = he__WEBPACK_IMPORTED_MODULE_7___default().decode(product.title.rendered);
         return {
-          label: `${decodedTitle} | (ID: ${product.id})`,
+          label: `${decodedTitle} | ID: ${product.id}`,
           value: product.id
         };
       });
