@@ -13038,7 +13038,7 @@ const CreateMembershipConfig = ({
   const openLateFeeWindowCalloutModal = () => setLateFeeWindowCalloutModalOpen(true);
   const closeLateFeeWindowCalloutModal = () => setLateFeeWindowCalloutModalOpen(false);
   const [isSubmitting, setSubmitting] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
-  const [errors, setErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({});
+  const [errors, setErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [seasonErrors, setSeasonErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({});
   const [wcProductOptions, setWcProductOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [form, setForm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
@@ -13100,33 +13100,39 @@ const CreateMembershipConfig = ({
    */
   const validateForm = () => {
     let isValid = true;
-    const newErrors = {};
+    let newErrors = [];
     if (form.name.length === 0) {
-      newErrors.name = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Name is required', 'wicket-memberships');
+      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership Configuration Name is required', 'wicket-memberships'));
       isValid = false;
     }
-    if (form.renewal_window_data.callout_header.length === 0) {
-      newErrors.renewalWindowcallout_header = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renewal Window Callout Header is required', 'wicket-memberships');
-      isValid = false;
-    }
-    if (form.renewal_window_data.callout_content.length === 0) {
-      newErrors.renewalWindowCalloutContent = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renewal Window Callout Content is required', 'wicket-memberships');
-      isValid = false;
-    }
-    if (form.renewal_window_data.callout_button_label.length === 0) {
-      newErrors.renewalWindowButtonLabel = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renewal Window Callout Button Label is required', 'wicket-memberships');
-      isValid = false;
-    }
-    if (form.late_fee_window_data.product_id === '-1') {
-      newErrors.lateFeeProduct = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Late Fee Window Product is required', 'wicket-memberships');
-      isValid = false;
-    }
-    if (form.cycle_data.cycle_type === 'calendar') {
-      if (form.cycle_data.calendar_items.length === 0) {
-        newErrors.calendarItems = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('At least one season is required', 'wicket-memberships');
-        isValid = false;
-      }
-    }
+
+    // if (form.renewal_window_data.callout_header.length === 0) {
+    // 	newErrors.renewalWindowcallout_header = __('Renewal Window Callout Header is required', 'wicket-memberships')
+    // 	isValid = false
+    // }
+
+    // if (form.renewal_window_data.callout_content.length === 0) {
+    // 	newErrors.renewalWindowCalloutContent = __('Renewal Window Callout Content is required', 'wicket-memberships')
+    // 	isValid = false
+    // }
+
+    // if (form.renewal_window_data.callout_button_label.length === 0) {
+    // 	newErrors.renewalWindowButtonLabel = __('Renewal Window Callout Button Label is required', 'wicket-memberships')
+    // 	isValid = false
+    // }
+
+    // if (form.late_fee_window_data.product_id === '-1') {
+    // 	newErrors.lateFeeProduct = __('Late Fee Window Product is required', 'wicket-memberships')
+    // 	isValid = false
+    // }
+
+    // if (form.cycle_data.cycle_type === 'calendar') {
+    // 	if (form.cycle_data.calendar_items.length === 0) {
+    // 		newErrors.calendarItems = __('At least one season is required', 'wicket-memberships')
+    // 		isValid = false
+    // 	}
+    // }
+
     setErrors(newErrors);
     return isValid;
   };
@@ -13259,11 +13265,9 @@ const CreateMembershipConfig = ({
       data: {
         title: form.name,
         status: 'publish',
-        meta: {
-          renewal_window_data: form.renewal_window_data,
-          late_fee_window_data: form.late_fee_window_data,
-          cycle_data: form.cycle_data
-        }
+        renewal_window_data: form.renewal_window_data,
+        late_fee_window_data: form.late_fee_window_data,
+        cycle_data: form.cycle_data
       }
     }).then(response => {
       console.log(response);
@@ -13272,7 +13276,13 @@ const CreateMembershipConfig = ({
         window.location.href = configListUrl;
       }
     }).catch(error => {
-      console.log(error);
+      let newErrors = [];
+      Object.keys(error.data.params).forEach(key => {
+        let errors = error.data.params[key].split(/(?<=[.?!])\s+|\.$/);
+        newErrors = newErrors.concat(errors).filter(sentence => sentence.trim() !== '');
+      });
+      setErrors(newErrors);
+      setSubmitting(false);
     });
   };
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
@@ -13287,9 +13297,9 @@ const CreateMembershipConfig = ({
         const decodedTitle = he__WEBPACK_IMPORTED_MODULE_7___default().decode(post.title.rendered);
         setForm({
           name: decodedTitle,
-          renewal_window_data: post.meta.renewal_window_data,
-          late_fee_window_data: post.meta.late_fee_window_data,
-          cycle_data: post.meta.cycle_data
+          renewal_window_data: post.renewal_window_data,
+          late_fee_window_data: post.late_fee_window_data,
+          cycle_data: post.cycle_data
         });
       });
     }
@@ -13321,11 +13331,11 @@ const CreateMembershipConfig = ({
     className: "wp-heading-inline"
   }, postId ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Edit Membership Configuration', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add New Membership Configuration', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("hr", {
     className: "wp-header-end"
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Wrap, null, Object.keys(errors).length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ErrorsRow, null, Object.keys(errors).map(key => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Notice, {
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Wrap, null, errors.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ErrorsRow, null, errors.map(error => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Notice, {
     isDismissible: false,
-    key: key,
+    key: error,
     status: "warning"
-  }, errors[key]))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+  }, error))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
     onSubmit: handleSubmit
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "end",

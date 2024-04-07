@@ -100,7 +100,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 	const closeLateFeeWindowCalloutModal = () => setLateFeeWindowCalloutModalOpen(false);
 
 	const [isSubmitting, setSubmitting] = useState(false);
-	const [errors, setErrors] = useState({});
+	const [errors, setErrors] = useState([]);
 	const [seasonErrors, setSeasonErrors] = useState({});
 	const [wcProductOptions, setWcProductOptions] = useState([]);
 
@@ -162,39 +162,39 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 	 */
 	const validateForm = () => {
     let isValid = true;
-    const newErrors = {};
+    let newErrors = [];
 
     if (form.name.length === 0) {
-      newErrors.name = __('Name is required', 'wicket-memberships')
+			newErrors.push(__('Membership Configuration Name is required', 'wicket-memberships'))
       isValid = false
     }
 
-		if (form.renewal_window_data.callout_header.length === 0) {
-			newErrors.renewalWindowcallout_header = __('Renewal Window Callout Header is required', 'wicket-memberships')
-			isValid = false
-		}
+		// if (form.renewal_window_data.callout_header.length === 0) {
+		// 	newErrors.renewalWindowcallout_header = __('Renewal Window Callout Header is required', 'wicket-memberships')
+		// 	isValid = false
+		// }
 
-		if (form.renewal_window_data.callout_content.length === 0) {
-			newErrors.renewalWindowCalloutContent = __('Renewal Window Callout Content is required', 'wicket-memberships')
-			isValid = false
-		}
+		// if (form.renewal_window_data.callout_content.length === 0) {
+		// 	newErrors.renewalWindowCalloutContent = __('Renewal Window Callout Content is required', 'wicket-memberships')
+		// 	isValid = false
+		// }
 
-		if (form.renewal_window_data.callout_button_label.length === 0) {
-			newErrors.renewalWindowButtonLabel = __('Renewal Window Callout Button Label is required', 'wicket-memberships')
-			isValid = false
-		}
+		// if (form.renewal_window_data.callout_button_label.length === 0) {
+		// 	newErrors.renewalWindowButtonLabel = __('Renewal Window Callout Button Label is required', 'wicket-memberships')
+		// 	isValid = false
+		// }
 
-		if (form.late_fee_window_data.product_id === '-1') {
-			newErrors.lateFeeProduct = __('Late Fee Window Product is required', 'wicket-memberships')
-			isValid = false
-		}
+		// if (form.late_fee_window_data.product_id === '-1') {
+		// 	newErrors.lateFeeProduct = __('Late Fee Window Product is required', 'wicket-memberships')
+		// 	isValid = false
+		// }
 
-		if (form.cycle_data.cycle_type === 'calendar') {
-			if (form.cycle_data.calendar_items.length === 0) {
-				newErrors.calendarItems = __('At least one season is required', 'wicket-memberships')
-				isValid = false
-			}
-		}
+		// if (form.cycle_data.cycle_type === 'calendar') {
+		// 	if (form.cycle_data.calendar_items.length === 0) {
+		// 		newErrors.calendarItems = __('At least one season is required', 'wicket-memberships')
+		// 		isValid = false
+		// 	}
+		// }
 
     setErrors(newErrors)
     return isValid
@@ -350,11 +350,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 			data: {
 				title: form.name,
 				status: 'publish',
-				meta: {
-					renewal_window_data: form.renewal_window_data,
-					late_fee_window_data: form.late_fee_window_data,
-					cycle_data: form.cycle_data
-				}
+				renewal_window_data: form.renewal_window_data,
+				late_fee_window_data: form.late_fee_window_data,
+				cycle_data: form.cycle_data
 			}
 		}).then((response) => {
 			console.log(response);
@@ -363,7 +361,15 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 				window.location.href = configListUrl;
 			}
 		}).catch((error) => {
-			console.log(error);
+			let newErrors = [];
+
+			Object.keys(error.data.params).forEach((key) => {
+				let errors = error.data.params[key].split(/(?<=[.?!])\s+|\.$/);
+				newErrors = newErrors.concat(errors).filter(sentence => sentence.trim() !== '');
+			})
+
+			setErrors(newErrors);
+			setSubmitting(false);
 		});
 
 	}
@@ -379,9 +385,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 				const decodedTitle = he.decode(post.title.rendered);
 				setForm({
 					name: decodedTitle,
-					renewal_window_data: post.meta.renewal_window_data,
-					late_fee_window_data: post.meta.late_fee_window_data,
-					cycle_data: post.meta.cycle_data
+					renewal_window_data: post.renewal_window_data,
+					late_fee_window_data: post.late_fee_window_data,
+					cycle_data: post.cycle_data
 				});
 			});
 		}
@@ -418,10 +424,10 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 				<hr className="wp-header-end"></hr>
 
 				<Wrap>
-					{Object.keys(errors).length > 0 && (
+					{errors.length > 0 && (
 						<ErrorsRow>
-							{Object.keys(errors).map((key) => (
-								<Notice isDismissible={false} key={key} status="warning">{errors[key]}</Notice>
+							{errors.map((error) => (
+								<Notice isDismissible={false} key={error} status="warning">{error}</Notice>
 							))}
 						</ErrorsRow>
 					)}
