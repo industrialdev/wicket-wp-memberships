@@ -456,102 +456,106 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 						</Flex>
 
 						{/* Renewal Window */}
-						<FormFlex
-							align='end'
-							justify='start'
-							gap={5}
-							direction={[
-								'column',
-								'row'
-							]}
-						>
-							<FlexBlock>
-								<TextControl
-									label={__('Renewal Window (Days)', 'wicket-memberships')}
-									type="number"
-									min="1"
-									onChange={value => {
-										setForm({
-											...form,
-											renewal_window_data: {
-												...form.renewal_window_data,
-												days_count: value
-											}
-										});
-									}}
-									value={form.renewal_window_data.days_count}
-									__nextHasNoMarginBottom={true}
-								/>
-							</FlexBlock>
-							<FlexItem>
-								<Button
-									variant="secondary"
-									onClick={reInitRenewalWindowCallout}
-								>
-									<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
-									{__('Callout Configuration', 'wicket-memberships')}
-								</Button>
-							</FlexItem>
-						</FormFlex>
+						<BorderedBox>
+							<Flex
+								align='end'
+								justify='start'
+								gap={5}
+								direction={[
+									'column',
+									'row'
+								]}
+							>
+								<FlexBlock>
+									<TextControl
+										label={__('Renewal Window (Days)', 'wicket-memberships')}
+										type="number"
+										min="1"
+										onChange={value => {
+											setForm({
+												...form,
+												renewal_window_data: {
+													...form.renewal_window_data,
+													days_count: value
+												}
+											});
+										}}
+										value={form.renewal_window_data.days_count}
+										__nextHasNoMarginBottom={true}
+									/>
+								</FlexBlock>
+								<FlexItem>
+									<Button
+										variant="secondary"
+										onClick={reInitRenewalWindowCallout}
+									>
+										<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
+										{__('Callout Configuration', 'wicket-memberships')}
+									</Button>
+								</FlexItem>
+							</Flex>
+						</BorderedBox>
 
 						{/* Late Fee Window */}
-						<FormFlex
-							align='end'
-							gap={5}
-							direction={[
-								'column',
-								'row'
-							]}
-						>
-							<FlexBlock>
-								<TextControl
-									label={__('Late Fee Window (Days)', 'wicket-memberships')}
-									type="number"
-									min="1"
-									onChange={value => {
-										setForm({
-											...form,
-											late_fee_window_data: {
-												...form.late_fee_window_data,
-												days_count: value
-											}
-										});
-									}}
-									value={form.late_fee_window_data.days_count}
-									__nextHasNoMarginBottom={true}
-								/>
-							</FlexBlock>
-							<FlexBlock>
-								<LabelWpStyled htmlFor="late_fee_product_id">Late Fee Window (Days)</LabelWpStyled>
-								<SelectWpStyled
-									id="late_fee_product_id"
-									classNamePrefix="select"
-									value={wcProductOptions.find(option => option.value === form.late_fee_window_data.product_id)}
-									isClearable={false}
-									isSearchable={true}
-									isLoading={wcProductOptions.length === 0}
-									options={wcProductOptions}
-									onChange={selected => {
-										setForm({
-											...form,
-											late_fee_window_data: {
-												...form.late_fee_window_data,
-												product_id: selected.value
-											}
-										});
-									}}
-								/>
-							</FlexBlock>
-							<FlexItem>
-								<Button
-									variant="secondary"
-									onClick={reInitLateFeeWindowCallout}
-								>
-									<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
-									{__('Callout Configuration', 'wicket-memberships')}
-								</Button>
-							</FlexItem>
-						</FormFlex>
+						<BorderedBox>
+							<Flex
+								align='end'
+								gap={5}
+								direction={[
+									'column',
+									'row'
+								]}
+							>
+								<FlexBlock>
+									<TextControl
+										label={__('Late Fee Window (Days)', 'wicket-memberships')}
+										type="number"
+										min="1"
+										onChange={value => {
+											setForm({
+												...form,
+												late_fee_window_data: {
+													...form.late_fee_window_data,
+													days_count: value
+												}
+											});
+										}}
+										value={form.late_fee_window_data.days_count}
+										__nextHasNoMarginBottom={true}
+									/>
+								</FlexBlock>
+								<FlexBlock>
+									<LabelWpStyled htmlFor="late_fee_product_id">{__('Product', 'wicket-memberships')}</LabelWpStyled>
+									<SelectWpStyled
+										id="late_fee_product_id"
+										classNamePrefix="select"
+										value={wcProductOptions.find(option => option.value === form.late_fee_window_data.product_id)}
+										isClearable={false}
+										isSearchable={true}
+										isLoading={wcProductOptions.length === 0}
+										options={wcProductOptions}
+										onChange={selected => {
+											setForm({
+												...form,
+												late_fee_window_data: {
+													...form.late_fee_window_data,
+													product_id: selected.value
+												}
+											});
+										}}
+									/>
+								</FlexBlock>
+								<FlexItem>
+									<Button
+										variant="secondary"
+										onClick={reInitLateFeeWindowCallout}
+									>
+										<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
+										{__('Callout Configuration', 'wicket-memberships')}
+									</Button>
+								</FlexItem>
+							</Flex>
+						</BorderedBox>
 
 						{/* Cycle Data */}
 						<BorderedBox>

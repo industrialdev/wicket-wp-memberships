@@ -13351,7 +13351,7 @@ const CreateMembershipConfig = ({
       });
     },
     value: form.name
-  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(FormFlex, {
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "end",
     justify: "start",
     gap: 5,
@@ -13376,7 +13376,7 @@ const CreateMembershipConfig = ({
     onClick: reInitRenewalWindowCallout
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     className: "dashicons dashicons-screenoptions me-2"
-  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Configuration', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(FormFlex, {
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Configuration', 'wicket-memberships'))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "end",
     gap: 5,
     direction: ['column', 'row']
@@ -13397,7 +13397,7 @@ const CreateMembershipConfig = ({
     __nextHasNoMarginBottom: true
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(LabelWpStyled, {
     htmlFor: "late_fee_product_id"
-  }, "Late Fee Window (Days)"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SelectWpStyled, {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Product', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SelectWpStyled, {
     id: "late_fee_product_id",
     classNamePrefix: "select",
     value: wcProductOptions.find(option => option.value === form.late_fee_window_data.product_id),
@@ -13419,7 +13419,7 @@ const CreateMembershipConfig = ({
     onClick: reInitLateFeeWindowCallout
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     className: "dashicons dashicons-screenoptions me-2"
-  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Configuration', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Configuration', 'wicket-memberships'))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "end",
     gap: 5,
     direction: ['column', 'row']
