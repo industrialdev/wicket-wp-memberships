@@ -7,6 +7,7 @@ import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock,
 import styled from 'styled-components';
 import { API_URL } from './constants';
 import he from 'he';
+import Select from 'react-select'
 
 const CustomDisabled = styled(Disabled)`
 	opacity: .5;
@@ -39,6 +40,42 @@ const BorderedBox = styled.div`
 	margin-top: 15px;
 `;
 
+const SelectWpStyled = styled(Select)`
+	.select__input-container {
+		margin: 0;
+		padding: 0;
+	}
+
+	.select__dropdown-indicator {
+		padding: 0 4px;
+	}
+
+	.select__control {
+		border: 1px solid #949494;
+    border-radius: 2px;
+		min-height: 28px;
+	}
+
+	.select__input {
+		min-height: 28px;
+		box-shadow: none !important;
+	}
+
+	.select__value-container {
+		padding: 0 8px;
+	}
+`;
+
+const LabelWpStyled = styled.label`
+	font-size: 11px;
+	font-weight: 500;
+	line-height: 1.4;
+	text-transform: uppercase;
+	display: inline-block;
+	margin-bottom: 8px;
+	padding: 0px;
+`;
+
 const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 
 	const [currentSeasonIndex, setCurrentSeasonIndex] = useState(null);
@@ -63,14 +100,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 	const closeLateFeeWindowCalloutModal = () => setLateFeeWindowCalloutModalOpen(false);
 
 	const [isSubmitting, setSubmitting] = useState(false);
-	const [errors, setErrors] = useState({});
+	const [errors, setErrors] = useState([]);
 	const [seasonErrors, setSeasonErrors] = useState({});
-	const [wcProductOptions, setWcProductOptions] = useState([
-		{
-			label: __('Loading products...', 'wicket-memberships'),
-			value: '-1'
-		}
-	]);
+	const [wcProductOptions, setWcProductOptions] = useState([]);
 
 	const [form, setForm] = useState({
 		name: '',
@@ -130,39 +162,39 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 	 */
 	const validateForm = () => {
     let isValid = true;
-    const newErrors = {};
+    let newErrors = [];
 
     if (form.name.length === 0) {
-      newErrors.name = __('Name is required', 'wicket-memberships')
+			newErrors.push(__('Membership Configuration Name is required', 'wicket-memberships'))
       isValid = false
     }
 
-		if (form.renewal_window_data.callout_header.length === 0) {
-			newErrors.renewalWindowcallout_header = __('Renewal Window Callout Header is required', 'wicket-memberships')
-			isValid = false
-		}
+		// if (form.renewal_window_data.callout_header.length === 0) {
+		// 	newErrors.renewalWindowcallout_header = __('Renewal Window Callout Header is required', 'wicket-memberships')
+		// 	isValid = false
+		// }
 
-		if (form.renewal_window_data.callout_content.length === 0) {
-			newErrors.renewalWindowCalloutContent = __('Renewal Window Callout Content is required', 'wicket-memberships')
-			isValid = false
-		}
+		// if (form.renewal_window_data.callout_content.length === 0) {
+		// 	newErrors.renewalWindowCalloutContent = __('Renewal Window Callout Content is required', 'wicket-memberships')
+		// 	isValid = false
+		// }
 
-		if (form.renewal_window_data.callout_button_label.length === 0) {
-			newErrors.renewalWindowButtonLabel = __('Renewal Window Callout Button Label is required', 'wicket-memberships')
-			isValid = false
-		}
+		// if (form.renewal_window_data.callout_button_label.length === 0) {
+		// 	newErrors.renewalWindowButtonLabel = __('Renewal Window Callout Button Label is required', 'wicket-memberships')
+		// 	isValid = false
+		// }
 
-		if (form.late_fee_window_data.product_id === '-1') {
-			newErrors.lateFeeProduct = __('Late Fee Window Product is required', 'wicket-memberships')
-			isValid = false
-		}
+		// if (form.late_fee_window_data.product_id === '-1') {
+		// 	newErrors.lateFeeProduct = __('Late Fee Window Product is required', 'wicket-memberships')
+		// 	isValid = false
+		// }
 
-		if (form.cycle_data.cycle_type === 'calendar') {
-			if (form.cycle_data.calendar_items.length === 0) {
-				newErrors.calendarItems = __('At least one season is required', 'wicket-memberships')
-				isValid = false
-			}
-		}
+		// if (form.cycle_data.cycle_type === 'calendar') {
+		// 	if (form.cycle_data.calendar_items.length === 0) {
+		// 		newErrors.calendarItems = __('At least one season is required', 'wicket-memberships')
+		// 		isValid = false
+		// 	}
+		// }
 
     setErrors(newErrors)
     return isValid
@@ -318,11 +350,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 			data: {
 				title: form.name,
 				status: 'publish',
-				meta: {
-					renewal_window_data: form.renewal_window_data,
-					late_fee_window_data: form.late_fee_window_data,
-					cycle_data: form.cycle_data
-				}
+				renewal_window_data: form.renewal_window_data,
+				late_fee_window_data: form.late_fee_window_data,
+				cycle_data: form.cycle_data
 			}
 		}).then((response) => {
 			console.log(response);
@@ -331,7 +361,15 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 				window.location.href = configListUrl;
 			}
 		}).catch((error) => {
-			console.log(error);
+			let newErrors = [];
+
+			Object.keys(error.data.params).forEach((key) => {
+				let errors = error.data.params[key].split(/(?<=[.?!])\s+|\.$/);
+				newErrors = newErrors.concat(errors).filter(sentence => sentence.trim() !== '');
+			})
+
+			setErrors(newErrors);
+			setSubmitting(false);
 		});
 
 	}
@@ -347,9 +385,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 				const decodedTitle = he.decode(post.title.rendered);
 				setForm({
 					name: decodedTitle,
-					renewal_window_data: post.meta.renewal_window_data,
-					late_fee_window_data: post.meta.late_fee_window_data,
-					cycle_data: post.meta.cycle_data
+					renewal_window_data: post.renewal_window_data,
+					late_fee_window_data: post.late_fee_window_data,
+					cycle_data: post.cycle_data
 				});
 			});
 		}
@@ -362,14 +400,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 			let options = products.map((product) => {
 				const decodedTitle = he.decode(product.title.rendered);
 				return {
-					label: `${decodedTitle} | (ID: ${product.id})`,
+					label: `${decodedTitle} | ID: ${product.id}`,
 					value: product.id
 				}
-			});
-
-			options.unshift({
-				label: __('Select a product', 'wicket-memberships'),
-				value: -1
 			});
 
 			console.log(options);
@@ -391,10 +424,10 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 				<hr className="wp-header-end"></hr>
 
 				<Wrap>
-					{Object.keys(errors).length > 0 && (
+					{errors.length > 0 && (
 						<ErrorsRow>
-							{Object.keys(errors).map((key) => (
-								<Notice isDismissible={false} key={key} status="warning">{errors[key]}</Notice>
+							{errors.map((error) => (
+								<Notice isDismissible={false} key={error} status="warning">{error}</Notice>
 							))}
 						</ErrorsRow>
 					)}
@@ -423,98 +456,106 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 						</Flex>
 
 						{/* Renewal Window */}
-						<FormFlex
-							align='end'
-							justify='start'
-							gap={5}
-							direction={[
-								'column',
-								'row'
-							]}
-						>
-							<FlexBlock>
-								<TextControl
-									label={__('Renewal Window (Days)', 'wicket-memberships')}
-									type="number"
-									min="1"
-									onChange={value => {
-										setForm({
-											...form,
-											renewal_window_data: {
-												...form.renewal_window_data,
-												days_count: value
-											}
-										});
-									}}
-									value={form.renewal_window_data.days_count}
-									__nextHasNoMarginBottom={true}
-								/>
-							</FlexBlock>
-							<FlexItem>
-								<Button
-									variant="secondary"
-									onClick={reInitRenewalWindowCallout}
-								>
-									<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
-									{__('Callout Configuration', 'wicket-memberships')}
-								</Button>
-							</FlexItem>
-						</FormFlex>
+						<BorderedBox>
+							<Flex
+								align='end'
+								justify='start'
+								gap={5}
+								direction={[
+									'column',
+									'row'
+								]}
+							>
+								<FlexBlock>
+									<TextControl
+										label={__('Renewal Window (Days)', 'wicket-memberships')}
+										type="number"
+										min="1"
+										onChange={value => {
+											setForm({
+												...form,
+												renewal_window_data: {
+													...form.renewal_window_data,
+													days_count: value
+												}
+											});
+										}}
+										value={form.renewal_window_data.days_count}
+										__nextHasNoMarginBottom={true}
+									/>
+								</FlexBlock>
+								<FlexItem>
+									<Button
+										variant="secondary"
+										onClick={reInitRenewalWindowCallout}
+									>
+										<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
+										{__('Callout Configuration', 'wicket-memberships')}
+									</Button>
+								</FlexItem>
+							</Flex>
+						</BorderedBox>
 
 						{/* Late Fee Window */}
-						<FormFlex
-							align='end'
-							gap={5}
-							direction={[
-								'column',
-								'row'
-							]}
-						>
-							<FlexBlock>
-								<TextControl
-									label={__('Late Fee Window (Days)', 'wicket-memberships')}
-									type="number"
-									min="1"
-									onChange={value => {
-										setForm({
-											...form,
-											late_fee_window_data: {
-												...form.late_fee_window_data,
-												days_count: value
-											}
-										});
-									}}
-									value={form.late_fee_window_data.days_count}
-									__nextHasNoMarginBottom={true}
-								/>
-							</FlexBlock>
-							<FlexBlock>
-								<SelectControl
-									label={__('Product', 'wicket-memberships')}
-									value={form.late_fee_window_data.product_id}
-									__nextHasNoMarginBottom={true}
-									onChange={value => {
-										setForm({
-											...form,
-											late_fee_window_data: {
-												...form.late_fee_window_data,
-												product_id: value
-											}
-										});
-									}}
-									options={wcProductOptions}
-								/>
-							</FlexBlock>
-							<FlexItem>
-								<Button
-									variant="secondary"
-									onClick={reInitLateFeeWindowCallout}
-								>
-									<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
-									{__('Callout Configuration', 'wicket-memberships')}
-								</Button>
-							</FlexItem>
-						</FormFlex>
+						<BorderedBox>
+							<Flex
+								align='end'
+								gap={5}
+								direction={[
+									'column',
+									'row'
+								]}
+							>
+								<FlexBlock>
+									<TextControl
+										label={__('Late Fee Window (Days)', 'wicket-memberships')}
+										type="number"
+										min="1"
+										onChange={value => {
+											setForm({
+												...form,
+												late_fee_window_data: {
+													...form.late_fee_window_data,
+													days_count: value
+												}
+											});
+										}}
+										value={form.late_fee_window_data.days_count}
+										__nextHasNoMarginBottom={true}
+									/>
+								</FlexBlock>
+								<FlexBlock>
+									<LabelWpStyled htmlFor="late_fee_product_id">{__('Product', 'wicket-memberships')}</LabelWpStyled>
+									<SelectWpStyled
+										id="late_fee_product_id"
+										classNamePrefix="select"
+										value={wcProductOptions.find(option => option.value === form.late_fee_window_data.product_id)}
+										isClearable={false}
+										isSearchable={true}
+										isLoading={wcProductOptions.length === 0}
+										options={wcProductOptions}
+										onChange={selected => {
+											setForm({
+												...form,
+												late_fee_window_data: {
+													...form.late_fee_window_data,
+													product_id: selected.value
+												}
+											});
+										}}
+									/>
+								</FlexBlock>
+								<FlexItem>
+									<Button
+										variant="secondary"
+										onClick={reInitLateFeeWindowCallout}
+									>
+										<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
+										{__('Callout Configuration', 'wicket-memberships')}
+									</Button>
+								</FlexItem>
+							</Flex>
+						</BorderedBox>
 
 						{/* Cycle Data */}
 						<BorderedBox>
@@ -801,57 +842,58 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 							}
 						}
 					>
-
-						<TextControl
-							label={__('Callout Header', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									renewal_window_data: {
-										...tempForm.renewal_window_data,
-										callout_header: value
-									}
-								});
-							}}
-							value={tempForm.renewal_window_data.callout_header}
-						/>
-
-						<TextareaControl
-							label={__('Callout Content', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									renewal_window_data: {
-										...tempForm.renewal_window_data,
-										callout_content: value
-									}
-								});
-							}}
-							value={tempForm.renewal_window_data.callout_content}
-						/>
-
-						<TextControl
-							label={__('Button Label', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									renewal_window_data: {
-										...tempForm.renewal_window_data,
-										callout_button_label: value
-									}
-								});
-							}}
-							value={tempForm.renewal_window_data.callout_button_label}
-						/>
-
-						<Button variant="primary" onClick={
+						<form onSubmit={
 							() => {
 								saveRenewalWindowCallout();
 								closeRenewalWindowCalloutModal();
 							}
 						}>
-							{__('Save', 'wicket-memberships')}
-						</Button>
+							<TextControl
+								label={__('Callout Header', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										renewal_window_data: {
+											...tempForm.renewal_window_data,
+											callout_header: value
+										}
+									});
+								}}
+								value={tempForm.renewal_window_data.callout_header}
+							/>
+
+							<TextareaControl
+								label={__('Callout Content', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										renewal_window_data: {
+											...tempForm.renewal_window_data,
+											callout_content: value
+										}
+									});
+								}}
+								value={tempForm.renewal_window_data.callout_content}
+							/>
+
+							<TextControl
+								label={__('Button Label', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										renewal_window_data: {
+											...tempForm.renewal_window_data,
+											callout_button_label: value
+										}
+									});
+								}}
+								value={tempForm.renewal_window_data.callout_button_label}
+							/>
+
+							<Button variant="primary" type='submit'>
+								{__('Save', 'wicket-memberships')}
+							</Button>
+						</form>
 					</Modal>
 				)}
 
@@ -867,57 +909,58 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 							}
 						}
 					>
-
-						<TextControl
-							label={__('Callout Header', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									late_fee_window_data: {
-										...tempForm.late_fee_window_data,
-										callout_header: value
-									}
-								});
-							}}
-							value={tempForm.late_fee_window_data.callout_header}
-						/>
-
-						<TextareaControl
-							label={__('Callout Content', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									late_fee_window_data: {
-										...tempForm.late_fee_window_data,
-										callout_content: value
-									}
-								});
-							}}
-							value={tempForm.late_fee_window_data.callout_content}
-						/>
-
-						<TextControl
-							label={__('Button Label', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									late_fee_window_data: {
-										...tempForm.late_fee_window_data,
-										callout_button_label: value
-									}
-								});
-							}}
-							value={tempForm.late_fee_window_data.callout_button_label}
-						/>
-
-						<Button variant="primary" onClick={
+						<form onSubmit={
 							() => {
 								saveLateFeeWindowCallout();
 								closeLateFeeWindowCalloutModal();
 							}
 						}>
-							{__('Save', 'wicket-memberships')}
-						</Button>
+							<TextControl
+								label={__('Callout Header', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										late_fee_window_data: {
+											...tempForm.late_fee_window_data,
+											callout_header: value
+										}
+									});
+								}}
+								value={tempForm.late_fee_window_data.callout_header}
+							/>
+
+							<TextareaControl
+								label={__('Callout Content', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										late_fee_window_data: {
+											...tempForm.late_fee_window_data,
+											callout_content: value
+										}
+									});
+								}}
+								value={tempForm.late_fee_window_data.callout_content}
+							/>
+
+							<TextControl
+								label={__('Button Label', 'wicket-memberships')}
+								onChange={value => {
+									setTempForm({
+										...tempForm,
+										late_fee_window_data: {
+											...tempForm.late_fee_window_data,
+											callout_button_label: value
+										}
+									});
+								}}
+								value={tempForm.late_fee_window_data.callout_button_label}
+							/>
+
+							<Button variant="primary" type='submit'>
+								{__('Save', 'wicket-memberships')}
+							</Button>
+						</form>
 					</Modal>
 				)}
 

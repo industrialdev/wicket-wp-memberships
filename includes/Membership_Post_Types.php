@@ -2,6 +2,7 @@
 namespace Wicket_Memberships;
 
 use Wicket_Memberships\Helper;
+use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -19,6 +20,316 @@ class Membership_Post_Types {
     add_action('init', [ $this, 'register_membership_post_type' ]);
     add_action('init', [ $this, 'register_membership_config_post_type' ]);
     add_action('init', [ $this, 'register_membership_tier_post_type' ]);
+
+    // Register the Membership Config fields to the REST API and validate the data
+    add_action('rest_api_init', [ $this, 'register_membership_config_cpt_fields' ]);
+  }
+
+  public function register_membership_config_cpt_fields() {
+    // Renewal Window Data
+    $field = 'renewal_window_data';
+
+    register_rest_field(
+      $this->membership_config_cpt_slug,
+      $field,
+      array(
+        'get_callback'    => function ( $object ) use ( $field ) {
+          return get_post_meta( $object['id'], $field, true );
+        },
+        'update_callback' => function ( $value, $object ) use ( $field ) {
+          update_post_meta( $object->ID, $field, $value );
+        },
+        'schema'          => array(
+          'type'        => 'object',
+          'description' => 'Renewal Window Data',
+          'arg_options' => [
+            'validate_callback' => function( $value ) {
+              $errors = new WP_Error();
+
+              if ( ! is_array( $value ) ) {
+                $errors->add( 'rest_invalid_param', __( 'The renewal window data must be an object.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( intval( $value['days_count'] ) < 1 ) {
+                $errors->add( 'rest_invalid_param_days_count', __( 'The renewal window days count must be greater than 0.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( empty( $value['callout_header'] ) ) {
+                $errors->add( 'rest_invalid_param_callout_header', __( 'The renewal window callout header must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( empty( $value['callout_content'] ) ) {
+                $errors->add( 'rest_invalid_param_callout_content', __( 'The renewal window callout content must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( empty( $value['callout_button_label'] ) ) {
+                $errors->add( 'rest_invalid_param_callout_button_label', __( 'The renewal window callout button label must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( $errors->has_errors() ) {
+                return $errors;
+              }
+
+              return true;
+            },
+          ],
+          'properties'  => array(
+            'days_count'           => array(
+              'type'        => 'integer',
+              'description' => 'The number of days before the end of the membership that the renewal window starts',
+            ),
+            'callout_header'       => array(
+              'type'        => 'string',
+              'description' => 'The header for the renewal window callout',
+            ),
+            'callout_content'      => array(
+              'type'        => 'string',
+              'description' => 'The content for the renewal window callout',
+            ),
+            'callout_button_label' => array(
+              'type'        => 'string',
+              'description' => 'The label for the renewal window callout button',
+            ),
+          ),
+        ),
+      )
+    );
+
+    // Late Fee Window Data
+    $field = 'late_fee_window_data';
+
+    register_rest_field(
+      $this->membership_config_cpt_slug,
+      $field,
+      array(
+        'get_callback'    => function ( $object ) use ( $field ) {
+          return get_post_meta( $object['id'], $field, true );
+        },
+        'update_callback' => function ( $value, $object ) use ( $field ) {
+          update_post_meta( $object->ID, $field, $value );
+        },
+        'schema'          => array(
+          'type'        => 'object',
+          'description' => 'Late Fee Window Data',
+          'arg_options' => [
+            'validate_callback' => function( $value ) {
+              $errors = new WP_Error();
+
+              if ( ! is_array( $value ) ) {
+                $errors->add( 'rest_invalid_param', __( 'The late fee window data must be an object.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( intval( $value['days_count'] ) < 1 ) {
+                $errors->add( 'rest_invalid_param_days_count', __( 'The late fee window days count must be greater than 0.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              $wc_product = new \WC_Product( $value['product_id'] );
+              if ( $wc_product->exists() === false ) {
+                $errors->add( 'rest_invalid_param_product_id', __( 'The late fee window product must be a valid product.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( empty( $value['callout_header'] ) ) {
+                $errors->add( 'rest_invalid_param_callout_header', __( 'The late fee window callout header must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( empty( $value['callout_content'] ) ) {
+                $errors->add( 'rest_invalid_param_callout_content', __( 'The late fee window callout content must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( empty( $value['callout_button_label'] ) ) {
+                $errors->add( 'rest_invalid_param_callout_button_label', __( 'The late fee window callout button label must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( $errors->has_errors() ) {
+                return $errors;
+              }
+
+              return true;
+            },
+          ],
+          'properties'  => array(
+            'days_count' => array(
+              'type' => 'integer',
+            ),
+            'product_id' => array(
+              'type' => 'integer',
+            ),
+            'callout_header' => array(
+              'type' => 'string',
+            ),
+            'callout_content' => array(
+              'type' => 'string',
+            ),
+            'callout_button_label' => array(
+              'type' => 'string',
+            ),
+          ),
+        ),
+      )
+    );
+
+    // Cycle Data
+    $field = 'cycle_data';
+
+    register_rest_field(
+      $this->membership_config_cpt_slug,
+      $field,
+      array(
+        'get_callback'    => function ( $object ) use ( $field ) {
+          return get_post_meta( $object['id'], $field, true );
+        },
+        'update_callback' => function ( $value, $object ) use ( $field ) {
+          update_post_meta( $object->ID, $field, $value );
+        },
+        'schema'          => array(
+          'type'        => 'object',
+          'description' => 'Late Fee Window Data',
+          'arg_options' => [
+            'validate_callback' => function( $value ) {
+              $errors = new WP_Error();
+
+              if ( ! is_array( $value ) ) {
+                $errors->add( 'rest_invalid_param', __( 'The cycle data must be an object.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( ! in_array( $value['cycle_type'], [ 'calendar', 'anniversary' ] ) ) {
+                $errors->add( 'rest_invalid_param_cycle_type', __( 'The cycle type must be either calendar or anniversary.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( $value['cycle_type'] === 'anniversary' ) {
+                if ( intval( $value['anniversary_data']['period_count'] ) < 1 ) {
+                  $errors->add( 'rest_invalid_param_anniversary_period_count', __( 'The anniversary period count must be greater than 0.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+                if ( ! in_array( $value['anniversary_data']['period_type'], [ 'year', 'month', 'week' ] ) ) {
+                  $errors->add( 'rest_invalid_param_anniversary_period_type', __( 'The anniversary period type must be year, month, or week.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+                if ( $value['anniversary_data']['align_end_dates_enabled'] === true ) {
+                  if ( ! in_array( $value['anniversary_data']['align_end_dates_type'], [ 'first-day-of-month', '15th-of-month', 'last-day-of-month' ] ) ) {
+                    $errors->add( 'rest_invalid_param_anniversary_align_end_dates_type', __( 'The anniversary align end dates type must be first-day-of-month, 15th-of-month, or last-day-of-month.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+                }
+              }
+
+              if ( $value['cycle_type'] === 'calendar' ) {
+
+                if ( ! is_array( $value['calendar_items'] ) ) {
+                  $errors->add( 'rest_invalid_param_calendar_items', __( 'The calendar items must be an array.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+                if ( count( $value['calendar_items'] ) < 1 ) {
+                  $errors->add( 'rest_invalid_param_calendar_items', __( 'At least one season item must be defined.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+                $active_seasons = array_filter( $value['calendar_items'], function( $item ) {
+                  return $item['active'] === true;
+                });
+
+                if ( count( $active_seasons ) < 1 ) {
+                  $errors->add( 'rest_invalid_param_calendar_active_seasons', __( 'At least one season must be active.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+                // Validate each season item
+                foreach ( $value['calendar_items'] as $item ) {
+                  if ( empty( $item['season_name'] ) ) {
+                    $errors->add( 'rest_invalid_param_calendar_season_name', __( 'The calendar season name must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+
+                  if ( empty( $item['start_date'] ) ) {
+                    $errors->add( 'rest_invalid_param_calendar_start_date', __( 'The calendar start date must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+
+                  if ( empty( $item['end_date'] ) ) {
+                    $errors->add( 'rest_invalid_param_calendar_end_date', __( 'The calendar end date must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+
+                  if ( strtotime( $item['start_date'] ) > strtotime( $item['end_date'] ) ) {
+                    $errors->add( 'rest_invalid_param_calendar_dates', __( 'The season start date must be before the end date.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+                }
+
+                // Validate that the season dates do not overlap
+                $seasons = $value['calendar_items'];
+
+                $season_overlaps = false;
+                foreach ( $seasons as $key => $season ) {
+                  $season_start = strtotime( $season['start_date'] );
+                  $season_end = strtotime( $season['end_date'] );
+
+                  foreach ( $seasons as $inner_key => $inner_season ) {
+                    if ( $key === $inner_key ) {
+                      continue;
+                    }
+
+                    $inner_season_start = strtotime( $inner_season['start_date'] );
+                    $inner_season_end = strtotime( $inner_season['end_date'] );
+
+                    if ( $season_start >= $inner_season_start && $season_start <= $inner_season_end ) {
+                      $season_overlaps = true;
+                    }
+
+                    if ( $season_end >= $inner_season_start && $season_end <= $inner_season_end ) {
+                      $season_overlaps = true;
+                    }
+                  }
+                }
+
+                if ( $season_overlaps ) {
+                  $errors->add( 'rest_invalid_param_calendar_dates', __( 'The season dates must not overlap.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+              }
+
+              if ( $errors->has_errors() ) {
+                return $errors;
+              }
+
+              return true;
+            },
+          ],
+          'properties'  => array(
+            'cycle_type' => array(
+              'type' => 'string', // calendar/anniversary
+            ),
+            'anniversary_data' => array(
+              'type' => 'object',
+              'properties' => array(
+                'period_count' => array(
+                  'type' => 'integer',
+                ),
+                'period_type' => array(
+                  'type' => 'string', // year/month/week
+                ),
+                'align_end_dates_enabled' => array(
+                  'type' => 'boolean',
+                ),
+                'align_end_dates_type' => array(
+                  'type' => 'string', // first-day-of-month | 15th-of-month | last-day-of-month
+                ),
+              ),
+            ),
+            'calendar_items' => array(
+              'type' => 'array',
+              'properties' => array(
+                'season_name' => array(
+                  'type' => 'string',
+                ),
+                'active' => array(
+                  'type' => 'boolean',
+                ),
+                'start_date' => array(
+                  'type' => 'string',
+                ),
+                'end_date' => array(
+                  'type' => 'string',
+                ),
+              ),
+            ),
+          ),
+        ),
+      )
+    );
   }
 
   /**
@@ -179,112 +490,6 @@ class Membership_Post_Types {
     );
 
     register_post_type( $this->membership_config_cpt_slug, $args );
-
-    // Register the meta fields
-    register_post_meta( $this->membership_config_cpt_slug, 'renewal_window_data', [
-      'type' => 'object',
-      'single' => true,
-      'description' => __( 'Renewal Window Data', 'wicket-memberships' ),
-      'show_in_rest' => array(
-        'schema' => array(
-          'type'  => 'object',
-          'properties' => array(
-            'days_count' => array(
-              'type' => 'integer',
-            ),
-            'callout_header' => array(
-              'type' => 'string',
-            ),
-            'callout_content' => array(
-              'type' => 'string',
-            ),
-            'callout_button_label' => array(
-              'type' => 'string',
-            ),
-          ),
-        ),
-      ),
-    ] );
-
-    register_post_meta( $this->membership_config_cpt_slug, 'late_fee_window_data', [
-      'type' => 'object',
-      'single' => true,
-      'description' => __( 'Late Fee Window Data', 'wicket-memberships' ),
-      'show_in_rest' => array(
-        'schema' => array(
-          'type'  => 'object',
-          'properties' => array(
-            'days_count' => array(
-              'type' => 'integer',
-            ),
-            'product_id' => array(
-              'type' => 'integer',
-            ),
-            'callout_header' => array(
-              'type' => 'string',
-            ),
-            'callout_content' => array(
-              'type' => 'string',
-            ),
-            'callout_button_label' => array(
-              'type' => 'string',
-            ),
-          ),
-        ),
-      ),
-    ] );
-
-    register_post_meta( $this->membership_config_cpt_slug, 'cycle_data', [
-      'type' => 'object',
-      'single' => true,
-      'description' => __( 'Cycle Data', 'wicket-memberships' ),
-      // TODO: Add sanitize callback to accept only valid data
-      // 'sanitize_callback' => [ $this, 'sanitize_late_fee_window_data' ],
-      'show_in_rest' => array(
-        'schema' => array(
-          'type'  => 'object',
-          'properties' => array(
-            'cycle_type' => array(
-              'type' => 'string', // calendar/anniversary
-            ),
-            'anniversary_data' => array(
-              'type' => 'object',
-              'properties' => array(
-                'period_count' => array(
-                  'type' => 'integer',
-                ),
-                'period_type' => array(
-                  'type' => 'string', // year/month/week
-                ),
-                'align_end_dates_enabled' => array(
-                  'type' => 'boolean',
-                ),
-                'align_end_dates_type' => array(
-                  'type' => 'string', // first-day-of-month | 15th-of-month | last-day-of-month
-                ),
-              ),
-            ),
-            'calendar_items' => array(
-              'type' => 'array',
-              'properties' => array(
-                'season_name' => array(
-                  'type' => 'string',
-                ),
-                'active' => array(
-                  'type' => 'boolean',
-                ),
-                'start_date' => array(
-                  'type' => 'string',
-                ),
-                'end_date' => array(
-                  'type' => 'string',
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    ] );
   }
 
     /**
