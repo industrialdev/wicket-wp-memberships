@@ -13,9 +13,11 @@ class Membership_Tier_CPT_Hooks {
 
   const EDIT_PAGE_SLUG = 'wicket_membership_tier_edit';
   private $membership_tier_cpt_slug = '';
+  private $membership_config_cpt_slug = '';
 
   public function __construct() {
     $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
+    $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
 
 	  add_action( 'admin_menu', [ $this, 'add_edit_page' ] );
     add_action( 'admin_init', [ $this, 'create_edit_page_redirects' ] );
@@ -44,6 +46,7 @@ class Membership_Tier_CPT_Hooks {
       <div
         id="create_membership_tier"
         data-tier-cpt-slug="{$this->membership_tier_cpt_slug}"
+        data-config-cpt-slug="{$this->membership_config_cpt_slug}"
         data-tier-list-url="{$tier_list_page}"
         data-post-id="{$post_id}"></div>
     HTML;

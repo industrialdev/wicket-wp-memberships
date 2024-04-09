@@ -2299,9 +2299,11 @@ var weakMemoize = function weakMemoize(func) {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   API_URL: () => (/* binding */ API_URL)
+/* harmony export */   API_URL: () => (/* binding */ API_URL),
+/* harmony export */   MDP_API_URL: () => (/* binding */ MDP_API_URL)
 /* harmony export */ });
 const API_URL = '/wp/v2';
+const MDP_API_URL = '/wicket_member/v1';
 
 /***/ }),
 

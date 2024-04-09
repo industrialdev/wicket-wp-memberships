@@ -2299,9 +2299,11 @@ var weakMemoize = function weakMemoize(func) {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   API_URL: () => (/* binding */ API_URL)
+/* harmony export */   API_URL: () => (/* binding */ API_URL),
+/* harmony export */   MDP_API_URL: () => (/* binding */ MDP_API_URL)
 /* harmony export */ });
 const API_URL = '/wp/v2';
+const MDP_API_URL = '/wicket_member/v1';
 
 /***/ }),
 
@@ -13045,16 +13047,154 @@ __webpack_require__.r(__webpack_exports__);
 
 const CreateMembershipTier = ({
   tierCptSlug,
+  configCptSlug,
   tierListUrl,
   postId
 }) => {
+  const [mdpTiers, setMdpTiers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
+  const [membershipConfigOptions, setMembershipConfigOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
+
+  const [wcProductOptions, setWcProductOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
+
+  const [errors, setErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
+  const [form, setForm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
+    approval_required: false,
+    mdp_tier_name: '',
+    mdp_tier_uuid: '',
+    mdp_next_tier_uuid: '',
+    config_id: '',
+    type: '',
+    // orgranization, individual
+    seat_type: '',
+    product_data: [] // { product_id:, max_seats: }
+  });
+  const getSelectedTierData = () => {
+    const selectedTier = mdpTiers.find(tier => tier.uuid === form.mdp_tier_uuid);
+    return selectedTier;
+  };
+  const handleSubmit = e => {
+    //
+  };
+  const handleMdpTierChange = selected => {
+    const mdpTier = mdpTiers.find(tier => tier.uuid === selected.value);
+    setForm({
+      ...form,
+      mdp_tier_name: mdpTier.name,
+      mdp_tier_uuid: mdpTier.uuid
+    });
+  };
+  const getMdpTierOptions = () => {
+    return mdpTiers.map(tier => {
+      return {
+        label: tier.name,
+        value: tier.uuid
+      };
+    });
+  };
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    // Fetch WooCommerce products
+    let queryParams = {
+      status: 'publish'
+    };
+    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/product`, queryParams)
+    }).then(products => {
+      console.log(products);
+      let options = products.map(product => {
+        const decodedTitle = he__WEBPACK_IMPORTED_MODULE_7___default().decode(product.title.rendered);
+        return {
+          label: `${decodedTitle} | ID: ${product.id}`,
+          value: product.id
+        };
+      });
+      setWcProductOptions(options);
+    });
+
+    // Fetch Membership Configs
+    queryParams = {
+      status: 'publish'
+    };
+    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/${configCptSlug}`, queryParams)
+    }).then(configs => {
+      let options = configs.map(config => {
+        const decodedTitle = he__WEBPACK_IMPORTED_MODULE_7___default().decode(config.title.rendered);
+        return {
+          label: `${decodedTitle} | ID: ${config.id}`,
+          value: config.id
+        };
+      });
+      setMembershipConfigOptions(options);
+    });
+
+    // Fetch MDP Tiers
+    queryParams = {};
+    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.MDP_API_URL}/membership_tiers`, queryParams)
+    }).then(tiers => {
+      let options = tiers.map(tier => {
+        return {
+          label: tier.name,
+          value: tier.uuid
+        };
+      });
+      setMdpTiers(tiers.map(tier => {
+        return {
+          uuid: tier.uuid,
+          name: tier.name,
+          active: tier.status === 'Active' ? true : false,
+          type: tier.type,
+          // orgranization, individual
+          grace_period_days: 0,
+          // TODO: Update when grace period is added to MDP
+          category: '' // TODO: Update here
+        };
+      }));
+    });
+  }, []);
+  console.log('Tiers:');
+  console.log(mdpTiers);
+  console.log('--------------');
+  console.log('Products:');
+  console.log(wcProductOptions);
+  console.log('--------------');
+  console.log('Configs:');
+  console.log(membershipConfigOptions);
+  console.log('--------------');
+  console.log('Errors:');
+  console.log(errors);
+  console.log('--------------');
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     className: "wrap"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("h1", {
     className: "wp-heading-inline"
   }, postId ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Edit Membership Tier', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add New Membership Tier', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("hr", {
     className: "wp-header-end"
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.Wrap, null)));
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.Wrap, null, errors.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ErrorsRow, null, errors.map(error => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Notice, {
+    isDismissible: false,
+    key: error,
+    status: "warning"
+  }, error))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+    onSubmit: handleSubmit
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+    align: "end",
+    justify: "start",
+    gap: 5,
+    direction: ['column', 'row']
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
+    htmlFor: "mdp_tier"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership Tier', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
+    id: "mdp_tier",
+    classNamePrefix: "select",
+    value: getMdpTierOptions().find(option => option.value === form.mdp_tier_uuid),
+    isClearable: false,
+    isSearchable: true,
+    isLoading: getMdpTierOptions().length === 0,
+    options: getMdpTierOptions(),
+    onChange: handleMdpTierChange
+  }))), form.mdp_tier_uuid && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.__experimentalText, {
+    size: 14
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Status', 'wicket-memberships'), ":\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, getSelectedTierData().active ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Active', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Inactive', 'wicket-memberships')))))))))));
 };
 const app = document.getElementById('create_membership_tier');
 if (app) {
