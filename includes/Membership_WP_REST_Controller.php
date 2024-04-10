@@ -43,6 +43,23 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) 
     );
+
+    register_rest_route( $this->namespace, '/config/(?P<id>\d+)/membership_dates', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_membership_dates' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) );
+}
+
+public function get_membership_dates( \WP_REST_Request $request ) {
+  $params = $request->get_params();
+  $mc = new Membership_Controller();
+  $response = $mc->get_membership_dates( $params['id'] );
+  return rest_ensure_response( $response );
+
 }
 
   public function get_product_tiers( \WP_REST_Request $request ) {
