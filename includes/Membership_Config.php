@@ -205,4 +205,15 @@ class Membership_Config {
 
     return $seasons;
   }
+
+  public function get_period_data() {
+    if( $this->get_cycle_type() == 'anniversary') {
+      $period['period_count'] = $this->cycle_data['anniversary_data']['period_count'];
+      $period['period_type'] = $this->cycle_data['anniversary_data']['period_type'];
+    } else {
+      $period['period_count'] = 1;
+      $period['period_type'] = 'year';
+    }
+    return $period;
+  }
 }

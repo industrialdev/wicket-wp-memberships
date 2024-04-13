@@ -31,7 +31,7 @@ class Membership_CPT_Hooks {
     add_filter('the_title', [ $this, 'replace_title' ],10, 2);
     $columns['title'] = __( 'Wicket UUID', 'wicket-memberships' );
     $columns['member_type']  = __( 'Type', 'wicket-memberships' );
-    $columns['membership_uuid']  = __( 'Membership ID', 'wicket-memberships' );
+    $columns['membership_tier_uuid']  = __( 'Membership Tier ID', 'wicket-memberships' );
     $columns['user_id']  = __( 'User ID', 'wicket-memberships' );
     $columns['status']  = __( 'Status', 'wicket-memberships' );
     $columns['start_date']  = __( 'Start Date', 'wicket-memberships' );
