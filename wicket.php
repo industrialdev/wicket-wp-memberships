@@ -75,6 +75,11 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
 			register_activation_hook( WICKET_MEMBERSHIP_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
 			add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
+
+      //Order wicket-membership subscription hooks
+      //Hooks fired twice included in class contructor
+      add_action( 'woocommerce_order_status_changed', array ( __NAMESPACE__.'\\Membership_Controller' , 'catch_order_completed' ), 10, 1);
+      add_action( 'wicket_member_create_record', array( __NAMESPACE__.'\\Membership_Controller', 'create_membership_record'), 10, 3 );
     }
 
 		/**

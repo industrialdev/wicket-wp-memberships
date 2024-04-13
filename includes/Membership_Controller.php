@@ -15,39 +15,28 @@ class Membership_Controller {
   private $membership_config_cpt_slug = '';
   private $membership_tier_cpt_slug = '';
 
+  //don't create wicket connection - for testing locally
+  private $bypass_wicket = true;
+
   public function __construct() {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
     $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
-    add_action( 'woocommerce_order_status_completed', array ( $this, 'catch_order_completed' ), 10, 1);
-    add_action( 'wicket_member_create_record', array( $this, 'create_membership_record'), 10, 1 );
+
+    // TEMPORARILY INJECT MEMBERSHIP META DATA into order and subscription pages
+    add_action( 'woocommerce_admin_order_data_after_shipping_address', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
+    add_action( 'wcs_subscription_details_table_before_dates', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
   }
 
-  /**
-   * -=-=-=- Setup membership record data based on products in order -=-=-=- 
-   */
-
-   /**
-   * Get all the membership data from the products on the order
-   */
-  private function get_membership_data_from_order( $order ) {
-    $memberships = [];
-    foreach( $order->get_items( 'line_item' ) as $item ) {
-      $product_id = $item->get_product_id();
-      $product = wc_get_product( $product_id );
-      /*
-      * TEMPORARY: Currently added as product attributes
-      * PERMANENT: Use Membership Configuration Posts data
-      * DON'T FORGET to add ['expires_at'] = 'ends_at' + 'grace_period'
-      */
-      $memberships[] = [
-        'membership_uuid' => $product->get_attribute( 'membership_uuid' ),
-        'starts_at' => $product->get_attribute( 'starts_at' ),
-        'ends_at' => $product->get_attribute( 'ends_at' ),
-      ];
+    // TEMPORARILY INJECT MEMBERSHIP META DATA into order and subscription pages
+    function wps_select_checkout_field_display_admin_order_meta( $post ) {
+    $post_meta = get_post_meta( $post->get_id() );
+    foreach($post_meta as $key => $val) {
+     if( str_starts_with( $key, '_wicket_membership_')) {
+        echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';var_dump( maybe_unserialize( $val[0] )); echo '</pre>';
+      }
     }
-    return $memberships;
-  }
+}
 
   /**
    * Get memberships with config from tier by products on the order
@@ -55,39 +44,63 @@ class Membership_Controller {
   private function get_memberships_data_from_products( $order ) {
     $seats = 0;
     $memberships = [];
-    foreach( $order->get_items( 'line_item' ) as $item ) {
-      $product_id = $item->get_product_id();
-      $membership_tiers = $this->get_tiers_from_product( $product_id );
-      $dates = $this->get_membership_dates( $membership_tier['config_id'] );
+    $order_id = $order->get_id();
+    
+    $subscriptions = wcs_get_subscriptions( ['order_type' => 'parent', 'order_id' => $order_id] );
+    //$subscriptions_ids = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
+    foreach( $subscriptions as $subscription_id => $subscription ) {
+        $subscription_products = $subscription->get_items();
+        foreach( $subscription_products as $item ) {
+          $product_id = $item->get_product_id();
+          $membership_tiers = $this->get_tiers_from_product( $product_id );
+          //echo '<pre>'; var_dump( $membership_tiers );
 
-      if( !empty( $membership_tiers )) {
-        foreach ($membership_tiers as $membership_tier) {
-          if( $membership_tier->type == 'organization') {
-            foreach( $membership_tier->wc_products as $tier_product ) {
-              if( $tier_product['product_id'] == $product_id ) {
-                $seats = $tier_product['seats'];
+          if( !empty( $membership_tiers )) {
+            foreach ($membership_tiers as $membership_tier) {
+              $config = new Membership_Config( $membership_tier->config_id );
+              $period_data = $config->get_period_data();
+              $dates = $this->get_membership_dates( $config );
+              if( $membership_tier->type == 'organization') {
+                foreach( $membership_tier->wc_products as $tier_product ) {
+                  if( $tier_product['product_id'] == $product_id ) {
+                    $seats = $tier_product['seats'];
+                  }
+                }
               }
+              $membership = [
+                'membership_parent_order_id' => $order_id,
+                'membership_subscription_id' => $subscription_id,
+                'membership_product_id' => $product_id,
+                'membership_wp_id' => $membership_tier->ID,
+                'membership_tier_uuid' => $membership_tier->tier_uuid,
+                'member_type' => $membership_tier->type,
+                'membership_seats' => $seats,
+                'membership_starts_at' => $dates['start_date'],
+                'membership_ends_at' =>  $dates['end_date'],
+                'membership_expires_at' => !empty($dates['expires_at']) ? $dates['expires_at'] : $dates['ends_at'],
+                'membership_period' => $period_data['period_type'],
+                'membership_interval' => $period_data['period_count'],
+                'membership_subscription_period' => get_post_meta( $subscription_id, '_billing_period')[0],
+                'membership_subscription_interval' => get_post_meta( $subscription_id, '_billing_interval')[0],
+              ];
+
+              $order_meta_id = add_post_meta( $order_id, '_wicket_membership_'.$product_id,  json_encode( $membership ), 0 );
+              $subscription_meta_id = add_post_meta( $subscription_id, '_wicket_membership_'.$product_id,  json_encode( $membership ),0 );
+              $membership['order_meta_id'] = $order_meta_id;
+              $membership['subscription_meta_id'] = $subscription_meta_id;
+              $memberships[] = $membership;
             }
           }
-          $memberships[] = [
-            'membership_wp_id' => $membership_tier->ID,
-            'membership_uuid' => $membership_tier->tier_uuid,
-            'member_type' => $membership_tier->type,
-            'membership_seats' => $seats,
-            'starts_at' => $dates['start_date'],
-            'ends_at' =>  $dates['end_date'],
-          ];
-        }  
+        }
       }
-    }
-    return $memberships;
+      return $memberships;
   }
 
   /**
    * Determine the STart And ENd Date based on config settings
+   * If this is a renewal we need to consider early renewal still in previous membership date period
    */
-  public function get_membership_dates( $config_id ) {
-    $config = new Membership_Config( $config_id );
+  public function get_membership_dates( $config ) {
     $cycle_data = $config->get_cycle_data();
     if( $cycle_data['cycle_type'] == 'anniversary' ) {
       $dates['start_date'] = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
@@ -118,6 +131,9 @@ class Membership_Controller {
           $dates['end_date'] = $season['end_date'];
         }
       }
+    }
+    if( $grace_period = $config->get_late_fee_window_days()) {
+      $dates['expires_at'] = (new \DateTime( date($dates['end_date'],  strtotime("+$grace_period days")), wp_timezone() ))->format('c');
     }
     return $dates;
   }
@@ -151,7 +167,7 @@ class Membership_Controller {
    */
 
   /**
-   * **** MISSING organization_uuid ??? *******
+   * **** MISSING organization_uuid in membership array ??? *******
    * 
    * Catch the Order Status Changed hook
    * Process the order product(s) memberships
@@ -161,8 +177,8 @@ class Membership_Controller {
     $self = new self();
 
     //get membership_data
-    $memberships = $self->get_membership_data_from_order( $order ); //get_memberships_data_from_products
-
+    $memberships = $self->get_memberships_data_from_products( $order ); // get_membership_data_from_order
+    
     //get_person_uuid
     $user_id = $order->get_user_id();
     $user = get_user_by( 'id', $user_id );
@@ -175,7 +191,7 @@ class Membership_Controller {
         return $arr;
     }, $memberships);
 
-    //connect product memberships
+    //connect product memberships and create subscriptions
     foreach ($memberships as $membership) {
       do_action( 'wicket_member_create_record' , $membership );
     }
@@ -184,13 +200,48 @@ class Membership_Controller {
   /**
    * Create the membership records
    */
-  public function create_membership_record( $membership ) {
-      $wicket_uuid = $this->create_mdp_record( $membership );
-      if( !empty( $wicket_uuid ) ) {
-        return $this->create_local_membership_record(  $membership, $wicket_uuid);
-      }
+  public static function create_membership_record( $membership ) {
+    $self = new self();
+    if($self->bypass_wicket) {
+      //Don't create the wicket connection when testing
+      $self->create_local_membership_record(  $membership, $self->guidv4().'-fake' );
+      return $membership;  
+    }
+    $wicket_uuid = $self->create_mdp_record( $membership );
+    if( !empty( $wicket_uuid ) ) {
+      $self->create_local_membership_record(  $membership, $wicket_uuid );
+    }
+    $self->update_membership_subscription( $membership );
+    return $membership;
   }
 
+  /**
+   * Gen UUID
+   */
+  private function guidv4($data = null) {
+    $data = $data ?? random_bytes(16);
+    assert(strlen($data) == 16);
+    $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
+    $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
+    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+  }
+
+  /** 
+   * Update the subscription
+   */
+  public function update_membership_subscription( $membership ) {
+    $start_date   = $membership['membership_starts_at'];
+    $end_date     = $membership['membership_ends_at'];
+    $expire_date  = $membership['membership_expires_at'];
+    $dates_to_update['start_date']    = date('Y-m-d H:i:s', strtotime( substr($start_date,0,10)." 00:00:00"));
+    $dates_to_update['end']           = date('Y-m-d H:i:s', strtotime( substr($expire_date,0,10)." 00:00:00" ));
+    $dates_to_update['next_payment']  = date('Y-m-d H:i:s', strtotime( substr($end_date,0,10)." 00:00:00" ));
+    //var_dump($dates_to_update);exit;
+    $sub = wcs_get_subscription( $membership['membership_subscription_id'] ); 
+    $sub->update_dates($dates_to_update);
+  }
+
+  
   /**
    * Create the Membership Record in MDP
    */
@@ -200,17 +251,17 @@ class Membership_Controller {
       if( $membership['member_type'] == 'individual' ) {
         $response = wicket_assign_individual_membership( 
           $membership['person_uuid'],
-          $membership['membership_uuid'], 
-          $membership['starts_at'],
-          $membership['ends_at']
+          $membership['membership_tier_uuid'], 
+          $membership['membership_starts_at'],
+          $membership['membership_ends_at']
         );  
       } else {
         $response = wicket_assign_organization_membership( 
           $membership['person_uuid'],
-          $membership['membership_uuid'], 
+          $membership['membership_tier_uuid'], 
           // $membership['organization_uuid'], // TODO: MISSING ????
-          $membership['starts_at'],
-          $membership['ends_at']
+          $membership['membership_starts_at'],
+          $membership['membership_ends_at']
         );  
       }
       if( is_wp_error( $response ) ) {
@@ -230,9 +281,9 @@ class Membership_Controller {
   private function check_mdp_membership_record_exists( $membership ) {
     $wicket_uuid = wicket_get_person_membership_exists(
       $membership['person_uuid'], 
-      $membership['membership_uuid'], 
-      $membership['starts_at'], 
-      $membership['ends_at']
+      $membership['membership_tier_uuid'], 
+      $membership['membership_starts_at'], 
+      $membership['membership_ends_at']
     );
     return $wicket_uuid;
   }
@@ -242,20 +293,34 @@ class Membership_Controller {
    */
   private function create_local_membership_record( $membership, $wicket_uuid ) {
     if( ! $this->check_local_membership_record_exists( $membership )) {
-      return wp_insert_post( array (
+      $membership_post = wp_insert_post([
         'post_type' => $this->membership_cpt_slug,
         'post_status' => 'publish',
         'meta_input'  => [
           'status' => 'active',
           'member_type' => $membership['member_type'],
           'user_id' => $membership['user_id'],
-          'start_date' => $membership['starts_at'],
-          'end_date' => $membership['ends_at'],
-          'expiry_date' => !empty($membership['expires_at']) ? $membership['expires_at'] : $membership['ends_at'],
-          'membership_uuid' => $membership['membership_uuid'],
+          'start_date' => $membership['membership_starts_at'],
+          'end_date' => $membership['membership_ends_at'],
+          'expiry_date' => !empty($membership['membership_expires_at']) ? $membership['membership_expires_at'] : $membership['membership_ends_at'],
+          'membership_tier_uuid' => $membership['membership_tier_uuid'],
           'wicket_uuid' => $wicket_uuid,
         ]
-      ));
+      ]);
+      
+      $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
+      $order_meta_array = json_decode( $order_meta[0], true);
+      $order_meta_array['membership_post_id'] = $membership_post;
+      $order_meta_array['membership_wicket_uuid'] = $wicket_uuid;
+      update_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $order_meta_array) );
+
+      $subscription_meta = get_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] );
+      $subscription_meta_array = json_decode( $subscription_meta[0], true);
+      $subscription_meta_array['membership_post_id'] = $membership_post;
+      $subscription_meta_array['membership_wicket_uuid'] = $wicket_uuid;
+      update_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );
+
+      return $membership_post;
     }
   }
 
@@ -275,21 +340,21 @@ class Membership_Controller {
         ),
         array(
           'key'     => 'start_date',
-          'value'   => $membership['starts_at'],
+          'value'   => $membership['membership_starts_at'],
           'compare' => '='
         ),
         array(
           'key'     => 'end_date',
-          'value'   => $membership['ends_at'],
+          'value'   => $membership['membership_ends_at'],
           'compare' => '='
         ),
         array(
-          'key'     => 'membership_uuid',
-          'value'   => $membership['membership_uuid'],
+          'key'     => 'membership_tier_uuid',
+          'value'   => $membership['membership_tier_uuid'],
           'compare' => '='
         )
       )
-    );
+    );;
     $posts = new \WP_Query( $args );
     if( !empty( $posts->found_posts ) ) {      
       return true;

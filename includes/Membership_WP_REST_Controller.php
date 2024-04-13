@@ -52,7 +52,25 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       ),
       'schema' => array( $this, '' ),
     ) );
-}
+
+    // test endpoint
+    register_rest_route( $this->namespace, '/subscription/(?P<id>\d+)/modify', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'modify_subscription' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) );
+  }
+
+  public function modify_subscription( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $mc = new Membership_Subscription_Controller();
+    $response = $mc->modify_subscription( $params['id'] );
+    return rest_ensure_response( $response );
+
+  }
 
 public function get_membership_dates( \WP_REST_Request $request ) {
   $params = $request->get_params();
