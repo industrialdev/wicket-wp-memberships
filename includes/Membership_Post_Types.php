@@ -398,9 +398,9 @@ class Membership_Post_Types {
                 $errors->add( 'rest_invalid_param_product_data', __( 'At least one product is required.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
-              // if type is individual, max 1 product is allowed
-              if ( $value['type'] === 'individual' && count( $value['product_data'] ) > 1 ) {
-                $errors->add( 'rest_invalid_param_product_data', __( 'Only one product is allowed for individual tier types.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              // if type is individual, min 1 product is allowed
+              if ( $value['type'] === 'individual' && count( $value['product_data'] ) < 1 ) {
+                $errors->add( 'rest_invalid_param_product_data', __( 'At least one product is required for individual tier types.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
               // if type is organization and seat type is per_seat, max 1 product is allowed

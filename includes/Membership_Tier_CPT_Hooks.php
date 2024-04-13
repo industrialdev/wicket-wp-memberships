@@ -102,14 +102,7 @@ class Membership_Tier_CPT_Hooks {
    * Customize Membership Tier List Page Header
    */
   public function table_head( $columns ) {
-    add_filter('the_title', [ $this, 'replace_title' ],10, 2);
-    $columns['tier_uuid'] = __( 'Membership UUID', 'wicket-memberships' );
-    $columns['next_tier_uuid']  = __( 'Next Membership UUID', 'wicket-memberships' );
-    $columns['config_id']  = __( 'Config ID', 'wicket-memberships' );
-    $columns['type']  = __( 'Membership Type', 'wicket-memberships' );
-    $columns['wc_product']  = __( 'Assigned Products', 'wicket-memberships' );
-    $columns['seats']  = __( 'Org seats', 'wicket-memberships' );
-    $columns['approval_required']  = __( 'Approval Required', 'wicket-memberships' );
+    $columns['tier_data'] = __( 'Tier Data', 'wicket-memberships' );
     unset($columns['date']);
     //unset($columns['title']);
     return $columns;
@@ -119,34 +112,15 @@ class Membership_Tier_CPT_Hooks {
    * Customize Membership Tier List Page Contents
    */
   public function table_content( $column_name, $post_id ) {
-    $meta = get_post_meta( $post_id );
-    $keys = array_keys($meta);
-    foreach ($keys as $key) {
-      if( $key == $column_name ) {
-        if( 'wc_product' == $key) {
-            $meta_product = get_post_meta( $post_id , 'wc_product', false);
-            echo implode(", ", $meta_product);
-        } else {
-            echo $meta[$key][0];
-        }
-      }
+    if ( 'tier_data' !== $column_name ) {
+      return;
     }
-  }
 
-  /**
-   * Customize Membership Tier List Page Title Column
-   */
-  public function replace_title($title, $id) {
-    if ( get_post_type( $id ) === $this->membership_tier_cpt_slug ) {
-      $name = get_post_meta( $id, 'tier_name', true );
-      if( empty( $name ) ) {
-        return '(Unknown)';
-      }  else {
-        return $name;
-      }
-    } else {
-      return $title;
-    }
+    $tier_data = get_post_meta( $post_id, 'tier_data', true );
+
+    echo '<pre>';
+    print_r($tier_data);
+    echo '</pre>';
   }
 
 }

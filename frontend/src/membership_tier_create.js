@@ -10,7 +10,13 @@ import he from 'he';
 import Select from 'react-select'
 import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow } from './styled_elements';
 
+const MarginedFlex = styled(Flex)`
+	margin-top: 15px;
+`;
+
 const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId }) => {
+
+	const [isSubmitting, setSubmitting] = useState(false);
 
 	const [mdpTiers, setMdpTiers] = useState([]);
 
@@ -32,13 +38,47 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 	});
 
 	const getSelectedTierData = () => {
+		if (!form.mdp_tier_uuid) { return null; }
 		const selectedTier = mdpTiers.find(tier => tier.uuid === form.mdp_tier_uuid);
 
 		return selectedTier;
 	};
 
 	const handleSubmit = (e) => {
-		//
+		e.preventDefault();
+
+		// TODO: Validate form data
+
+		setSubmitting(true);
+		console.log('Saving membership tier');
+
+		const endpoint = postId ? `${API_URL}/${tierCptSlug}/${postId}` : `${API_URL}/${tierCptSlug}`;
+
+		apiFetch({
+			path: endpoint,
+			method: 'POST',
+			data: {
+				title: form.mdp_tier_name,
+				status: 'publish',
+				tier_data: form
+			}
+		}).then((response) => {
+			console.log(response);
+			if (response.id) {
+				// Redirect to the cpt list page
+				// window.location.href = configListUrl;
+			}
+		}).catch((error) => {
+			let newErrors = [];
+
+			Object.keys(error.data.params).forEach((key) => {
+				let errors = error.data.params[key].split(/(?<=[.?!])\s+|\.$/);
+				newErrors = newErrors.concat(errors).filter(sentence => sentence.trim() !== '');
+			})
+
+			setErrors(newErrors);
+			setSubmitting(false);
+		});
 	}
 
 	const handleMdpTierChange = (selected) => {
@@ -48,6 +88,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 			...form,
 			mdp_tier_name: mdpTier.name,
 			mdp_tier_uuid: mdpTier.uuid,
+			type: mdpTier.type
 		});
 	}
 
@@ -57,6 +98,20 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 				label: tier.name,
 				value: tier.uuid
 			}
+		});
+	}
+
+	const handleIndividualGrantedViaChange = (selected) => {
+		const productData = selected.map((product) => {
+			return {
+				product_id: product.value,
+				max_seats: -1
+			}
+		});
+
+		setForm({
+			...form,
+			product_data: productData
 		});
 	}
 
@@ -153,7 +208,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 					<form onSubmit={handleSubmit}>
 						<BorderedBox>
 							<Flex
-								align='end'
 								justify='start'
 								gap={5}
 								direction={[
@@ -178,18 +232,174 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 								</FlexBlock>
 							</Flex>
 							{form.mdp_tier_uuid && (
+								<>
+									<ActionRow>
+										<Flex
+											align='start'
+											justify='start'
+											gap={5}
+											direction={[
+												'column',
+												'row'
+											]}
+										>
+											<FlexItem>
+												<Text size={14} color="#3c434a" >
+													{__('Status', 'wicket-memberships')}:&nbsp;
+													<strong>{getSelectedTierData().active ? __('Active', 'wicket-memberships') : __('Inactive', 'wicket-memberships')}</strong>
+												</Text>
+											</FlexItem>
+											<FlexItem>
+												<Text size={14} color="#3c434a" >
+													{__('Type', 'wicket-memberships')}:&nbsp;
+													<strong>{getSelectedTierData().type === 'individual' ? __('Individual', 'wicket-memberships') : __('Organization', 'wicket-memberships')}</strong>
+												</Text>
+											</FlexItem>
+											<FlexItem>
+												<Text size={14} color="#3c434a" >
+													{__('Category', 'wicket-memberships')}:&nbsp;
+													<strong>{getSelectedTierData().category.length === 0 ? __('N/A', 'wicket-memberships') : getSelectedTierData().category}</strong>
+												</Text>
+											</FlexItem>
+										</Flex>
+										<MarginedFlex
+											align='start'
+											justify='start'
+											gap={5}
+											direction={[
+												'column',
+												'row'
+											]}
+										>
+											<FlexItem>
+												<Text size={14} color="#3c434a" >
+													{__('Grace Period (Days)', 'wicket-memberships')}:&nbsp;
+													<strong>{getSelectedTierData().grace_period_days}</strong>
+												</Text>
+											</FlexItem>
+											<FlexItem>
+												<Flex
+													gap={4}
+												>
+													<FlexItem>
+														<Text size={14} color="#3c434a" >
+															{__('# of Members', 'wicket-memberships')}:&nbsp;
+															<strong>%COUNT%</strong>
+														</Text>
+													</FlexItem>
+													<FlexItem>
+														<Button variant="link">
+															{__('View All Members', 'wicket-memberships')}
+														</Button>
+													</FlexItem>
+												</Flex>
+											</FlexItem>
+										</MarginedFlex>
+									</ActionRow>
+								</>
+							)}
+						</BorderedBox>
+						{/* Other Controls */}
+						{form.mdp_tier_uuid && (
+							<>
 								<ActionRow>
-									<Flex>
+									<Flex
+										align='end'
+										justify='start'
+										gap={5}
+										direction={[
+											'column',
+											'row'
+										]}
+									>
+										<FlexBlock>
+											<LabelWpStyled htmlFor="config_id">
+												{__('Membership Config', 'wicket-memberships')}
+											</LabelWpStyled>
+											<SelectWpStyled
+												id="config_id"
+												classNamePrefix="select"
+												value={membershipConfigOptions.find(option => option.value === form.config_id)}
+												isClearable={false}
+												isSearchable={true}
+												options={membershipConfigOptions}
+												onChange={(selected) => setForm({ ...form, config_id: selected.value })}
+											/>
+										</FlexBlock>
 										<FlexItem>
-											<Text size={14}>
-												{__('Status', 'wicket-memberships')}:&nbsp;
-												<strong>{getSelectedTierData().active ? __('Active', 'wicket-memberships') : __('Inactive', 'wicket-memberships')}</strong>
-											</Text>
+											<CheckboxControl
+												label={__('Approval Required', 'wicket-memberships')}
+												checked={form.approval_required}
+												onChange={(value) => setForm({ ...form, approval_required: value })}
+											/>
 										</FlexItem>
 									</Flex>
 								</ActionRow>
-							)}
-						</BorderedBox>
+								<MarginedFlex>
+									<FlexBlock>
+										<LabelWpStyled htmlFor="next_mdp_tier">
+											{__('Sequential Logic', 'wicket-memberships')}
+										</LabelWpStyled>
+										<SelectWpStyled
+											id="next_mdp_tier"
+											classNamePrefix="select"
+											value={getMdpTierOptions().find(option => option.value === form.mdp_next_tier_uuid)}
+											isClearable={false}
+											isSearchable={true}
+											isLoading={getMdpTierOptions().length === 0}
+											options={getMdpTierOptions()}
+											onChange={(selected) => setForm({ ...form, mdp_next_tier_uuid: selected.value })}
+										/>
+									</FlexBlock>
+								</MarginedFlex>
+								{getSelectedTierData().type === 'individual' && (
+									<>
+										<MarginedFlex>
+											<FlexBlock>
+												<LabelWpStyled htmlFor="seat_data">
+													{__('Granted Via', 'wicket-memberships')}
+												</LabelWpStyled>
+												<SelectWpStyled
+													id="seat_data"
+													classNamePrefix="select"
+													value={wcProductOptions.filter(option => form.product_data.map(product => product.product_id).includes(option.value))}
+													isClearable={false}
+													isMulti={true}
+													isSearchable={true}
+													isLoading={wcProductOptions.length === 0}
+													options={wcProductOptions}
+													onChange={handleIndividualGrantedViaChange}
+												/>
+											</FlexBlock>
+										</MarginedFlex>
+									</>
+								)}
+							</>
+						)}
+						{/* Submit row */}
+						<ActionRow>
+							<Flex
+								align='end'
+								justify='end'
+								gap={5}
+								direction={[
+									'column',
+									'row'
+								]}
+							>
+								<FlexItem>
+									<Button
+										isBusy={isSubmitting}
+										disabled={isSubmitting}
+										variant="primary"
+										type='submit'
+									>
+										{isSubmitting && __('Saving now...', 'wicket-memberships')}
+										{!isSubmitting && __('Save Membership Tier', 'wicket-memberships')}
+									</Button>
+								</FlexItem>
+							</Flex>
+						</ActionRow>
 					</form>
 				</Wrap>
 			</div>

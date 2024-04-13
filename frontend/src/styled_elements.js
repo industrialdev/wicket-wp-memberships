@@ -57,6 +57,10 @@ export const SelectWpStyled = styled(Select)`
 	.select__value-container {
 		padding: 0 8px;
 	}
+
+	.select__value-container--is-multi {
+		padding: 6px 8px;
+	}
 `;
 
 export const LabelWpStyled = styled.label`

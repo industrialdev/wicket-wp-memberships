@@ -2381,6 +2381,10 @@ const SelectWpStyled = (0,styled_components__WEBPACK_IMPORTED_MODULE_1__["defaul
 	.select__value-container {
 		padding: 0 8px;
 	}
+
+	.select__value-container--is-multi {
+		padding: 6px 8px;
+	}
 `;
 const LabelWpStyled = styled_components__WEBPACK_IMPORTED_MODULE_1__["default"].label`
 	font-size: 11px;
