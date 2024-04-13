@@ -46,12 +46,7 @@ class Membership_CPT_Hooks {
    */
   public function wicket_membership_table_content( $column_name, $post_id ) {
     $meta = get_post_meta( $post_id );
-    $keys = array_keys($meta);
-    foreach ($keys as $key) {
-      if( $column_name == $key) {
-        echo $meta[$key][0];
-      }
-    }
+    echo $meta[$column_name][0];
   }
 
   /**
