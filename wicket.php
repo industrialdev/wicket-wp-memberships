@@ -52,6 +52,7 @@ use Wicket_Memberships\Membership_Post_Types;
 use Wicket_Memberships\Membership_Config_CPT_Hooks;
 use Wicket_Memberships\Membership_Tier_CPT_Hooks;
 use Wicket_Memberships\Membership_WP_REST_Controller;
+use Wicket_Memberships\Membership_Subscription_Controller;
 
 if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
@@ -74,14 +75,30 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 			new Membership_Config_CPT_Hooks;
 			new Membership_Tier_CPT_Hooks;
       new Membership_WP_REST_Controller;
+      new Membership_Subscription_Controller;
 
 			register_activation_hook( WICKET_MEMBERSHIP_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
 			add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
 
       //Order wicket-membership subscription hooks
       //Hooks fired twice included in class contructor
-      add_action( 'woocommerce_order_status_changed', array ( __NAMESPACE__.'\\Membership_Controller' , 'catch_order_completed' ), 10, 1);
+      add_action( 'woocommerce_order_status_completed', array ( __NAMESPACE__.'\\Membership_Controller' , 'catch_order_completed' ), 10, 1);
       add_action( 'wicket_member_create_record', array( __NAMESPACE__.'\\Membership_Controller', 'create_membership_record'), 10, 3 );
+      add_action( 'init', [$this, 'wicket_membership_init_session'] );
+
+      //temporary admin notice response
+      add_action( 'admin_notices', function() {
+        if( !empty( $_SESSION['wicket_membership_error'] ) ) {
+          echo '<div class="notice error is-dismissible" ><p><strong>Wicket Membership Error:</strong> '. $_SESSION['wicket_membership_error'] .'</p></div>';
+        }
+        unset( $_SESSION['wicket_membership_error'] );
+      });
+    }
+
+    public function wicket_membership_init_session() {
+      if ( ! session_id() ) {
+          session_start();
+      }
     }
 
 		/**

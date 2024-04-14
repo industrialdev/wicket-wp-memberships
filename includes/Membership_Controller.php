@@ -41,7 +41,7 @@ class Membership_Controller {
   /**
    * Get memberships with config from tier by products on the order
    */
-  private function get_memberships_data_from_products( $order ) {
+  private function get_memberships_data_from_subscription_products( $order ) {
     $seats = 0;
     $memberships = [];
     $order_id = $order->get_id();
@@ -177,13 +177,20 @@ class Membership_Controller {
     $order = wc_get_order( $order_id );
     $self = new self();
 
-    //get membership_data
-    $memberships = $self->get_memberships_data_from_products( $order ); // get_membership_data_from_order
-    
     //get_person_uuid
     $user_id = $order->get_user_id();
     $user = get_user_by( 'id', $user_id );
     $person_uuid = $user->data->user_login;
+    
+    $subscriptions = wcs_get_subscriptions( ['order_type' => 'parent', 'order_id' => $order_id] );
+    if( empty( $subscriptions) ) {
+      //create subscriptions for non-subscription products tied to tiers
+      $MSC = new Membership_Subscription_Controller(); 
+      $MSC->create_subscriptions( $order, $user ); // create subscriptions
+    }
+
+    //get membership_data from subscriptions
+    $memberships = $self->get_memberships_data_from_subscription_products( $order ); // get_membership_data_from_order
 
     //membership data arrays
     $memberships = array_map(function (array $arr) use ($user_id, $person_uuid) {
