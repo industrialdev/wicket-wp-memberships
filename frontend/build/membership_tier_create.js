@@ -13187,6 +13187,10 @@ const CreateMembershipTier = ({
     if (tempProduct.product_id === null) {
       return;
     }
+    if (tempProduct.max_seats < 0) {
+      setErrors([(0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range maximum value cannot be less than 0', 'wicket-memberships')]);
+      return;
+    }
     setForm({
       ...form,
       product_data: [...form.product_data, {

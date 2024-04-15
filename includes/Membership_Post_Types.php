@@ -398,6 +398,15 @@ class Membership_Post_Types {
                 $errors->add( 'rest_invalid_param_product_data', __( 'At least one product is required.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
+              // dissalow products with max_seats less than -1
+              if ( count( $value['product_data'] ) > 0 ) {
+                foreach ( $value['product_data'] as $product ) {
+                  if ( intval( $product['max_seats'] ) < -1 ) {
+                    $errors->add( 'rest_invalid_param_product_data', __( 'Max seats must be greater than or equal to -1.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+                }
+              }
+
               // if individual type, then max_seats must be -1 for all products
               if ( $value['type'] === 'individual' ) {
                 foreach ( $value['product_data'] as $product ) {

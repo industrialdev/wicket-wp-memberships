@@ -164,6 +164,11 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 	const handlePerRangeOfSeatsAddProduct = () => {
 		if (tempProduct.product_id === null) { return; }
 
+		if ( tempProduct.max_seats < 0 ) {
+			setErrors([__('Range maximum value cannot be less than 0', 'wicket-memberships')]);
+			return;
+		}
+
 		setForm({
 			...form,
 			product_data: [
