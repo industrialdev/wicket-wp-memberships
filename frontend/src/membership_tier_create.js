@@ -306,7 +306,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 									/>
 								</FlexBlock>
 							</Flex>
-							{form.mdp_tier_uuid && (
+							{getSelectedTierData() && (
 								<>
 									<ActionRow>
 										<Flex
@@ -375,7 +375,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 							)}
 						</BorderedBox>
 						{/* Other Controls */}
-						{form.mdp_tier_uuid && (
+						{getSelectedTierData() && (
 							<>
 								<ActionRow>
 									<Flex

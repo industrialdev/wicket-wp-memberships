@@ -13310,7 +13310,7 @@ const CreateMembershipTier = ({
     isLoading: getMdpTierOptions().length === 0,
     options: getMdpTierOptions(),
     onChange: handleMdpTierChange
-  }))), form.mdp_tier_uuid && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+  }))), getSelectedTierData() && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "start",
     justify: "start",
     gap: 5,
@@ -13339,7 +13339,7 @@ const CreateMembershipTier = ({
     color: "#3c434a"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('# of Members', 'wicket-memberships'), ":\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "%COUNT%"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
     variant: "link"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View All Members', 'wicket-memberships'))))))))), form.mdp_tier_uuid && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View All Members', 'wicket-memberships'))))))))), getSelectedTierData() && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "end",
     justify: "start",
     gap: 5,
