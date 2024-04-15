@@ -8,7 +8,7 @@ import styled from 'styled-components';
 import { API_URL, MDP_API_URL } from './constants';
 import he from 'he';
 import Select from 'react-select'
-import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow } from './styled_elements';
+import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, FormFlex } from './styled_elements';
 
 const MarginedFlex = styled(Flex)`
 	margin-top: 15px;
@@ -26,6 +26,13 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 
 	const [errors, setErrors] = useState([]);
 
+	const [tempProduct, setTempProduct] = useState(
+		{
+			product_id: null,
+			max_seats: 0
+		}
+	);
+
 	const [form, setForm] = useState({
 		approval_required: false,
 		mdp_tier_name: '',
@@ -33,7 +40,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 		mdp_next_tier_uuid: '',
 		config_id: '',
 		type: '', // orgranization, individual
-		seat_type: '',
+		seat_type: 'per_seat', // per_seat, per_range_of_seats
 		product_data: [] // { product_id:, max_seats: }
 	});
 
@@ -42,6 +49,12 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 		const selectedTier = mdpTiers.find(tier => tier.uuid === form.mdp_tier_uuid);
 
 		return selectedTier;
+	};
+
+	const getSelectedPerSeatProductId = () => {
+		if (form.product_data.length === 0) { return null; }
+
+		return form.product_data[0].product_id;
 	};
 
 	const handleSubmit = (e) => {
@@ -54,19 +67,32 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 
 		const endpoint = postId ? `${API_URL}/${tierCptSlug}/${postId}` : `${API_URL}/${tierCptSlug}`;
 
+		// change max_seats to -1 if it is 0
+		const productData = form.product_data.map((product) => {
+			return {
+				product_id: product.product_id,
+				max_seats: parseInt(product.max_seats) === 0 ? -1 : product.max_seats
+			}
+		});
+
+		const newForm = {
+			...form,
+			product_data: productData
+		};
+
 		apiFetch({
 			path: endpoint,
 			method: 'POST',
 			data: {
-				title: form.mdp_tier_name,
+				title: newForm.mdp_tier_name,
 				status: 'publish',
-				tier_data: form
+				tier_data: newForm
 			}
 		}).then((response) => {
 			console.log(response);
 			if (response.id) {
 				// Redirect to the cpt list page
-				// window.location.href = configListUrl;
+				window.location.href = tierListUrl;
 			}
 		}).catch((error) => {
 			let newErrors = [];
@@ -88,7 +114,13 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 			...form,
 			mdp_tier_name: mdpTier.name,
 			mdp_tier_uuid: mdpTier.uuid,
-			type: mdpTier.type
+			type: mdpTier.type,
+			product_data: []
+		});
+
+		setTempProduct({
+			product_id: null,
+			max_seats: 0
 		});
 	}
 
@@ -115,9 +147,44 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 		});
 	}
 
+	const handleOrganizationPerSeatGrantedViaChange = (selected) => {
+		const productData = [
+			{
+				product_id: selected.value,
+				max_seats: -1
+			}
+		];
+
+		setForm({
+			...form,
+			product_data: productData
+		});
+	}
+
+	const handlePerRangeOfSeatsAddProduct = () => {
+		if (tempProduct.product_id === null) { return; }
+
+		setForm({
+			...form,
+			product_data: [
+				...form.product_data,
+				{
+					product_id: tempProduct.product_id,
+					max_seats: tempProduct.max_seats
+				}
+			]
+		});
+		setTempProduct({
+			product_id: null,
+			max_seats: 0
+		});
+	};
+
 	useEffect(() => {
+		let queryParams = {};
+
 		// Fetch WooCommerce products
-		let queryParams = { status: 'publish' };
+		queryParams = { status: 'publish' };
 		apiFetch({ path: addQueryArgs(`${API_URL}/product`, queryParams) }).then((products) => {
 			console.log(products);
 
@@ -150,13 +217,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 		queryParams = {};
 		apiFetch({ path: addQueryArgs(`${MDP_API_URL}/membership_tiers`, queryParams) }).then((tiers) => {
 
-			let options = tiers.map((tier) => {
-				return {
-					label: tier.name,
-					value: tier.uuid
-				}
-			});
-
 			setMdpTiers(
 				tiers.map((tier) => {
 					return {
@@ -170,6 +230,16 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 				})
 			);
 		});
+
+		// Fetch the membership tier
+		if (postId) {
+			apiFetch({ path: addQueryArgs(`${API_URL}/${tierCptSlug}/${postId}`, queryParams) }).then((post) => {
+				console.log('Post:');
+				console.log(post.tier_data);
+
+				setForm(post.tier_data);
+			});
+		}
 	}, []);
 
 	console.log('Tiers:');
@@ -372,6 +442,154 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 												/>
 											</FlexBlock>
 										</MarginedFlex>
+									</>
+								)}
+								{getSelectedTierData().type === 'organization' && (
+									<>
+										<BorderedBox>
+											<Flex>
+												<FlexBlock>
+													<SelectControl
+														label={__('Seat Settings', 'wicket-memberships')}
+														value={form.seat_type}
+														options={[
+															{ label: __('Per Seat', 'wicket-memberships'), value: 'per_seat' },
+															{ label: __('Per Range of Seats', 'wicket-memberships'), value: 'per_range_of_seats' }
+														]}
+														onChange={(selected) => {
+																setForm({
+																	...form,
+																	seat_type: selected,
+																	product_data: [] //reset product data
+																});
+															}
+														}
+													/>
+												</FlexBlock>
+											</Flex>
+
+											{form.seat_type === 'per_seat' && (
+												<MarginedFlex>
+													<FlexBlock>
+														<LabelWpStyled htmlFor="seat_data_per_seat">
+															{__('Product', 'wicket-memberships')}
+														</LabelWpStyled>
+														<SelectWpStyled
+															id="seat_data_per_seat"
+															classNamePrefix="select"
+															value={wcProductOptions.find(option => getSelectedPerSeatProductId() === option.value)}
+															isClearable={false}
+															isSearchable={true}
+															isLoading={wcProductOptions.length === 0}
+															options={wcProductOptions}
+															onChange={handleOrganizationPerSeatGrantedViaChange}
+														/>
+													</FlexBlock>
+												</MarginedFlex>
+											)}
+
+											{form.seat_type === 'per_range_of_seats' && (
+												<>
+													<MarginedFlex
+														align='end'
+														justify='start'
+														gap={5}
+														direction={[
+															'column',
+															'row'
+														]}
+													>
+														<FlexBlock>
+															<LabelWpStyled
+																htmlFor="temp_product"
+															>
+																{__('Product', 'wicket-memberships')}
+															</LabelWpStyled>
+															<SelectWpStyled
+																id="temp_product"
+																classNamePrefix="select"
+																value={wcProductOptions.find(option => tempProduct.product_id === option.value)}
+																isClearable={false}
+																isSearchable={true}
+																isLoading={wcProductOptions.length === 0}
+																options={wcProductOptions}
+																__nextHasNoMarginBottom={true}
+																onChange={(selected) => setTempProduct({
+																	...tempProduct,
+																	product_id: selected.value
+																})}
+															/>
+														</FlexBlock>
+														<FlexBlock>
+															<TextControl
+																label={__('Range Maximum (USE 0 FOR UNLIMITED)', 'wicket-memberships')}
+																type='number'
+																min={0}
+																__nextHasNoMarginBottom={true}
+																value={tempProduct.max_seats}
+																onChange={(value) => setTempProduct({
+																	...tempProduct,
+																	max_seats: value
+																})}
+															/>
+														</FlexBlock>
+														<FlexBlock>
+															<Button
+																disabled={tempProduct.product_id === null}
+																variant="primary"
+																onClick={handlePerRangeOfSeatsAddProduct}
+															>
+																{__('Add Product', 'wicket-memberships')}
+															</Button>
+														</FlexBlock>
+													</MarginedFlex>
+
+													{/* Seats Data Table */}
+													<FormFlex>
+														<Heading level='4' weight='300' >
+															{__('Seats Data', 'wicket-memberships')}
+														</Heading>
+													</FormFlex>
+													<FormFlex>
+														<table className="widefat" cellSpacing="0">
+															<thead>
+																<tr>
+																	<th className="manage-column column-columnname" scope="col">
+																		{__('Product Name', 'wicket-memberships')}
+																	</th>
+																	<th className="manage-column column-columnname" scope="col">
+																		{__('Range Max', 'wicket-memberships')}
+																	</th>
+																	<th className='check-column'></th>
+																</tr>
+															</thead>
+															<tbody>
+																{form.product_data.map((product, index) => (
+																		<tr key={index} className={index % 2 === 0 ? 'alternate' : ''}>
+																			<td className="column-columnname">
+																				{wcProductOptions.find(option => option.value === product.product_id).label}
+																			</td>
+																			<td className="column-columnname">
+																				{product.max_seats}
+																			</td>
+																			<td>
+																				<Button
+																					onClick={() => {
+																						// initSeasonModal(index)
+																					}}
+																				>
+																					<span className="dashicons dashicons-edit"></span>
+																				</Button>
+																			</td>
+																		</tr>
+																	)
+																)}
+															</tbody>
+														</table>
+													</FormFlex>
+												</>
+											)}
+										</BorderedBox>
 									</>
 								)}
 							</>

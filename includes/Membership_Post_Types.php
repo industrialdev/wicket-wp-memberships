@@ -398,14 +398,36 @@ class Membership_Post_Types {
                 $errors->add( 'rest_invalid_param_product_data', __( 'At least one product is required.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
-              // if type is individual, min 1 product is allowed
-              if ( $value['type'] === 'individual' && count( $value['product_data'] ) < 1 ) {
-                $errors->add( 'rest_invalid_param_product_data', __( 'At least one product is required for individual tier types.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              // if individual type, then max_seats must be -1 for all products
+              if ( $value['type'] === 'individual' ) {
+                foreach ( $value['product_data'] as $product ) {
+                  if ( intval( $product['max_seats'] ) !== -1 ) {
+                    $errors->add( 'rest_invalid_param_product_data', __( 'Max seats must be -1 for individual tier types.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+                }
               }
 
               // if type is organization and seat type is per_seat, max 1 product is allowed
               if ( $value['type'] === 'organization' && $value['seat_type'] === 'per_seat' && count( $value['product_data'] ) > 1 ) {
                 $errors->add( 'rest_invalid_param_product_data', __( 'Only one product is allowed for organization tier types.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              // if type is organization and seat type is per_seat, max_seats must be -1
+              if ( $value['type'] === 'organization' && $value['seat_type'] === 'per_seat' && isset( $value['product_data'][0] ) ) {
+                if ( intval( $value['product_data'][0]['max_seats'] ) !== -1 ) {
+                  $errors->add( 'rest_invalid_param_product_data', __( 'Max seats must be -1 for organization tier types with "per_seat" type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+              }
+
+              // if type is organization and seat type is per_range_of_seats, product id cannot be same
+              if ( $value['type'] === 'organization' && $value['seat_type'] === 'per_range_of_seats' && count( $value['product_data'] ) > 1 ) {
+                $product_ids = array_map( function( $product ) {
+                  return $product['product_id'];
+                }, $value['product_data'] );
+
+                if ( count( $product_ids ) !== count( array_unique( $product_ids ) ) ) {
+                  $errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for organization tier types with "per_range_of_seats" type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
               }
 
               if ( $errors->has_errors() ) {
