@@ -20,6 +20,38 @@ class Membership_Tier {
 	}
 
   /**
+   * Get the tier by product ID
+   *
+   * @param int $product_id
+   *
+   * @return Membership_Tier|bool Membership_Tier object, false otherwise
+   */
+  public static function get_tier_by_product_id( $product_id ) {
+    $args = array(
+      'post_type' => Helper::get_membership_tier_cpt_slug(),
+      'posts_per_page' => -1,
+    );
+
+    $tiers = get_posts( $args );
+
+    foreach ( $tiers as $tier ) {
+      $tier_obj = new Membership_Tier( $tier->ID );
+
+      $products_data = $tier_obj->get_products_data();
+
+      if ( $products_data ) {
+        foreach ( $products_data as $product_data ) {
+          if ( $product_data['product_id'] == $product_id ) {
+            return $tier_obj;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Get the MDP tier name
    *
    * @return string|bool String, false otherwise
