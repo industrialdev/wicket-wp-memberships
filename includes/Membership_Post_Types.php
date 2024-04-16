@@ -21,8 +21,9 @@ class Membership_Post_Types {
     add_action('init', [ $this, 'register_membership_config_post_type' ]);
     add_action('init', [ $this, 'register_membership_tier_post_type' ]);
 
-    // Register the Membership Config fields to the REST API and validate the data
+    // Register the fields to the REST API and validate the data
     add_action('rest_api_init', [ $this, 'register_membership_config_cpt_fields' ]);
+    add_action('rest_api_init', [ $this, 'register_membership_tier_cpt_fields' ]);
   }
 
   public function register_membership_config_cpt_fields() {
@@ -333,6 +334,167 @@ class Membership_Post_Types {
   }
 
   /**
+   * Register rest fields for the membership tier post type
+   */
+  public function register_membership_tier_cpt_fields() {
+    // Tier Data
+    $field = 'tier_data';
+
+    register_rest_field(
+      $this->membership_tier_cpt_slug,
+      $field,
+      array(
+        'get_callback'    => function ( $object ) use ( $field ) {
+          return get_post_meta( $object['id'], $field, true );
+        },
+        'update_callback' => function ( $value, $object ) use ( $field ) {
+          update_post_meta( $object->ID, $field, $value );
+        },
+        'schema'          => array(
+          'type'        => 'object',
+          'description' => 'Renewal Window Data',
+          'arg_options' => [
+            'validate_callback' => function( $value ) {
+              $errors = new WP_Error();
+
+              if ( ! is_array( $value ) ) {
+                $errors->add( 'rest_invalid_param', __( 'The tier data must be an object.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( is_bool( $value['approval_required'] ) === false ) {
+                $errors->add( 'rest_invalid_param_approval_required', __( 'The approval required value must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( empty( $value['mdp_tier_name'] ) ) {
+                $errors->add( 'rest_invalid_param_mdp_tier_name', __( 'The MDP Tier Name must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( empty( $value['mdp_tier_uuid'] ) ) {
+                $errors->add( 'rest_invalid_param_mdp_tier_uuid', __( 'The MDP Tier UUID must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( empty( $value['mdp_next_tier_uuid'] ) ) {
+                $errors->add( 'rest_invalid_param_mdp_next_tier_uuid', __( 'The Next Tier MDP UUID must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( empty( $value['config_id'] ) ) {
+                $errors->add( 'rest_invalid_param_config_id', __( 'The Membership Config Post ID must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              // if config_id is not a valid Config Post ID
+              $config_post = get_post( $value['config_id'] );
+
+              if ( ! $config_post || $config_post->post_type !== $this->membership_config_cpt_slug ) {
+                $errors->add( 'rest_invalid_param_config_id', __( 'The Membership Config Post ID must be a valid post ID.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              // only allow 'individual' or 'organization' type
+              if ( ! in_array( $value['type'], [ 'individual', 'organization' ] ) ) {
+                $errors->add( 'rest_invalid_param_type', __( 'The tier type must be either individual or organization.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              // at least one product is required for all tier types
+              if ( count( $value['product_data'] ) < 1 ) {
+                $errors->add( 'rest_invalid_param_product_data', __( 'At least one product is required.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              // dissalow products with max_seats less than -1
+              if ( count( $value['product_data'] ) > 0 ) {
+                foreach ( $value['product_data'] as $product ) {
+                  if ( intval( $product['max_seats'] ) < -1 ) {
+                    $errors->add( 'rest_invalid_param_product_data', __( 'Max seats must be greater than or equal to -1.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+                }
+              }
+
+              // if individual type, then max_seats must be -1 for all products
+              if ( $value['type'] === 'individual' ) {
+                foreach ( $value['product_data'] as $product ) {
+                  if ( intval( $product['max_seats'] ) !== -1 ) {
+                    $errors->add( 'rest_invalid_param_product_data', __( 'Max seats must be -1 for individual tier types.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+                }
+              }
+
+              // if type is organization and seat type is per_seat, max 1 product is allowed
+              if ( $value['type'] === 'organization' && $value['seat_type'] === 'per_seat' && count( $value['product_data'] ) > 1 ) {
+                $errors->add( 'rest_invalid_param_product_data', __( 'Only one product is allowed for organization tier types.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              // if type is organization and seat type is per_seat, max_seats must be -1
+              if ( $value['type'] === 'organization' && $value['seat_type'] === 'per_seat' && isset( $value['product_data'][0] ) ) {
+                if ( intval( $value['product_data'][0]['max_seats'] ) !== -1 ) {
+                  $errors->add( 'rest_invalid_param_product_data', __( 'Max seats must be -1 for organization tier types with "per_seat" type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+              }
+
+              // if type is organization and seat type is per_range_of_seats, product id cannot be same
+              if ( $value['type'] === 'organization' && $value['seat_type'] === 'per_range_of_seats' && count( $value['product_data'] ) > 1 ) {
+                $product_ids = array_map( function( $product ) {
+                  return $product['product_id'];
+                }, $value['product_data'] );
+
+                if ( count( $product_ids ) !== count( array_unique( $product_ids ) ) ) {
+                  $errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for organization tier types with "per_range_of_seats" type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+              }
+
+              if ( $errors->has_errors() ) {
+                return $errors;
+              }
+
+              return true;
+            },
+          ],
+          'properties'  => array(
+            'approval_required' => array(
+              'type'        => 'boolean',
+              'description' => 'Approval Required',
+            ),
+            'mdp_tier_name' => array(
+              'type'        => 'string',
+              'description' => 'MPD Tier Name',
+            ),
+            'mdp_tier_uuid' => array(
+              'type'        => 'string',
+              'description' => 'MPD Tier UUID',
+            ),
+            'mdp_next_tier_uuid' => array(
+              'type'        => 'string',
+              'description' => 'Next Tier MDP UUID',
+            ),
+            'config_id' => array(
+              'type'        => 'integer',
+              'description' => 'Membership Config Post ID',
+            ),
+            'type' => array(
+              'type'        => 'string',
+              'description' => 'Tier Type',
+            ),
+            'seat_type' => array(
+              'type'        => 'string',
+              'description' => 'Seat Type',
+            ),
+            'product_data' => array(
+              'type'        => 'array',
+              'description' => 'Product Data',
+              'properties' => array(
+                'product_id' => array(
+                  'type' => 'integer',
+                ),
+                'max_seats' => array(
+                  'type' => 'integer',
+                ),
+              ),
+            ),
+          ),
+        ),
+      )
+    );
+
+  }
+
+  /**
    * Create the membership post type
    */
   public function register_membership_post_type() {
@@ -547,75 +709,6 @@ class Membership_Post_Types {
     );
 
     register_post_type( $this->membership_tier_cpt_slug, $args );
-
-    $args = array(
-      'type'              => 'boolean',
-      'description'       => __( 'Approval required.', 'wicket-memberships' ),
-      'single'            => true,
-      'show_in_rest'      => true,
-    );
-
-    register_post_meta($this->membership_tier_cpt_slug, 'approval_required', $args);
-
-    $args = array(
-      'type'              => 'string',
-      'description'       => __( 'The membership tier name.', 'wicket-memberships' ),
-      'single'            => true,
-      'show_in_rest'      => true,
-    );
-
-    register_post_meta($this->membership_tier_cpt_slug, 'tier_name', $args);
-
-    $args = array(
-      'type'              => 'string',
-      'description'       => __( 'The membership tier uuid.', 'wicket-memberships' ),
-      'single'            => true,
-      'show_in_rest'      => true,
-    );
-
-    register_post_meta($this->membership_tier_cpt_slug, 'tier_uuid', $args);
-
-    $args = array(
-      'type'              => 'string',
-      'description'       => __( 'The next membership tier uuid in sequence.', 'wicket-memberships' ),
-      'single'            => true,
-      'show_in_rest'      => true,
-    );
-
-    register_post_meta($this->membership_tier_cpt_slug, 'next_tier_uuid', $args);
-
-    $args = array(
-      'type'              => 'integer',
-      'description'       => __( 'The associated config id.', 'wicket-memberships' ),
-      'single'            => true,
-      'show_in_rest'      => true,
-    );
-
-    register_post_meta($this->membership_tier_cpt_slug, 'config_id', $args);
-
-    $args = array(
-      'type'              => 'string',
-      'description'       => __( 'Individual or organization type membership.', 'wicket-memberships' ),
-      'single'            => true,
-      'show_in_rest'      => true,
-    );
-    register_post_meta($this->membership_tier_cpt_slug, 'type', $args);
-
-    $args = array(
-      'type'              => 'integer',
-      'description'       => __( 'Organization seats.', 'wicket-memberships' ),
-      'single'            => true,
-      'show_in_rest'      => true,
-    );
-    register_post_meta($this->membership_tier_cpt_slug, 'seats', $args);
-
-    $args = array(
-      'type'              => 'integer',
-      'description'       => __( 'Product IDs using this membership level.', 'wicket-memberships' ),
-      'single'            => false,
-      'show_in_rest'      => true,
-    );
-    register_post_meta($this->membership_tier_cpt_slug, 'wc_product', $args);
   }
 
 }
