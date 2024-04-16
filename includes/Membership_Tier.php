@@ -27,6 +27,7 @@ class Membership_Tier {
    * @return Membership_Tier|bool Membership_Tier object, false otherwise
    */
   public static function get_tier_by_product_id( $product_id ) {
+    // TODO: Check if it's possible to use a WP_Query instead of get_posts
     $args = array(
       'post_type' => Helper::get_membership_tier_cpt_slug(),
       'posts_per_page' => -1,
