@@ -4,7 +4,7 @@ namespace Wicket_Memberships;
 class Membership_Tier {
 
   private $post_id;
-  private $tier_data;
+  public $tier_data;
 
   public function __construct( $post_id ) {
     if ( ! get_post( $post_id ) ) {
@@ -43,6 +43,7 @@ class Membership_Tier {
       if ( $products_data ) {
         foreach ( $products_data as $product_data ) {
           if ( $product_data['product_id'] == $product_id ) {
+            $tier_obj->tier_data['product_data'] = $product_data;
             return $tier_obj;
           }
         }
