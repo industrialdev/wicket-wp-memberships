@@ -29,6 +29,7 @@ class Membership_CPT_Hooks {
     $columns['user_id']  = __( 'User ID', 'wicket-memberships' );
     $columns['status']  = __( 'Status', 'wicket-memberships' );
     $columns['start_date']  = __( 'Start Date', 'wicket-memberships' );
+    $columns['early_renew_date']  = __( 'Early Renew Date', 'wicket-memberships' );
     $columns['end_date']  = __( 'End Date', 'wicket-memberships' );
     $columns['expiry_date']  = __( 'Expiry Date', 'wicket-memberships' );
     unset($columns['date']);
@@ -41,6 +42,10 @@ class Membership_CPT_Hooks {
   public function wicket_membership_table_content( $column_name, $post_id ) {
     $meta = get_post_meta( $post_id );
     echo $meta[$column_name][0];
+    if( $column_name = 'membership_type' && $meta[$column_name][0] == 'organization') {
+      echo ' - ' . $meta['org_uuid'][0];
+      echo '<br>Seats: ' . $meta['org_seats'][0];
+    }
   }
 
   /**

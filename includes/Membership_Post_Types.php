@@ -580,12 +580,39 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
+      'description'       => __( 'The early renew date of the membership in wordpress.', 'wicket-memberships' ),
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_cpt_slug, 'early_renew_date', $args);
+
+    $args = array(
+      'type'              => 'string',
       'description'       => __( 'Person or Org membership.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
     );
 
     register_post_meta($this->membership_cpt_slug, 'member_type', $args);
+
+    $args = array(
+      'type'              => 'string',
+      'description'       => __( 'Org UUID.', 'wicket-memberships' ),
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_cpt_slug, 'org_uuid', $args);
+
+    $args = array(
+      'type'              => 'integer',
+      'description'       => __( 'Org max seats.', 'wicket-memberships' ),
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_cpt_slug, 'org_seats', $args);
 
     $args = array(
       'type'              => 'string',
