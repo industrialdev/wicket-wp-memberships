@@ -216,4 +216,58 @@ class Membership_Config {
     }
     return $period;
   }
+
+  /**
+   * Determine the STart And ENd Date based on config settings
+   * If this is a renewal we need to consider early renewal still in previous membership date period
+   * @return array membership dates
+   */
+  public function get_membership_dates() {
+    $cycle_data = $this->get_cycle_data();
+    if( $cycle_data['cycle_type'] == 'anniversary' ) {
+      $dates['start_date'] = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+      $period_type  = !in_array( $cycle_data['anniversary_data']["period_type"], ['year','month','day'] )
+                        ? 'year' : $cycle_data['anniversary_data']["period_type"];
+      $the_end_date = date("Y-m-d", strtotime("+1 ".$period_type));
+      if( in_array( $period_type, ['year', 'month']) && $cycle_data['align_end_dates_enabled'] !== false ) {
+        switch( $cycle_data['anniversary_data']["align_end_dates_type"] ) {
+          case 'first-day-of-month':
+            $the_end_date = date("Y-m-1", strtotime("+1 ".$period_type));
+            break;
+          case '15th-of-month':
+            $the_end_date = date("Y-m-15", strtotime("+1 ".$period_type));
+            break;
+          case 'last-day-of-month':
+            $the_end_date = date("Y-m-t", strtotime("+1 ".$period_type));
+            break;
+        }
+      }
+      $dates['end_date'] = (new \DateTime( $the_end_date, wp_timezone() ))->format('c');
+    } else {    
+      $dates['start_date'] = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+      $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime("+1 year")), wp_timezone() ))->format('c');
+      $current_time = current_time( 'timestamp' );
+      $seasons = $this->get_calendar_seasons();
+      foreach( $seasons as $season ) {
+        if( $season['active'] && ( $current_time >= strtotime( $season['start_date'] )) && ( $current_time <= strtotime( $season['end_date'] ))) {
+          $dates['end_date'] = $season['end_date'];
+        }
+      }
+    }
+
+    $grace_period = $this->get_late_fee_window_days();
+    if( !empty ($grace_period )) {
+      $adjusted_date = date_add( new \DateTime($dates['end_date']), date_interval_create_from_date_string("$grace_period days")); //date( $dates['end_date'],  strtotime("+$grace_period days"));
+      $dates['expires_at'] = $adjusted_date->format('c');
+    }
+
+    $early_renewal_period = $this->get_renewal_window_days();
+    if( !empty ($grace_period )) {
+      $adjusted_date = date_add( new \DateTime($dates['end_date']), date_interval_create_from_date_string("-$early_renewal_period days")); //date( $dates['end_date'],  strtotime("+$grace_period days"));
+      $dates['early_renew_at'] = $adjusted_date->format('c');
+    }
+
+    return $dates;
+  }
+
 }

@@ -23,7 +23,7 @@ class Membership_Controller {
     $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
     $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
 
-    // TEMPORY -- INJECT MEMBERSHIP META DATA into order and subscription pages
+    // TEMPORY -- INJECT MEMBERSHIP META DATA into order and subscription pages -- org_id on checkout page
     add_action( 'woocommerce_admin_order_data_after_shipping_address', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
     add_action( 'wcs_subscription_details_table_before_dates', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
     add_action('woocommerce_after_order_notes', [$this, 'custom_checkout_field'], 10 ,1);
@@ -56,10 +56,14 @@ class Membership_Controller {
         $post_meta = get_post_meta( $post->get_id() );
         foreach($post_meta as $key => $val) {
         if( str_starts_with( $key, '_wicket_membership_')) {
-            echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';var_dump( maybe_unserialize( $val[0] )); echo '</pre>';
+            echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';echo maybe_unserialize( $val[0] ); echo '</pre>';
           }
         }
     }
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Membership_Controller methods start here
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
   /**
    * Get memberships with config from tier by products on the order
@@ -76,13 +80,10 @@ class Membership_Controller {
         foreach( $subscription_products as $item ) {
           $product_id = $item->get_product_id();
           $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id ); 
-          //$this->get_tiers_from_product( $product_id );
-          //echo '<pre>'; var_dump( $membership_tier->tier_data );exit;
-
           if( !empty( $membership_tier->tier_data )) {
               $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
               $period_data = $config->get_period_data();
-              $dates = $this->get_membership_dates( $config );
+              $dates = $config->get_membership_dates();
 
               $membership = [
                 'membership_parent_order_id' => $order_id,
@@ -100,6 +101,7 @@ class Membership_Controller {
                 'membership_interval' => $period_data['period_count'],
                 'membership_subscription_period' => get_post_meta( $subscription_id, '_billing_period')[0],
                 'membership_subscription_interval' => get_post_meta( $subscription_id, '_billing_interval')[0],
+                'membership_wp_user_id' => get_current_user_id()
               ];
 
               if( $membership_tier->tier_data['type'] == 'organization' ) {
@@ -116,82 +118,6 @@ class Membership_Controller {
         }
       }
       return $memberships;
-  }
-
-  /**
-   * Determine the STart And ENd Date based on config settings
-   * If this is a renewal we need to consider early renewal still in previous membership date period
-   */
-  public function get_membership_dates( $config ) {
-    $cycle_data = $config->get_cycle_data();
-    if( $cycle_data['cycle_type'] == 'anniversary' ) {
-      $dates['start_date'] = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
-      $period_type  = !in_array( $cycle_data['anniversary_data']["period_type"], ['year','month','day'] )
-                        ? 'year' : $cycle_data['anniversary_data']["period_type"];
-      $the_end_date = date("Y-m-d", strtotime("+1 ".$period_type));
-      if( in_array( $period_type, ['year', 'month']) && $cycle_data['align_end_dates_enabled'] !== false ) {
-        switch( $cycle_data['anniversary_data']["align_end_dates_type"] ) {
-          case 'first-day-of-month':
-            $the_end_date = date("Y-m-1", strtotime("+1 ".$period_type));
-            break;
-          case '15th-of-month':
-            $the_end_date = date("Y-m-15", strtotime("+1 ".$period_type));
-            break;
-          case 'last-day-of-month':
-            $the_end_date = date("Y-m-t", strtotime("+1 ".$period_type));
-            break;
-        }
-      }
-      $dates['end_date'] = (new \DateTime( $the_end_date, wp_timezone() ))->format('c');
-    } else {    
-      $dates['start_date'] = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
-      $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime("+1 year")), wp_timezone() ))->format('c');
-      $current_time = current_time( 'timestamp' );
-      $seasons = $config->get_calendar_seasons();
-      foreach( $seasons as $season ) {
-        if( $season['active'] && ( $current_time >= strtotime( $season['start_date'] )) && ( $current_time <= strtotime( $season['end_date'] ))) {
-          $dates['end_date'] = $season['end_date'];
-        }
-      }
-    }
-
-    $grace_period = $config->get_late_fee_window_days();
-    if( !empty ($grace_period )) {
-      $adjusted_date = date_add( new \DateTime($dates['end_date']), date_interval_create_from_date_string("$grace_period days")); //date( $dates['end_date'],  strtotime("+$grace_period days"));
-      $dates['expires_at'] = $adjusted_date->format('c');
-    }
-
-    $early_renewal_period = $config->get_renewal_window_days();
-    if( !empty ($grace_period )) {
-      $adjusted_date = date_add( new \DateTime($dates['end_date']), date_interval_create_from_date_string("-$early_renewal_period days")); //date( $dates['end_date'],  strtotime("+$grace_period days"));
-      $dates['early_renew_at'] = $adjusted_date->format('c');
-    }
-
-    return $dates;
-  }
-
-  /**
-   * Get all tiers attached to a product
-   */
-  public function get_tiers_from_product( $product_id ) {
-
-    $args = array(
-      'post_type' => $this->membership_tier_cpt_slug,
-      'post_status' => 'publish',
-      'posts_per_page' => -1,
-      'meta_query'     => array(
-        array(
-          'key'     => 'wc_product',
-          'value'   => $product_id,
-          'compare' => '='
-        ),
-      )
-    );
-    $tiers = get_posts( $args );
-    foreach( $tiers as &$tier ) {
-      $tier->meta = get_post_meta( $tier->ID);
-    }
-    return $tiers;
   }
 
   /**
@@ -295,8 +221,8 @@ class Membership_Controller {
       } else {
         $response = wicket_assign_organization_membership( 
           $membership['person_uuid'],
-          $membership['membership_tier_uuid'], 
           $membership['organization_uuid'],
+          $membership['membership_tier_uuid'], 
           $membership['membership_starts_at'],
           $membership['membership_ends_at']
         );  
