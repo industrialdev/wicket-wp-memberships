@@ -23,11 +23,13 @@ class Membership_Controller {
     $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
     $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
 
+    // Get Onboarding Data set on checkout form
+    add_action('woocommerce_after_order_notes', [$this, 'custom_checkout_field'], 10 ,1);
+    add_action('woocommerce_checkout_update_order_meta', [$this, 'custom_checkout_field_update_order_meta']);
+
     // TEMPORY -- INJECT MEMBERSHIP META DATA into order and subscription pages -- org_id on checkout page
     add_action( 'woocommerce_admin_order_data_after_shipping_address', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
     add_action( 'wcs_subscription_details_table_before_dates', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
-    add_action('woocommerce_after_order_notes', [$this, 'custom_checkout_field'], 10 ,1);
-    add_action('woocommerce_checkout_update_order_meta', [$this, 'custom_checkout_field_update_order_meta']);
   }
 
     // TEMPORARILY COLLECT CHECKOUT FIELD FOR ORG UUID
@@ -38,17 +40,16 @@ class Membership_Controller {
     }
 
     function custom_checkout_field($checkout) {
-      echo '<div id="custom_checkout_field">';
-      woocommerce_form_field('_custom_org_uuid', array(
-        'type' => 'text',
-        'class' => array(
-        'my-field-class form-row-wide'
-      ) ,
-        'label' => __('Org UUID') ,
-        'placeholder' => __('Org UUID') ,
-      ),
-      $checkout->get_value('_custom_org_uuid'));
-      echo '</div>';
+      if( ! empty( WC()->session ) ) {
+        $org_uuid = WC()->session->get('org_uuid');
+        echo '<div id="onboarding_uuid_checkout_field">';
+        woocommerce_form_field('_custom_org_uuid', array(
+            'type' => 'hidden',
+          ),
+          $org_uuid
+        );
+        echo '</div>';  
+      }
     }
 
     // TEMPORARILY INJECT MEMBERSHIP META DATA into order and subscription pages

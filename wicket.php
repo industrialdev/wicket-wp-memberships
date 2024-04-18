@@ -86,6 +86,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'wicket_member_create_record', array( __NAMESPACE__.'\\Membership_Controller', 'create_membership_record'), 10, 3 );
       add_action( 'init', [$this, 'wicket_membership_init_session'] );
 
+      add_action( 'template_redirect', [ $this, 'set_onboarding_posted_data_to_wc_session' ]);
+
       //temporary admin notice response
       add_action( 'admin_notices', function() {
         if( !empty( $_SESSION['wicket_membership_error'] ) ) {
@@ -93,6 +95,21 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
         }
         unset( $_SESSION['wicket_membership_error'] );
       });
+    }
+
+    public function set_onboarding_posted_data_to_wc_session() {
+        if ( is_page( 'cart' ) || is_cart() ) {
+            if ( isset($_REQUEST['org_uuid']) ) {
+                if ( isset($_REQUEST['org_uuid']) && ! empty($_REQUEST['org_uuid']) ) {
+                    $values['org_uuid'] = sanitize_text_field($_REQUEST['org_uuid']);
+                }
+                if ( ! empty($values)) {
+                  foreach( $values as $key => $val ) {
+                    WC()->session->set($key, $val );
+                  }
+                }
+            }
+        }
     }
 
     public function wicket_membership_init_session() {
