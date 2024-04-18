@@ -82,8 +82,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
 
   public function get_product_tiers( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $mc = new Membership_Controller();
-    $response = $mc->get_tiers_from_product( $params['id'] );
+    $response = Membership_Tier::get_tier_by_product_id( $params['id'] ); 
     return rest_ensure_response( $response );
   }
 
