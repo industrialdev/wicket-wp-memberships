@@ -66,6 +66,18 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
           'status' => array(
             'type' => 'string',
             'description' => 'membership status: active | expired',
+          ),  
+          'order_col' => array(
+            'type' => 'string',
+            'description' => 'order by column name',
+          ),  
+          'order_dir' => array(
+            'type' => 'string',
+            'description' => 'order by direction',
+          ),       
+          'filter[]' => array(
+            'type' => 'string',
+            'description' => 'list filters',
           ),          
         )
       ),
@@ -96,7 +108,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
   public function get_membership_lists( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $mc = new Membership_Controller();
-    $response = $mc->get_members_list( $params['type'], $params['page'], $params['posts_per_page'], $params['status'] );
+    $response = $mc->get_members_list( $params['type'], $params['page'], $params['posts_per_page'], $params['status'], $params['filter'], $params['order_col'], $params['order_dir'] );
     return rest_ensure_response( $response );
   }
   
