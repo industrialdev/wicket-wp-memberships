@@ -402,8 +402,12 @@ class Membership_Controller {
           return $item[0];
         }
       }, $tier_meta);
-      $user = get_userdata( $tier->meta['user_id'][0]);
-      $tier->user = $user->data;
+      if( $type != 'organization' ) {
+        $user = get_userdata( $tier->meta['user_id'][0]);
+        $tier->user = $user->data;
+      } else {
+        $tier->user = new \stdClass();
+      }
     }
     return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => count( $tiers->posts ) ];
   }
