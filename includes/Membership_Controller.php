@@ -375,7 +375,7 @@ class Membership_Controller {
     return $wpdb->postmeta . '.meta_value ';
  }
 
-  public function get_members_list( $type, $page, $posts_per_page, $status ) {
+  public function get_members_list( $type, $page, $posts_per_page, $status, $filter = [], $order_col = null, $order_dir = null ) {
     if( (! in_array( $type, ['individual', 'organization'] ))) {
       return;
     }
@@ -393,19 +393,30 @@ class Membership_Controller {
       'post_status' => 'publish',
       'posts_per_page' => $posts_per_page,
       'paged' => $page,
+      'meta_key' => $order_col,
+      'orderby'   => 'meta_value',
+      'order' => $order_dir,
       'meta_query'     => array(
         array(
           'key'     => 'member_type',
           'value'   => $type,
           'compare' => '='
-        ),        
-        array(
-          'key'     => 'status',
-          'value'   => $status,
-          'compare' => '='
-        ),
+        )
       )
     );
+
+    if( ! empty( $filter ) ) {
+      foreach($filter as $key => $val) {
+        if( in_array( $key,  ['location', 'status', 'tier'] )) {
+          $args['meta_query'][] = array(
+            'key'     => $key,
+            'value'   => $val,
+            'compare' => '='
+          );
+        }
+      }
+    }
+    
     if( $type == 'organization' ) {
       add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
       $args['meta_key'] = 'org_uuid';
