@@ -80,16 +80,31 @@ class Membership_Tier {
   }
 
   /**
-   * Get the next MDP tier UUID
+   * Get the next tier post ID
    *
    * @return string|bool String, false otherwise
    */
-  public function get_mdp_next_tier_uuid() {
-    if ( isset( $this->tier_data['mdp_next_tier_uuid'] ) ) {
-      return $this->tier_data['mdp_next_tier_uuid'];
+  public function get_next_tier_id() {
+    if ( isset( $this->tier_data['next_tier_id'] ) ) {
+      return $this->tier_data['next_tier_id'];
     }
 
     return false;
+  }
+
+  /**
+   * Get the next tier
+   *
+   * @return Membership_Tier|bool Membership_Tier object, false otherwise
+   */
+  public function get_next_tier() {
+    $next_tier_id = $this->get_next_tier_id();
+
+    if ( ! $next_tier_id ) {
+      return false;
+    }
+
+    return new Membership_Tier( $next_tier_id );
   }
 
   /**
@@ -244,13 +259,31 @@ class Membership_Tier {
    * @return array|bool Array, false otherwise
    */
   private function get_tier_data() {
-    $tier_data = get_post_meta( $this->post_id, 'tier_data', true );
+    $tier_data = get_post_meta( $this->post_id, self::get_meta_tier_data_field_name(), true );
 
     if ( is_array( $tier_data ) ) {
       return $tier_data;
     }
 
     return false;
+  }
+
+  /**
+   * Update the tier data
+   *
+   * @param array $tier_data
+   */
+  public function update_tier_data( $new_tier_data ) {
+    update_post_meta( $this->post_id, self::get_meta_tier_data_field_name(), $new_tier_data );
+  }
+
+  /**
+   * Get the meta tier data field name
+   *
+   * @return string
+   */
+  public static function get_meta_tier_data_field_name() {
+    return 'tier_data';
   }
 
 }

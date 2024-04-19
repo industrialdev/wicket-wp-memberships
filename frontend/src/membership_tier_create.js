@@ -20,6 +20,8 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 
 	const [mdpTiers, setMdpTiers] = useState([]);
 
+	const [wpTierOptions, setWpTierOptions] = useState([]); // { id, name }
+
 	const [membershipConfigOptions, setMembershipConfigOptions] = useState([]); // { id, name }
 
 	const [wcProductOptions, setWcProductOptions] = useState([]); // { id, name }
@@ -37,7 +39,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 		approval_required: false,
 		mdp_tier_name: '',
 		mdp_tier_uuid: '',
-		mdp_next_tier_uuid: '',
+		next_tier_id: '',
 		config_id: '',
 		type: '', // orgranization, individual
 		seat_type: 'per_seat', // per_seat, per_range_of_seats
@@ -204,6 +206,20 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 			setWcProductOptions(options);
 		});
 
+		// Fetch Local Membership Tiers Posts
+		queryParams = { status: 'publish' };
+		apiFetch({ path: addQueryArgs(`${API_URL}/${tierCptSlug}`, queryParams) }).then((tiers) => {
+			let options = tiers.map((tier) => {
+				const decodedTitle = he.decode(tier.title.rendered);
+				return {
+					label: `${decodedTitle} | ID: ${tier.id}`,
+					value: tier.id
+				}
+			});
+
+			setWpTierOptions(options);
+		});
+
 		// Fetch Membership Configs
 		queryParams = { status: 'publish' };
 		apiFetch({ path: addQueryArgs(`${API_URL}/${configCptSlug}`, queryParams) }).then((configs) => {
@@ -247,8 +263,12 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 		}
 	}, []);
 
-	console.log('Tiers:');
+	console.log('MDP Tiers:');
 	console.log(mdpTiers);
+	console.log('--------------');
+
+	console.log('WP Tiers:');
+	console.log(wpTierOptions);
 	console.log('--------------');
 
 	console.log('Products:');
@@ -410,23 +430,25 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 										</FlexItem>
 									</Flex>
 								</ActionRow>
-								<MarginedFlex>
-									<FlexBlock>
-										<LabelWpStyled htmlFor="next_mdp_tier">
-											{__('Sequential Logic', 'wicket-memberships')}
-										</LabelWpStyled>
-										<SelectWpStyled
-											id="next_mdp_tier"
-											classNamePrefix="select"
-											value={getMdpTierOptions().find(option => option.value === form.mdp_next_tier_uuid)}
-											isClearable={false}
-											isSearchable={true}
-											isLoading={getMdpTierOptions().length === 0}
-											options={getMdpTierOptions()}
-											onChange={(selected) => setForm({ ...form, mdp_next_tier_uuid: selected.value })}
-										/>
-									</FlexBlock>
-								</MarginedFlex>
+								{postId && (
+									<MarginedFlex>
+										<FlexBlock>
+											<LabelWpStyled htmlFor="next_tier">
+												{__('Sequential Logic', 'wicket-memberships')}
+											</LabelWpStyled>
+											<SelectWpStyled
+												id="next_tier"
+												classNamePrefix="select"
+												value={wpTierOptions.find(option => option.value === form.next_tier_id)}
+												isClearable={false}
+												isSearchable={true}
+												isLoading={wpTierOptions.length === 0}
+												options={wpTierOptions}
+												onChange={(selected) => setForm({ ...form, next_tier_id: selected.value })}
+											/>
+										</FlexBlock>
+									</MarginedFlex>
+								)}
 								{getSelectedTierData().type === 'individual' && (
 									<>
 										<MarginedFlex>

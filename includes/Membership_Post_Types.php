@@ -373,9 +373,9 @@ class Membership_Post_Types {
                 $errors->add( 'rest_invalid_param_mdp_tier_uuid', __( 'The MDP Tier UUID must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
-              if ( empty( $value['mdp_next_tier_uuid'] ) ) {
-                $errors->add( 'rest_invalid_param_mdp_next_tier_uuid', __( 'The Next Tier MDP UUID must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
-              }
+              // if ( empty( $value['next_tier_id'] ) ) {
+              //   $errors->add( 'rest_invalid_param_next_tier_id', __( 'The Next Tier ID must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              // }
 
               if ( empty( $value['config_id'] ) ) {
                 $errors->add( 'rest_invalid_param_config_id', __( 'The Membership Config Post ID must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
@@ -459,9 +459,9 @@ class Membership_Post_Types {
               'type'        => 'string',
               'description' => 'MPD Tier UUID',
             ),
-            'mdp_next_tier_uuid' => array(
-              'type'        => 'string',
-              'description' => 'Next Tier MDP UUID',
+            'next_tier_id' => array(
+              'type'        => 'integer',
+              'description' => 'Next Tier ID',
             ),
             'config_id' => array(
               'type'        => 'integer',

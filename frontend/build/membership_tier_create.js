@@ -13061,6 +13061,8 @@ const CreateMembershipTier = ({
 }) => {
   const [isSubmitting, setSubmitting] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   const [mdpTiers, setMdpTiers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
+  const [wpTierOptions, setWpTierOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
+
   const [membershipConfigOptions, setMembershipConfigOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
 
   const [wcProductOptions, setWcProductOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
@@ -13074,7 +13076,7 @@ const CreateMembershipTier = ({
     approval_required: false,
     mdp_tier_name: '',
     mdp_tier_uuid: '',
-    mdp_next_tier_uuid: '',
+    next_tier_id: '',
     config_id: '',
     type: '',
     // orgranization, individual
@@ -13224,6 +13226,23 @@ const CreateMembershipTier = ({
       setWcProductOptions(options);
     });
 
+    // Fetch Local Membership Tiers Posts
+    queryParams = {
+      status: 'publish'
+    };
+    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/${tierCptSlug}`, queryParams)
+    }).then(tiers => {
+      let options = tiers.map(tier => {
+        const decodedTitle = he__WEBPACK_IMPORTED_MODULE_7___default().decode(tier.title.rendered);
+        return {
+          label: `${decodedTitle} | ID: ${tier.id}`,
+          value: tier.id
+        };
+      });
+      setWpTierOptions(options);
+    });
+
     // Fetch Membership Configs
     queryParams = {
       status: 'publish'
@@ -13271,8 +13290,11 @@ const CreateMembershipTier = ({
       });
     }
   }, []);
-  console.log('Tiers:');
+  console.log('MDP Tiers:');
   console.log(mdpTiers);
+  console.log('--------------');
+  console.log('WP Tiers:');
+  console.log(wpTierOptions);
   console.log('--------------');
   console.log('Products:');
   console.log(wcProductOptions);
@@ -13364,19 +13386,19 @@ const CreateMembershipTier = ({
       ...form,
       approval_required: value
     })
-  })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
-    htmlFor: "next_mdp_tier"
+  })))), postId && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
+    htmlFor: "next_tier"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Sequential Logic', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
-    id: "next_mdp_tier",
+    id: "next_tier",
     classNamePrefix: "select",
-    value: getMdpTierOptions().find(option => option.value === form.mdp_next_tier_uuid),
+    value: wpTierOptions.find(option => option.value === form.next_tier_id),
     isClearable: false,
     isSearchable: true,
-    isLoading: getMdpTierOptions().length === 0,
-    options: getMdpTierOptions(),
+    isLoading: wpTierOptions.length === 0,
+    options: wpTierOptions,
     onChange: selected => setForm({
       ...form,
-      mdp_next_tier_uuid: selected.value
+      next_tier_id: selected.value
     })
   }))), getSelectedTierData().type === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
     htmlFor: "seat_data"
