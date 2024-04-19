@@ -351,7 +351,7 @@ class Membership_Controller {
       echo "<div class=\"notice notice-error is-dismissible\"> <p>$error_message</p></div>"; 
   }
 
-  function  get_members_list_group_by_filter($groupby){
+  public function get_members_list_group_by_filter($groupby){
     global $wpdb;
     return $wpdb->postmeta . '.meta_value ';
  }
@@ -374,7 +374,6 @@ class Membership_Controller {
       'post_status' => 'publish',
       'posts_per_page' => $posts_per_page,
       'paged' => $page,
-      'meta_key' => 'org_uuid',
       'meta_query'     => array(
         array(
           'key'     => 'member_type',
@@ -388,9 +387,14 @@ class Membership_Controller {
         ),
       )
     );
-    add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
-    $tiers = new \WP_Query( $args );
-    remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    if( $type == 'organization' ) {
+      add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+      $args['meta_key'] = 'org_uuid';
+      $tiers = new \WP_Query( $args );
+      remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    } else {
+      $tiers = new \WP_Query( $args );
+    }
     foreach( $tiers->posts as &$tier ) {
       $tier_meta = get_post_meta( $tier->ID );
       $tier->meta = array_map( function( $item ) {
