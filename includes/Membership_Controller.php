@@ -350,4 +350,57 @@ class Membership_Controller {
     $error_message .= '<p>'.$this->error_message.'</p>';
       echo "<div class=\"notice notice-error is-dismissible\"> <p>$error_message</p></div>"; 
   }
+
+  function  get_members_list_group_by_filter($groupby){
+    global $wpdb;
+    return $wpdb->postmeta . '.meta_value ';
+ }
+
+  public function get_members_list( $type, $page, $posts_per_page, $status ) {
+    if( (! in_array( $type, ['individual', 'organization'] ))) {
+      return;
+    }
+    if( ! $page = intval( $page )) {
+      $page = 1;
+    }
+    if( ! $posts_per_page = intval( $posts_per_page )) {
+      $posts_per_page = 25;
+    }
+    if( ! $status = sanitize_text_field( $status )) {
+      $status = "active";
+    }
+    $args = array(
+      'post_type' => $this->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => $posts_per_page,
+      'paged' => $page,
+      'meta_key' => 'org_uuid',
+      'meta_query'     => array(
+        array(
+          'key'     => 'member_type',
+          'value'   => $type,
+          'compare' => '='
+        ),        
+        array(
+          'key'     => 'status',
+          'value'   => $status,
+          'compare' => '='
+        ),
+      )
+    );
+    add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    $tiers = new \WP_Query( $args );
+    remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    foreach( $tiers->posts as &$tier ) {
+      $tier_meta = get_post_meta( $tier->ID );
+      $tier->meta = array_map( function( $item ) {
+        if( ! str_starts_with( key( (array) $item), '_' ) ) {
+          return $item[0];
+        }
+      }, $tier_meta);
+      $user = get_userdata( $tier->meta['user_id'][0]);
+      $tier->user = $user->data;
+    }
+    return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => count( $tiers->posts ) ];
+  }
 }

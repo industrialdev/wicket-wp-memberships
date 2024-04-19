@@ -44,6 +44,35 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     ) 
     );
 
+    register_rest_route( $this->namespace, '/memberships', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_membership_lists' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+        'args' => array(
+          'type' => array(
+            'required' => true,
+            'type' => 'string',
+            'description' => 'membership type: individual | organization',
+          ),
+          'page' => array(
+            'type' => 'integer',
+            'description' => 'paginated results page',
+          ),
+          'posts_per_page' => array(
+            'type' => 'integer',
+            'description' => 'paginated results per page',
+          ),
+          'status' => array(
+            'type' => 'string',
+            'description' => 'membership status: active | expired',
+          ),          
+        )
+      ),
+      'schema' => array( $this, '' ),
+    ) 
+    );
+
     register_rest_route( $this->namespace, '/config/(?P<id>\d+)/membership_dates', array(
       array(
         'methods'  => \WP_REST_Server::READABLE,
@@ -64,6 +93,13 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     ) );
   }
 
+  public function get_membership_lists( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $mc = new Membership_Controller();
+    $response = $mc->get_members_list( $params['type'], $params['page'], $params['posts_per_page'], $params['status'] );
+    return rest_ensure_response( $response );
+  }
+  
   public function modify_subscription( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $mc = new Membership_Subscription_Controller();
