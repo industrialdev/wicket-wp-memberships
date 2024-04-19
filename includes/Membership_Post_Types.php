@@ -598,6 +598,15 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
+      'description'       => __( 'Org Name.', 'wicket-memberships' ),
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_cpt_slug, 'org_name', $args);
+
+    $args = array(
+      'type'              => 'string',
       'description'       => __( 'Org UUID.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,

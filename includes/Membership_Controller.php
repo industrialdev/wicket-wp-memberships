@@ -23,44 +23,61 @@ class Membership_Controller {
     $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
     $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
 
-    // Get Onboarding Data set on checkout form
-    add_action('woocommerce_after_order_notes', [$this, 'custom_checkout_field'], 10 ,1);
-    add_action('woocommerce_checkout_update_order_meta', [$this, 'custom_checkout_field_update_order_meta']);
+    //Get onboarding data on add cart item
+    add_filter( 'woocommerce_add_cart_item_data', [$this, 'add_cart_item_data'], 25, 2 );
+    add_filter( 'woocommerce_get_item_data', [$this, 'get_item_data'] , 25, 2 ); //exposes in cart and checkout
+    add_action( 'woocommerce_add_order_item_meta', [$this, 'add_order_item_meta'] , 10, 2);
+    add_action( 'woocommerce_before_add_to_cart_button', [$this, 'product_add_on'], 9 ); //collects org data in cart
 
     // TEMPORY -- INJECT MEMBERSHIP META DATA into order and subscription pages -- org_id on checkout page
     add_action( 'woocommerce_admin_order_data_after_shipping_address', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
     add_action( 'wcs_subscription_details_table_before_dates', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
   }
 
-    // TEMPORARILY COLLECT CHECKOUT FIELD FOR ORG UUID
-    function custom_checkout_field_update_order_meta($order_id) {
-      if (!empty($_POST['_custom_org_uuid'])) {
-        update_post_meta($order_id, '_custom_org_uuid',sanitize_text_field($_POST['_custom_org_uuid']));
+  // TEMPORARILY INJECT MEMBERSHIP META DATA into order and subscription pages
+  function wps_select_checkout_field_display_admin_order_meta( $post ) {
+    $post_meta = get_post_meta( $post->get_id() );
+    foreach($post_meta as $key => $val) {
+    if( str_starts_with( $key, '_wicket_membership_')) {
+        echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';echo maybe_unserialize( $val[0] ); echo '</pre>';
       }
     }
+  }
 
-    function custom_checkout_field($checkout) {
-      if( ! empty( WC()->session ) ) {
-        $org_uuid = WC()->session->get('org_uuid');
-        echo '<div id="onboarding_uuid_checkout_field">';
-        woocommerce_form_field('_custom_org_uuid', array(
-            'type' => 'hidden',
-          ),
-          $org_uuid
-        );
-        echo '</div>';  
+  //COLLECT CART ITEM FIELDS ON ADD TO CART
+  function product_add_on() {
+      //change to hidden fields and remove 'woocommerce_get_item_data' filter to hide data
+      $value = isset( $_REQUEST['org_name'] ) ? sanitize_text_field( $_REQUEST['org_name'] ) : '';
+      echo '<div><label>org_name</label><p><input type="text" name="org_name" value="' . $value . '"></p></div>';
+      $value = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field( $_REQUEST['org_uuid'] ) : '';
+      echo '<div><label>org_uuid</label><p><input type="text" name="org_uuid" value="' . $value . '"></p></div>';
+  }
+
+  function add_cart_item_data( $cart_item_meta, $product_id ) {
+      if ( isset( $_REQUEST ['org_name'] ) && isset( $_REQUEST ['org_uuid'] ) ) {
+          $org_data[ 'org_name' ] = isset( $_REQUEST['org_name'] ) ?  sanitize_text_field ( $_REQUEST['org_name'] ) : "" ;
+          $org_data[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
+          $cart_item_meta['org_data'] = $org_data ;
       }
-    }
+      return $cart_item_meta;
+  }
 
-    // TEMPORARILY INJECT MEMBERSHIP META DATA into order and subscription pages
-    function wps_select_checkout_field_display_admin_order_meta( $post ) {
-        $post_meta = get_post_meta( $post->get_id() );
-        foreach($post_meta as $key => $val) {
-        if( str_starts_with( $key, '_wicket_membership_')) {
-            echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';echo maybe_unserialize( $val[0] ); echo '</pre>';
-          }
-        }
-    }
+  function get_item_data ( $other_data, $cart_item ) {
+      if ( isset( $cart_item [ 'org_data' ] ) ) {
+          $org_data  = $cart_item [ 'org_data' ];
+          $data[] = array( 'name' => 'Org Name', 'display'  => $org_data['org_name'] );
+          $data[] = array( 'name' => 'Org UUID', 'display'  => $org_data['org_uuid'] );
+      }
+      return $data;
+  }
+
+  function add_order_item_meta ( $item_id, $values ) {
+      if ( isset( $values [ 'org_data' ] ) ) {
+          $custom_data  = $values [ 'org_data' ];
+          wc_add_order_item_meta( $item_id, '_org_name', $custom_data['org_name'] );
+          wc_add_order_item_meta( $item_id, '_org_uuid', $custom_data['org_uuid'] );
+      }
+  }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
   // Membership_Controller methods start here
@@ -106,7 +123,8 @@ class Membership_Controller {
               ];
 
               if( $membership_tier->tier_data['type'] == 'organization' ) {
-                    $membership['organization_uuid'] = get_post_meta( $order_id, '_custom_org_uuid' )[0];
+                    $membership['organization_name'] = wc_get_order_item_meta( $item->get_id(), '_org_name', true);
+                    $membership['organization_uuid'] = wc_get_order_item_meta( $item->get_id(), '_org_uuid', true);
                     $membership['membership_seats'] = $membership_tier->tier_data['product_data']['max_seats'];
               }
 
@@ -269,6 +287,7 @@ class Membership_Controller {
         'wicket_uuid' => $wicket_uuid,
       ];
       if( $membership['membership_type'] == 'organization') {
+        $meta['org_name'] = $membership['organization_name'];
         $meta['org_uuid'] = $membership['organization_uuid'];
         $meta['org_seats'] = $membership['membership_seats'];
       }

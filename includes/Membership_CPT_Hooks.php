@@ -43,7 +43,8 @@ class Membership_CPT_Hooks {
     $meta = get_post_meta( $post_id );
     echo $meta[$column_name][0];
     if( $column_name = 'membership_type' && $meta[$column_name][0] == 'organization') {
-      echo ' - ' . $meta['org_uuid'][0];
+      echo '<br>UUID: ' . $meta['org_uuid'][0];
+      echo '<br>Name: ' . $meta['org_name'][0];
       echo '<br>Seats: ' . $meta['org_seats'][0];
     }
   }
