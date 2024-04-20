@@ -14,6 +14,7 @@ class Membership_Controller {
   private $membership_cpt_slug = '';
   private $membership_config_cpt_slug = '';
   private $membership_tier_cpt_slug = '';
+  private $membership_search_term = '';
 
   //don't create wicket connection - for testing locally
   private $bypass_wicket = true;
@@ -102,7 +103,7 @@ class Membership_Controller {
               $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
               $period_data = $config->get_period_data();
               $dates = $config->get_membership_dates();
-
+              $user_object = wp_get_current_user();
               $membership = [
                 'membership_parent_order_id' => $order_id,
                 'membership_subscription_id' => $subscription_id,
@@ -119,7 +120,9 @@ class Membership_Controller {
                 'membership_interval' => $period_data['period_count'],
                 'membership_subscription_period' => get_post_meta( $subscription_id, '_billing_period')[0],
                 'membership_subscription_interval' => get_post_meta( $subscription_id, '_billing_interval')[0],
-                'membership_wp_user_id' => get_current_user_id()
+                'membership_wp_user_id' => $user_object->ID,
+                'membership_wp_user_display_name' => $user_object->display_name,
+                'membership_wp_user_email' => $user_object->user_email
               ];
 
               if( $membership_tier->tier_data['type'] == 'organization' ) {
@@ -284,7 +287,10 @@ class Membership_Controller {
         'expiry_date' => !empty($membership['membership_expires_at']) ? $membership['membership_expires_at'] : $membership['membership_ends_at'],
         'early_renew_date' => !empty($membership['membership_early_renew_at']) ? $membership['membership_early_renew_at'] : $membership['membership_ends_at'],
         'membership_tier_uuid' => $membership['membership_tier_uuid'],
+        'membership_tier_name' => $membership['membership_tier_name'],
         'wicket_uuid' => $wicket_uuid,
+        'user_name' => $membership['membership_wp_user_display_name'],
+        'user_email' => $membership['membership_wp_user_email'],
       ];
       if( $membership['membership_type'] == 'organization') {
         $meta['org_name'] = $membership['organization_name'];
@@ -343,7 +349,16 @@ class Membership_Controller {
           'compare' => '='
         )
       )
-    );;
+    );
+
+    if( ! empty( $membership['organization_uuid']) ) {
+      $args['meta_query'][] = array(
+        'key'     => 'org_uuid',
+        'value'   => $membership['organization_uuid'],
+        'compare' => '='
+      );
+    }
+
     $posts = new \WP_Query( $args );
     if( !empty( $posts->found_posts ) ) {      
       return $posts->posts[0]->ID;
@@ -375,7 +390,7 @@ class Membership_Controller {
     return $wpdb->postmeta . '.meta_value ';
  }
 
-  public function get_members_list( $type, $page, $posts_per_page, $status, $filter = [], $order_col = null, $order_dir = null ) {
+  public function get_members_list( $type, $page, $posts_per_page, $status, $search = '', $filter = [], $order_col = null, $order_dir = null ) {
     if( (! in_array( $type, ['individual', 'organization'] ))) {
       return;
     }
@@ -388,6 +403,7 @@ class Membership_Controller {
     if( ! $status = sanitize_text_field( $status )) {
       $status = "active";
     }
+
     $args = array(
       'post_type' => $this->membership_cpt_slug,
       'post_status' => 'publish',
@@ -404,6 +420,27 @@ class Membership_Controller {
         )
       )
     );
+
+    if( ! empty( $search ) ) {  
+      $args['meta_query'][] = array(
+        'relation' => 'OR',
+          array(
+            'key'     => 'user_name',
+            'value'   => $search,
+            'compare' => 'LIKE'
+          ), 
+          array(
+            'key'     => 'user_email',
+            'value'   => $search,
+            'compare' => 'LIKE'
+          ), 
+          array(
+            'key'     => 'membership_tier_name',
+            'value'   => $search,
+            'compare' => 'LIKE'
+        )
+      );
+    }
 
     if( ! empty( $filter ) ) {
       foreach($filter as $key => $val) {
@@ -432,13 +469,52 @@ class Membership_Controller {
           return $item[0];
         }
       }, $tier_meta);
-      if( $type != 'organization' ) {
         $user = get_userdata( $tier->meta['user_id'][0]);
         $tier->user = $user->data;
-      } else {
-        $tier->user = new \stdClass();
-      }
     }
     return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => count( $tiers->posts ) ];
+  }
+
+  public function get_members_filters( $type ) {
+    $args = array(
+      'post_type' => $this->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query'     => array(
+        array(
+          'key'     => 'member_type',
+          'value'   => $type,
+          'compare' => '='
+        )
+      )
+    );
+
+    //tiers assigned to membership records as filters
+    add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    $args['meta_key'] = 'membership_tier_uuid';
+    $tiers = new \WP_Query( $args );
+    remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    foreach ($tiers->posts as $tier) {
+      $filters['tiers'][] = [
+        'name' => $tier->membership_tier_name,
+        'value' => $tier->membership_tier_uuid
+      ];
+    }
+
+    //status assigned to membership records as filters
+    add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    $args['meta_key'] = 'status';
+    $tiers = new \WP_Query( $args );
+    remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    foreach ($tiers->posts as $tier) {
+      $filters['status'][] = [
+        'name' => $tier->status,
+        'value' => ucfirst( $tier->status )
+      ];
+    }
+    if( $type == 'organization' ) {
+      // get locations assigned to membership records as filters???
+    }
+    return $filters;
   }
 }

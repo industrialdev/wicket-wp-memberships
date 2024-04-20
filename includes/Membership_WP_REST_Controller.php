@@ -44,6 +44,23 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     ) 
     );
 
+    register_rest_route( $this->namespace, '/membership_filters', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_membership_filters' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),        
+        'args' => array(
+          'type' => array(
+            'required' => true,
+            'type' => 'string',
+            'description' => 'membership filter values type: individual | organization',
+          ),
+        ),
+      ),
+      'schema' => array( $this, '' ),
+    ) 
+    );
+
     register_rest_route( $this->namespace, '/memberships', array(
       array(
         'methods'  => \WP_REST_Server::READABLE,
@@ -105,10 +122,17 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     ) );
   }
 
+  public function get_membership_filters( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $mc = new Membership_Controller();
+    $response = $mc->get_members_filters( $params['type'] );
+    return rest_ensure_response( $response );
+  }
+
   public function get_membership_lists( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $mc = new Membership_Controller();
-    $response = $mc->get_members_list( $params['type'], $params['page'], $params['posts_per_page'], $params['status'], $params['filter'], $params['order_col'], $params['order_dir'] );
+    $response = $mc->get_members_list( $params['type'], $params['page'], $params['posts_per_page'], $params['status'], $params['search'], $params['filter'], $params['order_col'], $params['order_dir'] );
     return rest_ensure_response( $response );
   }
   
