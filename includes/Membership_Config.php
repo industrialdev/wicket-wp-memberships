@@ -257,8 +257,7 @@ class Membership_Config {
    * If this is a renewal we need to consider early renewal still in previous membership date period
    * @return array membership dates
    */
-  public function get_membership_dates( $membership_json = null) {
-    $membership = json_decode( $membership_json, true ); 
+  public function get_membership_dates( $membership = null) {
     $cycle_data = $this->get_cycle_data();
     if( $cycle_data['cycle_type'] == 'anniversary' ) {
       $dates['start_date'] = $this->get_anniversary_start_date( $membership );

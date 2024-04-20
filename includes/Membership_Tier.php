@@ -286,4 +286,7 @@ class Membership_Tier {
     return 'tier_data';
   }
 
+  public function get_membership_tier_post_id() {
+    return $this->post_id;
+  }
 }

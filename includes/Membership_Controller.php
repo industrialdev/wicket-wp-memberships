@@ -3,6 +3,8 @@
 namespace Wicket_Memberships;
 
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Membership_Tier;
+use Wicket_Memberships\Membership_Config;
 
 /**
  * Main controller methods
@@ -109,10 +111,7 @@ class Membership_Controller {
               $period_data = $config->get_period_data();
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
-                //get the membership_json from the current membership order
-                $mship_order_id = get_post_meta( $membership_post_id, 'membership_order_id', true );
-                $mship_product_id = get_post_meta( $membership_post_id, 'membership_product_id', true );
-                $membership_current = get_post_meta( $mship_order_id, '_wicket_membership_'.$mship_product_id, true );
+                $membership_current = $this->get_membership_json_from_post_id( $membership_post_id );
               }
               $dates = $config->get_membership_dates( $membership_current );
               $user_object = wp_get_current_user();
@@ -120,7 +119,7 @@ class Membership_Controller {
                 'membership_parent_order_id' => $order_id,
                 'membership_subscription_id' => $subscription_id,
                 'membership_product_id' => $product_id,
-                'membership_tier_post_id' => 0,
+                'membership_tier_post_id' => $membership_tier->get_membership_tier_post_id(),
                 'membership_tier_name' => $membership_tier->tier_data['mdp_tier_name'],
                 'membership_tier_uuid' => $membership_tier->tier_data['mdp_tier_uuid'],
                 'membership_type' => $membership_tier->tier_data['type'],
@@ -157,6 +156,14 @@ class Membership_Controller {
         }
       }
       return $memberships;
+  }
+
+  private function get_membership_array_from_post_id( $membership_post_id ) {
+    //get the membership_json from the current membership order
+    $mship_order_id = get_post_meta( $membership_post_id, 'membership_order_id', true );
+    $mship_product_id = get_post_meta( $membership_post_id, 'membership_product_id', true );
+    $membership_current = get_post_meta( $mship_order_id, '_wicket_membership_'.$mship_product_id, true ); 
+    return json_decode( $membership_current, true ); 
   }
 
   /**
@@ -421,6 +428,77 @@ class Membership_Controller {
     $error_message = '<p><strong>' . __( 'WICKET MDP MEMBERSHIP PROCESSING ERROR', 'wicket-memberships' ). '</strong></p>';
     $error_message .= '<p>'.$this->error_message.'</p>';
       echo "<div class=\"notice notice-error is-dismissible\"> <p>$error_message</p></div>"; 
+  }
+
+
+  /**
+   * Get Memberships in Early Renewal Period
+   */
+   public function get_my_early_renewals( $user_id = null ) {
+    $early_renewal = [];
+    $grace_period = [];
+
+    if( empty( $user_id ) ) {
+      $user_id = get_current_user_id();
+    }
+    
+    $args = array(
+      'post_type' => $this->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query'     => array(
+        array(
+          'key'     => 'user_id',
+          'value'   => $user_id,
+          'compare' => '='
+        ),
+        array(
+          'key'     => 'status',
+          'value'   => 'active',
+          'compare' => '='
+        ),
+      )
+    );
+    $memberships = get_posts( $args );
+    foreach( $memberships as &$membership) {
+      $meta_data = get_post_meta( $membership->ID );
+      $membership->meta = array_map( function( $item ) {
+        if( ! str_starts_with( key( (array) $item), '_' ) ) {
+          return $item[0];
+        }
+      }, $meta_data);
+
+      $membership->data = $this->get_membership_array_from_post_id( $membership->ID );
+      
+      $early_renew_date = strtotime( $membership->early_renew_date );
+      $end_date = strtotime( $membership->end_date );
+      $expiry_date = strtotime( $membership->expiry_date );
+      $current_time = strtotime ( date( "Y-m-d") . '+18 days');
+      $Membership_Tier = new Membership_Tier( $membership->data['membership_tier_post_id'] );
+      $next_tier = $Membership_Tier->get_next_tier();
+      $config_id = $Membership_Tier->get_config_id();
+      $Membership_Config = new Membership_Config( $config_id );
+      $membership->next_tier = $next_tier->tier_data;
+      #echo $current_time.'|'.$early_renew_date.'|'.$end_date;exit;
+      if( $current_time >= $early_renew_date && $current_time < $end_date ) {
+        $callout['callout_header'] = $Membership_Config->get_renewal_window_callout_header();
+        $callout['callout_content'] = $Membership_Config->get_renewal_window_callout_content();
+        $callout['callout_button_label'] = $Membership_Config->get_renewal_window_callout_button_label();
+        $early_renewal[] = [
+          'membership' => $membership,
+          'callout' => $callout
+        ];
+      } else if ( $current_time >= $end_date && $current_time <= $expiry_date ) {
+        $callout['callout_header'] = $Membership_Config->get_late_fee_window_callout_header();
+        $callout['callout_content'] = $Membership_Config->get_late_fee_window_callout_content();
+        $callout['callout_button_label'] = $Membership_Config->get_late_fee_window_callout_button_label();
+        $grace_period[]  =[
+          'membership' => $membership,
+          'callout' => $callout
+        ];
+      }
+    }
+    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period];
   }
 
   public function get_members_list_group_by_filter($groupby){
