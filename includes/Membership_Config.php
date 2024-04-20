@@ -217,35 +217,70 @@ class Membership_Config {
     return $period;
   }
 
+  private function get_anniversary_start_date( $membership = null ) {
+    if( empty( $membership )) {
+      $start_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+    } else {
+      $start_date = (new \DateTime( date("Y-m-d", strtotime( $membership['membership_ends_at'] . '+1 day' )), wp_timezone() ))->format('c');
+    }
+    return $start_date;
+  }
+
+  private function get_seasonal_start_date( $membership = null ) {
+    if( empty( $membership )) {
+      $start_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+    } else {
+      $start_date = (new \DateTime( date("Y-m-d", strtotime( $membership['end_date'] . '+1 day')), wp_timezone() ))->format('c');
+    }
+    return $start_date;
+  }
+
+  private function get_seasonal_end_date( $membership ) {
+    $seasons = $this->get_calendar_seasons();
+    if( empty( $membership ) ) {
+      $end_date = (new \DateTime( date("Y-m-d", strtotime("+1 year")), wp_timezone() ))->format('c');
+      $membership_start_time = current_time( 'timestamp' );
+    } else {
+      $end_date = (new \DateTime( date("Y-m-d", strtotime($membership['end_date'] . "+1 year")), wp_timezone() ))->format('c');
+      $membership_start_time = strtotime( $membership['end_date'] . '+1 day' );
+    }
+    foreach( $seasons as $season ) {
+    if( /*$season['active'] && */ ( $membership_start_time >= strtotime( substr($season['start_date'], 0, 10) )) && ( $membership_start_time <= strtotime( substr($season['end_date'], 0, 10) ))) {
+        $end_date = $season['end_date'];
+      }
+    } 
+    return $end_date;
+  }
+
   /**
    * Determine the STart And ENd Date based on config settings
    * If this is a renewal we need to consider early renewal still in previous membership date period
    * @return array membership dates
    */
-  public function get_membership_dates() {
+  public function get_membership_dates( $membership = null) {
     $cycle_data = $this->get_cycle_data();
     if( $cycle_data['cycle_type'] == 'anniversary' ) {
-      $dates['start_date'] = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+      $dates['start_date'] = $this->get_anniversary_start_date( $membership );
       $period_type  = !in_array( $cycle_data['anniversary_data']["period_type"], ['year','month','day'] )
                         ? 'year' : $cycle_data['anniversary_data']["period_type"];
-      $the_end_date = date("Y-m-d", strtotime("+1 ".$period_type));
+      $the_end_date = date("Y-m-d", strtotime($dates['start_date'] . "+1 ".$period_type));
       if( in_array( $period_type, ['year', 'month']) && $cycle_data['align_end_dates_enabled'] !== false ) {
         switch( $cycle_data['anniversary_data']["align_end_dates_type"] ) {
           case 'first-day-of-month':
-            $the_end_date = date("Y-m-1", strtotime("+1 ".$period_type));
+            $the_end_date = date("Y-m-1", strtotime($dates['start_date'] . "+1 ".$period_type));
             break;
           case '15th-of-month':
-            $the_end_date = date("Y-m-15", strtotime("+1 ".$period_type));
+            $the_end_date = date("Y-m-15", strtotime($dates['start_date'] . "+1 ".$period_type));
             break;
           case 'last-day-of-month':
-            $the_end_date = date("Y-m-t", strtotime("+1 ".$period_type));
+            $the_end_date = date("Y-m-t", strtotime($dates['start_date'] . "+1 ".$period_type));
             break;
         }
       }
       $dates['end_date'] = (new \DateTime( $the_end_date, wp_timezone() ))->format('c');
     } else {    
-      $dates['start_date'] = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
-      $dates['end_date'] = (new \DateTime( date("Y-m-d", strtotime("+1 year")), wp_timezone() ))->format('c');
+      $dates['start_date'] = $this->get_seasonal_start_date( $membership );
+      $dates['end_date'] = $this->get_seasonal_end_date( $membership );
       $current_time = current_time( 'timestamp' );
       $seasons = $this->get_calendar_seasons();
       foreach( $seasons as $season ) {
