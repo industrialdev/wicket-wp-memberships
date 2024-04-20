@@ -230,7 +230,7 @@ class Membership_Config {
     if( empty( $membership )) {
       $start_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
     } else {
-      $start_date = (new \DateTime( date("Y-m-d", strtotime( $membership['end_date'] . '+1 day')), wp_timezone() ))->format('c');
+      $start_date = (new \DateTime( date("Y-m-d", strtotime( $membership['membership_ends_at'] . '+1 day')), wp_timezone() ))->format('c');
     }
     return $start_date;
   }
@@ -241,8 +241,8 @@ class Membership_Config {
       $end_date = (new \DateTime( date("Y-m-d", strtotime("+1 year")), wp_timezone() ))->format('c');
       $membership_start_time = current_time( 'timestamp' );
     } else {
-      $end_date = (new \DateTime( date("Y-m-d", strtotime($membership['end_date'] . "+1 year")), wp_timezone() ))->format('c');
-      $membership_start_time = strtotime( $membership['end_date'] . '+1 day' );
+      $end_date = (new \DateTime( date("Y-m-d", strtotime($membership['membership_ends_at'] . "+1 year")), wp_timezone() ))->format('c');
+      $membership_start_time = strtotime( $membership['membership_ends_at'] . '+1 day' );
     }
     foreach( $seasons as $season ) {
     if( /*$season['active'] && */ ( $membership_start_time >= strtotime( substr($season['start_date'], 0, 10) )) && ( $membership_start_time <= strtotime( substr($season['end_date'], 0, 10) ))) {
@@ -257,7 +257,8 @@ class Membership_Config {
    * If this is a renewal we need to consider early renewal still in previous membership date period
    * @return array membership dates
    */
-  public function get_membership_dates( $membership = null) {
+  public function get_membership_dates( $membership_json = null) {
+    $membership = json_decode( $membership_json, true ); 
     $cycle_data = $this->get_cycle_data();
     if( $cycle_data['cycle_type'] == 'anniversary' ) {
       $dates['start_date'] = $this->get_anniversary_start_date( $membership );
@@ -281,13 +282,6 @@ class Membership_Config {
     } else {    
       $dates['start_date'] = $this->get_seasonal_start_date( $membership );
       $dates['end_date'] = $this->get_seasonal_end_date( $membership );
-      $current_time = current_time( 'timestamp' );
-      $seasons = $this->get_calendar_seasons();
-      foreach( $seasons as $season ) {
-        if( $season['active'] && ( $current_time >= strtotime( $season['start_date'] )) && ( $current_time <= strtotime( $season['end_date'] ))) {
-          $dates['end_date'] = $season['end_date'];
-        }
-      }
     }
 
     $grace_period = $this->get_late_fee_window_days();
