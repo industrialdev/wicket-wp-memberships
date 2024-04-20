@@ -430,7 +430,6 @@ class Membership_Controller {
       echo "<div class=\"notice notice-error is-dismissible\"> <p>$error_message</p></div>"; 
   }
 
-
   /**
    * Get Memberships in Early Renewal Period
    */
@@ -500,7 +499,6 @@ class Membership_Controller {
     }
     return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period];
   }
-
   public function get_members_list_group_by_filter($groupby){
     global $wpdb;
     return $wpdb->postmeta . '.meta_value ';
