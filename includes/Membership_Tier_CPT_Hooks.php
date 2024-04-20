@@ -24,6 +24,24 @@ class Membership_Tier_CPT_Hooks {
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
     add_action('manage_'.$this->membership_tier_cpt_slug.'_posts_columns', [ $this, 'table_head'] );
     add_action('manage_'.$this->membership_tier_cpt_slug.'_posts_custom_column', [ $this, 'table_content'], 10, 2 );
+
+    // Manipulate post data after saving if needed
+    add_action( 'rest_after_insert_' . $this->membership_tier_cpt_slug, [ $this, 'rest_save_post_page' ], 10, 1);
+  }
+
+  function rest_save_post_page($post){
+    if ( get_post_type( $post->ID ) === $this->membership_tier_cpt_slug ) {
+      $tier = new Membership_Tier( $post->ID );
+      $tier_data = $tier->tier_data;
+
+      $next_tier_post_exists = get_post_status( $tier->get_next_tier_id() ) === false ? false : true;
+
+      if ( !$next_tier_post_exists ) {
+        // Set next tier id to the current tier
+        $tier_data['next_tier_id'] = $post->ID;
+        $tier->update_tier_data( $tier_data );
+      }
+    }
   }
 
   function add_edit_page() {
