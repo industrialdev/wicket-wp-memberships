@@ -107,15 +107,14 @@ class Membership_Controller {
           if( !empty( $membership_tier->tier_data )) {
               $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
               $period_data = $config->get_period_data();
+              //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
+                //get the membership_json from the current membership order
                 $mship_order_id = get_post_meta( $membership_post_id, 'membership_order_id', true );
                 $mship_product_id = get_post_meta( $membership_post_id, 'membership_product_id', true );
-                //echo '<pre>'; var_dump($membership_post_id.'|'.$mship_order_id.'|'.$mship_product_id);exit;
                 $membership_current = get_post_meta( $mship_order_id, '_wicket_membership_'.$mship_product_id, true );
-                //echo '<pre>'; var_dump( $membership_current  );exit;
               }
               $dates = $config->get_membership_dates( $membership_current );
-              //echo '<pre>';var_dump($dates);exit;
               $user_object = wp_get_current_user();
               $membership = [
                 'membership_parent_order_id' => $order_id,
@@ -143,9 +142,14 @@ class Membership_Controller {
                     $membership['organization_uuid'] = wc_get_order_item_meta( $item->get_id(), '_org_uuid', true);
                     $membership['membership_seats'] = $membership_tier->tier_data['product_data']['max_seats'];
               }
+              if( !empty( $membership_post_id )) {
+                $membership['previous_membership_post_id'] = $membership_post_id;
+              }
+              delete_post_meta( $order_id, '_wicket_membership_'.$product_id );
+              $order_meta_id = add_post_meta( $order_id, '_wicket_membership_'.$product_id,  json_encode( $membership ), 1 );
+              delete_post_meta( $subscription_id, '_wicket_membership_'.$product_id );
+              $subscription_meta_id = add_post_meta( $subscription_id, '_wicket_membership_'.$product_id,  json_encode( $membership ), 1 );
 
-              $order_meta_id = add_post_meta( $order_id, '_wicket_membership_'.$product_id,  json_encode( $membership ), 0 );
-              $subscription_meta_id = add_post_meta( $subscription_id, '_wicket_membership_'.$product_id,  json_encode( $membership ),0 );
               $membership['order_meta_id'] = $order_meta_id;
               $membership['subscription_meta_id'] = $subscription_meta_id;
               $memberships[] = $membership;
@@ -327,7 +331,17 @@ class Membership_Controller {
           'meta_input'  => $meta
         ]);  
       }
-      
+
+      if( ! empty( $membership['previous_membership_post_id'] ) ) {
+        wp_update_post([
+          'ID' => $membership['previous_membership_post_id'],
+          'post_type' => $this->membership_cpt_slug,
+          'meta_input'  => [
+            'status' => 'expired',
+          ]
+        ]);  
+      }
+
     $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
     $order_meta_array = json_decode( $order_meta[0], true);
     $order_meta_array['membership_post_id'] = $membership_post;
