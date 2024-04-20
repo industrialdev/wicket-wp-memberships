@@ -431,7 +431,7 @@ class Membership_Controller {
   }
 
   /**
-   * Get Memberships in Early Renewal Period
+   * Get Memberships in Renewal Periods
    */
    public function get_my_early_renewals( $user_id = null ) {
     $early_renewal = [];
@@ -472,13 +472,12 @@ class Membership_Controller {
       $early_renew_date = strtotime( $membership->early_renew_date );
       $end_date = strtotime( $membership->end_date );
       $expiry_date = strtotime( $membership->expiry_date );
-      $current_time = strtotime ( date( "Y-m-d") . '+18 days');
+      $current_time = current_time( 'timezone' ); //strtotime ( date( "Y-m-d") . '+18 days'); //debug
       $Membership_Tier = new Membership_Tier( $membership->data['membership_tier_post_id'] );
       $next_tier = $Membership_Tier->get_next_tier();
       $config_id = $Membership_Tier->get_config_id();
       $Membership_Config = new Membership_Config( $config_id );
       $membership->next_tier = $next_tier->tier_data;
-      #echo $current_time.'|'.$early_renew_date.'|'.$end_date;exit;
       if( $current_time >= $early_renew_date && $current_time < $end_date ) {
         $callout['callout_header'] = $Membership_Config->get_renewal_window_callout_header();
         $callout['callout_content'] = $Membership_Config->get_renewal_window_callout_content();
@@ -499,6 +498,7 @@ class Membership_Controller {
     }
     return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period];
   }
+
   public function get_members_list_group_by_filter($groupby){
     global $wpdb;
     return $wpdb->postmeta . '.meta_value ';
