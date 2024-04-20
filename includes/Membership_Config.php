@@ -292,14 +292,14 @@ class Membership_Config {
 
     $grace_period = $this->get_late_fee_window_days();
     if( !empty ($grace_period )) {
-      $adjusted_date = date_add( new \DateTime($dates['end_date']), date_interval_create_from_date_string("$grace_period days")); //date( $dates['end_date'],  strtotime("+$grace_period days"));
-      $dates['expires_at'] = $adjusted_date->format('c');
+      $adjusted_date_grace_period = date_add( new \DateTime($dates['end_date']), date_interval_create_from_date_string("$grace_period days")); //date( $dates['end_date'],  strtotime("+$grace_period days"));
+      $dates['expires_at'] = $adjusted_date_grace_period->format('c');
     }
 
     $early_renewal_period = $this->get_renewal_window_days();
-    if( !empty ($grace_period )) {
-      $adjusted_date = date_add( new \DateTime($dates['end_date']), date_interval_create_from_date_string("-$early_renewal_period days")); //date( $dates['end_date'],  strtotime("+$grace_period days"));
-      $dates['early_renew_at'] = $adjusted_date->format('c');
+    if( !empty ($early_renewal_period )) {
+      $adjusted_date_early_renewal = date_sub( new \DateTime($dates['end_date']), date_interval_create_from_date_string("$early_renewal_period days")); //date( $dates['end_date'],  strtotime("+$grace_period days"));
+      $dates['early_renew_at'] = $adjusted_date_early_renewal->format('c');
     }
 
     return $dates;

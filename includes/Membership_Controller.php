@@ -40,7 +40,7 @@ class Membership_Controller {
     $post_meta = get_post_meta( $post->get_id() );
     foreach($post_meta as $key => $val) {
     if( str_starts_with( $key, '_wicket_membership_')) {
-        echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';echo maybe_unserialize( $val[0] ); echo '</pre>';
+        echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';var_dump( json_decode( maybe_unserialize( $val[0] ), true) ); echo '</pre>';
       }
     }
   }
@@ -52,12 +52,15 @@ class Membership_Controller {
       echo '<div><label>org_name</label><p><input type="text" name="org_name" value="' . $value . '"></p></div>';
       $value = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field( $_REQUEST['org_uuid'] ) : '';
       echo '<div><label>org_uuid</label><p><input type="text" name="org_uuid" value="' . $value . '"></p></div>';
+      $value = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field( $_REQUEST['membership_post_id_renew'] ) : '';
+      echo '<div><label>membership_post_id_renew</label><p><input type="text" name="membership_post_id_renew" value="' . $value . '"></p></div>';
   }
 
   function add_cart_item_data( $cart_item_meta, $product_id ) {
       if ( isset( $_REQUEST ['org_name'] ) && isset( $_REQUEST ['org_uuid'] ) ) {
           $org_data[ 'org_name' ] = isset( $_REQUEST['org_name'] ) ?  sanitize_text_field ( $_REQUEST['org_name'] ) : "" ;
           $org_data[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
+          $org_data[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
           $cart_item_meta['org_data'] = $org_data ;
       }
       return $cart_item_meta;
@@ -68,6 +71,7 @@ class Membership_Controller {
           $org_data  = $cart_item [ 'org_data' ];
           $data[] = array( 'name' => 'Org Name', 'display'  => $org_data['org_name'] );
           $data[] = array( 'name' => 'Org UUID', 'display'  => $org_data['org_uuid'] );
+          $data[] = array( 'name' => 'Renew Membership Post ID', 'display'  => $org_data['membership_post_id_renew'] );
       }
       return $data;
   }
@@ -77,6 +81,7 @@ class Membership_Controller {
           $custom_data  = $values [ 'org_data' ];
           wc_add_order_item_meta( $item_id, '_org_name', $custom_data['org_name'] );
           wc_add_order_item_meta( $item_id, '_org_uuid', $custom_data['org_uuid'] );
+          wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $custom_data['membership_post_id_renew'] );
       }
   }
 
@@ -88,7 +93,7 @@ class Membership_Controller {
    * Get memberships with config from tier by products on the order
    */
   private function get_memberships_data_from_subscription_products( $order ) {
-    $seats = 0;
+    $membership_current = null;
     $memberships = [];
     $order_id = $order->get_id();
     
@@ -98,11 +103,19 @@ class Membership_Controller {
         $subscription_products = $subscription->get_items();
         foreach( $subscription_products as $item ) {
           $product_id = $item->get_product_id();
-          $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id ); 
+          $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id );
           if( !empty( $membership_tier->tier_data )) {
               $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
               $period_data = $config->get_period_data();
-              $dates = $config->get_membership_dates();
+              if( $membership_post_id = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
+                $mship_order_id = get_post_meta( $membership_post_id, 'membership_order_id', true );
+                $mship_product_id = get_post_meta( $membership_post_id, 'membership_product_id', true );
+                //echo '<pre>'; var_dump($membership_post_id.'|'.$mship_order_id.'|'.$mship_product_id);exit;
+                $membership_current = get_post_meta( $mship_order_id, '_wicket_membership_'.$mship_product_id, true );
+                //echo '<pre>'; var_dump( $membership_current  );exit;
+              }
+              $dates = $config->get_membership_dates( $membership_current );
+              //echo '<pre>';var_dump($dates);exit;
               $user_object = wp_get_current_user();
               $membership = [
                 'membership_parent_order_id' => $order_id,
@@ -277,32 +290,43 @@ class Membership_Controller {
    * Create the WP Membership Record
    */
   private function create_local_membership_record( $membership, $wicket_uuid ) {
-    if( ! $membership_post = $this->check_local_membership_record_exists( $membership )) {
-      $meta = [
-        'status' => 'active',
-        'member_type' => $membership['membership_type'],
-        'user_id' => $membership['user_id'],
-        'start_date' => $membership['membership_starts_at'],
-        'end_date' => $membership['membership_ends_at'],
-        'expiry_date' => !empty($membership['membership_expires_at']) ? $membership['membership_expires_at'] : $membership['membership_ends_at'],
-        'early_renew_date' => !empty($membership['membership_early_renew_at']) ? $membership['membership_early_renew_at'] : $membership['membership_ends_at'],
-        'membership_tier_uuid' => $membership['membership_tier_uuid'],
-        'membership_tier_name' => $membership['membership_tier_name'],
-        'wicket_uuid' => $wicket_uuid,
-        'user_name' => $membership['membership_wp_user_display_name'],
-        'user_email' => $membership['membership_wp_user_email'],
-      ];
-      if( $membership['membership_type'] == 'organization') {
-        $meta['org_name'] = $membership['organization_name'];
-        $meta['org_uuid'] = $membership['organization_uuid'];
-        $meta['org_seats'] = $membership['membership_seats'];
-      }
-      $membership_post = wp_insert_post([
-        'post_type' => $this->membership_cpt_slug,
-        'post_status' => 'publish',
-        'meta_input'  => $meta
-      ]);
+    $meta = [
+      'status' => 'active',
+      'member_type' => $membership['membership_type'],
+      'user_id' => $membership['user_id'],
+      'start_date' => $membership['membership_starts_at'],
+      'end_date' => $membership['membership_ends_at'],
+      'expiry_date' => !empty($membership['membership_expires_at']) ? $membership['membership_expires_at'] : $membership['membership_ends_at'],
+      'early_renew_date' => !empty($membership['membership_early_renew_at']) ? $membership['membership_early_renew_at'] : $membership['membership_ends_at'],
+      'membership_tier_uuid' => $membership['membership_tier_uuid'],
+      'membership_tier_name' => $membership['membership_tier_name'],
+      'wicket_uuid' => $wicket_uuid,
+      'user_name' => $membership['membership_wp_user_display_name'],
+      'user_email' => $membership['membership_wp_user_email'],
+      'membership_order_id' => $membership['membership_parent_order_id'],
+      'membership_product_id' => $membership['membership_product_id'],
+    ];
+    if( $membership['membership_type'] == 'organization') {
+      $meta['org_name'] = $membership['organization_name'];
+      $meta['org_uuid'] = $membership['organization_uuid'];
+      $meta['org_seats'] = $membership['membership_seats'];
     }
+
+    $membership_post = $this->check_local_membership_record_exists( $membership );
+      if( $membership_post ) {
+        wp_update_post([
+          'ID' => $membership_post,
+          'post_type' => $this->membership_cpt_slug,
+          'post_status' => 'publish',
+          'meta_input'  => $meta
+        ]);
+      } else {
+        $membership_post = wp_insert_post([
+          'post_type' => $this->membership_cpt_slug,
+          'post_status' => 'publish',
+          'meta_input'  => $meta
+        ]);  
+      }
       
     $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
     $order_meta_array = json_decode( $order_meta[0], true);

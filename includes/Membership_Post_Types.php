@@ -631,6 +631,24 @@ class Membership_Post_Types {
     );
 
     register_post_meta($this->membership_cpt_slug, 'membership_uuid', $args);
+
+    $args = array(
+      'type'              => 'string',
+      'description'       => __( 'Order ID.', 'wicket-memberships' ),
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_cpt_slug, 'membership_order_id', $args);
+
+    $args = array(
+      'type'              => 'string',
+      'description'       => __( 'Product ID.', 'wicket-memberships' ),
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_cpt_slug, 'membership_product_id', $args);
   }
 
   /**
