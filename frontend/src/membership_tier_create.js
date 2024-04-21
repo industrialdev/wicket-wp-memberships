@@ -258,7 +258,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 		let queryParams = {};
 
 		// Fetch WooCommerce products
-		queryParams = { status: 'publish' };
+		queryParams = { status: 'publish', per_page: 100};
 		apiFetch({ path: addQueryArgs(`${API_URL}/product`, queryParams) }).then((products) => {
 			console.log(products);
 

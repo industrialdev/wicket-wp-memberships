@@ -13263,7 +13263,8 @@ const CreateMembershipTier = ({
 
     // Fetch WooCommerce products
     queryParams = {
-      status: 'publish'
+      status: 'publish',
+      per_page: 100
     };
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
       path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/product`, queryParams)
