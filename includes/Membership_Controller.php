@@ -230,10 +230,18 @@ class Membership_Controller {
       as_schedule_single_action( $early_renew_date, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin', true );
       as_schedule_single_action( $end_date, 'add_membership_ends_at', $args, 'wicket-membership-plugin', true );
       as_schedule_single_action( $expiry_date, 'add_membership_expires_at', $args, 'wicket-membership-plugin', true );
+      //to expire old membership when new one starts
+      if( !empty( $membership['previous_membership_post_id'] ) ) {
+        as_schedule_single_action( $expiry_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin', true );
+      }
     } else {
       wp_schedule_single_event( $early_renew_date, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin');
       wp_schedule_single_event( $end_date, 'add_membership_ends_at', $args, 'wicket-membership-plugin' );
       wp_schedule_single_event( $expiry_date, 'add_membership_expires_at', $args, 'wicket-membership-plugin' );
+      //to expire old membership when new one starts
+      if( !empty( $membership['previous_membership_post_id'] ) ) {
+        wp_schedule_single_event( $expiry_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin' );
+      }
     }
   }
 
@@ -387,16 +395,6 @@ class Membership_Controller {
         ]);  
       }
 
-      if( ! empty( $membership['previous_membership_post_id'] ) ) {
-        wp_update_post([
-          'ID' => $membership['previous_membership_post_id'],
-          'post_type' => $this->membership_cpt_slug,
-          'meta_input'  => [
-            'status' => 'expired',
-          ]
-        ]);  
-      }
-
     $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
     $order_meta_array = json_decode( $order_meta[0], true);
     $order_meta_array['membership_post_id'] = $membership_post;
@@ -410,6 +408,18 @@ class Membership_Controller {
     update_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );
 
     return $membership_post;
+  }
+
+  public function catch_expire_current_membership( $previous_membership_post_id ) {
+    if( ! empty( $previous_membership_post_id ) ) {
+      wp_update_post([
+        'ID' => $previous_membership_post_id,
+        'post_type' => $this->membership_cpt_slug,
+        'meta_input'  => [
+          'status' => 'expired',
+        ]
+      ]);  
+    }
   }
 
   /**

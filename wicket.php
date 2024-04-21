@@ -93,6 +93,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'add_membership_ends_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_ends_at' ), 10, 2 );
       add_action( 'add_membership_expires_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_expires_at' ), 10, 2 );
     
+      //expire current membership when new one starts
+      add_action( 'expire_old_membership_on_new_starts_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_expire_current_membership' ), 10, 2 );
+
       //
       add_action( 'template_redirect', [ $this, 'set_onboarding_posted_data_to_wc_session' ]);
 
