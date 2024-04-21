@@ -216,6 +216,7 @@ class Membership_Controller {
    * Add renewal transition dates to Advanced Scheduler - fallback with wp_cron
    */
   private function scheduler_dates_for_expiry( $membership ) {
+    $start_date = strtotime( $membership['membership_starts_at'] );
     $early_renew_date = strtotime( $membership['membership_early_renew_at'] );
     $end_date = strtotime( $membership['membership_ends_at'] );
     $expiry_date = strtotime( $membership['membership_expires_at'] );
@@ -232,7 +233,7 @@ class Membership_Controller {
       as_schedule_single_action( $expiry_date, 'add_membership_expires_at', $args, 'wicket-membership-plugin', true );
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
-        as_schedule_single_action( $expiry_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin', true );
+        as_schedule_single_action( $start_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin', true );
       }
     } else {
       wp_schedule_single_event( $early_renew_date, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin');
@@ -240,7 +241,7 @@ class Membership_Controller {
       wp_schedule_single_event( $expiry_date, 'add_membership_expires_at', $args, 'wicket-membership-plugin' );
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
-        wp_schedule_single_event( $expiry_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin' );
+        wp_schedule_single_event( $start_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin' );
       }
     }
   }
