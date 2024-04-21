@@ -111,7 +111,7 @@ class Membership_Controller {
               $period_data = $config->get_period_data();
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
-                $membership_current = $this->get_membership_json_from_post_id( $membership_post_id );
+                $membership_current = $this->get_membership_array_from_post_id( $membership_post_id );
               }
               $dates = $config->get_membership_dates( $membership_current );
               $user_object = wp_get_current_user();
@@ -159,9 +159,15 @@ class Membership_Controller {
   }
 
   private function get_membership_array_from_post_id( $membership_post_id ) {
-    //get the membership_json from the current membership order
+    //get the membership array from the current membership post id
     $mship_order_id = get_post_meta( $membership_post_id, 'membership_order_id', true );
     $mship_product_id = get_post_meta( $membership_post_id, 'membership_product_id', true );
+    $membership_current = $this->get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id ); 
+    return $membership_current; 
+  }
+
+  private function get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id ) {
+    //get the membership_json from the order and product ids
     $membership_current = get_post_meta( $mship_order_id, '_wicket_membership_'.$mship_product_id, true ); 
     return json_decode( $membership_current, true ); 
   }
@@ -207,10 +213,52 @@ class Membership_Controller {
   }
 
   /**
+   * Add renewal transition dates to Advanced Scheduler - fallback with wp_cron
+   */
+  private function scheduler_dates_for_expiry( $membership ) {
+    $early_renew_date = strtotime( $membership['membership_early_renew_at'] );
+    $end_date = strtotime( $membership['membership_ends_at'] );
+    $expiry_date = strtotime( $membership['membership_expires_at'] );
+
+    $args = [
+      'membership_order_id' => $membership['membership_parent_order_id'],
+      'membership_product_id' => $membership['membership_product_id'],
+    ];
+
+    if ( function_exists('as_schedule_single_action') ) {
+      //as_schedule_single_action( $timestamp, $hook, $args, $group, $unique, $priority );
+      as_schedule_single_action( $early_renew_date, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin', true );
+      as_schedule_single_action( $end_date, 'add_membership_ends_at', $args, 'wicket-membership-plugin', true );
+      as_schedule_single_action( $expiry_date, 'add_membership_expires_at', $args, 'wicket-membership-plugin', true );
+    } else {
+      wp_schedule_single_event( $early_renew_date, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin');
+      wp_schedule_single_event( $end_date, 'add_membership_ends_at', $args, 'wicket-membership-plugin' );
+      wp_schedule_single_event( $expiry_date, 'add_membership_expires_at', $args, 'wicket-membership-plugin' );
+    }
+  }
+
+  function catch_membership_early_renew_at( $membership_order_id, $membership_product_id ) {
+    $membership = $this->get_membership_array_from_order_and_product_id( $membership_order_id, $membership_product_id );
+    do_action( 'membership_early_renew_at_date_reached', $membership );
+  }
+
+  function catch_membership_ends_at( $membership_order_id, $membership_product_id ) {
+    $membership = $this->get_membership_array_from_order_and_product_id( $membership_order_id, $membership_product_id );
+    do_action( 'membership_ends_at_date_reached', $membership );
+  }
+
+  function catch_membership_expires_at( $membership_order_id, $membership_product_id ) {
+    $membership = $this->get_membership_array_from_order_and_product_id( $membership_order_id, $membership_product_id );
+    do_action( 'membership_expires_at_date_reached', $membership );
+  }
+
+  /**
    * Create the membership records
    */
   public static function create_membership_record( $membership ) {
     $self = new self();
+    $self->scheduler_dates_for_expiry( $membership );
+
     if($self->bypass_wicket) {
       //Don't create the wicket connection when testing
       $self->create_local_membership_record(  $membership, $self->guidv4().'-fake' );
@@ -437,6 +485,7 @@ class Membership_Controller {
     $early_renewal = [];
     $grace_period = [];
 
+    //TODO: remove open lookup
     if( empty( $user_id ) ) {
       $user_id = get_current_user_id();
     }

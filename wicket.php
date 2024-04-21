@@ -82,10 +82,18 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
       //Order wicket-membership subscription hooks
       //Hooks fired twice included in class contructor
-      add_action( 'woocommerce_order_status_completed', array ( __NAMESPACE__.'\\Membership_Controller' , 'catch_order_completed' ), 10, 1);
-      add_action( 'wicket_member_create_record', array( __NAMESPACE__.'\\Membership_Controller', 'create_membership_record'), 10, 3 );
       add_action( 'init', [$this, 'wicket_membership_init_session'] );
+      //catch the order status change to complete
+      add_action( 'woocommerce_order_status_changed', array ( __NAMESPACE__.'\\Membership_Controller' , 'catch_order_completed' ), 10, 1);
+      //create the membership record
+      add_action( 'wicket_member_create_record', array( __NAMESPACE__.'\\Membership_Controller', 'create_membership_record'), 10, 3 );
 
+      //Advanced Scheduler action hooks to run our `do_action(..)` triggers on the renewal transition dates
+      add_action( 'add_membership_early_renew_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_early_renew_at' ), 10, 2 );
+      add_action( 'add_membership_ends_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_ends_at' ), 10, 2 );
+      add_action( 'add_membership_expires_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_expires_at' ), 10, 2 );
+    
+      //
       add_action( 'template_redirect', [ $this, 'set_onboarding_posted_data_to_wc_session' ]);
 
       //temporary admin notice response
