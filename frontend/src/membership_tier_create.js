@@ -3,18 +3,32 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled, __experimentalHeading as Heading, Icon, __experimentalText as Text } from '@wordpress/components';
+import { TextControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon, __experimentalText as Text } from '@wordpress/components';
 import styled from 'styled-components';
 import { API_URL, MDP_API_URL } from './constants';
 import he from 'he';
-import Select from 'react-select'
-import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, FormFlex } from './styled_elements';
+import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, FormFlex, CustomDisabled } from './styled_elements';
 
 const MarginedFlex = styled(Flex)`
 	margin-top: 15px;
 `;
 
 const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId }) => {
+
+	const [isRangeOfSeatsProductsModalOpen, setRangeOfSeatsProductsModalOpen] = useState(false);
+
+	const openRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(true);
+
+	const closeRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(false);
+
+	const [currentRangeOfSeatsProductIndex, setCurrentRangeOfSeatsProductIndex] = useState(null);
+
+	const [rangeOfSeatsProductErrors, setRangeOfSeatsProductErrors] = useState([]);
+
+	const [tempRangeOfSeatsProduct, setTempRangeOfSeatsProduct] = useState({
+		product_id: null,
+		max_seats: 0
+	});
 
 	const [isSubmitting, setSubmitting] = useState(false);
 
@@ -26,14 +40,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 
 	const [wcProductOptions, setWcProductOptions] = useState([]); // { id, name }
 
-	const [errors, setErrors] = useState([]);
-
-	const [tempProduct, setTempProduct] = useState(
-		{
-			product_id: null,
-			max_seats: 0
-		}
-	);
+	const [errors, setErrors] = useState([]); // Array of strings
 
 	const [form, setForm] = useState({
 		approval_required: false,
@@ -53,6 +60,10 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 		return selectedTier;
 	};
 
+	const allRemoteDataLoaded = () => {
+		return mdpTiers.length > 0 && membershipConfigOptions.length > 0 && wcProductOptions.length > 0;
+	}
+
 	const getSelectedPerSeatProductId = () => {
 		if (form.product_data.length === 0) { return null; }
 
@@ -62,7 +73,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 	const handleSubmit = (e) => {
 		e.preventDefault();
 
-		// TODO: Validate form data
+		// TODO: Frontend data validation here if needed
 
 		setSubmitting(true);
 		console.log('Saving membership tier');
@@ -119,11 +130,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 			type: mdpTier.type,
 			product_data: []
 		});
-
-		setTempProduct({
-			product_id: null,
-			max_seats: 0
-		});
 	}
 
 	const getMdpTierOptions = () => {
@@ -163,35 +169,96 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 		});
 	}
 
-	const handlePerRangeOfSeatsAddProduct = () => {
-		if (tempProduct.product_id === null) { return; }
+	const initRangeOfSeatsProductModal = (range_of_seats_product_index) => {
+		setCurrentRangeOfSeatsProductIndex(range_of_seats_product_index);
 
-		if ( tempProduct.max_seats < 0 ) {
-			setErrors([__('Range maximum value cannot be less than 0', 'wicket-memberships')]);
-			return;
+		// Clear errors
+		setRangeOfSeatsProductErrors([]);
+
+		if (range_of_seats_product_index === null) {
+			// Adding new
+			console.log('Add new product');
+			setTempRangeOfSeatsProduct({
+				product_id: null,
+				max_seats: 0
+			});
+		} else {
+			// Editing existing product
+			console.log('Editing existing product');
+			const product = form.product_data[range_of_seats_product_index];
+			setTempRangeOfSeatsProduct(product);
+		}
+		openRangeOfSeatsProductsModalOpen();
+	}
+
+	const validateRangeOfSeatsProduct = () => {
+		let isValid = true;
+		const newErrors = [];
+
+		if (tempRangeOfSeatsProduct.product_id === null) {
+			newErrors.push(__('Product is required', 'wicket-memberships'));
+			isValid = false;
 		}
 
-		setForm({
-			...form,
-			product_data: [
-				...form.product_data,
-				{
-					product_id: tempProduct.product_id,
-					max_seats: tempProduct.max_seats
+		if (tempRangeOfSeatsProduct.max_seats < 0) {
+			newErrors.push(__('Range maximum value cannot be less than 0', 'wicket-memberships'));
+			isValid = false;
+		}
+
+
+		if (parseInt(tempRangeOfSeatsProduct.max_seats) === NaN) {
+			newErrors.push(__('Range maximum value must be a number', 'wicket-memberships'));
+			isValid = false;
+		}
+
+		setRangeOfSeatsProductErrors(newErrors);
+
+		return isValid;
+	}
+
+	const handleRangeOfSeatsModalSubmit = (e) => {
+		e.preventDefault();
+
+		console.log('Saving product')
+
+		if (!validateRangeOfSeatsProduct()) { return }
+
+		if (currentRangeOfSeatsProductIndex === null) {
+			setForm({
+				...form,
+				product_data: [
+					...form.product_data,
+					{
+						product_id: tempRangeOfSeatsProduct.product_id,
+						max_seats: tempRangeOfSeatsProduct.max_seats
+					}
+				]
+			});
+		} else {
+			const product_data = form.product_data.map((product, index) => {
+				if (index === currentRangeOfSeatsProductIndex) {
+					return {
+						product_id: tempRangeOfSeatsProduct.product_id,
+						max_seats: tempRangeOfSeatsProduct.max_seats
+					}
 				}
-			]
-		});
-		setTempProduct({
-			product_id: null,
-			max_seats: 0
-		});
-	};
+				return product;
+			});
+
+			setForm({
+				...form,
+				product_data: product_data
+			});
+		}
+
+		closeRangeOfSeatsProductsModalOpen()
+	}
 
 	useEffect(() => {
 		let queryParams = {};
 
 		// Fetch WooCommerce products
-		queryParams = { status: 'publish' };
+		queryParams = { status: 'publish', per_page: 100};
 		apiFetch({ path: addQueryArgs(`${API_URL}/product`, queryParams) }).then((products) => {
 			console.log(products);
 
@@ -258,7 +325,18 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 				console.log('Post:');
 				console.log(post.tier_data);
 
-				setForm(post.tier_data);
+				// change max_seats to 0 if it is -1
+				const productData = post.tier_data.product_data.map((product) => {
+					return {
+						product_id: product.product_id,
+						max_seats: parseInt(product.max_seats) === -1 ? 0 : product.max_seats
+					}
+				});
+
+				setForm({
+					...post.tier_data,
+					product_data: productData
+				});
 			});
 		}
 	}, []);
@@ -299,38 +377,109 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 							))}
 						</ErrorsRow>
 					)}
-
-					<form onSubmit={handleSubmit}>
-						<BorderedBox>
-							<Flex
-								justify='start'
-								gap={5}
-								direction={[
-									'column',
-									'row'
-								]}
-							>
-								<FlexBlock>
-									<LabelWpStyled htmlFor="mdp_tier">
-										{__('Membership Tier', 'wicket-memberships')}
-									</LabelWpStyled>
-									<SelectWpStyled
-										id="mdp_tier"
-										classNamePrefix="select"
-										value={getMdpTierOptions().find(option => option.value === form.mdp_tier_uuid)}
-										isClearable={false}
-										isSearchable={true}
-										isLoading={getMdpTierOptions().length === 0}
-										options={getMdpTierOptions()}
-										onChange={handleMdpTierChange}
-									/>
-								</FlexBlock>
-							</Flex>
+					<CustomDisabled
+						isDisabled={!allRemoteDataLoaded() || isSubmitting}
+					>
+						<form onSubmit={handleSubmit}>
+							<BorderedBox>
+								<Flex
+									justify='start'
+									gap={5}
+									direction={[
+										'column',
+										'row'
+									]}
+								>
+									<FlexBlock>
+										<LabelWpStyled htmlFor="mdp_tier">
+											{__('Membership Tier', 'wicket-memberships')}
+										</LabelWpStyled>
+										<SelectWpStyled
+											id="mdp_tier"
+											classNamePrefix="select"
+											value={getMdpTierOptions().find(option => option.value === form.mdp_tier_uuid)}
+											isClearable={false}
+											isSearchable={true}
+											isLoading={getMdpTierOptions().length === 0}
+											options={getMdpTierOptions()}
+											onChange={handleMdpTierChange}
+										/>
+									</FlexBlock>
+								</Flex>
+								{getSelectedTierData() && (
+									<>
+										<ActionRow>
+											<Flex
+												align='start'
+												justify='start'
+												gap={5}
+												direction={[
+													'column',
+													'row'
+												]}
+											>
+												<FlexItem>
+													<Text size={14} color="#3c434a" >
+														{__('Status', 'wicket-memberships')}:&nbsp;
+														<strong>{getSelectedTierData().active ? __('Active', 'wicket-memberships') : __('Inactive', 'wicket-memberships')}</strong>
+													</Text>
+												</FlexItem>
+												<FlexItem>
+													<Text size={14} color="#3c434a" >
+														{__('Type', 'wicket-memberships')}:&nbsp;
+														<strong>{getSelectedTierData().type === 'individual' ? __('Individual', 'wicket-memberships') : __('Organization', 'wicket-memberships')}</strong>
+													</Text>
+												</FlexItem>
+												<FlexItem>
+													<Text size={14} color="#3c434a" >
+														{__('Category', 'wicket-memberships')}:&nbsp;
+														<strong>{getSelectedTierData().category.length === 0 ? __('N/A', 'wicket-memberships') : getSelectedTierData().category}</strong>
+													</Text>
+												</FlexItem>
+											</Flex>
+											<MarginedFlex
+												align='start'
+												justify='start'
+												gap={5}
+												direction={[
+													'column',
+													'row'
+												]}
+											>
+												<FlexItem>
+													<Text size={14} color="#3c434a" >
+														{__('Grace Period (Days)', 'wicket-memberships')}:&nbsp;
+														<strong>{getSelectedTierData().grace_period_days}</strong>
+													</Text>
+												</FlexItem>
+												<FlexItem>
+													<Flex
+														gap={4}
+													>
+														<FlexItem>
+															<Text size={14} color="#3c434a" >
+																{__('# of Members', 'wicket-memberships')}:&nbsp;
+																<strong>%COUNT%</strong>
+															</Text>
+														</FlexItem>
+														<FlexItem>
+															<Button variant="link">
+																{__('View All Members', 'wicket-memberships')}
+															</Button>
+														</FlexItem>
+													</Flex>
+												</FlexItem>
+											</MarginedFlex>
+										</ActionRow>
+									</>
+								)}
+							</BorderedBox>
+							{/* Other Controls */}
 							{getSelectedTierData() && (
 								<>
 									<ActionRow>
 										<Flex
-											align='start'
+											align='end'
 											justify='start'
 											gap={5}
 											direction={[
@@ -338,294 +487,274 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 												'row'
 											]}
 										>
-											<FlexItem>
-												<Text size={14} color="#3c434a" >
-													{__('Status', 'wicket-memberships')}:&nbsp;
-													<strong>{getSelectedTierData().active ? __('Active', 'wicket-memberships') : __('Inactive', 'wicket-memberships')}</strong>
-												</Text>
-											</FlexItem>
-											<FlexItem>
-												<Text size={14} color="#3c434a" >
-													{__('Type', 'wicket-memberships')}:&nbsp;
-													<strong>{getSelectedTierData().type === 'individual' ? __('Individual', 'wicket-memberships') : __('Organization', 'wicket-memberships')}</strong>
-												</Text>
-											</FlexItem>
-											<FlexItem>
-												<Text size={14} color="#3c434a" >
-													{__('Category', 'wicket-memberships')}:&nbsp;
-													<strong>{getSelectedTierData().category.length === 0 ? __('N/A', 'wicket-memberships') : getSelectedTierData().category}</strong>
-												</Text>
-											</FlexItem>
-										</Flex>
-										<MarginedFlex
-											align='start'
-											justify='start'
-											gap={5}
-											direction={[
-												'column',
-												'row'
-											]}
-										>
-											<FlexItem>
-												<Text size={14} color="#3c434a" >
-													{__('Grace Period (Days)', 'wicket-memberships')}:&nbsp;
-													<strong>{getSelectedTierData().grace_period_days}</strong>
-												</Text>
-											</FlexItem>
-											<FlexItem>
-												<Flex
-													gap={4}
-												>
-													<FlexItem>
-														<Text size={14} color="#3c434a" >
-															{__('# of Members', 'wicket-memberships')}:&nbsp;
-															<strong>%COUNT%</strong>
-														</Text>
-													</FlexItem>
-													<FlexItem>
-														<Button variant="link">
-															{__('View All Members', 'wicket-memberships')}
-														</Button>
-													</FlexItem>
-												</Flex>
-											</FlexItem>
-										</MarginedFlex>
-									</ActionRow>
-								</>
-							)}
-						</BorderedBox>
-						{/* Other Controls */}
-						{getSelectedTierData() && (
-							<>
-								<ActionRow>
-									<Flex
-										align='end'
-										justify='start'
-										gap={5}
-										direction={[
-											'column',
-											'row'
-										]}
-									>
-										<FlexBlock>
-											<LabelWpStyled htmlFor="config_id">
-												{__('Membership Config', 'wicket-memberships')}
-											</LabelWpStyled>
-											<SelectWpStyled
-												id="config_id"
-												classNamePrefix="select"
-												value={membershipConfigOptions.find(option => option.value === form.config_id)}
-												isClearable={false}
-												isSearchable={true}
-												options={membershipConfigOptions}
-												onChange={(selected) => setForm({ ...form, config_id: selected.value })}
-											/>
-										</FlexBlock>
-										<FlexItem>
-											<CheckboxControl
-												label={__('Approval Required', 'wicket-memberships')}
-												checked={form.approval_required}
-												onChange={(value) => setForm({ ...form, approval_required: value })}
-											/>
-										</FlexItem>
-									</Flex>
-								</ActionRow>
-								{postId && (
-									<MarginedFlex>
-										<FlexBlock>
-											<LabelWpStyled htmlFor="next_tier">
-												{__('Sequential Logic', 'wicket-memberships')}
-											</LabelWpStyled>
-											<SelectWpStyled
-												id="next_tier"
-												classNamePrefix="select"
-												value={wpTierOptions.find(option => option.value === form.next_tier_id)}
-												isClearable={false}
-												isSearchable={true}
-												isLoading={wpTierOptions.length === 0}
-												options={wpTierOptions}
-												onChange={(selected) => setForm({ ...form, next_tier_id: selected.value })}
-											/>
-										</FlexBlock>
-									</MarginedFlex>
-								)}
-								{getSelectedTierData().type === 'individual' && (
-									<>
-										<MarginedFlex>
 											<FlexBlock>
-												<LabelWpStyled htmlFor="seat_data">
-													{__('Granted Via', 'wicket-memberships')}
+												<LabelWpStyled htmlFor="config_id">
+													{__('Membership Config', 'wicket-memberships')}
 												</LabelWpStyled>
 												<SelectWpStyled
-													id="seat_data"
+													id="config_id"
 													classNamePrefix="select"
-													value={wcProductOptions.filter(option => form.product_data.map(product => product.product_id).includes(option.value))}
+													value={membershipConfigOptions.find(option => option.value === form.config_id)}
 													isClearable={false}
-													isMulti={true}
 													isSearchable={true}
-													isLoading={wcProductOptions.length === 0}
-													options={wcProductOptions}
-													onChange={handleIndividualGrantedViaChange}
+													options={membershipConfigOptions}
+													onChange={(selected) => setForm({ ...form, config_id: selected.value })}
+												/>
+											</FlexBlock>
+											<FlexItem>
+												<CheckboxControl
+													label={__('Approval Required', 'wicket-memberships')}
+													checked={form.approval_required}
+													onChange={(value) => setForm({ ...form, approval_required: value })}
+												/>
+											</FlexItem>
+										</Flex>
+									</ActionRow>
+									{form.next_tier_id && (
+										<MarginedFlex>
+											<FlexBlock>
+												<LabelWpStyled htmlFor="next_tier">
+													{__('Sequential Logic', 'wicket-memberships')}
+												</LabelWpStyled>
+												<SelectWpStyled
+													id="next_tier"
+													classNamePrefix="select"
+													value={wpTierOptions.find(option => option.value === form.next_tier_id)}
+													isClearable={false}
+													isSearchable={true}
+													isLoading={wpTierOptions.length === 0}
+													options={wpTierOptions}
+													onChange={(selected) => setForm({ ...form, next_tier_id: selected.value })}
 												/>
 											</FlexBlock>
 										</MarginedFlex>
-									</>
-								)}
-								{getSelectedTierData().type === 'organization' && (
-									<>
-										<BorderedBox>
-											<Flex>
+									)}
+									{getSelectedTierData().type === 'individual' && (
+										<>
+											<MarginedFlex>
 												<FlexBlock>
-													<SelectControl
-														label={__('Seat Settings', 'wicket-memberships')}
-														value={form.seat_type}
-														options={[
-															{ label: __('Per Seat', 'wicket-memberships'), value: 'per_seat' },
-															{ label: __('Per Range of Seats', 'wicket-memberships'), value: 'per_range_of_seats' }
-														]}
-														onChange={(selected) => {
-																setForm({
-																	...form,
-																	seat_type: selected,
-																	product_data: [] //reset product data
-																});
-															}
-														}
+													<LabelWpStyled htmlFor="seat_data">
+														{__('Granted Via', 'wicket-memberships')}
+													</LabelWpStyled>
+													<SelectWpStyled
+														id="seat_data"
+														classNamePrefix="select"
+														value={wcProductOptions.filter(option => form.product_data.map(product => product.product_id).includes(option.value))}
+														isClearable={false}
+														isMulti={true}
+														isSearchable={true}
+														isLoading={wcProductOptions.length === 0}
+														options={wcProductOptions}
+														onChange={handleIndividualGrantedViaChange}
 													/>
 												</FlexBlock>
-											</Flex>
-
-											{form.seat_type === 'per_seat' && (
-												<MarginedFlex>
+											</MarginedFlex>
+										</>
+									)}
+									{getSelectedTierData().type === 'organization' && (
+										<>
+											<BorderedBox>
+												<Flex>
 													<FlexBlock>
-														<LabelWpStyled htmlFor="seat_data_per_seat">
-															{__('Product', 'wicket-memberships')}
-														</LabelWpStyled>
-														<SelectWpStyled
-															id="seat_data_per_seat"
-															classNamePrefix="select"
-															value={wcProductOptions.find(option => getSelectedPerSeatProductId() === option.value)}
-															isClearable={false}
-															isSearchable={true}
-															isLoading={wcProductOptions.length === 0}
-															options={wcProductOptions}
-															onChange={handleOrganizationPerSeatGrantedViaChange}
+														<SelectControl
+															label={__('Seat Settings', 'wicket-memberships')}
+															value={form.seat_type}
+															options={[
+																{ label: __('Per Seat', 'wicket-memberships'), value: 'per_seat' },
+																{ label: __('Per Range of Seats', 'wicket-memberships'), value: 'per_range_of_seats' }
+															]}
+															onChange={(selected) => {
+																	setForm({
+																		...form,
+																		seat_type: selected,
+																		product_data: [] //reset product data
+																	});
+																}
+															}
 														/>
 													</FlexBlock>
-												</MarginedFlex>
-											)}
+												</Flex>
 
-											{form.seat_type === 'per_range_of_seats' && (
-												<>
-													<MarginedFlex
-														align='end'
-														justify='start'
-														gap={5}
-														direction={[
-															'column',
-															'row'
-														]}
-													>
+												{form.seat_type === 'per_seat' && (
+													<MarginedFlex>
 														<FlexBlock>
-															<LabelWpStyled
-																htmlFor="temp_product"
-															>
+															<LabelWpStyled htmlFor="seat_data_per_seat">
 																{__('Product', 'wicket-memberships')}
 															</LabelWpStyled>
 															<SelectWpStyled
-																id="temp_product"
+																id="seat_data_per_seat"
 																classNamePrefix="select"
-																value={wcProductOptions.find(option => tempProduct.product_id === option.value)}
+																value={wcProductOptions.find(option => getSelectedPerSeatProductId() === option.value)}
 																isClearable={false}
 																isSearchable={true}
 																isLoading={wcProductOptions.length === 0}
 																options={wcProductOptions}
-																__nextHasNoMarginBottom={true}
-																onChange={(selected) => setTempProduct({
-																	...tempProduct,
-																	product_id: selected.value
-																})}
+																onChange={handleOrganizationPerSeatGrantedViaChange}
 															/>
-														</FlexBlock>
-														<FlexBlock>
-															<TextControl
-																label={__('Range Maximum (USE 0 FOR UNLIMITED)', 'wicket-memberships')}
-																type='number'
-																min={0}
-																__nextHasNoMarginBottom={true}
-																value={tempProduct.max_seats}
-																onChange={(value) => setTempProduct({
-																	...tempProduct,
-																	max_seats: value
-																})}
-															/>
-														</FlexBlock>
-														<FlexBlock>
-															<Button
-																disabled={tempProduct.product_id === null}
-																variant="primary"
-																onClick={handlePerRangeOfSeatsAddProduct}
-															>
-																{__('Add Product', 'wicket-memberships')}
-															</Button>
 														</FlexBlock>
 													</MarginedFlex>
+												)}
 
-													{/* Seats Data Table */}
-													<FormFlex>
-														<Heading level='4' weight='300' >
-															{__('Seats Data', 'wicket-memberships')}
-														</Heading>
-													</FormFlex>
-													<FormFlex>
-														<table className="widefat" cellSpacing="0">
-															<thead>
-																<tr>
-																	<th className="manage-column column-columnname" scope="col">
-																		{__('Product Name', 'wicket-memberships')}
-																	</th>
-																	<th className="manage-column column-columnname" scope="col">
-																		{__('Range Max', 'wicket-memberships')}
-																	</th>
-																	<th className='check-column'></th>
-																</tr>
-															</thead>
-															<tbody>
-																{form.product_data.map((product, index) => (
-																		<tr key={index} className={index % 2 === 0 ? 'alternate' : ''}>
-																			<td className="column-columnname">
-																				{wcProductOptions.find(option => option.value === product.product_id).label}
-																			</td>
-																			<td className="column-columnname">
-																				{product.max_seats}
-																			</td>
-																			<td>
-																				<Button
-																					onClick={() => {
-																						// initSeasonModal(index)
-																					}}
-																				>
-																					<span className="dashicons dashicons-edit"></span>
-																				</Button>
-																			</td>
-																		</tr>
-																	)
-																)}
-															</tbody>
-														</table>
-													</FormFlex>
-												</>
-											)}
-										</BorderedBox>
-									</>
-								)}
-							</>
+												{form.seat_type === 'per_range_of_seats' && (
+													<>
+														<MarginedFlex
+															align='end'
+															justify='start'
+															gap={5}
+															direction={[
+																'column',
+																'row'
+															]}
+														>
+															<FlexBlock>
+																<Button
+																	variant="secondary"
+																	onClick={() => initRangeOfSeatsProductModal(null)}
+																>
+																	<Icon icon="plus" />&nbsp;
+																	{__('Add Product', 'wicket-memberships')}
+																</Button>
+															</FlexBlock>
+														</MarginedFlex>
+
+														{/* Seats Data Table */}
+														<FormFlex>
+															<Heading level='4' weight='300' >
+																{__('Seats Data', 'wicket-memberships')}
+															</Heading>
+														</FormFlex>
+														<FormFlex>
+															<table className="widefat" cellSpacing="0">
+																<thead>
+																	<tr>
+																		<th className="manage-column column-columnname" scope="col">
+																			{__('Product Name', 'wicket-memberships')}
+																		</th>
+																		<th className="manage-column column-columnname" scope="col">
+																			{__('Range Max', 'wicket-memberships')}
+																		</th>
+																		<th className='check-column'></th>
+																	</tr>
+																</thead>
+																<tbody>
+																	{form.product_data.map((product, index) => (
+																			<tr key={index} className={index % 2 === 0 ? 'alternate' : ''}>
+																				<td className="column-columnname">
+																					{wcProductOptions.find(option => option.value === product.product_id).label}
+																				</td>
+																				<td className="column-columnname">
+																					{product.max_seats}
+																				</td>
+																				<td>
+																					<Button
+																						onClick={() => {
+																							initRangeOfSeatsProductModal(index)
+																						}}
+																					>
+																						<span className="dashicons dashicons-edit"></span>
+																					</Button>
+																				</td>
+																			</tr>
+																		)
+																	)}
+																</tbody>
+															</table>
+														</FormFlex>
+													</>
+												)}
+											</BorderedBox>
+										</>
+									)}
+								</>
+							)}
+							{/* Submit row */}
+							<ActionRow>
+								<Flex
+									align='end'
+									justify='end'
+									gap={5}
+									direction={[
+										'column',
+										'row'
+									]}
+								>
+									<FlexItem>
+										<Button
+											isBusy={isSubmitting}
+											disabled={isSubmitting}
+											variant="primary"
+											type='submit'
+										>
+											{isSubmitting && __('Saving now...', 'wicket-memberships')}
+											{!isSubmitting && __('Save Membership Tier', 'wicket-memberships')}
+										</Button>
+									</FlexItem>
+								</Flex>
+							</ActionRow>
+						</form>
+					</CustomDisabled>
+				</Wrap>
+			</div>
+
+			{/* Add "Range of Seats" Product Modal */}
+			{isRangeOfSeatsProductsModalOpen && (
+				<Modal
+					title={currentRangeOfSeatsProductIndex === null ? __('Add Product', 'wicket-memberships') : __('Edit Product', 'wicket-memberships')}
+					onRequestClose={closeRangeOfSeatsProductsModalOpen}
+					style={
+						{
+							maxWidth: '840px',
+							width: '100%'
+						}
+					}
+				>
+					<form onSubmit={handleRangeOfSeatsModalSubmit}>
+
+						{rangeOfSeatsProductErrors.length > 0 && (
+							<ErrorsRow>
+								{rangeOfSeatsProductErrors.map((errorMessage, index) => (
+									<Notice isDismissible={false} key={index} status="warning">{errorMessage}</Notice>
+								))}
+							</ErrorsRow>
 						)}
-						{/* Submit row */}
+
+						<LabelWpStyled htmlFor="range_of_seats_product_id">{__('Product', 'wicket-memberships')}</LabelWpStyled>
+						<SelectWpStyled
+							id="range_of_seats_product_id"
+							classNamePrefix="select"
+							value={wcProductOptions.find(option => option.value === tempRangeOfSeatsProduct.product_id)}
+							isClearable={false}
+							isSearchable={true}
+							isLoading={wcProductOptions.length === 0}
+							options={wcProductOptions}
+							onChange={selected => {
+								setTempRangeOfSeatsProduct({
+									...tempRangeOfSeatsProduct,
+									product_id: selected.value
+								});
+							}}
+						/>
+
+						<MarginedFlex>
+							<FlexBlock>
+								<TextControl
+									label={__('Range Maximum (USE 0 FOR UNLIMITED)', 'wicket-memberships')}
+									type="number"
+									min={0}
+									onChange={value => {
+										setTempRangeOfSeatsProduct({
+											...tempRangeOfSeatsProduct,
+											max_seats: value
+										});
+									}}
+									value={tempRangeOfSeatsProduct.max_seats}
+								/>
+							</FlexBlock>
+						</MarginedFlex>
+
 						<ActionRow>
 							<Flex
 								align='end'
-								justify='end'
 								gap={5}
 								direction={[
 									'column',
@@ -633,21 +762,36 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 								]}
 							>
 								<FlexItem>
-									<Button
-										isBusy={isSubmitting}
-										disabled={isSubmitting}
-										variant="primary"
-										type='submit'
-									>
-										{isSubmitting && __('Saving now...', 'wicket-memberships')}
-										{!isSubmitting && __('Save Membership Tier', 'wicket-memberships')}
+									{currentRangeOfSeatsProductIndex !== null && (
+										<Button
+											isDestructive={true}
+											onClick={() => {
+												const productData = form.product_data.filter((_, index) => index !== currentRangeOfSeatsProductIndex);
+
+												setForm({
+													...form,
+													product_data: productData
+												});
+
+												closeRangeOfSeatsProductsModalOpen();
+											}}
+										>
+											<Icon icon="archive" />&nbsp;
+											{__('Delete', 'wicket-memberships')}
+										</Button>
+									)}
+								</FlexItem>
+								<FlexItem>
+									<Button variant="primary" type='submit'>
+										{currentRangeOfSeatsProductIndex === null ? __('Add Product', 'wicket-memberships') : __('Update Product', 'wicket-memberships')}
 									</Button>
 								</FlexItem>
 							</Flex>
+
 						</ActionRow>
 					</form>
-				</Wrap>
-			</div>
+				</Modal>
+			)}
 		</>
 	);
 };
