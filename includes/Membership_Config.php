@@ -217,7 +217,7 @@ class Membership_Config {
     return $period;
   }
 
-  private function get_anniversary_start_date( $membership = null ) {
+  private function get_anniversary_start_date( $membership = [] ) {
     if( empty( $membership )) {
       $start_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
     } else {
@@ -226,7 +226,7 @@ class Membership_Config {
     return $start_date;
   }
 
-  private function get_seasonal_start_date( $membership = null ) {
+  private function get_seasonal_start_date( $membership = [] ) {
     if( empty( $membership )) {
       $start_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
     } else {
@@ -235,7 +235,7 @@ class Membership_Config {
     return $start_date;
   }
 
-  private function get_seasonal_end_date( $membership ) {
+  private function get_seasonal_end_date( $membership = [] ) {
     $seasons = $this->get_calendar_seasons();
     if( empty( $membership ) ) {
       $end_date = (new \DateTime( date("Y-m-d", strtotime("+1 year")), wp_timezone() ))->format('c');
@@ -257,7 +257,7 @@ class Membership_Config {
    * If this is a renewal we need to consider early renewal still in previous membership date period
    * @return array membership dates
    */
-  public function get_membership_dates( $membership = null) {
+  public function get_membership_dates( $membership = [] ) {
     $cycle_data = $this->get_cycle_data();
     if( $cycle_data['cycle_type'] == 'anniversary' ) {
       $dates['start_date'] = $this->get_anniversary_start_date( $membership );

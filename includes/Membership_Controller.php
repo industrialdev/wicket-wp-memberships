@@ -110,9 +110,10 @@ class Membership_Controller {
               $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
               $period_data = $config->get_period_data();
               //if we have the current membership_post ID in the renew field on cart item
-              if( $membership_post_id = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
-                $membership_current = $this->get_membership_array_from_post_id( $membership_post_id );
+              if( $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
+                $membership_current = $this->get_membership_array_from_post_id( $membership_post_id_renew );
               }
+              //TODO: do renewal memberships start on current date or end date of previous membership - current is end_date last membersrship
               $dates = $config->get_membership_dates( $membership_current );
               $user_object = wp_get_current_user();
               $membership = [
@@ -141,8 +142,8 @@ class Membership_Controller {
                     $membership['organization_uuid'] = wc_get_order_item_meta( $item->get_id(), '_org_uuid', true);
                     $membership['membership_seats'] = $membership_tier->tier_data['product_data']['max_seats'];
               }
-              if( !empty( $membership_post_id )) {
-                $membership['previous_membership_post_id'] = $membership_post_id;
+              if( !empty( $membership_post_id_renew )) {
+                $membership['previous_membership_post_id'] = $membership_post_id_renew;
               }
               delete_post_meta( $order_id, '_wicket_membership_'.$product_id );
               $order_meta_id = add_post_meta( $order_id, '_wicket_membership_'.$product_id,  json_encode( $membership ), 1 );
@@ -233,7 +234,11 @@ class Membership_Controller {
       as_schedule_single_action( $expiry_date, 'add_membership_expires_at', $args, 'wicket-membership-plugin', true );
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
-        as_schedule_single_action( $start_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin', true );
+        if( current_time( 'timestamp' ) >= $start_date ) {
+          $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
+        } else {
+          as_schedule_single_action( $start_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin', true );
+        }
       }
     } else {
       wp_schedule_single_event( $early_renew_date, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin');
@@ -241,7 +246,11 @@ class Membership_Controller {
       wp_schedule_single_event( $expiry_date, 'add_membership_expires_at', $args, 'wicket-membership-plugin' );
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
-        wp_schedule_single_event( $start_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin' );
+        if( current_time( 'timestamp' ) >= $start_date ) {
+          $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
+        } else {
+          wp_schedule_single_event( $start_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin' );
+        }
       }
     }
   }
