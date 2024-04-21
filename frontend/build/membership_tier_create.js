@@ -13049,7 +13049,6 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-
 const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_9__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex))`
 	margin-top: 15px;
 `;
@@ -13059,6 +13058,15 @@ const CreateMembershipTier = ({
   tierListUrl,
   postId
 }) => {
+  const [isRangeOfSeatsProductsModalOpen, setRangeOfSeatsProductsModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const openRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(true);
+  const closeRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(false);
+  const [currentRangeOfSeatsProductIndex, setCurrentRangeOfSeatsProductIndex] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [rangeOfSeatsProductErrors, setRangeOfSeatsProductErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
+  const [tempRangeOfSeatsProduct, setTempRangeOfSeatsProduct] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
+    product_id: null,
+    max_seats: 0
+  });
   const [isSubmitting, setSubmitting] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   const [mdpTiers, setMdpTiers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [wpTierOptions, setWpTierOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
@@ -13067,11 +13075,8 @@ const CreateMembershipTier = ({
 
   const [wcProductOptions, setWcProductOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
 
-  const [errors, setErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
-  const [tempProduct, setTempProduct] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
-    product_id: null,
-    max_seats: 0
-  });
+  const [errors, setErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // Array of strings
+
   const [form, setForm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     approval_required: false,
     mdp_tier_name: '',
@@ -13091,6 +13096,9 @@ const CreateMembershipTier = ({
     const selectedTier = mdpTiers.find(tier => tier.uuid === form.mdp_tier_uuid);
     return selectedTier;
   };
+  const allRemoteDataLoaded = () => {
+    return mdpTiers.length > 0 && membershipConfigOptions.length > 0 && wcProductOptions.length > 0;
+  };
   const getSelectedPerSeatProductId = () => {
     if (form.product_data.length === 0) {
       return null;
@@ -13100,7 +13108,7 @@ const CreateMembershipTier = ({
   const handleSubmit = e => {
     e.preventDefault();
 
-    // TODO: Validate form data
+    // TODO: Frontend data validation here if needed
 
     setSubmitting(true);
     console.log('Saving membership tier');
@@ -13150,10 +13158,6 @@ const CreateMembershipTier = ({
       type: mdpTier.type,
       product_data: []
     });
-    setTempProduct({
-      product_id: null,
-      max_seats: 0
-    });
   };
   const getMdpTierOptions = () => {
     return mdpTiers.map(tier => {
@@ -13185,25 +13189,74 @@ const CreateMembershipTier = ({
       product_data: productData
     });
   };
-  const handlePerRangeOfSeatsAddProduct = () => {
-    if (tempProduct.product_id === null) {
+  const initRangeOfSeatsProductModal = range_of_seats_product_index => {
+    setCurrentRangeOfSeatsProductIndex(range_of_seats_product_index);
+
+    // Clear errors
+    setRangeOfSeatsProductErrors([]);
+    if (range_of_seats_product_index === null) {
+      // Adding new
+      console.log('Add new product');
+      setTempRangeOfSeatsProduct({
+        product_id: null,
+        max_seats: 0
+      });
+    } else {
+      // Editing existing product
+      console.log('Editing existing product');
+      const product = form.product_data[range_of_seats_product_index];
+      setTempRangeOfSeatsProduct(product);
+    }
+    openRangeOfSeatsProductsModalOpen();
+  };
+  const validateRangeOfSeatsProduct = () => {
+    let isValid = true;
+    const newErrors = [];
+    if (tempRangeOfSeatsProduct.product_id === null) {
+      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Product is required', 'wicket-memberships'));
+      isValid = false;
+    }
+    if (tempRangeOfSeatsProduct.max_seats < 0) {
+      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range maximum value cannot be less than 0', 'wicket-memberships'));
+      isValid = false;
+    }
+    if (parseInt(tempRangeOfSeatsProduct.max_seats) === NaN) {
+      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range maximum value must be a number', 'wicket-memberships'));
+      isValid = false;
+    }
+    setRangeOfSeatsProductErrors(newErrors);
+    return isValid;
+  };
+  const handleRangeOfSeatsModalSubmit = e => {
+    e.preventDefault();
+    console.log('Saving product');
+    if (!validateRangeOfSeatsProduct()) {
       return;
     }
-    if (tempProduct.max_seats < 0) {
-      setErrors([(0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range maximum value cannot be less than 0', 'wicket-memberships')]);
-      return;
+    if (currentRangeOfSeatsProductIndex === null) {
+      setForm({
+        ...form,
+        product_data: [...form.product_data, {
+          product_id: tempRangeOfSeatsProduct.product_id,
+          max_seats: tempRangeOfSeatsProduct.max_seats
+        }]
+      });
+    } else {
+      const product_data = form.product_data.map((product, index) => {
+        if (index === currentRangeOfSeatsProductIndex) {
+          return {
+            product_id: tempRangeOfSeatsProduct.product_id,
+            max_seats: tempRangeOfSeatsProduct.max_seats
+          };
+        }
+        return product;
+      });
+      setForm({
+        ...form,
+        product_data: product_data
+      });
     }
-    setForm({
-      ...form,
-      product_data: [...form.product_data, {
-        product_id: tempProduct.product_id,
-        max_seats: tempProduct.max_seats
-      }]
-    });
-    setTempProduct({
-      product_id: null,
-      max_seats: 0
-    });
+    closeRangeOfSeatsProductsModalOpen();
   };
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     let queryParams = {};
@@ -13286,7 +13339,18 @@ const CreateMembershipTier = ({
       }).then(post => {
         console.log('Post:');
         console.log(post.tier_data);
-        setForm(post.tier_data);
+
+        // change max_seats to 0 if it is -1
+        const productData = post.tier_data.product_data.map(product => {
+          return {
+            product_id: product.product_id,
+            max_seats: parseInt(product.max_seats) === -1 ? 0 : product.max_seats
+          };
+        });
+        setForm({
+          ...post.tier_data,
+          product_data: productData
+        });
       });
     }
   }, []);
@@ -13315,7 +13379,9 @@ const CreateMembershipTier = ({
     isDismissible: false,
     key: error,
     status: "warning"
-  }, error))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+  }, error))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.CustomDisabled, {
+    isDisabled: !allRemoteDataLoaded() || isSubmitting
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
     onSubmit: handleSubmit
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     justify: "start",
@@ -13386,7 +13452,7 @@ const CreateMembershipTier = ({
       ...form,
       approval_required: value
     })
-  })))), postId && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
+  })))), form.next_tier_id && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
     htmlFor: "next_tier"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Sequential Logic', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
     id: "next_tier",
@@ -13445,36 +13511,12 @@ const CreateMembershipTier = ({
     justify: "start",
     gap: 5,
     direction: ['column', 'row']
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
-    htmlFor: "temp_product"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Product', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
-    id: "temp_product",
-    classNamePrefix: "select",
-    value: wcProductOptions.find(option => tempProduct.product_id === option.value),
-    isClearable: false,
-    isSearchable: true,
-    isLoading: wcProductOptions.length === 0,
-    options: wcProductOptions,
-    __nextHasNoMarginBottom: true,
-    onChange: selected => setTempProduct({
-      ...tempProduct,
-      product_id: selected.value
-    })
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range Maximum (USE 0 FOR UNLIMITED)', 'wicket-memberships'),
-    type: "number",
-    min: 0,
-    __nextHasNoMarginBottom: true,
-    value: tempProduct.max_seats,
-    onChange: value => setTempProduct({
-      ...tempProduct,
-      max_seats: value
-    })
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    disabled: tempProduct.product_id === null,
-    variant: "primary",
-    onClick: handlePerRangeOfSeatsAddProduct
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Product', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.__experimentalHeading, {
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+    variant: "secondary",
+    onClick: () => initRangeOfSeatsProductModal(null)
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
+    icon: "plus"
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Product', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.__experimentalHeading, {
     level: "4",
     weight: "300"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Seats Data', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
@@ -13497,7 +13539,7 @@ const CreateMembershipTier = ({
     className: "column-columnname"
   }, product.max_seats), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
     onClick: () => {
-      // initSeasonModal(index)
+      initRangeOfSeatsProductModal(index);
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     className: "dashicons dashicons-edit"
@@ -13511,7 +13553,66 @@ const CreateMembershipTier = ({
     disabled: isSubmitting,
     variant: "primary",
     type: "submit"
-  }, isSubmitting && (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Saving now...', 'wicket-memberships'), !isSubmitting && (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Save Membership Tier', 'wicket-memberships')))))))));
+  }, isSubmitting && (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Saving now...', 'wicket-memberships'), !isSubmitting && (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Save Membership Tier', 'wicket-memberships'))))))))), isRangeOfSeatsProductsModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Modal, {
+    title: currentRangeOfSeatsProductIndex === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Product', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Edit Product', 'wicket-memberships'),
+    onRequestClose: closeRangeOfSeatsProductsModalOpen,
+    style: {
+      maxWidth: '840px',
+      width: '100%'
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+    onSubmit: handleRangeOfSeatsModalSubmit
+  }, rangeOfSeatsProductErrors.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ErrorsRow, null, rangeOfSeatsProductErrors.map((errorMessage, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Notice, {
+    isDismissible: false,
+    key: index,
+    status: "warning"
+  }, errorMessage))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
+    htmlFor: "range_of_seats_product_id"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Product', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
+    id: "range_of_seats_product_id",
+    classNamePrefix: "select",
+    value: wcProductOptions.find(option => option.value === tempRangeOfSeatsProduct.product_id),
+    isClearable: false,
+    isSearchable: true,
+    isLoading: wcProductOptions.length === 0,
+    options: wcProductOptions,
+    onChange: selected => {
+      setTempRangeOfSeatsProduct({
+        ...tempRangeOfSeatsProduct,
+        product_id: selected.value
+      });
+    }
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range Maximum (USE 0 FOR UNLIMITED)', 'wicket-memberships'),
+    type: "number",
+    min: 0,
+    onChange: value => {
+      setTempRangeOfSeatsProduct({
+        ...tempRangeOfSeatsProduct,
+        max_seats: value
+      });
+    },
+    value: tempRangeOfSeatsProduct.max_seats
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+    align: "end",
+    gap: 5,
+    direction: ['column', 'row']
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, currentRangeOfSeatsProductIndex !== null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+    isDestructive: true,
+    onClick: () => {
+      const productData = form.product_data.filter((_, index) => index !== currentRangeOfSeatsProductIndex);
+      setForm({
+        ...form,
+        product_data: productData
+      });
+      closeRangeOfSeatsProductsModalOpen();
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
+    icon: "archive"
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Delete', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+    variant: "primary",
+    type: "submit"
+  }, currentRangeOfSeatsProductIndex === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Product', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Update Product', 'wicket-memberships'))))))));
 };
 const app = document.getElementById('create_membership_tier');
 if (app) {
