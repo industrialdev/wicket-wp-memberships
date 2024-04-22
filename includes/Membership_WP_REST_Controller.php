@@ -111,6 +111,16 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) );
 
+    // params = user_id
+    register_rest_route( $this->namespace, '/memberships_expiring(?:/(?P<user_id>\d+))?', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_memberships_expiring' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) );
+
     // test endpoint
     register_rest_route( $this->namespace, '/subscription/(?P<id>\d+)/modify', array(
       array(
@@ -120,6 +130,17 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       ),
       'schema' => array( $this, '' ),
     ) );
+  }
+
+  public function get_memberships_expiring( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $user_id = null;
+    if( !empty( $params['user_id'] )) {
+      $user_id = $params['user_id'];
+    }
+    $mc = new Membership_Controller();
+    $response = $mc->get_my_early_renewals( $user_id );
+    return rest_ensure_response( $response );
   }
 
   public function get_membership_filters( \WP_REST_Request $request ) {
