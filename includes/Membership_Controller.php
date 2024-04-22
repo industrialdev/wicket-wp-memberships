@@ -237,7 +237,7 @@ class Membership_Controller {
         if( current_time( 'timestamp' ) >= $start_date ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
         } else {
-          as_schedule_single_action( $start_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin', true );
+          as_schedule_single_action( $start_date, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'] ], 'wicket-membership-plugin', true );
         }
       }
     } else {
@@ -249,7 +249,7 @@ class Membership_Controller {
         if( current_time( 'timestamp' ) >= $start_date ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
         } else {
-          wp_schedule_single_event( $start_date, 'expire_old_membership_on_new_starts_at', $membership['previous_membership_post_id'], 'wicket-membership-plugin' );
+          wp_schedule_single_event( $start_date, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'] ], 'wicket-membership-plugin' );
         }
       }
     }
