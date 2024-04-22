@@ -26,6 +26,9 @@ class Membership_Post_Types {
     add_action('rest_api_init', [ $this, 'register_membership_tier_cpt_fields' ]);
   }
 
+  /**
+   * Register and validate rest fields for the membership config post type
+   */
   public function register_membership_config_cpt_fields() {
     // Renewal Window Data
     $field = 'renewal_window_data';
@@ -250,15 +253,29 @@ class Membership_Post_Types {
                   }
                 }
 
-                // Validate that the season dates do not overlap
+                // Validate that the season start right after the previous season
                 $seasons = $value['calendar_items'];
+                foreach ( $seasons as $i => $season) {
+                  // if next season does not exist, break
+                  if ( $i + 1 >= count( $seasons ) ) {
+                    break;
+                  }
 
+                  $next_season_start = strtotime( $seasons[ $i + 1 ]['start_date'] );
+                  $next_correct_season_start = strtotime( $season['end_date'] . ' +1 day' );
+
+                  if ( $next_season_start !== $next_correct_season_start ) {
+                    $errors->add( 'rest_invalid_param_calendar_dates', __( 'The season dates must be consecutive.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+                }
+
+                // Validate that the season dates do not overlap
                 $season_overlaps = false;
-                foreach ( $seasons as $key => $season ) {
+                foreach ( $value['calendar_items'] as $key => $season ) {
                   $season_start = strtotime( $season['start_date'] );
                   $season_end = strtotime( $season['end_date'] );
 
-                  foreach ( $seasons as $inner_key => $inner_season ) {
+                  foreach ( $value['calendar_items'] as $inner_key => $inner_season ) {
                     if ( $key === $inner_key ) {
                       continue;
                     }
