@@ -398,11 +398,17 @@ class Membership_Post_Types {
                 $errors->add( 'rest_invalid_param_product_data', __( 'At least one product is required.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
-              // dissalow products with max_seats less than -1
               if ( count( $value['product_data'] ) > 0 ) {
                 foreach ( $value['product_data'] as $product ) {
+
+                  // dissalow products with max_seats less than -1
                   if ( intval( $product['max_seats'] ) < -1 ) {
                     $errors->add( 'rest_invalid_param_product_data', __( 'Max seats must be greater than or equal to -1.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+
+                  // product_id must be unique for all tiers
+                  if ( Membership_Tier::get_tier_by_product_id( $product['product_id'] ) !== false ) {
+                    $errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for all tiers.', 'wicket-memberships' ), array( 'status' => 400 ) );
                   }
                 }
               }

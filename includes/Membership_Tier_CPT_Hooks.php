@@ -30,17 +30,19 @@ class Membership_Tier_CPT_Hooks {
   }
 
   function rest_save_post_page($post){
-    if ( get_post_type( $post->ID ) === $this->membership_tier_cpt_slug ) {
-      $tier = new Membership_Tier( $post->ID );
-      $tier_data = $tier->tier_data;
+    if ( get_post_type( $post->ID ) !== $this->membership_tier_cpt_slug ) {
+      return;
+    }
 
-      $next_tier_post_exists = get_post_status( $tier->get_next_tier_id() ) === false ? false : true;
+    $tier = new Membership_Tier( $post->ID );
+    $tier_data = $tier->tier_data;
 
-      if ( !$next_tier_post_exists ) {
-        // Set next tier id to the current tier
-        $tier_data['next_tier_id'] = $post->ID;
-        $tier->update_tier_data( $tier_data );
-      }
+    $next_tier_post_exists = get_post_status( $tier->get_next_tier_id() ) === false ? false : true;
+
+    if ( !$next_tier_post_exists ) {
+      // Set next tier id to the current tier
+      $tier_data['next_tier_id'] = $post->ID;
+      $tier->update_tier_data( $tier_data );
     }
   }
 
