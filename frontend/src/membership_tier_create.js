@@ -510,25 +510,29 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 											</FlexItem>
 										</Flex>
 									</ActionRow>
-									{form.next_tier_id && (
-										<MarginedFlex>
-											<FlexBlock>
-												<LabelWpStyled htmlFor="next_tier">
-													{__('Sequential Logic', 'wicket-memberships')}
-												</LabelWpStyled>
-												<SelectWpStyled
-													id="next_tier"
-													classNamePrefix="select"
-													value={wpTierOptions.find(option => option.value === form.next_tier_id)}
-													isClearable={false}
-													isSearchable={true}
-													isLoading={wpTierOptions.length === 0}
-													options={wpTierOptions}
-													onChange={(selected) => setForm({ ...form, next_tier_id: selected.value })}
-												/>
-											</FlexBlock>
-										</MarginedFlex>
-									)}
+									<MarginedFlex>
+										<FlexBlock>
+											<LabelWpStyled htmlFor="next_tier">
+												{__('Sequential Logic', 'wicket-memberships')}
+											</LabelWpStyled>
+											<SelectWpStyled
+												id="next_tier"
+												classNamePrefix="select"
+												placeholder={__('Current Tier', 'wicket-memberships')}
+												value={wpTierOptions.find(option => option.value === form.next_tier_id)}
+												isClearable={true}
+												isSearchable={true}
+												options={wpTierOptions}
+												onChange={(selected) => {
+													if (selected === null) {
+														setForm({ ...form, next_tier_id: '' });
+														return;
+													}
+													setForm({ ...form, next_tier_id: selected.value });
+												}}
+											/>
+										</FlexBlock>
+									</MarginedFlex>
 									{getSelectedTierData().type === 'individual' && (
 										<>
 											<MarginedFlex>

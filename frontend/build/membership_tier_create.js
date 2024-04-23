@@ -13453,20 +13453,29 @@ const CreateMembershipTier = ({
       ...form,
       approval_required: value
     })
-  })))), form.next_tier_id && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
+  })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
     htmlFor: "next_tier"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Sequential Logic', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
     id: "next_tier",
     classNamePrefix: "select",
+    placeholder: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Current Tier', 'wicket-memberships'),
     value: wpTierOptions.find(option => option.value === form.next_tier_id),
-    isClearable: false,
+    isClearable: true,
     isSearchable: true,
-    isLoading: wpTierOptions.length === 0,
     options: wpTierOptions,
-    onChange: selected => setForm({
-      ...form,
-      next_tier_id: selected.value
-    })
+    onChange: selected => {
+      if (selected === null) {
+        setForm({
+          ...form,
+          next_tier_id: ''
+        });
+        return;
+      }
+      setForm({
+        ...form,
+        next_tier_id: selected.value
+      });
+    }
   }))), getSelectedTierData().type === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
     htmlFor: "seat_data"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Granted Via', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
