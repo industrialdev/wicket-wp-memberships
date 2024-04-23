@@ -27,6 +27,16 @@ class Membership_Tier_CPT_Hooks {
 
     // Manipulate post data after saving if needed
     add_action( 'rest_after_insert_' . $this->membership_tier_cpt_slug, [ $this, 'rest_save_post_page' ], 10, 1);
+
+    // Skip trash for membership tiers
+    add_action('trashed_post', [ $this, 'directory_skip_trash' ]);
+  }
+
+  function directory_skip_trash($post_id) {
+    if (get_post_type($post_id) === $this->membership_tier_cpt_slug) {
+      // Force delete
+      wp_delete_post( $post_id, true );
+    }
   }
 
   function rest_save_post_page($post){
