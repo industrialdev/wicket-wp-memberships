@@ -369,10 +369,12 @@ class Membership_Post_Types {
         },
         'schema'          => array(
           'type'        => 'object',
-          'description' => 'Renewal Window Data',
+          'description' => 'Tier Additional Data',
           'arg_options' => [
-            'validate_callback' => function( $value ) {
+            'validate_callback' => function( $value, $request, $key ) {
               $errors = new WP_Error();
+
+              $tier_post_id = $request->get_param('id');
 
               if ( ! is_array( $value ) ) {
                 $errors->add( 'rest_invalid_param', __( 'The tier data must be an object.', 'wicket-memberships' ), array( 'status' => 400 ) );
@@ -424,8 +426,18 @@ class Membership_Post_Types {
                   }
 
                   // product_id must be unique for all tiers
-                  if ( Membership_Tier::get_tier_by_product_id( $product['product_id'] ) !== false ) {
-                    $errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for all tiers.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  if ( $tier_post_id === null ) {
+                    if ( Membership_Tier::get_tier_by_product_id( $product['product_id'] ) !== false ) {
+                      $errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for all tiers.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                    }
+                  } else {
+                    // if we are editing a tier, then we need to exclude the current tier product id from the list
+                    $tier = new Membership_Tier( $tier_post_id );
+                    $tier_product_ids = $tier->get_product_ids();
+
+                    if ( Membership_Tier::get_tier_by_product_id( $product['product_id'] ) !== false && ! in_array( $product['product_id'], $tier_product_ids ) ) {
+                      $errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for all tiers.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                    }
                   }
                 }
               }
