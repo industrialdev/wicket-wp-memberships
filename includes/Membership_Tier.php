@@ -123,6 +123,24 @@ class Membership_Tier {
   }
 
   /**
+   * Get product IDs attached to the tier
+   *
+   * @return array Array of WC Product Post IDs
+   */
+  public function get_product_ids() {
+    $product_ids = [];
+    $products_data = $this->get_products_data();
+
+    if ( $products_data ) {
+      foreach ( $products_data as $product_data ) {
+        $product_ids[] = $product_data['product_id'];
+      }
+    }
+
+    return $product_ids;
+  }
+
+  /**
    * Get the next tier
    *
    * @return Membership_Tier|bool Membership_Tier object, false otherwise

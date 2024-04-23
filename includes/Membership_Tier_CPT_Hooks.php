@@ -71,12 +71,27 @@ class Membership_Tier_CPT_Hooks {
     $tier_list_page = admin_url( 'edit.php?post_type=' . $this->membership_tier_cpt_slug );
 
     $post_id = isset( $_GET['post_id'] ) ? $_GET['post_id'] : '';
-    $all_tier_product_ids = implode( ',', Membership_Tier::get_all_tier_product_ids() );
+
+    $all_tier_product_ids = Membership_Tier::get_all_tier_product_ids();
+
+    /**
+    * If we are editing a tier,
+    * then we need to exclude the current tier product IDs from the list
+    * because we won't be able to show them in the frontend dropdown
+    */
+    if ( $post_id ) {
+      $tier = new Membership_Tier( $post_id );
+      $tier_product_ids = $tier->get_product_ids();
+
+      $all_tier_product_ids = array_diff( $all_tier_product_ids, $tier_product_ids );
+    }
+
+    $all_tier_product_ids_comma_separated = implode( ',', $all_tier_product_ids );
 
     echo <<<HTML
       <div
         id="create_membership_tier"
-        data-products-in-use="{$all_tier_product_ids}"
+        data-products-in-use="{$all_tier_product_ids_comma_separated}"
         data-tier-cpt-slug="{$this->membership_tier_cpt_slug}"
         data-config-cpt-slug="{$this->membership_config_cpt_slug}"
         data-tier-list-url="{$tier_list_page}"
