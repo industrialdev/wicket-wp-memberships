@@ -61,10 +61,12 @@ class Membership_Tier_CPT_Hooks {
     $tier_list_page = admin_url( 'edit.php?post_type=' . $this->membership_tier_cpt_slug );
 
     $post_id = isset( $_GET['post_id'] ) ? $_GET['post_id'] : '';
+    $all_tier_product_ids = implode( ',', Membership_Tier::get_all_tier_product_ids() );
 
     echo <<<HTML
       <div
         id="create_membership_tier"
+        data-products-in-use="{$all_tier_product_ids}"
         data-tier-cpt-slug="{$this->membership_tier_cpt_slug}"
         data-config-cpt-slug="{$this->membership_config_cpt_slug}"
         data-tier-list-url="{$tier_list_page}"

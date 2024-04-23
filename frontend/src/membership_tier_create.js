@@ -13,7 +13,7 @@ const MarginedFlex = styled(Flex)`
 	margin-top: 15px;
 `;
 
-const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId }) => {
+const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId, productsInUse }) => {
 
 	const [isRangeOfSeatsProductsModalOpen, setRangeOfSeatsProductsModalOpen] = useState(false);
 
@@ -258,7 +258,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId 
 		let queryParams = {};
 
 		// Fetch WooCommerce products
-		queryParams = { status: 'publish', per_page: 100};
+		queryParams = { status: 'publish', per_page: 100, exclude: productsInUse };
 		apiFetch({ path: addQueryArgs(`${API_URL}/product`, queryParams) }).then((products) => {
 			console.log(products);
 

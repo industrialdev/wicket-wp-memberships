@@ -20,6 +20,36 @@ class Membership_Tier {
 	}
 
   /**
+   * Get all tier WC Product IDs
+   *
+   * @return array Array of WC Product Post IDs
+   */
+  public static function get_all_tier_product_ids() {
+    $args = array(
+      'post_type' => Helper::get_membership_tier_cpt_slug(),
+      'posts_per_page' => -1,
+    );
+
+    $tiers = get_posts( $args );
+
+    $product_ids = [];
+
+    foreach ( $tiers as $tier ) {
+      $tier_obj = new Membership_Tier( $tier->ID );
+
+      $products_data = $tier_obj->get_products_data();
+
+      if ( $products_data ) {
+        foreach ( $products_data as $product_data ) {
+          $product_ids[] = $product_data['product_id'];
+        }
+      }
+    }
+
+    return array_unique( $product_ids );
+  }
+
+  /**
    * Get the tier by product ID
    *
    * @param int $product_id
