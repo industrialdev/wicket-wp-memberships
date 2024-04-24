@@ -191,7 +191,7 @@ class Membership_Controller {
     $person_uuid = $user->data->user_login;
     
     $subscriptions = wcs_get_subscriptions( ['order_type' => 'parent', 'order_id' => $order_id] );
-    if( empty( $subscriptions) ) {
+    if( 0 && empty( $subscriptions ) ) {
       //create subscriptions for non-subscription products tied to tiers
       $MSC = new Membership_Subscription_Controller(); 
       $MSC->create_subscriptions( $order, $user ); // create subscriptions
@@ -367,8 +367,13 @@ class Membership_Controller {
    * Create the WP Membership Record
    */
   private function create_local_membership_record( $membership, $wicket_uuid ) {
+    $status = 'active';
+    if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
+      $status = 'delayed';
+    }
+
     $meta = [
-      'status' => 'active',
+      'status' => $status,
       'member_type' => $membership['membership_type'],
       'user_id' => $membership['user_id'],
       'start_date' => $membership['membership_starts_at'],

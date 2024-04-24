@@ -208,6 +208,11 @@ public function get_membership_dates( \WP_REST_Request $request ) {
 					$memberships[$key]['name'] = ($value['attributes']['name_en']) ?? $value['attributes']['name_en'];
 					$memberships[$key]['slug'] = $membership_slug;
 					$memberships[$key]['uuid'] = $membership_uuid;
+					$memberships[$key]['category'] = ($value['attributes']['category']) ?? $value['attributes']['category'];
+					$memberships[$key]['unlimited_assignments'] = ($value['attributes']['unlimited_assignments']) ?? $value['attributes']['unlimited_assignments'];
+					$memberships[$key]['max_assignments'] = ($value['attributes']['max_assignments']) ?? $value['attributes']['max_assignments'];
+					$memberships[$key]['tags'] = ($value['attributes']['tags']) ?? $value['attributes']['tags'];
+
 				}
 			}
 		}
