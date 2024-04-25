@@ -738,12 +738,16 @@ class Membership_Controller {
 
   public static function get_tier_info( $tier_uuids ) {
     $self = new self();
+    $alltiers = get_individual_memberships();
+    $all_tiers = array_reduce($alltiers['data'], function($acc, $item) {
+      $acc[$item['id']] = $item;
+      return $acc;
+    }, []);
     $args = array(
       'post_type' => $self->membership_cpt_slug,
       'post_status' => 'publish',
       'posts_per_page' => -1,
     );
-    //if( ! empty( $tier_uuids )) {
       $args['meta_query'] = array(
         'relation' => 'OR',
     );
@@ -756,8 +760,6 @@ class Membership_Controller {
         );
         $args['meta_query'][] = $tier_arg;
     }
-    //}
-     //echo '<pre>'; echo json_encode( $args );exit;
     $tiers = new \WP_Query( $args );
     foreach( $tiers->posts as $tier ) {
       $tier_meta = get_post_meta( $tier->ID );
@@ -770,10 +772,17 @@ class Membership_Controller {
       $mship_tiers[$tier->meta['membership_tier_uuid']] = $mship_tiers[$tier->meta['membership_tier_uuid']] + 1;
       $mship_tier_array[ $tier->meta['membership_tier_uuid'] ] = [
         'count' => $mship_tiers[ $tier->meta['membership_tier_uuid'] ],
-        'name' => $tier->meta['membership_tier_name'],
+        'name' => $all_tiers[ $tier->meta['membership_tier_uuid'] ]['attributes']['name'],
       ];
     }
-    //echo '<pre>'; var_dump( $tiers->posts);exit;
+
+    foreach( $all_tiers as $key => $tier_item ) {
+      if( ! array_key_exists( $key, $mship_tier_array) && in_array( $key, $tier_uuids))
+      $mship_tier_array[ $key ] = [
+        'count' => 0,
+        'name' => $tier_item['attributes']['name'],
+      ];
+    }
     return ['member_counts' => $mship_tier_array];
   }
 
