@@ -2,6 +2,9 @@
 
 namespace Wicket_Memberships;
 
+use Wicket_Memberships\Membership_Controller;
+use \WP_REST_Response;
+
 /**
  * Rest routes and methods
  */
@@ -20,6 +23,15 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       array(
         'methods'  => \WP_REST_Server::READABLE,
         'callback'  => array( $this, 'get_tiers_mdp' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) 
+    );
+    register_rest_route( $this->namespace, '/membership_tier_info', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_tier_info' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
       'schema' => array( $this, '' ),
@@ -184,39 +196,47 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     return rest_ensure_response( $organizations );
   }
 
-  public function get_tiers_mdp() {
+  public function get_tiers_mdp( \WP_REST_Request $request ) {
+    $params = $request->get_params();
     $categories = wicket_get_option( 'wicket_admin_settings_membership_categories' );
-    $memberships = $this->get_memberships_table_data($categories);
+    $memberships = $this->get_memberships_table_data($categories, $params['filters']);
     return rest_ensure_response( $memberships );
   }
 
+  public function get_tier_info(  \WP_REST_Request $request  ) {
+    $params = $request->get_params();
+    $tier_info = Membership_Controller::get_tier_info( $params['tier_uuid'] );
+    return rest_ensure_response( $tier_info );
+  }
 
-	public function get_memberships_table_data($categories = null)
+	public function get_memberships_table_data($categories = null, $filters = [])
 	{
 		$memberships = [];
 		$individual_memberships = get_individual_memberships();
 		if($individual_memberships && isset($individual_memberships['data'])) {
-
 			foreach ($individual_memberships['data'] as $key => $value) {
-				$has_category = false;
+        if( !empty( $filters['id'] ) && ! in_array( $value['id'], $filters['id'] ) ) {
+          continue;
+        }
+      $has_category = false;
         $membership_uuid = $value['id'];
 				$membership_slug = ($value['attributes']['slug']) ?? $value['attributes']['slug'];
 
 				if(($has_category && $categories) || (!$categories)){
-					$memberships[$key]['status'] = (isset($value['attributes']['active']) && $value['attributes']['active'] == 1) ? 'Active' : 'Inactive';
-					$memberships[$key]['type'] = ($value['attributes']['type']) ?? $value['attributes']['type'];
-					$memberships[$key]['name'] = ($value['attributes']['name_en']) ?? $value['attributes']['name_en'];
-					$memberships[$key]['slug'] = $membership_slug;
-					$memberships[$key]['uuid'] = $membership_uuid;
-					$memberships[$key]['category'] = ($value['attributes']['category']) ?? $value['attributes']['category'];
-					$memberships[$key]['unlimited_assignments'] = ($value['attributes']['unlimited_assignments']) ?? $value['attributes']['unlimited_assignments'];
-					$memberships[$key]['max_assignments'] = ($value['attributes']['max_assignments']) ?? $value['attributes']['max_assignments'];
-					$memberships[$key]['tags'] = ($value['attributes']['tags']) ?? $value['attributes']['tags'];
-
+					$membership['status'] = (isset($value['attributes']['active']) && $value['attributes']['active'] == 1) ? 'Active' : 'Inactive';
+					$membership['type'] = ($value['attributes']['type']) ?? $value['attributes']['type'];
+					$membership['name'] = ($value['attributes']['name_en']) ?? $value['attributes']['name_en'];
+					$membership['slug'] = $membership_slug;
+					$membership['uuid'] = $membership_uuid;
+					$membership['category'] = ($value['attributes']['category']) ?? $value['attributes']['category'];
+					$membership['unlimited_assignments'] = ($value['attributes']['unlimited_assignments']) ?? $value['attributes']['unlimited_assignments'];
+					$membership['max_assignments'] = ($value['attributes']['max_assignments']) ?? $value['attributes']['max_assignments'];
+					$membership['tags'] = ($value['attributes']['tags']) ?? $value['attributes']['tags'];
+          $memberships[] = $membership;
 				}
 			}
 		}
-		return $memberships;
+		return  $memberships;
 	}
 
   /**
