@@ -736,20 +736,63 @@ class Membership_Controller {
     return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => count( $tiers->posts ) ];
   }
 
+  public static function get_tier_info( $tier_uuids ) {
+    $self = new self();
+    $args = array(
+      'post_type' => $self->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+    );
+    //if( ! empty( $tier_uuids )) {
+      $args['meta_query'] = array(
+        'relation' => 'OR',
+    );
+    
+    foreach ($tier_uuids as $tier_uuid) {
+        $tier_arg = array(
+            'key'     => 'membership_tier_uuid',
+            'value'   => $tier_uuid,
+            'compare' => '='
+        );
+        $args['meta_query'][] = $tier_arg;
+    }
+    //}
+     //echo '<pre>'; echo json_encode( $args );exit;
+    $tiers = new \WP_Query( $args );
+    foreach( $tiers->posts as $tier ) {
+      $tier_meta = get_post_meta( $tier->ID );
+      $tier->meta = array_map( function( $item ) {
+          return $item[0];
+      }, $tier_meta);
+    }
+    
+    foreach( $tiers->posts as $tier ) {
+      $mship_tiers[$tier->meta['membership_tier_uuid']] = $mship_tiers[$tier->meta['membership_tier_uuid']] + 1;
+      $mship_tier_array[ $tier->meta['membership_tier_uuid'] ] = [
+        'count' => $mship_tiers[ $tier->meta['membership_tier_uuid'] ],
+        'name' => $tier->meta['membership_tier_name'],
+      ];
+    }
+    //echo '<pre>'; var_dump( $tiers->posts);exit;
+    return ['member_counts' => $mship_tier_array];
+  }
+
   public function get_members_filters( $type ) {
     $args = array(
       'post_type' => $this->membership_cpt_slug,
       'post_status' => 'publish',
       'posts_per_page' => -1,
-      'meta_query'     => array(
-        array(
-          'key'     => 'member_type',
-          'value'   => $type,
-          'compare' => '='
-        )
-      )
     );
-
+    if( $type != 'both' ) {
+      $args['meta_query'] = array(
+          array(
+            'key'     => 'member_type',
+            'value'   => $type,
+            'compare' => '='
+          )
+        );
+    }
+    
     //tiers assigned to membership records as filters
     add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     $args['meta_key'] = 'membership_tier_uuid';

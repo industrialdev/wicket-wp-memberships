@@ -205,7 +205,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
 
   public function get_tier_info(  \WP_REST_Request $request  ) {
     $params = $request->get_params();
-    $tier_info = Membership_Controller::get_tier_info( $params['tier_uuid'] );
+    $tier_info = Membership_Controller::get_tier_info( $params['filter']['tier_uuid'] );
     return rest_ensure_response( $tier_info );
   }
 
