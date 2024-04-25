@@ -4,11 +4,12 @@ import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled, __experimentalHeading as Heading, Icon } from '@wordpress/components';
-import { API_URL } from './constants';
+import { API_URL } from '../constants';
 import he from 'he';
-import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled } from './styled_elements';
+import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled } from '../styled_elements';
+import MembershipConfigTiers from './tiers';
 
-const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
+const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierCptSlug, postId, tierMdpUuids }) => {
 
 	const [currentSeasonIndex, setCurrentSeasonIndex] = useState(null);
 
@@ -735,6 +736,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 							)}
 						</BorderedBox>
 
+						{/* Membership Config Tiers */}
+						{ tierMdpUuids.length > 0 && <MembershipConfigTiers configPostId={postId} tierCptSlug={tierCptSlug} tierMdpUuids={tierMdpUuids} />}
+
 						{/* Submit row */}
 						<ActionRow>
 							<Flex
@@ -978,7 +982,6 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 									} />
 								</FlexBlock>
 							</FormFlex>
-
 							<ActionRow>
 								<Flex
 									align='end'
@@ -1015,7 +1018,6 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, postId }) => {
 										</Button>
 									</FlexItem>
 								</Flex>
-
 							</ActionRow>
 						</form>
 					</Modal>

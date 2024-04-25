@@ -13,9 +13,11 @@ class Membership_Config_CPT_Hooks {
 
   const EDIT_PAGE_SLUG = 'wicket_membership_config_edit';
   private $membership_config_cpt_slug = '';
+  private $membership_tier_cpt_slug = '';
 
   public function __construct() {
     $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
+    $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
 
 	  add_action( 'admin_menu', [ $this, 'add_edit_page' ] );
     add_action( 'admin_init', [ $this, 'create_edit_page_redirects' ] );
@@ -39,12 +41,21 @@ class Membership_Config_CPT_Hooks {
     $config_list_page = admin_url( 'edit.php?post_type=' . $this->membership_config_cpt_slug );
 
     $post_id = isset( $_GET['post_id'] ) ? $_GET['post_id'] : '';
+    $tier_uuids = [];
+
+    if ( $post_id ) {
+      $tier_uuids = Membership_Tier::get_tier_uuids_by_config_id( $post_id );
+    }
+
+    $tier_uuids_comma_separated = implode( ',', $tier_uuids );
 
     echo <<<HTML
       <div
         id="create_membership_config"
         data-config-cpt-slug="{$this->membership_config_cpt_slug}"
+        data-tier-cpt-slug="{$this->membership_tier_cpt_slug}"
         data-config-list-url="{$config_list_page}"
+        data-tier-mdp-uuids="{$tier_uuids_comma_separated}"
         data-post-id="{$post_id}"></div>
     HTML;
   }
