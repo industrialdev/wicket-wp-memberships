@@ -252,6 +252,19 @@ class Membership_Config {
     return $end_date;
   }
 
+  public function is_valid_renewal_date( $membership, $date = null ) {
+    if( $date ) {
+      $current_timestamp = strtotime( $date );
+    } else {
+      $current_timestamp = current_time( 'timestamp' );
+    }
+    $dates = $this->get_membership_dates( $membership );
+
+    if( ( $current_timestamp <= strtotime( $dates['early_renew_at'] ) ) || ( $current_timestamp >= strtotime( $dates['expires_at'] ) ) ) {
+      return $dates['early_renew_at'] ;
+    }
+  }
+
   /**
    * Determine the STart And ENd Date based on config settings
    * If this is a renewal we need to consider early renewal still in previous membership date period

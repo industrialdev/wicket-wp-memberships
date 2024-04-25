@@ -91,6 +91,31 @@ class Membership_Controller {
   // Membership_Controller methods start here
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  public static function validate_renewal_order_items( $item, $cart_item_key, $values, $order ) {
+    $self = new self();
+    $membership_tier = Membership_Tier::get_tier_by_product_id( $item->get_product_id() );
+    $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
+
+    // do we have a current membership post_id from cart for renewal
+    $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true);
+    if( empty( $membership_post_id_renew ) ) {
+      //check if the order is renewing an active membership into the same tier
+      $self_renew = $self->get_my_memberships( 'active', $membership_tier->tier_data['mdp_tier_uuid'] );
+      if( !empty( $self_renew ) ) {
+        $membership_post_id_renew = $self_renew[0]->ID;
+      }
+    }
+    //if we have a current membership_post ID now  get the current membership data
+    if( !empty( $membership_post_id_renew ) ) {
+      $membership_current = $self->get_membership_array_from_post_id( $membership_post_id_renew );
+    }
+    if( !empty( $membership_current ) && $early_renewal_date = $config->is_valid_renewal_date( $membership_current ) ) {
+      $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date)));
+      $_SESSION['wicket_membership_error'] = $error_text;
+      throw new \Exception( $error_text );
+    }
+  }
+
   /**
    * Get memberships with config from tier by products on the order
    */
@@ -191,7 +216,7 @@ class Membership_Controller {
     $person_uuid = $user->data->user_login;
     
     $subscriptions = wcs_get_subscriptions( ['order_type' => 'parent', 'order_id' => $order_id] );
-    if( empty( $subscriptions) ) {
+    if( 0 && empty( $subscriptions ) ) {
       //create subscriptions for non-subscription products tied to tiers
       $MSC = new Membership_Subscription_Controller(); 
       $MSC->create_subscriptions( $order, $user ); // create subscriptions
@@ -367,8 +392,13 @@ class Membership_Controller {
    * Create the WP Membership Record
    */
   private function create_local_membership_record( $membership, $wicket_uuid ) {
+    $status = 'active';
+    if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
+      $status = 'delayed';
+    }
+
     $meta = [
-      'status' => 'active',
+      'status' => $status,
       'member_type' => $membership['membership_type'],
       'user_id' => $membership['user_id'],
       'start_date' => $membership['membership_starts_at'],
@@ -496,6 +526,54 @@ class Membership_Controller {
     $error_message = '<p><strong>' . __( 'WICKET MDP MEMBERSHIP PROCESSING ERROR', 'wicket-memberships' ). '</strong></p>';
     $error_message .= '<p>'.$this->error_message.'</p>';
       echo "<div class=\"notice notice-error is-dismissible\"> <p>$error_message</p></div>"; 
+  }
+
+  /**
+   * Get membership record(s)
+   *
+   * @param string $flag membership state or all
+   * @param string $tier_uuid 
+   * @param integer|null $user_id
+   * @return array
+   */
+  public function get_my_memberships( $flag = 'all', $tier_uuid = '', $user_id = null ) {
+    if( empty( $user_id ) ) {
+      $user_id = get_current_user_id();
+    }
+
+    if( $flag == 'all' ) {
+      $status = [ 'active', 'expired', 'delayed' ];
+    } else {
+      $status[] = $flag;
+    }
+
+    $args = array(
+      'post_type' => $this->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query'     => array(
+        array(
+          'key'     => 'user_id',
+          'value'   => $user_id,
+          'compare' => '='
+        ),
+        array(
+          'key'     => 'status',
+          'value'   => $status,
+          'compare' => 'IN'
+        ),
+      )
+    );
+
+    if( ! empty( $tier_uuid )) {
+      $args['meta_query'][] = [
+        'key'     => 'membership_tier_uuid',
+        'value'   => $tier_uuid,
+        'compare' => '='
+      ];
+    }
+    $memberships = get_posts( $args );
+    return $memberships;
   }
 
   /**
@@ -658,20 +736,63 @@ class Membership_Controller {
     return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => count( $tiers->posts ) ];
   }
 
+  public static function get_tier_info( $tier_uuids ) {
+    $self = new self();
+    $args = array(
+      'post_type' => $self->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+    );
+    //if( ! empty( $tier_uuids )) {
+      $args['meta_query'] = array(
+        'relation' => 'OR',
+    );
+    
+    foreach ($tier_uuids as $tier_uuid) {
+        $tier_arg = array(
+            'key'     => 'membership_tier_uuid',
+            'value'   => $tier_uuid,
+            'compare' => '='
+        );
+        $args['meta_query'][] = $tier_arg;
+    }
+    //}
+     //echo '<pre>'; echo json_encode( $args );exit;
+    $tiers = new \WP_Query( $args );
+    foreach( $tiers->posts as $tier ) {
+      $tier_meta = get_post_meta( $tier->ID );
+      $tier->meta = array_map( function( $item ) {
+          return $item[0];
+      }, $tier_meta);
+    }
+    
+    foreach( $tiers->posts as $tier ) {
+      $mship_tiers[$tier->meta['membership_tier_uuid']] = $mship_tiers[$tier->meta['membership_tier_uuid']] + 1;
+      $mship_tier_array[ $tier->meta['membership_tier_uuid'] ] = [
+        'count' => $mship_tiers[ $tier->meta['membership_tier_uuid'] ],
+        'name' => $tier->meta['membership_tier_name'],
+      ];
+    }
+    //echo '<pre>'; var_dump( $tiers->posts);exit;
+    return ['member_counts' => $mship_tier_array];
+  }
+
   public function get_members_filters( $type ) {
     $args = array(
       'post_type' => $this->membership_cpt_slug,
       'post_status' => 'publish',
       'posts_per_page' => -1,
-      'meta_query'     => array(
-        array(
-          'key'     => 'member_type',
-          'value'   => $type,
-          'compare' => '='
-        )
-      )
     );
-
+    if( $type != 'both' ) {
+      $args['meta_query'] = array(
+          array(
+            'key'     => 'member_type',
+            'value'   => $type,
+            'compare' => '='
+          )
+        );
+    }
+    
     //tiers assigned to membership records as filters
     add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     $args['meta_key'] = 'membership_tier_uuid';
