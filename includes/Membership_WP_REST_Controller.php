@@ -37,6 +37,15 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) 
     );
+    register_rest_route( $this->namespace, '/membership_org_info', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_org_info' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) 
+    );
     register_rest_route( $this->namespace, '/membership_orgs', array(
       array(
         'methods'  => \WP_REST_Server::READABLE,
@@ -194,6 +203,12 @@ public function get_membership_dates( \WP_REST_Request $request ) {
   public function get_orgs_mdp() {
     $organizations = wicket_get_organizations();
     return rest_ensure_response( $organizations );
+  }
+
+  public function get_org_info(  \WP_REST_Request $request  ) {
+    $params = $request->get_params();
+    $org_info = Membership_Controller::get_org_info( $params['filter']['org_uuid'], $params['properties'] );
+    return rest_ensure_response( $org_info );
   }
 
   public function get_tiers_mdp( \WP_REST_Request $request ) {

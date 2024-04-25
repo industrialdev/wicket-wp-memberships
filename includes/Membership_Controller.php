@@ -747,6 +747,9 @@ class Membership_Controller {
       $acc[$item['id']] = $item;
       return $acc;
     }, []);
+    if(! is_array( $tier_uuids ) ) {
+      $tier_uuids = array_keys($all_tiers);
+    }
     if( in_array( 'count', $properties ) ) {
       $args = array(
         'post_type' => $self->membership_cpt_slug,
@@ -789,7 +792,66 @@ class Membership_Controller {
         }
       }
     }
-    return ['member_counts' => $mship_tier_array];
+    return ['tier_data' => $mship_tier_array];
+  }
+
+
+  public static function get_org_info( $org_uuids, $properties = [] ) {
+    $self = new self();
+    $mship_org_array = [];
+    if(! is_array( $properties ) ) {
+      $properties = [];
+    }
+    $allorgs = wicket_get_organizations();
+    $all_orgs = array_reduce($allorgs['data'], function($acc, $item) {
+      $acc[$item['id']] = $item;
+      return $acc;
+    }, []);
+    if(! is_array( $org_uuids ) ) {
+      $org_uuids = array_keys($all_orgs);
+    }
+    if( in_array( 'count', $properties ) ) {
+      $args = array(
+        'post_type' => $self->membership_cpt_slug,
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+      );
+        $args['meta_query'] = array(
+          'relation' => 'OR',
+      );
+      
+      foreach ($org_uuids as $org_uuid) {
+          $org_arg = array(
+              'key'     => 'org_uuid',
+              'value'   => $org_uuid,
+              'compare' => '='
+          );
+          $args['meta_query'][] = $org_arg;
+      }
+      $orgs = new \WP_Query( $args );
+      foreach( $orgs->posts as $org ) {
+        $org_meta = get_post_meta( $org->ID );
+        $org->meta = array_map( function( $item ) {
+            return $item[0];
+        }, $org_meta);
+      }  
+    }
+    foreach( $orgs->posts as $org ) {
+      $mship_org_array[ $org->meta['org_uuid'] ]['name']  = $all_orgs[ $org->meta['org_uuid'] ]['attributes']['alternate_name'];
+      if( in_array( 'count', $properties ) ) {
+        $mship_orgs[$org->meta['org_uuid']] = $mship_orgs[$org->meta['org_uuid']] + 1;
+        $mship_org_array[ $org->meta['org_uuid'] ]['count'] = $mship_orgs[ $org->meta['org_uuid']];
+      }
+    }
+    foreach( $all_orgs as $key => $org_item ) {
+      if( ! array_key_exists( $key, $mship_org_array ) && in_array( $key, $org_uuids )) {
+        $mship_org_array[ $key ]['name'] = $org_item['attributes']['alternate_name'];
+        if( in_array( 'count', $properties ) ) {
+          $mship_org_array[ $key ]['count'] = 0;
+        }
+      }
+    }
+    return ['org_data' => $mship_org_array];
   }
 
   public function get_members_filters( $type ) {
