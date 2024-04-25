@@ -736,44 +736,59 @@ class Membership_Controller {
     return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => count( $tiers->posts ) ];
   }
 
-  public static function get_tier_info( $tier_uuids ) {
+  public static function get_tier_info( $tier_uuids, $properties = [] ) {
     $self = new self();
-    $args = array(
-      'post_type' => $self->membership_cpt_slug,
-      'post_status' => 'publish',
-      'posts_per_page' => -1,
-    );
-    //if( ! empty( $tier_uuids )) {
-      $args['meta_query'] = array(
-        'relation' => 'OR',
-    );
-    
-    foreach ($tier_uuids as $tier_uuid) {
-        $tier_arg = array(
-            'key'     => 'membership_tier_uuid',
-            'value'   => $tier_uuid,
-            'compare' => '='
-        );
-        $args['meta_query'][] = $tier_arg;
+    $mship_tier_array = [];
+    if(! is_array( $properties ) ) {
+      $properties = [];
     }
-    //}
-     //echo '<pre>'; echo json_encode( $args );exit;
-    $tiers = new \WP_Query( $args );
+    $alltiers = get_individual_memberships();
+    $all_tiers = array_reduce($alltiers['data'], function($acc, $item) {
+      $acc[$item['id']] = $item;
+      return $acc;
+    }, []);
+    if( in_array( 'count', $properties ) ) {
+      $args = array(
+        'post_type' => $self->membership_cpt_slug,
+        'post_status' => 'publish',
+        'posts_per_page' => -1,
+      );
+        $args['meta_query'] = array(
+          'relation' => 'OR',
+      );
+      
+      foreach ($tier_uuids as $tier_uuid) {
+          $tier_arg = array(
+              'key'     => 'membership_tier_uuid',
+              'value'   => $tier_uuid,
+              'compare' => '='
+          );
+          $args['meta_query'][] = $tier_arg;
+      }
+      $tiers = new \WP_Query( $args );
+      foreach( $tiers->posts as $tier ) {
+        $tier_meta = get_post_meta( $tier->ID );
+        $tier->meta = array_map( function( $item ) {
+            return $item[0];
+        }, $tier_meta);
+      }  
+    }    
     foreach( $tiers->posts as $tier ) {
-      $tier_meta = get_post_meta( $tier->ID );
-      $tier->meta = array_map( function( $item ) {
-          return $item[0];
-      }, $tier_meta);
+      $mship_tier_array[ $tier->meta['membership_tier_uuid'] ]['name']  = $all_tiers[ $tier->meta['membership_tier_uuid'] ]['attributes']['name'];
+      if( in_array( 'count', $properties ) ) {
+        $mship_tiers[$tier->meta['membership_tier_uuid']] = $mship_tiers[$tier->meta['membership_tier_uuid']] + 1;
+        $mship_tier_array[ $tier->meta['membership_tier_uuid'] ]['count'] = $mship_tiers[ $tier->meta['membership_tier_uuid']];
+      }
     }
-    
-    foreach( $tiers->posts as $tier ) {
-      $mship_tiers[$tier->meta['membership_tier_uuid']] = $mship_tiers[$tier->meta['membership_tier_uuid']] + 1;
-      $mship_tier_array[ $tier->meta['membership_tier_uuid'] ] = [
-        'count' => $mship_tiers[ $tier->meta['membership_tier_uuid'] ],
-        'name' => $tier->meta['membership_tier_name'],
-      ];
+
+    foreach( $all_tiers as $key => $tier_item ) {
+      if( ! array_key_exists( $key, $mship_tier_array ) && in_array( $key, $tier_uuids )) {
+        $mship_tier_array[ $key ]['name'] = $tier_item['attributes']['name'];
+        if( in_array( 'count', $properties ) ) {
+          $mship_tier_array[ $key ]['count'] = 0;
+        }
+      }
     }
-    //echo '<pre>'; var_dump( $tiers->posts);exit;
     return ['member_counts' => $mship_tier_array];
   }
 
