@@ -83,11 +83,11 @@ const MembershipConfigTiers = ({ configPostId, tierCptSlug, tierMdpUuids }) => {
   const getTierInfo = (tierId) => {
     if ( tiersInfo === null ) { return null }
 
-    if ( ! tiersInfo.hasOwnProperty('member_counts') || ! tiersInfo.member_counts.hasOwnProperty(tierId) ) {
+    if ( ! tiersInfo.hasOwnProperty('tier_data') || ! tiersInfo.tier_data.hasOwnProperty(tierId) ) {
       return null;
     }
 
-    return tiersInfo.member_counts[tierId];
+    return tiersInfo.tier_data[tierId];
   };
 
 	return (
