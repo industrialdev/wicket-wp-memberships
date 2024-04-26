@@ -13330,7 +13330,7 @@ const CreateMembershipTier = ({
           // orgranization, individual
           grace_period_days: 0,
           // TODO: Update when grace period is added to MDP
-          category: '' // TODO: Update here
+          category: tier.category === null ? '' : tier.category
         };
       }));
     });
