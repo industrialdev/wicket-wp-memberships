@@ -24,6 +24,16 @@ class Membership_Config_CPT_Hooks {
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
     add_action('manage_'.$this->membership_config_cpt_slug.'_posts_columns', [ $this, 'table_head'] );
     add_action('manage_'.$this->membership_config_cpt_slug.'_posts_custom_column', [ $this, 'table_content'], 10, 2 );
+
+    // Skip trash for membership tiers
+    add_action('trashed_post', [ $this, 'directory_skip_trash' ]);
+  }
+
+  function directory_skip_trash($post_id) {
+    if (get_post_type($post_id) === $this->membership_config_cpt_slug) {
+      // Force delete
+      wp_delete_post( $post_id, true );
+    }
   }
 
   function add_edit_page() {
