@@ -3,7 +3,7 @@ module.exports = {
 	...defaultConfig,
 	entry: {
 		...defaultConfig.entry(),
-		membership_config_create: './src/membership_config_create.js',
+		membership_config_create: './src/membership_config/index.js',
 		membership_tier_create: './src/membership_tier_create.js',
 	},
 };

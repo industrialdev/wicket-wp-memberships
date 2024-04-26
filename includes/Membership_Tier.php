@@ -83,6 +83,63 @@ class Membership_Tier {
     return false;
   }
 
+  // Get the Tier UUIDs by config ID
+  public static function get_tier_uuids_by_config_id( $config_id ) {
+    $args = array(
+      'post_type' => Helper::get_membership_tier_cpt_slug(),
+      'posts_per_page' => -1,
+      'meta_query' => array(
+        array(
+          'key' => 'tier_data',
+          'value' => ':"config_id";i:' . $config_id . ';',
+          'compare' => 'LIKE'
+        )
+      )
+    );
+
+    $tiers = get_posts( $args );
+
+    $tier_uuids = [];
+
+    foreach ( $tiers as $tier ) {
+      $tier_obj = new Membership_Tier( $tier->ID );
+      $tier_uuids[] = $tier_obj->get_mdp_tier_uuid();
+    }
+
+    return $tier_uuids;
+  }
+
+  /**
+   * Get the Tier IDs by config ID
+   *
+   * @param int $config_id
+   *
+   * @return array Array of tier post IDs
+   */
+  public static function get_tier_ids_by_config_id( $config_id ) {
+    $args = array(
+      'post_type' => Helper::get_membership_tier_cpt_slug(),
+      'posts_per_page' => -1,
+      'meta_query' => array(
+        array(
+          'key' => 'tier_data',
+          'value' => ':"config_id";i:' . $config_id . ';',
+          'compare' => 'LIKE'
+        )
+      )
+    );
+
+    $tiers = get_posts( $args );
+
+    $tier_ids = [];
+
+    foreach ( $tiers as $tier ) {
+      $tier_ids[] = $tier->ID;
+    }
+
+    return $tier_ids;
+  }
+
   /**
    * Get the MDP tier name
    *

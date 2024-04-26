@@ -2307,6 +2307,170 @@ const MDP_API_URL = '/wicket_member/v1';
 
 /***/ }),
 
+/***/ "./src/membership_config/tiers.js":
+/*!****************************************!*\
+  !*** ./src/membership_config/tiers.js ***!
+  \****************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/api-fetch */ "@wordpress/api-fetch");
+/* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @wordpress/url */ "@wordpress/url");
+/* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_url__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__);
+/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../constants */ "./src/constants.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../styled_elements */ "./src/styled_elements.js");
+
+
+
+
+
+
+
+
+const MembershipConfigTiers = ({
+  configPostId,
+  tierCptSlug,
+  tierMdpUuids
+}) => {
+  if (!configPostId) {
+    return null;
+  }
+  console.log('tierMdpUuids:');
+  console.log(tierMdpUuids);
+  const [mdpTiers, setMdpTiers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
+  const [tiersInfo, setTiersInfo] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [isLoading, setIsLoading] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(true);
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    // tierMdpUuids to array
+    const tierIdsArray = tierMdpUuids.split(',');
+    console.log(tierIdsArray);
+    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_2___default()({
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_3__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_5__.MDP_API_URL}/membership_tiers`, {
+        filter: {
+          id: tierIdsArray
+        }
+      })
+    }).then(tiers => {
+      console.log('Tiers.js');
+      console.log(tiers);
+
+      // TODO: Remove this when the API is updated to return the certain tiers
+      tiers = tiers.filter(tier => {
+        return tierMdpUuids.includes(tier.uuid);
+      });
+      tiers = tiers.map(tier => {
+        return {
+          uuid: tier.uuid,
+          name: tier.name,
+          active: tier.status === 'Active' ? true : false,
+          type: tier.type,
+          // orgranization, individual
+          grace_period_days: 0,
+          // TODO: Update when grace period is added to MDP
+          category: tier.category === null ? '' : tier.category
+        };
+      });
+      setMdpTiers(tiers);
+      setIsLoading(false);
+      fetchTiersInfo();
+    }).catch(error => {
+      console.log('Tiers Error:');
+      console.log(error);
+      setIsLoading(false);
+    });
+  }, []);
+  const fetchTiersInfo = () => {
+    if (tierMdpUuids.length === 0) {
+      return;
+    }
+
+    // tierMdpUuids to array
+    const tierIdsArray = tierMdpUuids.split(',');
+    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_2___default()({
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_3__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_5__.MDP_API_URL}/membership_tier_info`, {
+        filter: {
+          tier_uuid: tierIdsArray
+        },
+        'properties[]': 'count'
+      })
+    }).then(tiersInfo => {
+      setTiersInfo(tiersInfo);
+    }).catch(error => {
+      console.log('Tiers Info Error:');
+      console.log(error);
+    });
+  };
+  const getTierInfo = tierId => {
+    if (tiersInfo === null) {
+      return null;
+    }
+    if (!tiersInfo.hasOwnProperty('member_counts') || !tiersInfo.member_counts.hasOwnProperty(tierId)) {
+      return null;
+    }
+    return tiersInfo.member_counts[tierId];
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Flex, {
+    justify: "start",
+    gap: 2,
+    direction: ['column', 'row']
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.__experimentalHeading, {
+    level: "4",
+    weight: "300"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Connected Membership Tiers', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Button, {
+    variant: "link"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View All', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
+    className: "widefat",
+    cellSpacing: "0"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership Tier', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Status', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Type', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Category', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('# Members', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, isLoading && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
+    className: "alternate"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname",
+    colSpan: 5
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Spinner, null))), mdpTiers.map((mdpTier, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
+    key: index,
+    className: index % 2 === 0 ? 'alternate' : ''
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, mdpTier.name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, mdpTier.active ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Active') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Inactive')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, mdpTier.type), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, mdpTier.category.length > 0 ? mdpTier.category : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('N/A', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, tiersInfo === null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Spinner, null), getTierInfo(mdpTier.uuid) !== null && getTierInfo(mdpTier.uuid).count)))))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipConfigTiers);
+
+/***/ }),
+
 /***/ "./src/styled_elements.js":
 /*!********************************!*\
   !*** ./src/styled_elements.js ***!
@@ -13018,9 +13182,9 @@ var __webpack_exports__ = {};
 // This entry need to be wrapped in an IIFE because it need to be in strict mode.
 (() => {
 "use strict";
-/*!*****************************************!*\
-  !*** ./src/membership_config_create.js ***!
-  \*****************************************/
+/*!****************************************!*\
+  !*** ./src/membership_config/index.js ***!
+  \****************************************/
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
@@ -13033,10 +13197,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_url__WEBPACK_IMPORTED_MODULE_4__);
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__);
-/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./constants */ "./src/constants.js");
+/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../constants */ "./src/constants.js");
 /* harmony import */ var he__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! he */ "./node_modules/he/he.js");
 /* harmony import */ var he__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(he__WEBPACK_IMPORTED_MODULE_7__);
-/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./styled_elements */ "./src/styled_elements.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../styled_elements */ "./src/styled_elements.js");
+/* harmony import */ var _tiers__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./tiers */ "./src/membership_config/tiers.js");
+
 
 
 
@@ -13050,7 +13216,9 @@ __webpack_require__.r(__webpack_exports__);
 const CreateMembershipConfig = ({
   configCptSlug,
   configListUrl,
-  postId
+  tierCptSlug,
+  postId,
+  tierMdpUuids
 }) => {
   const [currentSeasonIndex, setCurrentSeasonIndex] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [tempSeason, setTempSeason] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
@@ -13612,7 +13780,11 @@ const CreateMembershipConfig = ({
     onClick: () => initSeasonModal(index)
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     className: "dashicons dashicons-edit"
-  })))))))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+  })))))))))), tierMdpUuids.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_tiers__WEBPACK_IMPORTED_MODULE_9__["default"], {
+    configPostId: postId,
+    tierCptSlug: tierCptSlug,
+    tierMdpUuids: tierMdpUuids
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "end",
     justify: "end",
     gap: 5,

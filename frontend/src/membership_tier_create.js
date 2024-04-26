@@ -313,7 +313,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 						active: tier.status === 'Active' ? true : false,
 						type: tier.type, // orgranization, individual
 						grace_period_days: 0, // TODO: Update when grace period is added to MDP
-						category: '', // TODO: Update here
+						category: tier.category === null ? '' : tier.category,
 					}
 				})
 			);
