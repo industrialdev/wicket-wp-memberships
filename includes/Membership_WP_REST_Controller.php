@@ -103,7 +103,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
           ),
           'status' => array(
             'type' => 'string',
-            'description' => 'membership status: active | expired',
+            'description' => 'membership status',
           ),  
           'order_col' => array(
             'type' => 'string',

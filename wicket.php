@@ -66,6 +66,13 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 	 */
 	class Wicket_Memberships {
 
+    const STATUS_PENDING    = 'pending';
+    const STATUS_GRACE      = 'grace_period';
+    const STATUS_ACTIVE     = 'active';
+    const STATUS_DELAYED    = 'delayed';
+    const STATUS_EXPIRED    = 'expired';
+    const STATUS_CANCELLED  = 'cancelled';
+
     public function __construct() {
 			// Load the main plugin classes
  			new Admin_Controller;

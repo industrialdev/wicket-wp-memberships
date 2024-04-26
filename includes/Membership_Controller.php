@@ -91,6 +91,42 @@ class Membership_Controller {
   // Membership_Controller methods start here
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
 
+  /**
+   * Change the status on a membership record
+   *
+   * @param integer $id
+   * @param string $status
+   * @return integer
+   */
+  public function update_membership_status( $id, $status ) {
+    if( is_numeric( $id )) {
+      $post_id = $id;
+    } else {
+      $wicket_uuid = $id;
+      $query = new \WP_Query( 
+        array(
+        'posts_per_page'   => 1,
+        'post_type'        => $this->membership_cpt_slug,
+        'meta_key'         => 'wicket_uuid',
+        'meta_value'       => $wicket_uuid
+    ) );
+      $post_id = $query->posts[0]->ID;
+    }
+    
+    $meta['membership_status'] = $status;
+
+    $response = wp_update_post([
+      'ID' => $post_id,
+      'post_type' => $this->membership_cpt_slug,
+      'meta_input'  => $meta
+    ]);
+
+    return $response;
+  }
+
+  /**
+   * Check if the renewal order date for this item is within the renewal period
+   */
   public static function validate_renewal_order_items( $item, $cart_item_key, $values, $order ) {
     $self = new self();
     $membership_tier = Membership_Tier::get_tier_by_product_id( $item->get_product_id() );
@@ -392,13 +428,13 @@ class Membership_Controller {
    * Create the WP Membership Record
    */
   private function create_local_membership_record( $membership, $wicket_uuid ) {
-    $status = 'active';
+    $status = Wicket_Memberships::STATUS_ACTIVE;
     if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
-      $status = 'delayed';
+      $status = Wicket_Memberships::STATUS_DELAYED;
     }
 
     $meta = [
-      'status' => $status,
+      'membership_status' => $status,
       'member_type' => $membership['membership_type'],
       'user_id' => $membership['user_id'],
       'start_date' => $membership['membership_starts_at'],
@@ -456,7 +492,7 @@ class Membership_Controller {
         'ID' => $previous_membership_post_id,
         'post_type' => $this->membership_cpt_slug,
         'meta_input'  => [
-          'status' => 'expired',
+          'membership_status' => Wicket_Memberships::STATUS_EXPIRED,
         ]
       ]);  
     }
@@ -542,7 +578,11 @@ class Membership_Controller {
     }
 
     if( $flag == 'all' ) {
-      $status = [ 'active', 'expired', 'delayed' ];
+      $status = [ 
+        Wicket_Memberships::STATUS_ACTIVE, 
+        Wicket_Memberships::STATUS_EXPIRED, 
+        Wicket_Memberships::STATUS_DELAYED
+      ];
     } else {
       $status[] = $flag;
     }
@@ -558,7 +598,7 @@ class Membership_Controller {
           'compare' => '='
         ),
         array(
-          'key'     => 'status',
+          'key'     => 'membership_status',
           'value'   => $status,
           'compare' => 'IN'
         ),
@@ -599,8 +639,8 @@ class Membership_Controller {
           'compare' => '='
         ),
         array(
-          'key'     => 'status',
-          'value'   => 'active',
+          'key'     => 'membership_status',
+          'value'   => Wicket_Memberships::STATUS_ACTIVE,
           'compare' => '='
         ),
       )
@@ -662,7 +702,7 @@ class Membership_Controller {
       $posts_per_page = 25;
     }
     if( ! $status = sanitize_text_field( $status )) {
-      $status = "active";
+      $status = Wicket_Memberships::STATUS_ACTIVE;
     }
 
     $args = array(
@@ -705,7 +745,7 @@ class Membership_Controller {
 
     if( ! empty( $filter ) ) {
       foreach($filter as $key => $val) {
-        if( in_array( $key,  ['location', 'status', 'tier'] )) {
+        if( in_array( $key,  ['membership_status', 'membership_tier_uuid'] )) {
           $args['meta_query'][] = array(
             'key'     => $key,
             'value'   => $val,
@@ -884,11 +924,11 @@ class Membership_Controller {
 
     //status assigned to membership records as filters
     add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
-    $args['meta_key'] = 'status';
+    $args['meta_key'] = 'membership_status';
     $tiers = new \WP_Query( $args );
     remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     foreach ($tiers->posts as $tier) {
-      $filters['status'][] = [
+      $filters['membership_status'][] = [
         'name' => $tier->status,
         'value' => ucfirst( $tier->status )
       ];
