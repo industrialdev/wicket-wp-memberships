@@ -220,18 +220,50 @@ class Membership_Controller {
       return $memberships;
   }
 
-  private function get_membership_array_from_post_id( $membership_post_id ) {
-    //get the membership array from the current membership post id
+  /**
+   * Get the membership json data on order using membership post_id
+   *
+   * @param integer $membership_post_id
+   * @return array
+   */
+  public static function get_membership_array_from_post_id( $membership_post_id ) {
+    $self = new self();
     $mship_order_id = get_post_meta( $membership_post_id, 'membership_order_id', true );
     $mship_product_id = get_post_meta( $membership_post_id, 'membership_product_id', true );
-    $membership_current = $this->get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id ); 
+    if( empty( $mship_order_id ) || empty( $mship_product_id ) ) {
+      return [];
+    }
+    $membership_current = $self->get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id ); 
     return $membership_current; 
   }
 
-  private function get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id ) {
-    //get the membership_json from the order and product ids
+    /**
+   * Get the membership json data on order using order post_id and subscription post_id
+   *
+   * @param integer $mship_order_id
+   * @param integer $mship_product_id
+   * @return array
+   */
+  public static function get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id ) {
     $membership_current = get_post_meta( $mship_order_id, '_wicket_membership_'.$mship_product_id, true ); 
+    if( empty( $membership_current ) ) {
+      return [];
+    }
     return json_decode( $membership_current, true ); 
+  }
+
+  /**
+   * Update the membership json data stored on order and subscription
+   *
+   * @param integer $membership_post_id
+   * @param array $meta_array
+   * @return void
+   */
+  public function amend_membership_order_json( $membership_post_id, $meta_array ) {
+    $membership_array = $this->get_membership_array_from_post_id( $membership_post_id );
+    $updated_membership_array = array_merge($membership_array, $meta_array);
+    update_post_meta( $membership_array['membership_parent_order_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+    update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
   }
 
   /**
@@ -298,19 +330,19 @@ class Membership_Controller {
         if( current_time( 'timestamp' ) >= $start_date ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
         } else {
-          as_schedule_single_action( $start_date, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'] ], 'wicket-membership-plugin', true );
+          as_schedule_single_action( $start_date, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ], 'wicket-membership-plugin', true );
         }
       }
     } else {
-      wp_schedule_single_event( $early_renew_date, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin');
-      wp_schedule_single_event( $end_date, 'add_membership_ends_at', $args, 'wicket-membership-plugin' );
-      wp_schedule_single_event( $expiry_date, 'add_membership_expires_at', $args, 'wicket-membership-plugin' );
+      wp_schedule_single_event( $early_renew_date, 'add_membership_early_renew_at', $args );
+      wp_schedule_single_event( $end_date, 'add_membership_ends_at', $args );
+      wp_schedule_single_event( $expiry_date, 'add_membership_expires_at', $args );
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
         if( current_time( 'timestamp' ) >= $start_date ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
         } else {
-          wp_schedule_single_event( $start_date, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'] ], 'wicket-membership-plugin' );
+          wp_schedule_single_event( $start_date, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ] );
         }
       }
     }
@@ -318,17 +350,29 @@ class Membership_Controller {
 
   function catch_membership_early_renew_at( $membership_order_id, $membership_product_id ) {
     $membership = $this->get_membership_array_from_order_and_product_id( $membership_order_id, $membership_product_id );
-    do_action( 'membership_early_renew_at_date_reached', $membership );
+    $this->membership_early_renew_at_date_reached( $membership );
   }
 
   function catch_membership_ends_at( $membership_order_id, $membership_product_id ) {
     $membership = $this->get_membership_array_from_order_and_product_id( $membership_order_id, $membership_product_id );
-    do_action( 'membership_ends_at_date_reached', $membership );
+    $this->membership_ends_at_date_reached( $membership );
   }
 
   function catch_membership_expires_at( $membership_order_id, $membership_product_id ) {
     $membership = $this->get_membership_array_from_order_and_product_id( $membership_order_id, $membership_product_id );
-    do_action( 'membership_expires_at_date_reached', $membership );
+    $this->membership_expires_at_date_reached( $membership );
+  }
+
+  public function membership_early_renew_at_date_reached( $membership ) {
+
+  }
+
+  public function membership_ends_at_date_reached( $membership ) {
+
+  }
+
+  public function membership_expires_at_date_reached( $membership ) {
+
   }
 
   /**
@@ -424,12 +468,23 @@ class Membership_Controller {
     return $wicket_uuid;
   }
 
+  public function update_local_membership_record( $membership_post_id, $meta_data ) {
+    return wp_update_post([
+      'ID' => $membership_post_id,
+      'post_type' => $this->membership_cpt_slug,
+      'post_status' => 'publish',
+      'meta_input'  => $meta_data
+    ]);
+  }
+
   /**
    * Create the WP Membership Record
    */
   private function create_local_membership_record( $membership, $wicket_uuid ) {
     $status = Wicket_Memberships::STATUS_ACTIVE;
-    if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
+    if( (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
+      $membership['membership_status'] = Wicket_Memberships::STATUS_PENDING;
+    } else if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
       $status = Wicket_Memberships::STATUS_DELAYED;
     }
 
@@ -486,15 +541,21 @@ class Membership_Controller {
     return $membership_post;
   }
 
-  public function catch_expire_current_membership( $previous_membership_post_id ) {
+  /**
+   * Called from schedule_dates to expire the previous membership and enable a new membership if required
+   * Called directly to expire membership now if we are in grace period
+   * Called through a scheduled hook if we are in early renewal and this is where it will also activate the new membership when hook fires
+   *
+   * @param integer $previous_membership_post_id
+   * @param integer $new_membership_post_id
+   * @return void
+   */
+  public function catch_expire_current_membership( $previous_membership_post_id, $new_membership_post_id = 0 ) {
     if( ! empty( $previous_membership_post_id ) ) {
-      wp_update_post([
-        'ID' => $previous_membership_post_id,
-        'post_type' => $this->membership_cpt_slug,
-        'meta_input'  => [
-          'membership_status' => Wicket_Memberships::STATUS_EXPIRED,
-        ]
-      ]);  
+      $this->update_membership_status( $previous_membership_post_id, Wicket_Memberships::STATUS_EXPIRED );
+    }
+    if( ! empty( $new_membership_post_id ) ) {
+      $this->update_membership_status( $new_membership_post_id, Wicket_Memberships::STATUS_ACTIVE );
     }
   }
 
