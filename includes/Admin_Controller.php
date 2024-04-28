@@ -56,6 +56,7 @@ class Admin_Controller {
   }
 
   public static function admin_manage_status( $membership_post_id, $new_post_status ) {
+    $now_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
     $current_post_status = get_post_meta( $membership_post_id, 'membership_status', true );
     if( $current_post_status == Wicket_Memberships::STATUS_PENDING && $new_post_status == Wicket_Memberships::STATUS_ACTIVE ) {
       //apply the rules
@@ -90,43 +91,89 @@ class Admin_Controller {
           Cancellation date is recorded as start date and end date
           Related subscription is canceled
           Admin user is prompted to refund related order
-
+      */
+      /**
           --Delayed Status > Canceled Status
           Updated manually by admins. See Membership Approval 
           Cancellation date is recorded as start date and end date
           Related subscription is canceled
           Admin user is prompted to refund related order
-
+      */
+      if( $current_post_status == Wicket_Memberships::STATUS_PENDING  || $current_post_status == Wicket_Memberships::STATUS_DELAYED) {
+        $meta_data = [
+          'membership_status' => $new_post_status,
+          'membership_starts_at' => $now_iso_date,
+          'membership_ends_at' =>  $now_iso_date,
+        ];
+      }
+      /**
           --Grace Period Status > Canceled
           Updated manually by admins
           Membership expiration date is updated to the date of the update
-
+      */
+      else if( $current_post_status == Wicket_Memberships::STATUS_GRACE) {
+        $meta_data = [
+          'membership_status' => $new_post_status,
+          'membership_expires_at' => $now_iso_date,
+        ];
+      }
+      /**
           --record is set to ‘Canceled’
           The cancellation date is added as the end date
           The related subscription is canceled (confirmation?)
-          If the Membership record is moving from 
        */
-    } else if( $new_post_status == Wicket_Memberships::STATUS_EXPIRED ) {
+      else {
+        $meta_data = [
+          'membership_status' => $new_post_status,
+          'membership_ends_at' => $now_iso_date,
+        ];
+      }
+      $Membership_Controller = new Membership_Controller();
+      $now_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+      $membership_new = $Membership_Controller->get_membership_array_from_post_id( $membership_post_id );
+      $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( json_encode($meta_data) );
+      $updated = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post_meta_data );
+      $Membership_Controller->amend_membership_order_json( $membership_post_id, $meta_data );
+      $sub = wcs_get_subscription( $membership_new['membership_subscription_id'] );
+      $sub->update_status( 'cancelled' );
+      $response_array['order_id'] = $membership_new['membership_parent_order_id'];     
+    } else if( $new_post_status == Wicket_Memberships::STATUS_EXPIRED && $current_post_status == Wicket_Memberships::STATUS_GRACE ) {
       //apply the rules
       /**
           --Graced Period Status > Expired
           Applied dynamically when the membership expiration date is reached
           If update manually by admins, the membership expiration date is updated to the date of the update
-
        */
+      $Membership_Controller = new Membership_Controller();
+      $now_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+      $membership_new = $Membership_Controller->get_membership_array_from_post_id( $membership_post_id );
+      $meta_data = [
+        'membership_status' => $new_post_status,
+        'membership_expires_at' => $now_iso_date,
+      ];
+      $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( json_encode($meta_data) );
+      $updated = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post_meta_data );
+      $Membership_Controller->amend_membership_order_json( $membership_post_id, $meta_data );
     }
-    /*
-    else if( $status == Wicket_Memberships::STATUS_GRACE ) {
-      //apply the rules
-    } else if( $status == Wicket_Memberships::STATUS_PENDING ) {
-      //apply the rules
-    } else if( $status == Wicket_Memberships::STATUS_DELAYED ) {
-      //apply the rules
-    }
-    */
-    if( !empty( $updated ) ) {
-      if( ( new Membership_Controller() )->update_membership_status( $membership_post_id, $new_post_status) ) {
-        return new \WP_REST_Response(['success' => 'Status was updated successfully.'], 200);
+    
+    if( !empty( $updated ) && ! $Membership_Controller->bypass_wicket ) {
+      if( $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status) ) {
+          if( $membership_new['membership_type'] == 'individual' ) {
+            $response = wicket_update_individual_membership_dates( 
+              $membership_new['membership_wicket_uuid'], 
+              $meta_data['membership_starts_at'],
+              $meta_data['membership_ends_at']
+            );  
+          } else {
+            $response = wicket_update_organization_membership_dates(
+              $membership_new['membership_wicket_uuid'], 
+              $meta_data['membership_starts_at'],
+              $meta_data['membership_ends_at']
+            );  
+          }  
+        $response_array['success'] = 'Status was updated successfully.';
+        $response_array['response'] = $response;
+        return new \WP_REST_Response($response_array, 200);
       } else {
         return new \WP_REST_Response(['error' => 'Failed status transition. No change was made.'], 400);
       }
