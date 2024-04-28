@@ -529,6 +529,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 															<TextControl
 																label={__('Approval Email Recipient', 'wicket-memberships')}
 																value={form.approval_email_recipient}
+																type='email'
 																onChange={(value) => setForm({ ...form, approval_email_recipient: value })}
 																__nextHasNoMarginBottom={true}
 															/>

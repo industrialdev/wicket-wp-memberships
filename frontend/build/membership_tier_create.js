@@ -13467,6 +13467,7 @@ const CreateMembershipTier = ({
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Approval Email Recipient', 'wicket-memberships'),
     value: form.approval_email_recipient,
+    type: "email",
     onChange: value => setForm({
       ...form,
       approval_email_recipient: value
