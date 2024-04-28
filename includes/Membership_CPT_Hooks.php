@@ -11,9 +11,11 @@ class Membership_CPT_Hooks {
 
   private $membership_cpt_slug = '';
 
+  private $status_names;
 
   public function __construct() {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
+    $this->status_names = Helper::get_all_status_names();
     add_filter('manage_'.$this->membership_cpt_slug.'_posts_columns', [ $this, $this->membership_cpt_slug.'_table_head']);
     add_action('manage_'.$this->membership_cpt_slug.'_posts_custom_column', [ $this, $this->membership_cpt_slug.'_table_content'], 10, 2 );
   }
@@ -41,11 +43,19 @@ class Membership_CPT_Hooks {
    */
   public function wicket_membership_table_content( $column_name, $post_id ) {
     $meta = get_post_meta( $post_id );
-    echo $meta[$column_name][0];
-    if( $column_name = 'membership_type' && $meta[$column_name][0] == 'organization') {
-      echo '<br>UUID: ' . $meta['org_uuid'][0];
-      echo '<br>Name: ' . $meta['org_name'][0];
-      echo '<br>Seats: ' . $meta['org_seats'][0];
+    if( $column_name == 'membership_status' ) {
+      echo $this->status_names[ $meta[$column_name][0] ][ 'name' ];
+    } else if( $column_name == 'member_type' ) {
+      echo ucfirst( $meta[$column_name][0] );
+      if( $meta[$column_name][0] == 'organization') {
+        echo '<!--';
+        echo '<br>UUID: ' . $meta['org_uuid'][0];
+        echo '<br>Name: ' . $meta['org_name'][0];
+        echo '<br>Seats: ' . $meta['org_seats'][0];
+        echo '-->';
+      }
+    } else {
+      echo $meta[$column_name][0];
     }
   }
 
