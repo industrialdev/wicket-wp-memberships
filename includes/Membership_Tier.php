@@ -359,6 +359,19 @@ class Membership_Tier {
   }
 
   /**
+   * Get the approval email
+   *
+   * @return string|bool String, false otherwise
+   */
+  public function get_approval_email() {
+    if ( isset( $this->tier_data['approval_email_recipient'] ) ) {
+      return $this->tier_data['approval_email_recipient'];
+    }
+
+    return false;
+  }
+
+  /**
    * Get the cycle data
    *
    * @return array|bool Array, false otherwise

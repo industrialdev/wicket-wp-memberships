@@ -44,6 +44,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	const [form, setForm] = useState({
 		approval_required: false,
+		approval_email_recipient: '',
 		mdp_tier_name: '',
 		mdp_tier_uuid: '',
 		next_tier_id: '',
@@ -501,15 +502,42 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 													onChange={(selected) => setForm({ ...form, config_id: selected.value })}
 												/>
 											</FlexBlock>
-											<FlexItem>
-												<CheckboxControl
-													label={__('Approval Required', 'wicket-memberships')}
-													checked={form.approval_required}
-													onChange={(value) => setForm({ ...form, approval_required: value })}
-												/>
-											</FlexItem>
 										</Flex>
 									</ActionRow>
+									<MarginedFlex>
+										<FlexBlock>
+											<BorderedBox>
+												<Flex
+													align='end'
+													justify='start'
+													gap={5}
+													direction={[
+														'column',
+														'row'
+													]}
+												>
+													<FlexItem>
+														<CheckboxControl
+															label={__('Approval Required', 'wicket-memberships')}
+															checked={form.approval_required}
+															onChange={(value) => setForm({ ...form, approval_required: value })}
+															__nextHasNoMarginBottom={true}
+														/>
+													</FlexItem>
+													<FlexBlock>
+														<CustomDisabled isDisabled={!form.approval_required}>
+															<TextControl
+																label={__('Approval Email Recipient', 'wicket-memberships')}
+																value={form.approval_email_recipient}
+																onChange={(value) => setForm({ ...form, approval_email_recipient: value })}
+																__nextHasNoMarginBottom={true}
+															/>
+														</CustomDisabled>
+													</FlexBlock>
+												</Flex>
+											</BorderedBox>
+										</FlexBlock>
+									</MarginedFlex>
 									<MarginedFlex>
 										<FlexBlock>
 											<LabelWpStyled htmlFor="next_tier">
