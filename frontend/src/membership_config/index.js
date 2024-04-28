@@ -9,7 +9,7 @@ import he from 'he';
 import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled } from '../styled_elements';
 import MembershipConfigTiers from './tiers';
 
-const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierCptSlug, postId, tierMdpUuids }) => {
+const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tierCptSlug, postId, tierMdpUuids }) => {
 
 	const [currentSeasonIndex, setCurrentSeasonIndex] = useState(null);
 
@@ -737,7 +737,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierCptSlug, pos
 						</BorderedBox>
 
 						{/* Membership Config Tiers */}
-						{ tierMdpUuids.length > 0 && <MembershipConfigTiers configPostId={postId} tierCptSlug={tierCptSlug} tierMdpUuids={tierMdpUuids} />}
+						{ tierMdpUuids.length > 0 && <MembershipConfigTiers configPostId={postId} tierCptSlug={tierCptSlug} tierMdpUuids={tierMdpUuids} tierListUrl={tierListUrl} />}
 
 						{/* Submit row */}
 						<ActionRow>

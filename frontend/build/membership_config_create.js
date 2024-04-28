@@ -2341,7 +2341,8 @@ __webpack_require__.r(__webpack_exports__);
 const MembershipConfigTiers = ({
   configPostId,
   tierCptSlug,
-  tierMdpUuids
+  tierMdpUuids,
+  tierListUrl
 }) => {
   if (!configPostId) {
     return null;
@@ -2428,7 +2429,9 @@ const MembershipConfigTiers = ({
     level: "4",
     weight: "300"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Connected Membership Tiers', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Button, {
-    variant: "link"
+    variant: "link",
+    href: tierListUrl,
+    target: "_blank"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View All', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
     className: "widefat",
     cellSpacing: "0"
@@ -13216,6 +13219,7 @@ __webpack_require__.r(__webpack_exports__);
 const CreateMembershipConfig = ({
   configCptSlug,
   configListUrl,
+  tierListUrl,
   tierCptSlug,
   postId,
   tierMdpUuids
@@ -13783,7 +13787,8 @@ const CreateMembershipConfig = ({
   })))))))))), tierMdpUuids.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_tiers__WEBPACK_IMPORTED_MODULE_9__["default"], {
     configPostId: postId,
     tierCptSlug: tierCptSlug,
-    tierMdpUuids: tierMdpUuids
+    tierMdpUuids: tierMdpUuids,
+    tierListUrl: tierListUrl
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "end",
     justify: "end",
