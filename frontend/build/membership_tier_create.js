@@ -13080,6 +13080,7 @@ const CreateMembershipTier = ({
 
   const [form, setForm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     approval_required: false,
+    approval_email_recipient: '',
     mdp_tier_name: '',
     mdp_tier_uuid: '',
     next_tier_id: '',
@@ -13448,14 +13449,31 @@ const CreateMembershipTier = ({
       ...form,
       config_id: selected.value
     })
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.CheckboxControl, {
+  })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+    align: "end",
+    justify: "start",
+    gap: 5,
+    direction: ['column', 'row']
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.CheckboxControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Approval Required', 'wicket-memberships'),
     checked: form.approval_required,
     onChange: value => setForm({
       ...form,
       approval_required: value
-    })
-  })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
+    }),
+    __nextHasNoMarginBottom: true
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.CustomDisabled, {
+    isDisabled: !form.approval_required
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Approval Email Recipient', 'wicket-memberships'),
+    value: form.approval_email_recipient,
+    type: "email",
+    onChange: value => setForm({
+      ...form,
+      approval_email_recipient: value
+    }),
+    __nextHasNoMarginBottom: true
+  }))))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
     htmlFor: "next_tier"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Sequential Logic', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
     id: "next_tier",

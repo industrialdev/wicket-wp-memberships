@@ -6,7 +6,7 @@ import { Spinner, Flex, __experimentalHeading as Heading, FlexItem, Button } fro
 import { MDP_API_URL } from '../constants';
 import { FormFlex, BorderedBox } from '../styled_elements';
 
-const MembershipConfigTiers = ({ configPostId, tierCptSlug, tierMdpUuids }) => {
+const MembershipConfigTiers = ({ configPostId, tierCptSlug, tierMdpUuids, tierListUrl }) => {
 
   if ( ! configPostId ) {
     return null;
@@ -106,7 +106,11 @@ const MembershipConfigTiers = ({ configPostId, tierCptSlug, tierMdpUuids }) => {
           </Heading>
         </FlexItem>
         <FlexItem>
-          <Button variant="link">
+          <Button
+            variant="link"
+            href={tierListUrl}
+            target='_blank'
+          >
             {__('View All', 'wicket-memberships')}
           </Button>
         </FlexItem>

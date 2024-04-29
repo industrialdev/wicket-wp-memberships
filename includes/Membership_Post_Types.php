@@ -384,6 +384,17 @@ class Membership_Post_Types {
                 $errors->add( 'rest_invalid_param_approval_required', __( 'The approval required value must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
+              // if approval required, then approval email recipient must not be empty and must be a valid email
+              if ( $value['approval_required'] === true ) {
+                if ( empty( $value['approval_email_recipient'] ) ) {
+                  $errors->add( 'rest_invalid_param_approval_email_recipient', __( 'The approval email recipient must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+                if ( ! is_email( $value['approval_email_recipient'] ) ) {
+                  $errors->add( 'rest_invalid_param_approval_email_recipient', __( 'The approval email recipient must be a valid email.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+              }
+
               if ( empty( $value['mdp_tier_name'] ) ) {
                 $errors->add( 'rest_invalid_param_mdp_tier_name', __( 'The MDP Tier Name must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
@@ -485,6 +496,10 @@ class Membership_Post_Types {
             'approval_required' => array(
               'type'        => 'boolean',
               'description' => 'Approval Required',
+            ),
+            'approval_email_recipient' => array(
+              'type'        => 'strong',
+              'description' => 'Approval Email Recipient',
             ),
             'mdp_tier_name' => array(
               'type'        => 'string',
