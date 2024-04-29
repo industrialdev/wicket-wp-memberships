@@ -19,9 +19,12 @@ class Membership_Controller {
   private $membership_search_term = '';
 
   //don't create wicket connection - for testing locally
-  private $bypass_wicket = true;
+  public $bypass_wicket;
+  public $bypass_status_change_lockout;
 
   public function __construct() {
+    $this->bypass_wicket = env('BYPASS_WICKET') ?? false;
+    $this->bypass_status_change_lockout = env('BYPASS_STATUS_CHANGE_LOCKOUT') ?? false;
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
     $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
@@ -421,6 +424,30 @@ class Membership_Controller {
     $sub->update_dates($dates_to_update);
   }
 
+  /**
+   * Update the membership record in MDP
+   */
+
+   public function update_mdp_record( $membership, $meta_data ) {
+    if( $membership['membership_type'] == 'individual' ) {
+      $response = wicket_update_individual_membership_dates( 
+        $membership['membership_wicket_uuid'], 
+        $meta_data['membership_starts_at'],
+        $meta_data['membership_ends_at']
+      );  
+    } else {
+      $response = wicket_update_organization_membership_dates(
+        $membership['membership_wicket_uuid'], 
+        $meta_data['membership_starts_at'],
+        $meta_data['membership_ends_at']
+      );  
+    }
+    if( is_wp_error( $response ) ) {
+      return [ 'error' => $response->get_error_message( 'wicket_api_error' ) ];
+    } else {
+      return $response;
+    } 
+   }
   
   /**
    * Create the Membership Record in MDP
