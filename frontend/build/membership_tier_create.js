@@ -2300,10 +2300,10 @@ var weakMemoize = function weakMemoize(func) {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   API_URL: () => (/* binding */ API_URL),
-/* harmony export */   MDP_API_URL: () => (/* binding */ MDP_API_URL)
+/* harmony export */   PLUGIN_API_URL: () => (/* binding */ PLUGIN_API_URL)
 /* harmony export */ });
 const API_URL = '/wp/v2';
-const MDP_API_URL = '/wicket_member/v1';
+const PLUGIN_API_URL = '/wicket_member/v1';
 
 /***/ }),
 
@@ -13320,7 +13320,7 @@ const CreateMembershipTier = ({
     // Fetch MDP Tiers
     queryParams = {};
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
-      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.MDP_API_URL}/membership_tiers`, queryParams)
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.PLUGIN_API_URL}/membership_tiers`, queryParams)
     }).then(tiers => {
       setMdpTiers(tiers.map(tier => {
         return {

@@ -10,12 +10,57 @@ use Wicket_Memberships\Helper;
 class Membership_CPT_Hooks {
 
   private $membership_cpt_slug = '';
-
+  const LIST_INDIVIDUAL_MEMBER_PAGE_SLUG = 'individual_member_list';
 
   public function __construct() {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     add_filter('manage_'.$this->membership_cpt_slug.'_posts_columns', [ $this, $this->membership_cpt_slug.'_table_head']);
     add_action('manage_'.$this->membership_cpt_slug.'_posts_custom_column', [ $this, $this->membership_cpt_slug.'_table_content'], 10, 2 );
+    add_action( 'admin_menu', [ $this, 'add_individual_members_page' ] );
+    add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
+  }
+
+  function add_individual_members_page() {
+    add_submenu_page(
+      WICKET_MEMBERSHIP_PLUGIN_SLUG,
+      __( 'Individual Members', 'wicket-memberships'),
+      __( 'Individual Members', 'wicket-memberships'),
+      'edit_posts',
+      self::LIST_INDIVIDUAL_MEMBER_PAGE_SLUG,
+      [ $this, 'render_individual_members_page' ]
+    );
+  }
+
+  function render_individual_members_page() {
+    echo <<<HTML
+      <div
+        id="member_list"
+        data-member-type="individual""></div>
+    HTML;
+  }
+
+  function enqueue_scripts() {
+
+    $page = get_current_screen();
+
+    // Only load react script on the certain pages
+    $react_page_slugs = [
+      'wicket-memberships_page_' . self::LIST_INDIVIDUAL_MEMBER_PAGE_SLUG
+    ];
+
+    if ( ! in_array( $page->id, $react_page_slugs ) ) {
+      return;
+    }
+
+    $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/membership_config_create.asset.php' );
+
+    wp_enqueue_script(
+      WICKET_MEMBERSHIP_PLUGIN_SLUG . '_member_list',
+      WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/member_list.js',
+      $asset_file['dependencies'],
+      $asset_file['version'],
+      true
+    );
   }
 
   /**
