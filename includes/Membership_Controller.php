@@ -735,12 +735,7 @@ class Membership_Controller {
             'key'     => 'user_email',
             'value'   => $search,
             'compare' => 'LIKE'
-          ), 
-          array(
-            'key'     => 'membership_tier_name',
-            'value'   => $search,
-            'compare' => 'LIKE'
-        )
+          ),
       );
     }
 
@@ -766,11 +761,26 @@ class Membership_Controller {
     remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     foreach( $tiers->posts as &$tier ) {
       $tier_meta = get_post_meta( $tier->ID );
+/*
       $tier->meta = array_map( function( $item ) {
         if( ! str_starts_with( key( (array) $item), '_' ) ) {
           return $item[0];
         }
       }, $tier_meta);
+*/
+      $tier_new_meta = [];
+      array_walk(
+        $tier_meta,
+        function(&$val, $key) use ( &$tier_new_meta )
+        {
+          if( $key == 'membership_tier_name' || str_starts_with( $key, '_' ) ) {
+            return;
+          }
+          $tier_new_meta[$key] = $val[0];
+        }
+      );  
+      $tier->meta = $tier_new_meta;
+
         $user = get_userdata( $tier->meta['user_id'][0]);
         $tier->user = $user->data;
         $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/people/'.$user->data->user_login;
@@ -942,7 +952,6 @@ class Membership_Controller {
     remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     foreach ($tiers->posts as $tier) {
       $filters['tiers'][] = [
-        'name' => $tier->membership_tier_name,
         'value' => $tier->membership_tier_uuid
       ];
     }
