@@ -13054,6 +13054,9 @@ const MemberList = ({
 }) => {
   const [isLoading, setIsLoading] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(true);
   const [members, setMembers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
+  const [totalMembers, setTotalMembers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(0);
+  const [totalPages, setTotalPages] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(0);
+  const [tiersInfo, setTiersInfo] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [searchParams, setSearchParams] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     type: memberType,
     page: 1,
@@ -13080,10 +13083,40 @@ const MemberList = ({
     }).then(response => {
       console.log(response);
       setMembers(response.results);
+      setTotalMembers(response.count);
+      setTotalPages(Math.ceil(response.count / params.posts_per_page));
       setIsLoading(false);
+      const tierIds = response.results.map(member => member.meta.membership_tier_uuid);
+      fetchTiersInfo(tierIds);
     }).catch(error => {
       console.error(error);
     });
+  };
+  const fetchTiersInfo = tierIds => {
+    if (tierIds.length === 0) {
+      return;
+    }
+    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.PLUGIN_API_URL}/membership_tier_info`, {
+        filter: {
+          tier_uuid: tierIds
+        }
+      })
+    }).then(tiersInfo => {
+      setTiersInfo(tiersInfo);
+    }).catch(error => {
+      console.log('Tiers Info Error:');
+      console.log(error);
+    });
+  };
+  const getTierInfo = tierId => {
+    if (tiersInfo === null) {
+      return null;
+    }
+    if (!tiersInfo.hasOwnProperty('tier_data') || !tiersInfo.tier_data.hasOwnProperty(tierId)) {
+      return null;
+    }
+    return tiersInfo.tier_data[tierId];
   };
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     // https://localhost/wp-json/wicket_member/v1/memberships?order_col=start_date&order_dir=ASC&type=individual
@@ -13151,15 +13184,53 @@ const MemberList = ({
     colSpan: 4
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('No members found.', 'wicket-memberships'))), !isLoading && members.length > 0 && members.map((member, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
     key: index
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.user.display_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.meta.membership_status), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.meta.membership_tier_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, memberType === 'individual' ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
-    href: `${wicketAdminUrl}/people/#`
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.user.display_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.meta.membership_status), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, tiersInfo === null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Spinner, null), getTierInfo(member.meta.membership_tier_uuid) !== null && getTierInfo(member.meta.membership_tier_uuid).name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+    target: "_blank",
+    href: member.user.mdp_link
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View', 'wicket-memberships'), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
     icon: "external"
-  })) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
-    href: `${wicketAdminUrl}/organization/#`
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View', 'wicket-memberships'), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
-    icon: "external"
-  })))))))));
+  }))))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    className: "tablenav bottom"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    className: "tablenav-pages"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "displaying-num"
+  }, totalMembers, " ", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('items', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "pagination-links"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("button", {
+    className: "prev-page button",
+    disabled: searchParams.page === 1,
+    onClick: () => {
+      const newSearchParams = {
+        ...searchParams,
+        page: searchParams.page - 1
+      };
+      setSearchParams(newSearchParams);
+      fetchMembers(newSearchParams);
+    }
+  }, "\u2039"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "screen-reader-text"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Current Page', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    id: "table-paging",
+    className: "paging-input"
+  }, "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "tablenav-paging-text"
+  }, searchParams.page, " ", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('of', 'wicket-memberships'), " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "total-pages"
+  }, totalPages)), "\xA0"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("button", {
+    className: "next-page button",
+    disabled: searchParams.page === totalPages,
+    onClick: () => {
+      const newSearchParams = {
+        ...searchParams,
+        page: searchParams.page + 1
+      };
+      setSearchParams(newSearchParams);
+      fetchMembers(newSearchParams);
+    }
+  }, "\u203A"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("br", {
+    className: "clear"
+  }))));
 };
 const app = document.getElementById('member_list');
 if (app) {

@@ -15,6 +15,11 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
 
   const [members, setMembers] = useState([]);
 
+  const [totalMembers, setTotalMembers] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+
+  const [tiersInfo, setTiersInfo] = useState(null);
+
   const [searchParams, setSearchParams] = useState({
     type: memberType,
     page: 1,
@@ -42,14 +47,43 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
     }).then((response) => {
       console.log(response);
       setMembers(response.results);
+      setTotalMembers(response.count);
+      setTotalPages(Math.ceil(response.count / params.posts_per_page));
       setIsLoading(false);
+
+      const tierIds = response.results.map((member) => member.meta.membership_tier_uuid);
+      fetchTiersInfo(tierIds);
     }).catch((error) => {
       console.error(error);
     });
   };
 
-  useEffect(() => {
+  const fetchTiersInfo = (tierIds) => {
+    if ( tierIds.length === 0 ) { return }
 
+    apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_tier_info`, {
+      filter: {
+        tier_uuid: tierIds
+      },
+    }) }).then((tiersInfo) => {
+      setTiersInfo(tiersInfo);
+		}).catch((error) => {
+      console.log('Tiers Info Error:');
+      console.log(error);
+		});
+  }
+
+  const getTierInfo = (tierId) => {
+    if ( tiersInfo === null ) { return null }
+
+    if ( ! tiersInfo.hasOwnProperty('tier_data') || ! tiersInfo.tier_data.hasOwnProperty(tierId) ) {
+      return null;
+    }
+
+    return tiersInfo.tier_data[tierId];
+  };
+
+  useEffect(() => {
     // https://localhost/wp-json/wicket_member/v1/memberships?order_col=start_date&order_dir=ASC&type=individual
     // https://localhost/wp-json/wicket_member/v1/memberships?order_col=start_date&order_dir=ASC&filter[membership_status]=expired&filter[membership_tier]=88d6a08a-ab3c-4f01-93d7-ddf07995ab25&search=Veterinary&type=individual
     fetchMembers(searchParams);
@@ -129,25 +163,73 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
                 <tr key={index}>
                   <td>{member.user.display_name}</td>
                   <td>{member.meta.membership_status}</td>
-                  <td>{member.meta.membership_tier_name}</td>
                   <td>
-                    {memberType === 'individual' ? (
-                      <a href={`${wicketAdminUrl}/people/#`}>
-                        {__('View', 'wicket-memberships')}
-                        &nbsp;<Icon icon="external" />
-                      </a>
-                    ) : (
-                      <a href={`${wicketAdminUrl}/organization/#`}>
-                        {__('View', 'wicket-memberships')}
-                        &nbsp;<Icon icon="external" />
-                      </a>
-                    )}
+                    {tiersInfo === null && <Spinner />}
+                    {getTierInfo(member.meta.membership_tier_uuid) !== null && getTierInfo(member.meta.membership_tier_uuid).name}
+                  </td>
+                  <td>
+                    <a
+                      target="_blank"
+                      href={member.user.mdp_link}
+                    >
+                      {__('View', 'wicket-memberships')}
+                      &nbsp;<Icon icon="external" />
+                    </a>
                   </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
+
+        <div className="tablenav bottom">
+          {/* <div className="alignleft actions"></div> */}
+          <div className="tablenav-pages">
+            <span className="displaying-num">
+              {totalMembers} {__('items', 'wicket-memberships')}
+            </span>
+
+            {/* Pagination */}
+            <span className="pagination-links">
+
+              <button
+                className="prev-page button"
+                disabled={searchParams.page === 1}
+                onClick={() => {
+                  const newSearchParams = {
+                    ...searchParams,
+                    page: searchParams.page - 1,
+                  };
+                  setSearchParams(newSearchParams);
+                  fetchMembers(newSearchParams);
+                }}
+              >‹</button>
+
+              <span className="screen-reader-text">{__('Current Page', 'wicket-memberships')}</span>
+              <span id="table-paging" className="paging-input">
+                &nbsp;
+                <span className="tablenav-paging-text">{searchParams.page} {__('of', 'wicket-memberships')} <span className="total-pages">{totalPages}</span></span>
+                &nbsp;
+              </span>
+
+              <button
+                className="next-page button"
+                disabled={searchParams.page === totalPages}
+                onClick={() => {
+                  const newSearchParams = {
+                    ...searchParams,
+                    page: searchParams.page + 1,
+                  };
+                  setSearchParams(newSearchParams);
+                  fetchMembers(newSearchParams);
+                }}
+              >›</button>
+
+            </span>
+
+          </div>
+          <br className="clear" />
+        </div>
 
 			</div>
 		</>
