@@ -19,6 +19,7 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
   const [totalPages, setTotalPages] = useState(0);
 
   const [tiersInfo, setTiersInfo] = useState(null);
+  const [membershipOrgInfo, setMembershipOrgInfo] = useState(null);
 
   const [searchParams, setSearchParams] = useState({
     type: memberType,
@@ -46,6 +47,7 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
       path: addQueryArgs(`${PLUGIN_API_URL}/memberships`, params),
     }).then((response) => {
       console.log(response);
+
       setMembers(response.results);
       setTotalMembers(response.count);
       setTotalPages(Math.ceil(response.count / params.posts_per_page));
@@ -53,6 +55,9 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
 
       const tierIds = response.results.map((member) => member.meta.membership_tier_uuid);
       fetchTiersInfo(tierIds);
+
+      const orgIds = response.results.map((member) => member.meta.org_uuid);
+      fetchMembershipOrgInfo(orgIds);
     }).catch((error) => {
       console.error(error);
     });
@@ -73,6 +78,21 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
 		});
   }
 
+  const fetchMembershipOrgInfo = (orgIds) => {
+    if ( orgIds.length === 0 ) { return }
+
+    apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_org_info`, {
+      filter: {
+        org_uuid: orgIds
+      },
+    }) }).then((membershipOrgInfo) => {
+      setMembershipOrgInfo(membershipOrgInfo);
+		}).catch((error) => {
+      console.log('Membership Org Info Error:');
+      console.log(error);
+		});
+  }
+
   const getTierInfo = (tierId) => {
     if ( tiersInfo === null ) { return null }
 
@@ -81,6 +101,16 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
     }
 
     return tiersInfo.tier_data[tierId];
+  };
+
+  const getMembershipOrgInfo = (orgId) => {
+    if ( membershipOrgInfo === null ) { return null }
+
+    if ( ! membershipOrgInfo.hasOwnProperty('org_data') || ! membershipOrgInfo.org_data.hasOwnProperty(orgId) ) {
+      return null;
+    }
+
+    return membershipOrgInfo.org_data[orgId];
   };
 
   useEffect(() => {
@@ -135,8 +165,16 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
         <table className="wp-list-table widefat fixed striped table-view-list posts">
           <thead>
             <tr>
+              { memberType === 'organization' && (
+                <>
+                  <th scope="col" className="manage-column">
+                    { __('Organization Name', 'wicket-memberships') }
+                  </th>
+                  <th scope="col" className="manage-column">{ __('Location', 'wicket-memberships') }</th>
+                </>
+              )}
               <th scope="col" className="manage-column">
-                { memberType === 'individual' ? __( 'Individual Member Name', 'wicket-memberships' ) : __( 'Organization Name', 'wicket-memberships' ) }
+                { memberType === 'individual' ? __( 'Individual Member Name', 'wicket-memberships' ) : __( 'Contact', 'wicket-memberships' ) }
               </th>
               <th scope="col" className="manage-column">{ __( 'Status', 'wicket-memberships' ) }</th>
               <th scope="col" className="manage-column">{ __( 'Tier', 'wicket-memberships' ) }</th>
@@ -161,8 +199,24 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
             {!isLoading && members.length > 0 && (
               members.map((member, index) => (
                 <tr key={index}>
+                  { memberType === 'organization' && (
+                    <>
+                      <td>
+                        {membershipOrgInfo === null && <Spinner />}
+                        {getMembershipOrgInfo(member.meta.org_uuid) !== null && getMembershipOrgInfo(member.meta.org_uuid).name}
+                      </td>
+                      <td>-</td>
+                    </>
+                  )}
                   <td>{member.user.display_name}</td>
-                  <td>{member.meta.membership_status}</td>
+                  <td>
+                    <span style={{
+                          color: (member.meta.membership_status === 'active' ? 'green' : ''),
+                          textTransform: 'capitalize'
+                        }}>
+                      { member.meta.membership_status }
+                    </span>
+                  </td>
                   <td>
                     {tiersInfo === null && <Spinner />}
                     {getTierInfo(member.meta.membership_tier_uuid) !== null && getTierInfo(member.meta.membership_tier_uuid).name}

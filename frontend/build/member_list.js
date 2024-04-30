@@ -13057,6 +13057,7 @@ const MemberList = ({
   const [totalMembers, setTotalMembers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(0);
   const [totalPages, setTotalPages] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(0);
   const [tiersInfo, setTiersInfo] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [membershipOrgInfo, setMembershipOrgInfo] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [searchParams, setSearchParams] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     type: memberType,
     page: 1,
@@ -13088,6 +13089,8 @@ const MemberList = ({
       setIsLoading(false);
       const tierIds = response.results.map(member => member.meta.membership_tier_uuid);
       fetchTiersInfo(tierIds);
+      const orgIds = response.results.map(member => member.meta.org_uuid);
+      fetchMembershipOrgInfo(orgIds);
     }).catch(error => {
       console.error(error);
     });
@@ -13109,6 +13112,23 @@ const MemberList = ({
       console.log(error);
     });
   };
+  const fetchMembershipOrgInfo = orgIds => {
+    if (orgIds.length === 0) {
+      return;
+    }
+    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.PLUGIN_API_URL}/membership_org_info`, {
+        filter: {
+          org_uuid: orgIds
+        }
+      })
+    }).then(membershipOrgInfo => {
+      setMembershipOrgInfo(membershipOrgInfo);
+    }).catch(error => {
+      console.log('Membership Org Info Error:');
+      console.log(error);
+    });
+  };
   const getTierInfo = tierId => {
     if (tiersInfo === null) {
       return null;
@@ -13117,6 +13137,15 @@ const MemberList = ({
       return null;
     }
     return tiersInfo.tier_data[tierId];
+  };
+  const getMembershipOrgInfo = orgId => {
+    if (membershipOrgInfo === null) {
+      return null;
+    }
+    if (!membershipOrgInfo.hasOwnProperty('org_data') || !membershipOrgInfo.org_data.hasOwnProperty(orgId)) {
+      return null;
+    }
+    return membershipOrgInfo.org_data[orgId];
   };
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     // https://localhost/wp-json/wicket_member/v1/memberships?order_col=start_date&order_dir=ASC&type=individual
@@ -13160,10 +13189,16 @@ const MemberList = ({
     className: "tablenav top"
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
     className: "wp-list-table widefat fixed striped table-view-list posts"
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, memberType === 'organization' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     scope: "col",
     className: "manage-column"
-  }, memberType === 'individual' ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Individual Member Name', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Organization Name', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Organization Name', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    scope: "col",
+    className: "manage-column"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Location', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    scope: "col",
+    className: "manage-column"
+  }, memberType === 'individual' ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Individual Member Name', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Contact', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     scope: "col",
     className: "manage-column"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Status', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
@@ -13184,7 +13219,12 @@ const MemberList = ({
     colSpan: 4
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('No members found.', 'wicket-memberships'))), !isLoading && members.length > 0 && members.map((member, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
     key: index
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.user.display_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.meta.membership_status), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, tiersInfo === null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Spinner, null), getTierInfo(member.meta.membership_tier_uuid) !== null && getTierInfo(member.meta.membership_tier_uuid).name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+  }, memberType === 'organization' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, membershipOrgInfo === null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Spinner, null), getMembershipOrgInfo(member.meta.org_uuid) !== null && getMembershipOrgInfo(member.meta.org_uuid).name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, "-")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.user.display_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      color: member.meta.membership_status === 'active' ? 'green' : '',
+      textTransform: 'capitalize'
+    }
+  }, member.meta.membership_status)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, tiersInfo === null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Spinner, null), getTierInfo(member.meta.membership_tier_uuid) !== null && getTierInfo(member.meta.membership_tier_uuid).name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
     target: "_blank",
     href: member.user.mdp_link
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View', 'wicket-memberships'), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
