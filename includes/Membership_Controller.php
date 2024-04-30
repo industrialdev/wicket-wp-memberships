@@ -695,6 +695,7 @@ class Membership_Controller {
     if( (! in_array( $type, ['individual', 'organization'] ))) {
       return;
     }
+    $wicket_settings = get_wicket_settings( env('WP_ENV') );
     if( ! $page = intval( $page )) {
       $page = 1;
     }
@@ -734,12 +735,7 @@ class Membership_Controller {
             'key'     => 'user_email',
             'value'   => $search,
             'compare' => 'LIKE'
-          ), 
-          array(
-            'key'     => 'membership_tier_name',
-            'value'   => $search,
-            'compare' => 'LIKE'
-        )
+          ),
       );
     }
 
@@ -755,24 +751,63 @@ class Membership_Controller {
       }
     }
     
+    add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     if( $type == 'organization' ) {
-      add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
       $args['meta_key'] = 'org_uuid';
-      $tiers = new \WP_Query( $args );
-      remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     } else {
-      $tiers = new \WP_Query( $args );
+      $args['meta_key'] = 'user_id';
     }
+    $tiers = new \WP_Query( $args );
+    remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     foreach( $tiers->posts as &$tier ) {
       $tier_meta = get_post_meta( $tier->ID );
+/*
       $tier->meta = array_map( function( $item ) {
         if( ! str_starts_with( key( (array) $item), '_' ) ) {
           return $item[0];
         }
       }, $tier_meta);
+*/
+      $tier_new_meta = [];
+      array_walk(
+        $tier_meta,
+        function(&$val, $key) use ( &$tier_new_meta )
+        {
+          if( $key == 'membership_tier_name' || str_starts_with( $key, '_' ) ) {
+            return;
+          }
+          $tier_new_meta[$key] = $val[0];
+        }
+      );  
+      $tier->meta = $tier_new_meta;
+
         $user = get_userdata( $tier->meta['user_id'][0]);
         $tier->user = $user->data;
-    }
+        $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/people/'.$user->data->user_login;
+        if( $type != 'organization' ) {
+          //$tiers_by_uuid = $this->get_tier_info(null);
+          $args = array(
+            'post_type' => $this->membership_cpt_slug,
+            'post_status' => 'publish',
+            'posts_per_page' => -1,
+            'meta_query'     => array(
+              array(
+                'key'     => 'user_id',
+                'value'   => $tier->meta['user_id'][0],
+                'compare' => '='
+              )
+            )
+          );
+          $user_tiers = new \WP_Query( $args );
+          foreach( $user_tiers->posts as $user_tier ) {
+            $user_tier_uuid = get_post_meta( $user_tier->ID, 'membership_tier_uuid', true );
+            $tier->user->all_membership_tiers[] =  [ 
+              'uuid' => $user_tier_uuid, 
+              //'name' => $tiers_by_uuid['tier_data'][ $user_tier_uuid ]['name'] ,
+            ];
+          }
+        }
+      }
     return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => count( $tiers->posts ) ];
   }
 
@@ -917,7 +952,6 @@ class Membership_Controller {
     remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     foreach ($tiers->posts as $tier) {
       $filters['tiers'][] = [
-        'name' => $tier->membership_tier_name,
         'value' => $tier->membership_tier_uuid
       ];
     }
@@ -929,8 +963,8 @@ class Membership_Controller {
     remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     foreach ($tiers->posts as $tier) {
       $filters['membership_status'][] = [
-        'name' => $tier->status,
-        'value' => ucfirst( $tier->status )
+        'name' => $tier->membership_status,
+        'value' => ucfirst( $tier->membership_status )
       ];
     }
     if( $type == 'organization' ) {
