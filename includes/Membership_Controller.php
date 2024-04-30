@@ -429,6 +429,9 @@ class Membership_Controller {
    */
 
    public function update_mdp_record( $membership, $meta_data ) {
+    if( env( 'BYPASS_WICKET' ) ) {
+      return;
+    }
     if( $membership['membership_type'] == 'individual' ) {
       $response = wicket_update_individual_membership_dates( 
         $membership['membership_wicket_uuid'], 
