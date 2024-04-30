@@ -535,7 +535,7 @@ class Membership_Controller {
       'membership_product_id' => $membership['membership_product_id'],
     ];
     if( $membership['membership_type'] == 'organization') {
-      $org_data = get_option( 'org_data_' . $membership['organization_uuid'] );
+      $org_data = Helper::get_org_data( $membership['organization_uuid'] );
       $meta['org_location'] = $org_data['location'];
       $meta['org_name'] = $org_data['name'];
       $meta['org_uuid'] = $membership['organization_uuid'];
