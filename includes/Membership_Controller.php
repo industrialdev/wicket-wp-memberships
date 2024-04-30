@@ -901,7 +901,7 @@ class Membership_Controller {
           }
         }
       }
-    return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => count( $tiers->posts ) ];
+    return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => $tiers->found_posts ];
   }
 
   public static function get_tier_info( $tier_uuids, $properties = [] ) {
