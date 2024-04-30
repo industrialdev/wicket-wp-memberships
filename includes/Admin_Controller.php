@@ -85,6 +85,7 @@ class Admin_Controller {
         'membership_expires_at' => !empty($dates['expires_at']) ? $dates['expires_at'] : $dates['end_date'],
         'membership_early_renew_at' => !empty($dates['early_renew_at']) ? $dates['early_renew_at'] : $dates['end_date'],
       ];
+      $meta_data['membership_wicket_uuid'] = $Membership_Controller->create_mdp_record( array_merge( $membership_new, $meta_data ) );
     } else if( $new_post_status == Wicket_Memberships::STATUS_CANCELLED ) {
       //apply the rules
       /**

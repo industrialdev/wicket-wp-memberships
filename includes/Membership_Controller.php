@@ -404,19 +404,45 @@ class Membership_Controller {
    * Create the membership records
    */
   public static function create_membership_record( $membership ) {
+    $wicket_uuid = '';
     $self = new self();
-    $self->scheduler_dates_for_expiry( $membership );
 
     if($self->bypass_wicket) {
       //Don't create the wicket connection when testing
       $self->create_local_membership_record(  $membership, $self->guidv4().'-fake' );
       return $membership;  
     }
-    $wicket_uuid = $self->create_mdp_record( $membership );
-    if( !empty( $wicket_uuid ) ) {
-      $self->create_local_membership_record(  $membership, $wicket_uuid );
+
+    $tier = new Membership_Tier( $membership['membership_tier_post_id'] );
+    //we only create the mdp record if not pending approval / not debug 
+    if( ! $tier->is_approval_required() && ! $self->bypass_wicket ) {
+      $wicket_uuid = $self->create_mdp_record( $membership );
     }
-    $self->update_membership_subscription( $membership );
+    
+    //always create the local membership record to get post_id
+    $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $wicket_uuid );
+
+    //we are pending approval so change some statuses and send email
+    if( $tier->is_approval_required() ) {
+      //put subscription status on-hold
+      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+      $sub->update_status( 'on-hold' );
+      //update membership status to pending approval
+      $self->update_membership_status( $membership['membership_post_id'], Wicket_Memberships::STATUS_PENDING);
+      //send the approval email notification
+      $email_address = $tier->get_approval_email();
+      $path = '/' . $membership['membership_wp_user_id']; //PATH TO THE MEMBERSHIP EDIT PAGE
+      $member_page_link = admin_url( $path );
+      send_approval_required_email( $email_address, $member_page_link );
+    }
+
+    //we are not pending approval so finish the membership setup
+    if( ! $tier->is_approval_required() ) {
+      //set the scheduled tasks
+      $self->scheduler_dates_for_expiry( $membership );
+      //update subscription dates
+      $self->update_membership_subscription( $membership );  
+    }
     return $membership;
   }
 
