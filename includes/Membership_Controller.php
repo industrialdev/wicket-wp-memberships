@@ -829,7 +829,17 @@ class Membership_Controller {
             'value'   => $search,
             'compare' => 'LIKE'
           ),
-      );
+          array(
+            'key'     => 'org_name',
+            'value'   => $search,
+            'compare' => 'LIKE'
+          ),
+          array(
+            'key'     => 'org_location',
+            'value'   => $search,
+            'compare' => 'LIKE'
+          ),
+        );
     }
 
     if( ! empty( $filter ) ) {
