@@ -13049,7 +13049,8 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const MemberList = ({
-  memberType
+  memberType,
+  wicketAdminUrl
 }) => {
   const [isLoading, setIsLoading] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(true);
   const [members, setMembers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
@@ -13110,7 +13111,7 @@ const MemberList = ({
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("label", {
     className: "screen-reader-text",
     htmlFor: "post-search-input"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Search Members:', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("input", {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Search Member', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("input", {
     type: "search",
     id: "post-search-input",
     value: tempSearchParams.search,
@@ -13121,7 +13122,7 @@ const MemberList = ({
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("input", {
     type: "submit",
     className: "button",
-    value: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Search Members:', 'wicket-memberships')
+    value: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Search Member', 'wicket-memberships')
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     className: "tablenav top"
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
@@ -13129,7 +13130,7 @@ const MemberList = ({
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     scope: "col",
     className: "manage-column"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Individual Member Name', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+  }, memberType === 'individual' ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Individual Member Name', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Organization Name', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     scope: "col",
     className: "manage-column"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Status', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
@@ -13150,7 +13151,15 @@ const MemberList = ({
     colSpan: 4
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('No members found.', 'wicket-memberships'))), !isLoading && members.length > 0 && members.map((member, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
     key: index
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.user.display_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.meta.membership_status), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.meta.membership_tier_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.meta.membership_tier_uuid)))))));
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.user.display_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.meta.membership_status), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.meta.membership_tier_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, memberType === 'individual' ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+    href: `${wicketAdminUrl}/people/#`
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View', 'wicket-memberships'), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
+    icon: "external"
+  })) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+    href: `${wicketAdminUrl}/organization/#`
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View', 'wicket-memberships'), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
+    icon: "external"
+  })))))))));
 };
 const app = document.getElementById('member_list');
 if (app) {

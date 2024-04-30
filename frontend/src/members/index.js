@@ -9,7 +9,7 @@ import { API_URL, PLUGIN_API_URL } from '../constants';
 import he from 'he';
 import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, FormFlex, CustomDisabled } from '../styled_elements';
 
-const MemberList = ({ memberType }) => {
+const MemberList = ({ memberType, wicketAdminUrl }) => {
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -77,7 +77,9 @@ const MemberList = ({ memberType }) => {
           }
         >
           <p className="search-box">
-            <label className="screen-reader-text" htmlFor="post-search-input">{ __( 'Search Members:', 'wicket-memberships' ) }</label>
+            <label className="screen-reader-text" htmlFor="post-search-input">
+              {__('Search Member', 'wicket-memberships')}
+            </label>
             <input
               type="search"
               id="post-search-input"
@@ -87,7 +89,7 @@ const MemberList = ({ memberType }) => {
             <input
               type="submit"
               className="button"
-              value={ __( 'Search Members:', 'wicket-memberships' ) }
+              value={__('Search Member', 'wicket-memberships')}
             />
           </p>
         </form>
@@ -99,7 +101,9 @@ const MemberList = ({ memberType }) => {
         <table className="wp-list-table widefat fixed striped table-view-list posts">
           <thead>
             <tr>
-              <th scope="col" className="manage-column">{ __( 'Individual Member Name', 'wicket-memberships' ) }</th>
+              <th scope="col" className="manage-column">
+                { memberType === 'individual' ? __( 'Individual Member Name', 'wicket-memberships' ) : __( 'Organization Name', 'wicket-memberships' ) }
+              </th>
               <th scope="col" className="manage-column">{ __( 'Status', 'wicket-memberships' ) }</th>
               <th scope="col" className="manage-column">{ __( 'Tier', 'wicket-memberships' ) }</th>
               <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
@@ -126,7 +130,19 @@ const MemberList = ({ memberType }) => {
                   <td>{member.user.display_name}</td>
                   <td>{member.meta.membership_status}</td>
                   <td>{member.meta.membership_tier_name}</td>
-                  <td>{member.meta.membership_tier_uuid}</td>
+                  <td>
+                    {memberType === 'individual' ? (
+                      <a href={`${wicketAdminUrl}/people/#`}>
+                        {__('View', 'wicket-memberships')}
+                        &nbsp;<Icon icon="external" />
+                      </a>
+                    ) : (
+                      <a href={`${wicketAdminUrl}/organization/#`}>
+                        {__('View', 'wicket-memberships')}
+                        &nbsp;<Icon icon="external" />
+                      </a>
+                    )}
+                  </td>
                 </tr>
               ))
             )}

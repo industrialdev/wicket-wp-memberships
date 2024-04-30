@@ -11,12 +11,14 @@ class Membership_CPT_Hooks {
 
   private $membership_cpt_slug = '';
   const LIST_INDIVIDUAL_MEMBER_PAGE_SLUG = 'individual_member_list';
+  const LIST_ORG_MEMBER_PAGE_SLUG = 'org_member_list';
 
   public function __construct() {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     add_filter('manage_'.$this->membership_cpt_slug.'_posts_columns', [ $this, $this->membership_cpt_slug.'_table_head']);
     add_action('manage_'.$this->membership_cpt_slug.'_posts_custom_column', [ $this, $this->membership_cpt_slug.'_table_content'], 10, 2 );
     add_action( 'admin_menu', [ $this, 'add_individual_members_page' ] );
+    add_action( 'admin_menu', [ $this, 'add_org_members_page' ] );
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
   }
 
@@ -31,10 +33,37 @@ class Membership_CPT_Hooks {
     );
   }
 
-  function render_individual_members_page() {
+  function add_org_members_page() {
+    add_submenu_page(
+      WICKET_MEMBERSHIP_PLUGIN_SLUG,
+      __( 'Organization Members', 'wicket-memberships'),
+      __( 'Organization Members', 'wicket-memberships'),
+      'edit_posts',
+      self::LIST_ORG_MEMBER_PAGE_SLUG,
+      [ $this, 'render_org_members_page' ]
+    );
+  }
+
+  function render_org_members_page() {
+    $wicket_settings = get_wicket_settings();
+    $wicket_admin_url = $wicket_settings['wicket_admin'];
+
     echo <<<HTML
       <div
         id="member_list"
+        data-wicket-admin-url="{$wicket_admin_url}"
+        data-member-type="organization""></div>
+    HTML;
+  }
+
+  function render_individual_members_page() {
+    $wicket_settings = get_wicket_settings();
+    $wicket_admin_url = $wicket_settings['wicket_admin'];
+
+    echo <<<HTML
+      <div
+        id="member_list"
+        data-wicket-admin-url="{$wicket_admin_url}"
         data-member-type="individual""></div>
     HTML;
   }
@@ -45,7 +74,8 @@ class Membership_CPT_Hooks {
 
     // Only load react script on the certain pages
     $react_page_slugs = [
-      'wicket-memberships_page_' . self::LIST_INDIVIDUAL_MEMBER_PAGE_SLUG
+      'wicket-memberships_page_' . self::LIST_INDIVIDUAL_MEMBER_PAGE_SLUG,
+      'wicket-memberships_page_' . self::LIST_ORG_MEMBER_PAGE_SLUG,
     ];
 
     if ( ! in_array( $page->id, $react_page_slugs ) ) {
