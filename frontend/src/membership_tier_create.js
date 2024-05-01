@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { TextControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon, __experimentalText as Text } from '@wordpress/components';
 import styled from 'styled-components';
-import { API_URL, MDP_API_URL } from './constants';
+import { API_URL, PLUGIN_API_URL } from './constants';
 import he from 'he';
 import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, FormFlex, CustomDisabled } from './styled_elements';
 
@@ -304,7 +304,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 		// Fetch MDP Tiers
 		queryParams = {};
-		apiFetch({ path: addQueryArgs(`${MDP_API_URL}/membership_tiers`, queryParams) }).then((tiers) => {
+		apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_tiers`, queryParams) }).then((tiers) => {
 
 			setMdpTiers(
 				tiers.map((tier) => {

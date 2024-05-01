@@ -3,7 +3,7 @@ import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { Spinner, Flex, __experimentalHeading as Heading, FlexItem, Button } from '@wordpress/components';
-import { MDP_API_URL } from '../constants';
+import { PLUGIN_API_URL } from '../constants';
 import { FormFlex, BorderedBox } from '../styled_elements';
 
 const MembershipConfigTiers = ({ configPostId, tierCptSlug, tierMdpUuids, tierListUrl }) => {
@@ -25,7 +25,7 @@ const MembershipConfigTiers = ({ configPostId, tierCptSlug, tierMdpUuids, tierLi
     const tierIdsArray = tierMdpUuids.split(',');
     console.log(tierIdsArray);
 
-		apiFetch({ path: addQueryArgs(`${MDP_API_URL}/membership_tiers`, {
+		apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_tiers`, {
       filter: {
         id: tierIdsArray
       }
@@ -67,7 +67,7 @@ const MembershipConfigTiers = ({ configPostId, tierCptSlug, tierMdpUuids, tierLi
     // tierMdpUuids to array
     const tierIdsArray = tierMdpUuids.split(',');
 
-    apiFetch({ path: addQueryArgs(`${MDP_API_URL}/membership_tier_info`, {
+    apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_tier_info`, {
       filter: {
         tier_uuid: tierIdsArray
       },
