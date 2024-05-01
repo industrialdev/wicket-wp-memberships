@@ -84,6 +84,18 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) 
     );
+    /**
+     * Get Tier by Product_ID
+     */
+    register_rest_route( $this->namespace, '/membership_entity', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_membership_entity' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) 
+    );
   /**
    * Get membership filters by Membership Type
    */
@@ -209,6 +221,12 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) 
     );
+  }
+
+  public function get_membership_entity( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Admin_Controller::get_membership_entity_records( $params['entity_id'] );
+    return rest_ensure_response( $response );
   }
 
   public function admin_manage_status( \WP_REST_Request $request ) {

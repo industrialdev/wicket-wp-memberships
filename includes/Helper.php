@@ -118,7 +118,7 @@ class Helper {
     return $membership_post_data;
   }
 
-  public static function get_membership_json_from_membership_post_data( $membership_array ) {
+  public static function get_membership_json_from_membership_post_data( $membership_array, $json_encode = true ) {
     $membership_json_data = array();
     $mapping_keys = [
         'member_type' => 'membership_type',
@@ -146,8 +146,12 @@ class Helper {
         $membership_json_data[$new_key] = $val;
       }
     );  
-    $membership_json = json_encode( $membership_json_data );
-    return $membership_json;
+    if( $json_encode === true ) {
+      $membership_json = json_encode( $membership_json_data );
+      return $membership_json;
+    } else {
+      return $membership_json_data;
+    }
   }
 
   public static function get_org_data( $org_uuid ) {

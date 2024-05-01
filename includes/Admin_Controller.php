@@ -8,10 +8,13 @@ namespace Wicket_Memberships;
  */
 class Admin_Controller {
 
+  private $membership_cpt_slug = '';
+
   /**
    * Admin_Controller constructor.
    */
   public function __construct() {
+    $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     add_action( 'admin_menu', array( $this, 'init_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
   }
@@ -199,5 +202,87 @@ class Admin_Controller {
     } else {
       return new \WP_REST_Response(['error' => 'Failed status transition. No change was made.'], 400);
     }
+  }
+
+  public static function get_membership_entity_records( $id ) {
+    $self = new self();
+    $args = array(
+      'post_type' => $self->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'orderby'   => 'meta_value',
+      'meta_key' => 'start_date',
+      'order' => 'DESC',
+    );
+    if( is_numeric( $id ) ) {
+     $args['meta_query'] = array(
+        array(
+          'key'     => 'user_id',
+          'value'   => $id,
+          'compare' => '='
+        ),
+        array(
+          'key'     => 'member_type',
+          'value'   => 'individual',
+          'compare' => '='
+        ),
+      );
+    } else {
+      $args['meta_query'] = array(
+        array(
+          'key'     => 'org_uuid',
+          'value'   => $id,
+          'compare' => '='
+        ),
+        array(
+          'key'     => 'member_type',
+          'value'   => 'organization',
+          'compare' => '='
+        ),
+      );
+    }
+    $memberships = get_posts( $args );
+    foreach( $memberships as &$membership) {
+      $meta_data = get_post_meta( $membership->ID );
+      $meta = [];
+      array_walk(
+        $meta_data,
+        function(&$val, $key) use ( &$meta )
+        {
+          if( ! str_starts_with( $key, '_' ) ) {
+            $meta[$key] = $val[0];
+          }
+        }
+      );
+      $membership_item['ID'] = $membership->ID;
+      $membership_data = ( new Membership_Controller() )->get_membership_array_from_post_id( $membership->ID );
+      if( !empty( $membership_data ) ) {
+        $membership_item['data'] = $membership_data;
+      } else {
+        $membership_item['data'] = [];
+      }
+      $membership_item['order'] = [];
+      $membership_item['subscription'] = [];
+
+      if( !empty( $membership_item['data'] )) {
+        $order = wc_get_order( $membership_item['data']['membership_parent_order_id'] );
+        @$membership_item['order']['id'] = $membership_item['data']['membership_parent_order_id'];
+        @$membership_item['order']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_parent_order_id'] );
+        @$membership_item['order']['total'] = $order->get_total();
+        @$membership_item['order']['date_created'] =  $order->get_date_created()->format('m/d/Y');
+        @$membership_item['order']['date_completed'] = (new \DateTime( date("Y-m-d", $order->get_date_completed() ), wp_timezone() ))->format('m/d/Y');
+
+        @$sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
+        @$membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
+        @$membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
+        @$membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub->get_time('next_payment')), wp_timezone() ))->format('m/d/Y');  
+      } else {
+        $membership_item['data'] = Helper::get_membership_json_from_membership_post_data( $meta, false );
+        $membership_item['data']['status'] = 'active';
+      }
+
+      $membership_items[] = $membership_item;
+    }
+    return $membership_items;
   }
 }
