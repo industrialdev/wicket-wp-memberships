@@ -48,25 +48,17 @@ class Membership_CPT_Hooks {
   }
 
   function render_org_members_page() {
-    $wicket_settings = get_wicket_settings();
-    $wicket_admin_url = $wicket_settings['wicket_admin'];
-
     echo <<<HTML
       <div
         id="member_list"
-        data-wicket-admin-url="{$wicket_admin_url}"
         data-member-type="organization""></div>
     HTML;
   }
 
   function render_individual_members_page() {
-    $wicket_settings = get_wicket_settings();
-    $wicket_admin_url = $wicket_settings['wicket_admin'];
-
     echo <<<HTML
       <div
         id="member_list"
-        data-wicket-admin-url="{$wicket_admin_url}"
         data-member-type="individual""></div>
     HTML;
   }
