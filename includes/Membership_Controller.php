@@ -202,9 +202,9 @@ class Membership_Controller {
               ];
 
               if( $membership_tier->tier_data['type'] == 'organization' ) {
-                    $membership['organization_name'] = wc_get_order_item_meta( $item->get_id(), '_org_name', true);
                     $membership['organization_uuid'] = wc_get_order_item_meta( $item->get_id(), '_org_uuid', true);
                     $membership['membership_seats'] = $membership_tier->tier_data['product_data']['max_seats'];
+                    do_action('store_organization_data', $membership['organization_uuid']);
               }
               if( !empty( $membership_post_id_renew )) {
                 $membership['previous_membership_post_id'] = $membership_post_id_renew;
@@ -566,7 +566,9 @@ class Membership_Controller {
       'membership_product_id' => $membership['membership_product_id'],
     ];
     if( $membership['membership_type'] == 'organization') {
-      $meta['org_name'] = $membership['organization_name'];
+      $org_data = Helper::get_org_data( $membership['organization_uuid'] );
+      $meta['org_location'] = $org_data['location'];
+      $meta['org_name'] = $org_data['name'];
       $meta['org_uuid'] = $membership['organization_uuid'];
       $meta['org_seats'] = $membership['membership_seats'];
     }
@@ -858,7 +860,17 @@ class Membership_Controller {
             'value'   => $search,
             'compare' => 'LIKE'
           ),
-      );
+          array(
+            'key'     => 'org_name',
+            'value'   => $search,
+            'compare' => 'LIKE'
+          ),
+          array(
+            'key'     => 'org_location',
+            'value'   => $search,
+            'compare' => 'LIKE'
+          ),
+        );
     }
 
     if( ! empty( $filter ) ) {
@@ -930,7 +942,7 @@ class Membership_Controller {
           }
         }
       }
-    return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => count( $tiers->posts ) ];
+    return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => $tiers->found_posts ];
   }
 
   public static function get_tier_info( $tier_uuids, $properties = [] ) {

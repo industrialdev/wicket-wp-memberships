@@ -100,6 +100,7 @@ class Helper {
        'membership_wp_user_email' => 'user_email',
        'membership_parent_order_id' => 'membership_order_id',
        'organization_name' => 'org_name',
+       'organization_location' => 'org_location',
        'organization_uuid' => 'org_uuid',
        'membership_seats' => 'org_seats',
     ];
@@ -130,6 +131,7 @@ class Helper {
         'user_email' => 'membership_wp_user_email',
         'membership_order_id' => 'membership_parent_order_id',
         'org_name' => 'organization_name',
+        'org_location' => 'organization_location',
         'org_uuid' => 'organization_uuid',
         'org_seats' => 'membership_seats',
     ];
@@ -146,5 +148,14 @@ class Helper {
     );  
     $membership_json = json_encode( $membership_json_data );
     return $membership_json;
+  }
+
+  public static function get_org_data( $org_uuid ) {
+    $org_data = json_decode( get_option( 'org_data_'. $org_uuid ), true);
+    $data['location'] = $org_data['included'][0]['attributes']['city'] . ', ';
+    $data['location'] .= $org_data['included'][0]['attributes']['state_name'] . ', ';
+    $data['location'] .= $org_data['included'][0]['attributes']['country_code'];
+    $data['name'] = $org_data['data']['attributes']['alternate_name'];
+    return $data;
   }
 }

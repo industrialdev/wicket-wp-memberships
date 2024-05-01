@@ -173,6 +173,16 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       ),
       'schema' => array( $this, '' ),
     ) );
+    //DEBUG
+    register_rest_route( $this->namespace, '/org_data', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_org_data' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) 
+    );
   }
 
   public function admin_manage_status( \WP_REST_Request $request ) {
@@ -243,6 +253,13 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $org_info = Membership_Controller::get_org_info( $params['filter']['org_uuid'], $params['properties'] );
     return rest_ensure_response( $org_info );
+  }
+
+  public function get_org_data(  \WP_REST_Request $request  ) {
+    $params = $request->get_params();
+    $org_data = Helper::get_org_data( $params['org_uuid'] );
+    //$org_data = get_option( 'org_data_' . $params['org_uuid'] );
+    return rest_ensure_response( $org_data );
   }
 
   public function get_tiers_mdp( \WP_REST_Request $request ) {
