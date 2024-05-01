@@ -45,6 +45,13 @@ class Admin_Controller {
     );
 	}
 
+  /**
+   * API Response with all status (no post id received) or only 
+   * allowed status transitions based on current membership post status
+   *
+   * @param integer $membership_post_id
+   * @return array
+   */
   public static function get_admin_status_options( $membership_post_id = null ) {
     if( !empty( $membership_post_id ) ) {
       $membership_post_status = get_post_meta( $membership_post_id, 'membership_status', true );
@@ -55,6 +62,14 @@ class Admin_Controller {
     return $statuses;
   }
 
+  /**
+   * API Request to update Status function
+   * Rules: https://docs.google.com/document/d/1X3EuDnq9QHZI9DaK4OcqvlDVKrVqMnu9HQOZWVS-ptU/edit#heading=h.61a0nijp1ufb
+   *
+   * @param integer $membership_post_id
+   * @param string $new_post_status
+   * @return \WP_REST_Response
+   */
   public static function admin_manage_status( $membership_post_id, $new_post_status ) {
     $yesterday_iso_date = (new \DateTime( date("Y-m-d", strtotime( "-1 day" )), wp_timezone() ))->format('c');
     $now_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
@@ -72,13 +87,9 @@ class Admin_Controller {
     $dates = $config->get_membership_dates( $membership_current );
     //echo json_encode( [$current_post_status, $new_post_status] );exit;
     if( $current_post_status == Wicket_Memberships::STATUS_PENDING && $new_post_status == Wicket_Memberships::STATUS_ACTIVE ) {
+      // ------ WE RETURN EARLY HERE ONLY ------
+      // THIS IS A SPECIAL CASE OF STATUS UPDATE 
       //apply the rules
-      /**
-          --Pending Approval > Active
-          Updated manually by admins. See Membership Approval 
-          Membership Start Date and Membership End Date will be 
-          calculated based on the Membership Tier configuration
-       */
       $meta_data = [
         'membership_status' => $new_post_status,
         'membership_starts_at' => $dates['start_date'],
@@ -120,23 +131,11 @@ class Admin_Controller {
       $response_array['response'] = $response;
       $response_code = 400;
 
+      // ------ WE RETURN EARLY HERE ONLY ------
+      // THIS IS A SPECIAL CASE OF STATUS UPDATE 
       return new \WP_REST_Response($response_array, $response_code);  
     } else if( $new_post_status == Wicket_Memberships::STATUS_CANCELLED ) {
       //apply the rules
-      /**
-          --Pending Approval > Canceled 
-          Updated manually by admins. See Membership Approval 
-          Cancellation date is recorded as start date and end date
-          Related subscription is canceled
-          Admin user is prompted to refund related order
-      */
-      /**
-          --Delayed Status > Canceled Status
-          Updated manually by admins. See Membership Approval 
-          Cancellation date is recorded as start date and end date
-          Related subscription is canceled
-          Admin user is prompted to refund related order
-      */
       if( $current_post_status == Wicket_Memberships::STATUS_PENDING  || $current_post_status == Wicket_Memberships::STATUS_DELAYED) {
         $meta_data = [
           'membership_status' => $new_post_status,
@@ -144,22 +143,12 @@ class Admin_Controller {
           'membership_ends_at' =>  $now_iso_date,
         ];
       }
-      /**
-          --Grace Period Status > Canceled
-          Updated manually by admins
-          Membership expiration date is updated to the date of the update
-      */
       else if( $current_post_status == Wicket_Memberships::STATUS_GRACE) {
         $meta_data = [
           'membership_status' => $new_post_status,
           'membership_expires_at' => $now_iso_date,
         ];
       }
-      /**
-          --record is set to ‘Canceled’
-          The cancellation date is added as the end date
-          The related subscription is canceled (confirmation?)
-       */
       else {
         $meta_data = [
           'membership_status' => $new_post_status,
@@ -171,13 +160,8 @@ class Admin_Controller {
       $sub->update_status( 'cancelled' );
       //return the order id ( FE will redirect user to refund order )
       $response_array['order_id'] = $membership_new['membership_parent_order_id'];     
-    } else if( $new_post_status == Wicket_Memberships::STATUS_EXPIRED && $current_post_status == Wicket_Memberships::STATUS_GRACE ) {
+    } else if( $current_post_status == Wicket_Memberships::STATUS_GRACE && $new_post_status == Wicket_Memberships::STATUS_EXPIRED ) {
       //apply the rules
-      /**
-          --Graced Period Status > Expired
-          Applied dynamically when the membership expiration date is reached
-          If update manually by admins, the membership expiration date is updated to the date of the update
-       */
       $meta_data = [
         'membership_status' => $new_post_status,
         'membership_expires_at' => $now_iso_date,
@@ -189,6 +173,8 @@ class Admin_Controller {
       $updated = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post_meta_data );
       $Membership_Controller->amend_membership_order_json( $membership_post_id, $meta_data );
     } else if( ! $Membership_Controller->bypass_status_change_lockout ) {
+      // WE ONLY ALLOW CERTAIN TRANSITIONS ACCORDING TO RULES
+      // 
       return new \WP_REST_Response(['error' => 'Invalid status transition. Request did not succeed.'], 400);
     } else {
       ( new Membership_Controller() )->update_membership_status( $membership_post_id, $new_post_status);
