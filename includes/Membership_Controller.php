@@ -35,12 +35,27 @@ class Membership_Controller {
     add_action( 'woocommerce_add_order_item_meta', [$this, 'add_order_item_meta'] , 10, 2);
     add_action( 'woocommerce_before_add_to_cart_button', [$this, 'product_add_on'], 9 ); //collects org data in cart
 
-    // TEMPORY -- INJECT MEMBERSHIP META DATA into order and subscription pages -- org_id on checkout page
+    // TEMPORY -- INJECT MEMBERSHIP META DATA into order and subscription and member pages -- org_id on checkout page
     add_action( 'woocommerce_admin_order_data_after_shipping_address', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
     add_action( 'wcs_subscription_details_table_before_dates', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
+    add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
   }
 
-  // TEMPORARILY INJECT MEMBERSHIP META DATA into order and subscription pages
+  // TEMPORARILY INJECT MEMBERSHIP META DATA into order and subscription and membership pages
+  function extra_info_add_meta_boxes()
+  {
+    global $post;
+    add_meta_box( 'extra_info_data', __('Extra Info','your_text_domain'), [$this, 'extra_info_data_content'], $this->membership_cpt_slug, 'normal', 'core' );
+  }
+  
+  function extra_info_data_content()
+  {
+    global $post;
+    echo '<pre>';
+    var_dump( get_post_meta( $post->ID ) );
+    echo '</pre>';
+  } 
+
   function wps_select_checkout_field_display_admin_order_meta( $post ) {
     $post_meta = get_post_meta( $post->get_id() );
     foreach($post_meta as $key => $val) {
@@ -137,6 +152,7 @@ class Membership_Controller {
 
     // do we have a current membership post_id from cart for renewal
     $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true);
+
     if( empty( $membership_post_id_renew ) ) {
       //check if the order is renewing an active membership into the same tier
       $self_renew = $self->get_my_memberships( 'active', $membership_tier->tier_data['mdp_tier_uuid'] );
@@ -144,6 +160,7 @@ class Membership_Controller {
         $membership_post_id_renew = $self_renew[0]->ID;
       }
     }
+
     //if we have a current membership_post ID now  get the current membership data
     if( !empty( $membership_post_id_renew ) ) {
       $membership_current = $self->get_membership_array_from_post_id( $membership_post_id_renew );
@@ -203,7 +220,12 @@ class Membership_Controller {
 
               if( $membership_tier->tier_data['type'] == 'organization' ) {
                     $membership['organization_uuid'] = wc_get_order_item_meta( $item->get_id(), '_org_uuid', true);
-                    $membership['membership_seats'] = $membership_tier->tier_data['product_data']['max_seats'];
+                    if( $membership_tier->is_per_seat() ) {
+                      $seats = $item->get_quantity();
+                    } else if ( $membership_tier->is_per_range_of_seats() ) {
+                      $seats = $membership_tier->get_seat_count();
+                    }
+                    $membership['membership_seats'] = $seats;
                     do_action('store_organization_data', $membership['organization_uuid']);
               }
               if( !empty( $membership_post_id_renew )) {
@@ -471,7 +493,8 @@ class Membership_Controller {
           $membership['organization_uuid'],
           $membership['membership_tier_uuid'], 
           $membership['membership_starts_at'],
-          $membership['membership_ends_at']
+          $membership['membership_ends_at'],
+          $membership['membership_seats']
         );  
       }
       if( is_wp_error( $response ) ) {

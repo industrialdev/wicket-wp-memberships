@@ -407,4 +407,11 @@ class Membership_Tier {
   public function get_membership_tier_post_id() {
     return $this->post_id;
   }
+
+  public function get_seat_count() {
+    $seats = 0;
+    $product_data = $this->get_products_data();
+    $seats = $product_data['max_seats'];
+    return $seats;
+  }
 }
