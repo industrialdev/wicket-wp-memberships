@@ -70,6 +70,7 @@ class Admin_Controller {
     $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
     //get membership dates ( new or based on previous membership if exists )
     $dates = $config->get_membership_dates( $membership_current );
+    //echo json_encode( [$current_post_status, $new_post_status] );exit;
     if( $current_post_status == Wicket_Memberships::STATUS_PENDING && $new_post_status == Wicket_Memberships::STATUS_ACTIVE ) {
       //apply the rules
       /**
@@ -85,7 +86,34 @@ class Admin_Controller {
         'membership_expires_at' => !empty($dates['expires_at']) ? $dates['expires_at'] : $dates['end_date'],
         'membership_early_renew_at' => !empty($dates['early_renew_at']) ? $dates['early_renew_at'] : $dates['end_date'],
       ];
-      $meta_data['membership_wicket_uuid'] = $Membership_Controller->create_mdp_record( array_merge( $membership_new, $meta_data ) );
+      $membership = array_merge( $membership_new, $meta_data );
+
+      $user = get_user_by( 'id', $membership['membership_wp_user_id'] );
+      $membership['person_uuid'] = $user->data->user_login;
+
+      //create the mdp record we skipped before
+      if( empty( $membership['membership_wicket_uuid'] ) ) {
+        $membership['membership_wicket_uuid'] = $meta_data['wicket_uuid'] = $Membership_Controller->create_mdp_record( $membership );
+      } else {
+        $Membership_Controller->update_mdp_record( $membership, $meta_data );
+      }
+      
+      //update the membership post
+      $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( json_encode($membership) );
+      $response = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post_meta_data );
+      $Membership_Controller->amend_membership_order_json( $membership_post_id, $meta_data );
+
+      //set the renewal scheduler dates
+      $Membership_Controller->scheduler_dates_for_expiry( $membership );
+      //update subscription dates
+      $Membership_Controller->update_membership_subscription( $membership, ['start_date', 'end_date'] );  
+      $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
+
+      $response_array['success'] = 'Pending membership activated successfully.';
+      $response_array['response'] = $response;
+      $response_code = 400;
+
+      return new \WP_REST_Response($response_array, $response_code);  
     } else if( $new_post_status == Wicket_Memberships::STATUS_CANCELLED ) {
       //apply the rules
       /**

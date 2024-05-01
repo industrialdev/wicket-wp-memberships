@@ -334,7 +334,7 @@ class Membership_Controller {
   /**
    * Add renewal transition dates to Advanced Scheduler - fallback with wp_cron
    */
-  private function scheduler_dates_for_expiry( $membership ) {
+  public function scheduler_dates_for_expiry( $membership ) {
     $start_date = strtotime( $membership['membership_starts_at'] );
     $early_renew_date = strtotime( $membership['membership_early_renew_at'] );
     $end_date = strtotime( $membership['membership_ends_at'] );
@@ -460,14 +460,19 @@ class Membership_Controller {
   /** 
    * Update the subscription
    */
-  public function update_membership_subscription( $membership ) {
+  public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ] ) {
     $start_date   = $membership['membership_starts_at'];
     $end_date     = $membership['membership_ends_at'];
     $expire_date  = $membership['membership_expires_at'];
-    $dates_to_update['start_date']    = date('Y-m-d H:i:s', strtotime( substr($start_date,0,10)." 00:00:00"));
-    $dates_to_update['end']           = date('Y-m-d H:i:s', strtotime( substr($expire_date,0,10)." 00:00:00" ));
-    $dates_to_update['next_payment']  = date('Y-m-d H:i:s', strtotime( substr($end_date,0,10)." 00:00:00" ));
-    //var_dump($dates_to_update);exit;
+    if( in_array ( 'start_date', $fields ) ) {
+      $dates_to_update['start_date']    = date('Y-m-d H:i:s', strtotime( substr($start_date,0,10)." 00:00:00"));
+    }
+    if( in_array ( 'end_date', $fields ) ) {
+      $dates_to_update['end']           = date('Y-m-d H:i:s', strtotime( substr($expire_date,0,10)." 00:00:00" ));
+    }
+    if( in_array ( 'next_payment_date', $fields ) ) {
+      $dates_to_update['next_payment']  = date('Y-m-d H:i:s', strtotime( substr($end_date,0,10)." 00:00:00" ));
+    }
     $sub = wcs_get_subscription( $membership['membership_subscription_id'] ); 
     $sub->update_dates($dates_to_update);
   }
@@ -503,7 +508,7 @@ class Membership_Controller {
   /**
    * Create the Membership Record in MDP
    */
-  private function create_mdp_record( $membership ) {
+  public function create_mdp_record( $membership ) {
     $wicket_uuid = $this->check_mdp_membership_record_exists( $membership );
     if( empty( $wicket_uuid ) ) {
       if( $membership['membership_type'] == 'individual' ) {
