@@ -363,8 +363,8 @@ const MemberList = ({
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("option", {
     value: ""
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Status', 'wicket-memberships')), membershipFilters !== null && membershipFilters.membership_status.map(status => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("option", {
-    key: status.name,
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Status', 'wicket-memberships')), membershipFilters !== null && membershipFilters.membership_status.map((status, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("option", {
+    key: index,
     value: status.name
   }, status.value))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("select", {
     name: "filter_tier",
@@ -380,10 +380,10 @@ const MemberList = ({
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("option", {
     value: ""
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('All Tiers', 'wicket-memberships')), membershipFilters !== null && membershipFilters.tiers.map(tier => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("option", {
-    key: tier.value,
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('All Tiers', 'wicket-memberships')), membershipFilters !== null && membershipFilters.tiers.map((tier, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("option", {
+    key: index,
     value: tier.value
-  }, tier.value))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("input", {
+  }, getTierInfo(tier.value) !== null && getTierInfo(tier.value).name, getTierInfo(tier.value) === null && (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Loading...', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("input", {
     type: "submit",
     id: "post-query-submit",
     className: "button",
@@ -412,7 +412,7 @@ const MemberList = ({
     className: "alternate"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname",
-    colSpan: 4
+    colSpan: memberType === 'organization' ? 6 : 4
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Spinner, null))), !isLoading && members.length === 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
     className: "alternate"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
@@ -428,7 +428,7 @@ const MemberList = ({
   }, member.meta.membership_status)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, tiersInfo === null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Spinner, null), getTierInfo(member.meta.membership_tier_uuid) !== null && getTierInfo(member.meta.membership_tier_uuid).name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
     target: "_blank",
     href: member.user.mdp_link
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View', 'wicket-memberships'), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Icon, {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View', 'wicket-memberships'), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
     icon: "external"
   }))))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     className: "tablenav bottom"

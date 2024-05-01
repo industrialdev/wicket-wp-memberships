@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { Spinner } from '@wordpress/components';
+import { Spinner, Icon } from '@wordpress/components';
 import { PLUGIN_API_URL } from '../constants';
 
 const MemberList = ({ memberType }) => {
@@ -175,8 +175,8 @@ const MemberList = ({ memberType }) => {
                 }}
               >
                 <option value="">{__('Status', 'wicket-memberships')}</option>
-                {membershipFilters !== null && membershipFilters.membership_status.map((status) => (
-                  <option key={status.name} value={status.name}>{status.value}</option>
+                {membershipFilters !== null && membershipFilters.membership_status.map((status, index) => (
+                  <option key={index} value={status.name}>{status.value}</option>
                 ))}
               </select>
 
@@ -194,8 +194,11 @@ const MemberList = ({ memberType }) => {
                 }}
               >
                 <option value="">{__('All Tiers', 'wicket-memberships')}</option>
-                {membershipFilters !== null && membershipFilters.tiers.map((tier) => (
-                  <option key={tier.value} value={tier.value}>{tier.value}</option>
+                {membershipFilters !== null && membershipFilters.tiers.map((tier, index) => (
+                  <option key={index} value={tier.value}>
+                    {getTierInfo(tier.value) !== null && getTierInfo(tier.value).name}
+                    {getTierInfo(tier.value) === null && __('Loading...', 'wicket-memberships')}
+                  </option>
                 ))}
               </select>
 
@@ -226,7 +229,10 @@ const MemberList = ({ memberType }) => {
           <tbody>
             {isLoading && (
               <tr className="alternate">
-                <td className="column-columnname" colSpan={4}>
+                <td
+                  className="column-columnname"
+                  colSpan={memberType === 'organization' ? 6 : 4}
+                >
                   <Spinner />
                 </td>
               </tr>
