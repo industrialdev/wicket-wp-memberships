@@ -20,7 +20,11 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
   /**
    * Register routes
    */
-  public function register_routes() {
+
+   public function register_routes() {
+   /**
+    * Get All Tiers MDP
+    */
     register_rest_route( $this->namespace, '/membership_tiers', array(
       array(
         'methods'  => \WP_REST_Server::READABLE,
@@ -30,24 +34,9 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) 
     );
-    register_rest_route( $this->namespace, '/membership_tier_info', array(
-      array(
-        'methods'  => \WP_REST_Server::READABLE,
-        'callback'  => array( $this, 'get_tier_info' ),
-        'permission_callback' => array( $this, 'permissions_check_read' ),
-      ),
-      'schema' => array( $this, '' ),
-    ) 
-    );
-    register_rest_route( $this->namespace, '/membership_org_info', array(
-      array(
-        'methods'  => \WP_REST_Server::READABLE,
-        'callback'  => array( $this, 'get_org_info' ),
-        'permission_callback' => array( $this, 'permissions_check_read' ),
-      ),
-      'schema' => array( $this, '' ),
-    ) 
-    );
+    /**
+    * Get All Orgs MDP
+    */
     register_rest_route( $this->namespace, '/membership_orgs', array(
       array(
         'methods'  => \WP_REST_Server::READABLE,
@@ -57,6 +46,35 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) 
     );
+    /**
+    * Get Tier Data WP
+    * Can filter by UUID and add properties like: count
+    */
+    register_rest_route( $this->namespace, '/membership_tier_info', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_tier_info' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) 
+    );
+    /**
+    * Get Org Data WP
+    * Can filter by UUID and add properties like: count
+    */
+    register_rest_route( $this->namespace, '/membership_org_info', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_org_info' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) 
+    );
+    /**
+     * Get Tier by Product_ID
+     */
     register_rest_route( $this->namespace, '/product_tiers/(?P<id>\d+)', array(
       array(
         'methods'  => \WP_REST_Server::READABLE,
@@ -66,7 +84,9 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) 
     );
-
+  /**
+   * Get membership filters by Membership Type
+   */
     register_rest_route( $this->namespace, '/membership_filters', array(
       array(
         'methods'  => \WP_REST_Server::READABLE,
@@ -83,7 +103,9 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) 
     );
-
+    /**
+     * Main Search and FIlter Memberships Endpoint
+     */
     register_rest_route( $this->namespace, '/memberships', array(
       array(
         'methods'  => \WP_REST_Server::READABLE,
@@ -124,7 +146,9 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) 
     );
-
+    /**
+     * Get Membership Dates with Config_ID
+     */
     register_rest_route( $this->namespace, '/config/(?P<id>\d+)/membership_dates', array(
       array(
         'methods'  => \WP_REST_Server::READABLE,
@@ -133,7 +157,9 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       ),
       'schema' => array( $this, '' ),
     ) );
-
+    /**
+     * Get memberships early renewal and grace periods by user_id
+     */
     // params = user_id
     register_rest_route( $this->namespace, '/memberships_expiring(?:/(?P<user_id>\d+))?', array(
       array(
