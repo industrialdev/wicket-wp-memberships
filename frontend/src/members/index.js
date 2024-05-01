@@ -3,13 +3,10 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { TextControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, Spinner, CheckboxControl, __experimentalHeading as Heading, Icon, __experimentalText as Text } from '@wordpress/components';
-import styled from 'styled-components';
-import { API_URL, PLUGIN_API_URL } from '../constants';
-import he from 'he';
-import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, FormFlex, CustomDisabled } from '../styled_elements';
+import { Spinner } from '@wordpress/components';
+import { PLUGIN_API_URL } from '../constants';
 
-const MemberList = ({ memberType, wicketAdminUrl }) => {
+const MemberList = ({ memberType }) => {
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -19,6 +16,7 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
   const [totalPages, setTotalPages] = useState(0);
 
   const [tiersInfo, setTiersInfo] = useState(null);
+  const [membershipFilters, setMembershipFilters] = useState(null);
 
   const [searchParams, setSearchParams] = useState({
     type: memberType,
@@ -54,8 +52,6 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
 
       const tierIds = response.results.map((member) => member.meta.membership_tier_uuid);
       fetchTiersInfo(tierIds);
-
-      const orgIds = response.results.map((member) => member.meta.org_uuid);
     }).catch((error) => {
       console.error(error);
     });
@@ -76,6 +72,14 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
 		});
   }
 
+  const fetchMembershipFilters = () => {
+    apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_filters`, { type: memberType }) }).then((filters) => {
+      setMembershipFilters(filters);
+    }).catch((error) => {
+      console.error(error);
+    });
+  };
+
   const getTierInfo = (tierId) => {
     if ( tiersInfo === null ) { return null }
 
@@ -89,6 +93,7 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
   useEffect(() => {
     // https://localhost/wp-json/wicket_member/v1/memberships?order_col=start_date&order_dir=ASC&type=individual
     // https://localhost/wp-json/wicket_member/v1/memberships?order_col=start_date&order_dir=ASC&filter[membership_status]=expired&filter[membership_tier]=88d6a08a-ab3c-4f01-93d7-ddf07995ab25&search=Veterinary&type=individual
+    fetchMembershipFilters();
     fetchMembers(searchParams);
   }, []);
 
@@ -132,7 +137,71 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
         </form>
 
         <div className="tablenav top">
+          <form
+            onSubmit={
+              (e) => {
+                e.preventDefault();
+                const newSearchParams = {
+                  ...searchParams,
+                  filter: {
+                    membership_status: tempSearchParams.filter.membership_status,
+                    membership_tier: tempSearchParams.filter.membership_tier,
+                  }
+                };
+                // remove if empty filter values
+                if (newSearchParams.filter.membership_status === '') {
+                  delete newSearchParams.filter.membership_status;
+                }
+                if (newSearchParams.filter.membership_tier === '') {
+                  delete newSearchParams.filter.membership_tier;
+                }
+                setSearchParams(newSearchParams);
+                fetchMembers(newSearchParams);
+              }
+            }
+          >
+            <div className="alignleft actions">
+              <select
+                name="filter_status"
+                id="filter_status"
+                onChange={(e) => {
+                  setTempSearchParams({
+                    ...tempSearchParams,
+                    filter: {
+                      ...tempSearchParams.filter,
+                      membership_status: e.target.value,
+                    },
+                  });
+                }}
+              >
+                <option value="">{__('Status', 'wicket-memberships')}</option>
+                {membershipFilters !== null && membershipFilters.membership_status.map((status) => (
+                  <option key={status.name} value={status.name}>{status.value}</option>
+                ))}
+              </select>
 
+              <select
+                name="filter_tier"
+                id="filter_tier"
+                onChange={(e) => {
+                  setTempSearchParams({
+                    ...tempSearchParams,
+                    filter: {
+                      ...tempSearchParams.filter,
+                      membership_tier: e.target.value,
+                    },
+                  });
+                }}
+              >
+                <option value="">{__('All Tiers', 'wicket-memberships')}</option>
+                {membershipFilters !== null && membershipFilters.tiers.map((tier) => (
+                  <option key={tier.value} value={tier.value}>{tier.value}</option>
+                ))}
+              </select>
+
+              <input type="submit" id="post-query-submit" className="button" value={__('Filter', 'wicket-memberships')} />
+            </div>
+          </form>
         </div>
 
         <table className="wp-list-table widefat fixed striped table-view-list posts">
@@ -211,7 +280,6 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
         </table>
 
         <div className="tablenav bottom">
-          {/* <div className="alignleft actions"></div> */}
           <div className="tablenav-pages">
             <span className="displaying-num">
               {totalMembers} {__('items', 'wicket-memberships')}
