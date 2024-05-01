@@ -404,7 +404,12 @@ class Membership_Controller {
     if( $tier->is_approval_required() ) {
       //put subscription status on-hold
       $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
-      $sub->update_status( 'on-hold' );
+      try {
+        $sub->update_status( 'on-hold', 'Pending approval put on-hold.' );
+      } catch (\Exception $e) {
+        $sub->update_status( 'active', 'Pending approval temporarily set active.' );
+        $sub->update_status( 'on-hold', 'Pending approval transition to on-hold.' );
+      }
       //update membership status to pending approval
       $self->update_membership_status( $membership['membership_post_id'], Wicket_Memberships::STATUS_PENDING);
       //send the approval email notification
@@ -419,7 +424,7 @@ class Membership_Controller {
       //set the scheduled tasks
       $self->scheduler_dates_for_expiry( $membership );
       //update subscription dates
-      $self->update_membership_subscription( $membership );  
+      $self->update_membership_subscription( $membership, [ 'start_date', 'end_date' ] );  
     }
     return $membership;
   }
