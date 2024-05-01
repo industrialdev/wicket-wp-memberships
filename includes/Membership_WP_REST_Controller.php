@@ -3,6 +3,8 @@
 namespace Wicket_Memberships;
 
 use Wicket_Memberships\Membership_Controller;
+use Wicket_Memberships\Admin_Controller;
+
 use \WP_REST_Response;
 
 /**
@@ -142,6 +144,26 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) );
 
+    // change status on membership
+    register_rest_route( $this->namespace, '/admin/manage_status', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'admin_manage_status' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) );
+
+    // available status options for change status drop-down
+    register_rest_route( $this->namespace, '/admin/status_options', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_admin_status_options' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) );
+
     // test endpoint
     register_rest_route( $this->namespace, '/subscription/(?P<id>\d+)/modify', array(
       array(
@@ -151,6 +173,28 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       ),
       'schema' => array( $this, '' ),
     ) );
+    //DEBUG
+    register_rest_route( $this->namespace, '/org_data', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_org_data' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) 
+    );
+  }
+
+  public function admin_manage_status( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Admin_Controller::admin_manage_status( $params['post_id'], $params['status']);
+    return rest_ensure_response( $response );
+  }
+
+  public function get_admin_status_options( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Admin_Controller::get_admin_status_options( $params['post_id']);
+    return rest_ensure_response( $response );
   }
 
   public function get_memberships_expiring( \WP_REST_Request $request ) {
@@ -209,6 +253,13 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $org_info = Membership_Controller::get_org_info( $params['filter']['org_uuid'], $params['properties'] );
     return rest_ensure_response( $org_info );
+  }
+
+  public function get_org_data(  \WP_REST_Request $request  ) {
+    $params = $request->get_params();
+    $org_data = Helper::get_org_data( $params['org_uuid'] );
+    //$org_data = get_option( 'org_data_' . $params['org_uuid'] );
+    return rest_ensure_response( $org_data );
   }
 
   public function get_tiers_mdp( \WP_REST_Request $request ) {
