@@ -97,7 +97,9 @@ class Admin_Controller {
       } else {
         $Membership_Controller->update_mdp_record( $membership, $meta_data );
       }
-      
+      if( empty( $meta_data['membership_wicket_uuid'] ) ) {
+        $meta_data['membership_wicket_uuid'] = $membership['membership_wicket_uuid'];
+      }
       //update the membership post
       $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( json_encode($membership) );
       $response = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post_meta_data );
@@ -108,7 +110,12 @@ class Admin_Controller {
       //update subscription dates
       $Membership_Controller->update_membership_subscription( $membership, ['start_date', 'end_date'] );  
       $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
-
+      //set subscription active
+      $Membership_Controller->update_subscription_status( 
+        $membership['membership_subscription_id'], 
+        'active', 
+        'Membership approved and dates updated.'
+      );
       $response_array['success'] = 'Pending membership activated successfully.';
       $response_array['response'] = $response;
       $response_code = 400;

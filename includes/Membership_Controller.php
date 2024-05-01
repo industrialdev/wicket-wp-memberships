@@ -402,14 +402,7 @@ class Membership_Controller {
 
     //we are pending approval so change some statuses and send email
     if( $tier->is_approval_required() ) {
-      //put subscription status on-hold
-      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
-      try {
-        $sub->update_status( 'on-hold', 'Pending approval put on-hold.' );
-      } catch (\Exception $e) {
-        $sub->update_status( 'active', 'Pending approval temporarily set active.' );
-        $sub->update_status( 'on-hold', 'Pending approval transition to on-hold.' );
-      }
+      $self->update_subscription_status( $membership['membership_subscription_id'], 'on-hold', 'Subscription pending approval.');
       //update membership status to pending approval
       $self->update_membership_status( $membership['membership_post_id'], Wicket_Memberships::STATUS_PENDING);
       //send the approval email notification
@@ -428,6 +421,20 @@ class Membership_Controller {
     }
     return $membership;
   }
+
+  /** 
+   * Update subscription status
+   */
+
+   public function update_subscription_status( $membership_subscription_id, $status, $note = '' ) {
+          $sub = wcs_get_subscription( $membership_subscription_id );
+          try {
+            $sub->update_status( $status, $note );
+          } catch (\Exception $e) {
+            $sub->update_status( 'active', 'Subscription temporarily set active.' );
+            $sub->update_status( $status, $note );
+          }    
+   }
 
   /**
    * Gen UUID
