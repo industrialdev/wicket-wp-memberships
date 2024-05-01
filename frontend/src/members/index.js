@@ -19,7 +19,6 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
   const [totalPages, setTotalPages] = useState(0);
 
   const [tiersInfo, setTiersInfo] = useState(null);
-  const [membershipOrgInfo, setMembershipOrgInfo] = useState(null);
 
   const [searchParams, setSearchParams] = useState({
     type: memberType,
@@ -57,7 +56,6 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
       fetchTiersInfo(tierIds);
 
       const orgIds = response.results.map((member) => member.meta.org_uuid);
-      fetchMembershipOrgInfo(orgIds);
     }).catch((error) => {
       console.error(error);
     });
@@ -78,21 +76,6 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
 		});
   }
 
-  const fetchMembershipOrgInfo = (orgIds) => {
-    if ( orgIds.length === 0 ) { return }
-
-    apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_org_info`, {
-      filter: {
-        org_uuid: orgIds
-      },
-    }) }).then((membershipOrgInfo) => {
-      setMembershipOrgInfo(membershipOrgInfo);
-		}).catch((error) => {
-      console.log('Membership Org Info Error:');
-      console.log(error);
-		});
-  }
-
   const getTierInfo = (tierId) => {
     if ( tiersInfo === null ) { return null }
 
@@ -101,16 +84,6 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
     }
 
     return tiersInfo.tier_data[tierId];
-  };
-
-  const getMembershipOrgInfo = (orgId) => {
-    if ( membershipOrgInfo === null ) { return null }
-
-    if ( ! membershipOrgInfo.hasOwnProperty('org_data') || ! membershipOrgInfo.org_data.hasOwnProperty(orgId) ) {
-      return null;
-    }
-
-    return membershipOrgInfo.org_data[orgId];
   };
 
   useEffect(() => {
@@ -202,10 +175,11 @@ const MemberList = ({ memberType, wicketAdminUrl }) => {
                   { memberType === 'organization' && (
                     <>
                       <td>
-                        {membershipOrgInfo === null && <Spinner />}
-                        {getMembershipOrgInfo(member.meta.org_uuid) !== null && getMembershipOrgInfo(member.meta.org_uuid).name}
+                        {member.meta.org_name}
                       </td>
-                      <td>-</td>
+                      <td>
+                        {member.meta.org_location}
+                      </td>
                     </>
                   )}
                   <td>{member.user.display_name}</td>
