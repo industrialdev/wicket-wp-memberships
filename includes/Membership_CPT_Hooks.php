@@ -11,7 +11,9 @@ class Membership_CPT_Hooks {
 
   private $membership_cpt_slug = '';
   const LIST_INDIVIDUAL_MEMBER_PAGE_SLUG = 'individual_member_list';
+  const EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG = 'wicket_individual_member_edit';
   const LIST_ORG_MEMBER_PAGE_SLUG = 'org_member_list';
+  const EDIT_ORG_MEMBER_PAGE_SLUG = 'wicket_org_member_edit';
 
   private $status_names;
 
@@ -20,9 +22,52 @@ class Membership_CPT_Hooks {
     $this->status_names = Helper::get_all_status_names();
     add_filter('manage_'.$this->membership_cpt_slug.'_posts_columns', [ $this, $this->membership_cpt_slug.'_table_head']);
     add_action('manage_'.$this->membership_cpt_slug.'_posts_custom_column', [ $this, $this->membership_cpt_slug.'_table_content'], 10, 2 );
+
     add_action( 'admin_menu', [ $this, 'add_individual_members_page' ] );
     add_action( 'admin_menu', [ $this, 'add_org_members_page' ] );
+
+    add_action( 'admin_menu', [ $this, 'edit_individual_member_page' ] );
+    add_action( 'admin_menu', [ $this, 'edit_org_member_page' ] );
+
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
+  }
+
+  function edit_individual_member_page() {
+    add_submenu_page(
+      null,
+      __( 'Edit Individual Member', 'wicket-memberships'),
+      __( 'Edit Individual Member', 'wicket-memberships'),
+      'edit_posts',
+      self::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG,
+      [ $this, 'render_edit_individual_member_page' ]
+    );
+  }
+
+  function edit_org_member_page() {
+    add_submenu_page(
+      null,
+      __( 'Edit Organization Member', 'wicket-memberships'),
+      __( 'Edit Organization Member', 'wicket-memberships'),
+      'edit_posts',
+      self::EDIT_ORG_MEMBER_PAGE_SLUG,
+      [ $this, 'render_edit_org_member_page' ]
+    );
+  }
+
+  function render_edit_individual_member_page() {
+    echo <<<HTML
+      <div
+        id="edit_member"
+        data-member-type="individual""></div>
+    HTML;
+  }
+
+  function render_edit_org_member_page() {
+    echo <<<HTML
+      <div
+        id="edit_member"
+        data-member-type="organization""></div>
+    HTML;
   }
 
   function add_individual_members_page() {
@@ -48,17 +93,23 @@ class Membership_CPT_Hooks {
   }
 
   function render_org_members_page() {
+    $edit_org_member_page_url = admin_url( 'admin.php?page=' . self::EDIT_ORG_MEMBER_PAGE_SLUG );
+
     echo <<<HTML
       <div
         id="member_list"
+        data-edit-member-url="{$edit_org_member_page_url}"
         data-member-type="organization""></div>
     HTML;
   }
 
   function render_individual_members_page() {
+    $edit_individual_member_page_url = admin_url( 'admin.php?page=' . self::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG );
+
     echo <<<HTML
       <div
         id="member_list"
+        data-edit-member-url="{$edit_individual_member_page_url}"
         data-member-type="individual""></div>
     HTML;
   }
@@ -68,24 +119,39 @@ class Membership_CPT_Hooks {
     $page = get_current_screen();
 
     // Only load react script on the certain pages
-    $react_page_slugs = [
+    $list_page_slugs = [
       'wicket-memberships_page_' . self::LIST_INDIVIDUAL_MEMBER_PAGE_SLUG,
       'wicket-memberships_page_' . self::LIST_ORG_MEMBER_PAGE_SLUG,
     ];
 
-    if ( ! in_array( $page->id, $react_page_slugs ) ) {
-      return;
+    if ( in_array( $page->id, $list_page_slugs ) ) {
+      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/membership_config_create.asset.php' );
+
+      wp_enqueue_script(
+        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_member_list',
+        WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/member_list.js',
+        $asset_file['dependencies'],
+        $asset_file['version'],
+        true
+      );
     }
 
-    $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/membership_config_create.asset.php' );
+    $edit_page_slugs = [
+      'admin_page_' . self::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG,
+      'admin_page_' . self::EDIT_ORG_MEMBER_PAGE_SLUG,
+    ];
 
-    wp_enqueue_script(
-      WICKET_MEMBERSHIP_PLUGIN_SLUG . '_member_list',
-      WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/member_list.js',
-      $asset_file['dependencies'],
-      $asset_file['version'],
-      true
-    );
+    if ( in_array( $page->id, $edit_page_slugs ) ) {
+      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/member_edit.asset.php' );
+
+      wp_enqueue_script(
+        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_edit_member',
+        WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/member_edit.js',
+        $asset_file['dependencies'],
+        $asset_file['version'],
+        true
+      );
+    }
   }
 
   /**

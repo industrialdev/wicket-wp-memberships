@@ -6,7 +6,7 @@ import { addQueryArgs } from '@wordpress/url';
 import { Spinner, Icon } from '@wordpress/components';
 import { PLUGIN_API_URL } from '../constants';
 
-const MemberList = ({ memberType }) => {
+const MemberList = ({ memberType, editMemberUrl }) => {
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -257,7 +257,13 @@ const MemberList = ({ memberType }) => {
                       </td>
                     </>
                   )}
-                  <td>{member.user.display_name}</td>
+                  <td>
+                    <strong>
+                      <a href={addQueryArgs(editMemberUrl, { id: member.ID })}
+                        className='row-title'
+                      >{member.user.display_name}</a>
+                    </strong>
+                  </td>
                   <td>
                     <span style={{
                           color: (member.meta.membership_status === 'active' ? 'green' : ''),
