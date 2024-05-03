@@ -13,7 +13,7 @@ const MarginedFlex = styled(Flex)`
 	margin-top: 15px;
 `;
 
-const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId, productsInUse }) => {
+const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId, productsInUse, individualListUrl, orgListUrl }) => {
 
 	const [isRangeOfSeatsProductsModalOpen, setRangeOfSeatsProductsModalOpen] = useState(false);
 
@@ -22,6 +22,8 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	const closeRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(false);
 
 	const [currentRangeOfSeatsProductIndex, setCurrentRangeOfSeatsProductIndex] = useState(null);
+
+	const [tierInfo, setTierInfo] = useState(null);
 
 	const [rangeOfSeatsProductErrors, setRangeOfSeatsProductErrors] = useState([]);
 
@@ -121,6 +123,22 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		});
 	}
 
+  const fetchTierInfo = (tierUuid) => {
+    if ( tierUuid.length === 0 ) { return }
+
+    apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_tier_info`, {
+      filter: {
+        tier_uuid: [tierUuid]
+      },
+      'properties[]': 'count'
+    }) }).then((tiersInfo) => {
+      setTierInfo(tiersInfo.tier_data[tierUuid]);
+		}).catch((error) => {
+      console.log('Tier Info Error:');
+      console.log(error);
+		});
+  }
+
 	const handleMdpTierChange = (selected) => {
 		const mdpTier = mdpTiers.find(tier => tier.uuid === selected.value);
 
@@ -131,6 +149,8 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			type: mdpTier.type,
 			product_data: []
 		});
+
+		fetchTierInfo(mdpTier.uuid);
 	}
 
 	const getMdpTierOptions = () => {
@@ -255,6 +275,14 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		closeRangeOfSeatsProductsModalOpen()
 	}
 
+	const getMemberListUrl = () => {
+		if (form.type === 'individual') {
+			return individualListUrl;
+		}
+
+		return orgListUrl;
+	}
+
 	useEffect(() => {
 		let queryParams = {};
 
@@ -333,6 +361,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 						max_seats: parseInt(product.max_seats) === -1 ? 0 : product.max_seats
 					}
 				});
+
+				// Fetch the tier info to get the count of members
+				fetchTierInfo(post.tier_data.mdp_tier_uuid);
 
 				setForm({
 					...post.tier_data,
@@ -460,11 +491,16 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 														<FlexItem>
 															<Text size={14} color="#3c434a" >
 																{__('# of Members', 'wicket-memberships')}:&nbsp;
-																<strong>%COUNT%</strong>
+																{tierInfo === null && <>-</>}
+																{tierInfo !== null && <strong>{tierInfo.count}</strong>}
 															</Text>
 														</FlexItem>
 														<FlexItem>
-															<Button variant="link">
+															<Button
+																variant="link"
+																href={getMemberListUrl()}
+																target='_blank'
+															>
 																{__('View All Members', 'wicket-memberships')}
 															</Button>
 														</FlexItem>
