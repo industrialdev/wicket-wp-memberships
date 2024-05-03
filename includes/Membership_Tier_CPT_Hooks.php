@@ -69,6 +69,8 @@ class Membership_Tier_CPT_Hooks {
 
   function render_page() {
     $tier_list_page = admin_url( 'edit.php?post_type=' . $this->membership_tier_cpt_slug );
+    $individual_member_list_page_url = admin_url( 'admin.php?page=individual_member_list' );
+    $org_member_list_page_url = admin_url( 'admin.php?page=org_member_list' );
 
     $post_id = isset( $_GET['post_id'] ) ? $_GET['post_id'] : '';
 
@@ -95,6 +97,8 @@ class Membership_Tier_CPT_Hooks {
         data-tier-cpt-slug="{$this->membership_tier_cpt_slug}"
         data-config-cpt-slug="{$this->membership_config_cpt_slug}"
         data-tier-list-url="{$tier_list_page}"
+        data-individual-list-url="{$individual_member_list_page_url}"
+        data-org-list-url="{$org_member_list_page_url}"
         data-post-id="{$post_id}"></div>
     HTML;
   }
