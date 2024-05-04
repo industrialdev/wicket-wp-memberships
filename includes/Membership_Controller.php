@@ -971,8 +971,8 @@ class Membership_Controller {
 
         $user = get_userdata( $tier->meta['user_id'][0]);
         $tier->user = $user->data;
-        $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/people/'.$user->data->user_login;
         if( $type != 'organization' ) {
+          $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/people/'.$user->data->user_login;
           //$tiers_by_uuid = $this->get_tier_info(null);
           $args = array(
             'post_type' => $this->membership_cpt_slug,
@@ -994,6 +994,8 @@ class Membership_Controller {
               //'name' => $tiers_by_uuid['tier_data'][ $user_tier_uuid ]['name'] ,
             ];
           }
+        } else {
+          $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/organizations/' . $tier->meta['org_uuid'];
         }
       }
     return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => $tiers->found_posts ];
