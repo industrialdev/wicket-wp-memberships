@@ -86,9 +86,20 @@ class Helper {
     }
   }
   
-  public static function get_membership_post_data_from_membership_json( $membership_json ) {
+  /**
+   * Convert json membership data to post_data 
+   *
+   * @param string|array $membership_json json or array
+   * @param boolean $json_encoded is this json encoded or array data
+   * @return array
+   */
+  public static function get_membership_post_data_from_membership_json( $membership_json, $json_encoded = true ) {
     $membership_post_data = array();
-    $membership_array = json_decode( $membership_json, true);
+    if( $json_encoded === true ) {
+      $membership_array = json_decode( $membership_json, true);
+    } else {
+      $membership_array = $membership_json;
+    }
     $mapping_keys = [
        'membership_type' => 'member_type',
        'membership_starts_at' => 'start_date',
@@ -118,6 +129,14 @@ class Helper {
     return $membership_post_data;
   }
 
+
+  /**
+   * Convert post_data to json membership data
+   *
+   * @param array $membership_array  array
+   * @param boolean $json_encode return json encoded or array data
+   * @return string|array
+   */
   public static function get_membership_json_from_membership_post_data( $membership_array, $json_encode = true ) {
     $membership_json_data = array();
     $mapping_keys = [

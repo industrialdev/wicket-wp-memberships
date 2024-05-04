@@ -85,13 +85,25 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     ) 
     );
     /**
-     * Get Tier by Product_ID
+     * Get Memberships by Org or User
      */
     register_rest_route( $this->namespace, '/membership_entity', array(
       array(
         'methods'  => \WP_REST_Server::READABLE,
         'callback'  => array( $this, 'get_membership_entity' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) 
+    );
+    /**
+     * Write to a Membership
+     */
+    register_rest_route( $this->namespace, '/membership_entity/(?P<membership_post_id>\d+)/update', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'update_membership_entity' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
       'schema' => array( $this, '' ),
     ) 
@@ -187,7 +199,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       array(
         'methods'  => \WP_REST_Server::CREATABLE,
         'callback'  => array( $this, 'admin_manage_status' ),
-        'permission_callback' => array( $this, 'permissions_check_read' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
       'schema' => array( $this, '' ),
     ) );
@@ -207,7 +219,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       array(
         'methods'  => \WP_REST_Server::CREATABLE,
         'callback'  => array( $this, 'modify_subscription' ),
-        'permission_callback' => array( $this, 'permissions_check_read' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
       'schema' => array( $this, '' ),
     ) );
@@ -226,6 +238,12 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
   public function get_membership_entity( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $response = Admin_Controller::get_membership_entity_records( $params['entity_id'] );
+    return rest_ensure_response( $response );
+  }
+
+  public function update_membership_entity( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Admin_Controller::update_membership_entity_record( $params );
     return rest_ensure_response( $response );
   }
 
@@ -354,6 +372,16 @@ public function get_membership_dates( \WP_REST_Request $request ) {
    */
   public function permissions_check_read( $request ) {
     if ( 0 && ! current_user_can( 'read' ) ) {
+      return new WP_Error( 'rest_forbidden', esc_html__( 'Permission Error.' ), array( 'status' => $this->authorization_error_status_code() ) );
+    }
+    return true;
+  }
+
+  /**
+   * Check permissions to write
+   */
+  public function permissions_check_write( $request ) {
+    if ( 0 && ! current_user_can( 'write' ) ) {
       return new WP_Error( 'rest_forbidden', esc_html__( 'Permission Error.' ), array( 'status' => $this->authorization_error_status_code() ) );
     }
     return true;

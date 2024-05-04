@@ -165,11 +165,13 @@ class Membership_Controller {
     if( !empty( $membership_post_id_renew ) ) {
       $membership_current = $self->get_membership_array_from_post_id( $membership_post_id_renew );
     }
+    /*
     if( !empty( $membership_current ) && $early_renewal_date = $config->is_valid_renewal_date( $membership_current ) ) {
       $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date)));
       $_SESSION['wicket_membership_error'] = $error_text;
       throw new \Exception( $error_text );
     }
+    */
   }
 
   /**
@@ -204,6 +206,7 @@ class Membership_Controller {
                 'membership_tier_post_id' => $membership_tier->get_membership_tier_post_id(),
                 'membership_tier_name' => $membership_tier->tier_data['mdp_tier_name'],
                 'membership_tier_uuid' => $membership_tier->tier_data['mdp_tier_uuid'],
+                'membership_next_tier_id' => $membership_tier->get_next_tier_id(),
                 'membership_type' => $membership_tier->tier_data['type'],
                 'membership_starts_at' => $dates['start_date'],
                 'membership_ends_at' =>  $dates['end_date'],
@@ -594,6 +597,7 @@ class Membership_Controller {
       'early_renew_date' => !empty($membership['membership_early_renew_at']) ? $membership['membership_early_renew_at'] : $membership['membership_ends_at'],
       'membership_tier_uuid' => $membership['membership_tier_uuid'],
       'membership_tier_name' => $membership['membership_tier_name'],
+      'membership_next_tier_id' => $membership['membership_next_tier_id'],
       'wicket_uuid' => $wicket_uuid,
       'user_name' => $membership['membership_wp_user_display_name'],
       'user_email' => $membership['membership_wp_user_email'],
@@ -820,7 +824,7 @@ class Membership_Controller {
       $expiry_date = strtotime( $membership->expiry_date );
       $current_time = current_time( 'timezone' ); //strtotime ( date( "Y-m-d") . '+18 days'); //debug
       $Membership_Tier = new Membership_Tier( $membership->data['membership_tier_post_id'] );
-      $next_tier = $Membership_Tier->get_next_tier();
+      $next_tier = new Membership_Tier( $membership->data['membership_next_tier_id'] );
       $config_id = $Membership_Tier->get_config_id();
       $Membership_Config = new Membership_Config( $config_id );
       $membership->next_tier = $next_tier->tier_data;

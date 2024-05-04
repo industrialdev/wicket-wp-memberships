@@ -132,7 +132,7 @@ class Admin_Controller {
       );
       $response_array['success'] = 'Pending membership activated successfully.';
       $response_array['response'] = $response;
-      $response_code = 400;
+      $response_code = 200;
 
       // ------ WE RETURN EARLY HERE ONLY ------
       // THIS IS A SPECIAL CASE OF STATUS UPDATE 
@@ -192,11 +192,11 @@ class Admin_Controller {
         $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
         $response_array['success'] = 'Status was updated successfully.';
         $response_array['response'] = $response;
-        $response_code = 400;
+        $response_code = 200;
       } else {
         $response_array['error'] = $response['error'];
         $response_array['response'] = [];
-        $response_code = 200;
+        $response_code = 400;
       }
       return new \WP_REST_Response($response_array, $response_code);  
     } else {
@@ -284,5 +284,33 @@ class Admin_Controller {
       $membership_items[] = $membership_item;
     }
     return $membership_items;
+  }
+
+  public static function update_membership_entity_record( $data ) {
+    $membership_post_id = $data['membership_post_id'];
+    $Membership_Controller = new Membership_Controller();
+    $data_filter = Helper::get_membership_post_data_from_membership_json( $data, false );
+    //$post_data = $Membership_Controller->get_membership_array_from_post_id( $membership_post_id );
+    foreach( $data_filter as $key => $val ) {
+        if( str_contains( $key, '_date')) {
+          $meta_data[ $key ]  = (new \DateTime( date("Y-m-d", strtotime( $val )), wp_timezone() ))->format('c');
+        } else {
+          $meta_data[ $key ] = $val;
+        }
+    }
+    //echo json_encode( $meta_data );exit;
+    $response = $Membership_Controller->update_local_membership_record( $membership_post_id, $meta_data );
+  
+    if( is_wp_error( $response ) ) {
+      $response_array['error'] = $response->get_error_message( 'wicket_api_error' );
+      $response_array['response'] = [];
+      $response_code = 400;
+    } else {
+      $response_array['success'] = 'Membership was updated successfully.';
+      $response_array['response'] = $response;
+      $response_code = 200;
+    }
+
+    return new \WP_REST_Response($response_array, $response_code);  
   }
 }
