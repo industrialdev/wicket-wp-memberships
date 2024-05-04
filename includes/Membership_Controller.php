@@ -500,17 +500,27 @@ class Membership_Controller {
     if( env( 'BYPASS_WICKET' ) ) {
       return;
     }
+    if( empty( $meta_data['membership_starts_at'] ) ) {
+      $starts_at = $meta_data['start_date'];
+    } else {
+      $starts_at = $meta_data['membership_starts_at'];
+    }
+    if( empty( $meta_data['membership_ends_at'] ) ) {
+      $ends_at = $meta_data['end_date'];
+    } else {
+      $ends_at = $meta_data['membership_ends_at'];
+    }
     if( $membership['membership_type'] == 'individual' ) {
       $response = wicket_update_individual_membership_dates( 
         $membership['membership_wicket_uuid'], 
-        $meta_data['membership_starts_at'],
-        $meta_data['membership_ends_at']
+        $starts_at,
+        $ends_at
       );  
     } else {
       $response = wicket_update_organization_membership_dates(
         $membership['membership_wicket_uuid'], 
-        $meta_data['membership_starts_at'],
-        $meta_data['membership_ends_at']
+        $starts_at,
+        $ends_at
       );  
     }
     if( is_wp_error( $response ) ) {
@@ -574,6 +584,11 @@ class Membership_Controller {
       'post_status' => 'publish',
       'meta_input'  => $meta_data
     ]);
+  }
+
+  public function get_person_uuid( $user_id ) {
+    $user = get_user_by( 'id', $user_id );
+    return $user->user_login;
   }
 
   /**
