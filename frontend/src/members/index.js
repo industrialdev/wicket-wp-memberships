@@ -250,7 +250,19 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                   { memberType === 'organization' && (
                     <>
                       <td>
-                        {member.meta.org_name}
+                        <strong>
+                          <a href={addQueryArgs(editMemberUrl, { id: member.ID })}
+                            className='row-title'
+                          >{member.meta.org_name}</a>
+                        </strong>
+
+                        <div class="row-actions">
+                          <span class="edit">
+                            <a href={addQueryArgs(editMemberUrl, { id: member.ID })} aria-label={ __('Edit', 'wicket-memberships') }>
+                              { __('Edit', 'wicket-memberships') }
+                            </a>
+                          </span>
+                        </div>
                       </td>
                       <td>
                         {member.meta.org_location}
@@ -258,11 +270,27 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                     </>
                   )}
                   <td>
-                    <strong>
-                      <a href={addQueryArgs(editMemberUrl, { id: member.ID })}
-                        className='row-title'
-                      >{member.user.display_name}</a>
-                    </strong>
+                    {memberType === 'individual' && (
+                      <>
+                        <strong>
+                          <a href={addQueryArgs(editMemberUrl, { id: member.ID })}
+                            className='row-title'
+                          >{member.user.display_name}</a>
+                        </strong>
+                        <div class="row-actions">
+                          <span class="edit">
+                            <a href={addQueryArgs(editMemberUrl, { id: member.ID })} aria-label={ __('Edit', 'wicket-memberships') }>
+                              { __('Edit', 'wicket-memberships') }
+                            </a>
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    {memberType === 'organization' && (
+                      <>
+                        {member.user.display_name}
+                      </>
+                    )}
                   </td>
                   <td>
                     <span style={{
