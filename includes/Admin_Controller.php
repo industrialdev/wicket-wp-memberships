@@ -298,31 +298,24 @@ class Admin_Controller {
   public static function update_membership_entity_record( $data ) {
     $Membership_Controller = new Membership_Controller();
     $membership_post_id = $data['membership_post_id'];
-    $data_filter = Helper::get_membership_post_data_from_membership_json( $data, false );
-    foreach( $data_filter as $key => $val ) {
-        if( str_contains( $key, '_date')) {
-          $meta_data[ $key ]  = (new \DateTime( date("Y-m-d", strtotime( $val )), wp_timezone() ))->format('c');
-          $date_update = true;
-        } else {
-          $meta_data[ $key ] = $val;
-        }
-    }
-
-    if( ! empty( $date_update ) && 
-      ( 
-        ! array_key_exists( 'membership_starts_at', $meta_data ) 
-        || ! array_key_exists( 'membership_ends_at', $meta_data ) 
-        || ! array_key_exists( 'membership_expires_at', $meta_data )
-      )
-    ) {
+    if( 
+        ! array_key_exists( 'membership_starts_at', $data )
+        || ! array_key_exists( 'membership_ends_at', $data )
+        || ! array_key_exists( 'membership_expires_at', $data )
+      ) {
       $response_array['error'] = 'Membership update failed. All dates required.';
       $response_array['response'] = [];
       $response_code = 400;
       return new \WP_REST_Response($response_array, $response_code);  
+    } else {
+      $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_starts_at' ] )), wp_timezone() ))->format('c');
+      $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_ends_at' ] )), wp_timezone() ))->format('c');
+      $data[ 'membership_expires_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_expires_at' ] )), wp_timezone() ))->format('c');
     }
 
     $membership_post = get_post_meta( $membership_post_id );
-    $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $meta_data );
+    $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
+
     if( empty( $local_response ) || is_wp_error( $local_response ) ) {
       $response_array['error'] = 'Membership update failed.';
       $response_array['response'] = [];
@@ -332,17 +325,11 @@ class Admin_Controller {
 
     $membership['membership_type'] = $membership_post['membership_type'][0];
     $membership['membership_wicket_uuid'] = $membership_post['membership_wicket_uuid'][0];
-    $wicket_response = $Membership_Controller->update_mdp_record( $membership, $meta_data );
+    $wicket_response = $Membership_Controller->update_mdp_record( $membership, $data );
 
     if( is_wp_error( $wicket_response ) ) {
-      //TODO: NEED TO RESTORE LOCAL DATES FROM $member_post data
-      $restore_meta_data['membership_starts_at'] = $membership_post['membership_starts_at'];
-      $restore_meta_data['membership_ends_at'] = $membership_post['membership_ends_at'];
-      $restore_meta_data['membership_expires_at'] = $membership_post['membership_expires_at'];
-      $restore_meta_data['membership_next_tier_id'] = $membership_post['membership_next_tier_id'];
-
-      $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $restore_meta_data );
-      $response_array['error'] = 'Membership dates update. '.$wicket_response->get_error_message( 'wicket_api_error' );
+      $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post );
+      $response_array['error'] = 'Membership dates update failed. '.$wicket_response->get_error_message( 'wicket_api_error' );
       $response_array['response'] = [];
       $response_code = 400;
     } else {
