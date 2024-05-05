@@ -604,7 +604,7 @@ class Membership_Controller {
 
     $meta = [
       'membership_status' => $status,
-      'member_type' => $membership['membership_type'],
+      'membership_type' => $membership['membership_type'],
       'user_id' => $membership['user_id'],
       'start_date' => $membership['membership_starts_at'],
       'end_date' => $membership['membership_ends_at'],
@@ -894,7 +894,7 @@ class Membership_Controller {
       'order' => $order_dir,
       'meta_query'     => array(
         array(
-          'key'     => 'member_type',
+          'key'     => 'membership_type',
           'value'   => $type,
           'compare' => '='
         )
@@ -1128,7 +1128,7 @@ class Membership_Controller {
     if( $type != 'both' ) {
       $args['meta_query'] = array(
           array(
-            'key'     => 'member_type',
+            'key'     => 'membership_type',
             'value'   => $type,
             'compare' => '='
           )
