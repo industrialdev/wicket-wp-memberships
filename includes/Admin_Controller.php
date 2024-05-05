@@ -107,7 +107,7 @@ class Admin_Controller {
 
       //create the mdp record we skipped before
       if( empty( $membership['membership_wicket_uuid'] ) ) {
-        $membership['membership_wicket_uuid'] = $meta_data['wicket_uuid'] = $Membership_Controller->create_mdp_record( $membership );
+        $membership['membership_wicket_uuid'] = $meta_data['membership_wicket_uuid'] = $Membership_Controller->create_mdp_record( $membership );
       } else {
         $Membership_Controller->update_mdp_record( $membership, $meta_data );
       }
@@ -261,9 +261,9 @@ class Admin_Controller {
       );
       $membership_item['ID'] = $membership->ID;
       if( !empty( $mdp_link )) {
-        $membership_item['mdp_membership_link'] = $mdp_link . '/memberships/' . $meta['wicket_uuid'];
-        $membership_item['max_assignments'] = $org_memberships[ $meta['wicket_uuid'] ]['membership']['attributes']['max_assignments'] ?? 0;
-        $membership_item['active_assignments_count'] = $org_memberships[ $meta['wicket_uuid'] ]['membership']['attributes']['active_assignments_count'];
+        $membership_item['mdp_membership_link'] = $mdp_link . '/memberships/' . $meta['membership_wicket_uuid'];
+        $membership_item['max_assignments'] = $org_memberships[ $meta['membership_wicket_uuid'] ]['membership']['attributes']['max_assignments'] ?? 0;
+        $membership_item['active_assignments_count'] = $org_memberships[ $meta['membership_wicket_uuid'] ]['membership']['attributes']['active_assignments_count'];
       }
       $membership_data = ( new Membership_Controller )->get_membership_array_from_post_id( $membership->ID );
       if( !empty( $membership_data ) ) {
@@ -331,7 +331,7 @@ class Admin_Controller {
     }
 
     $membership['membership_type'] = $membership_post['membership_type'][0];
-    $membership['membership_wicket_uuid'] = $membership_post['wicket_uuid'][0];
+    $membership['membership_wicket_uuid'] = $membership_post['membership_wicket_uuid'][0];
     $wicket_response = $Membership_Controller->update_mdp_record( $membership, $meta_data );
 
     if( is_wp_error( $wicket_response ) ) {

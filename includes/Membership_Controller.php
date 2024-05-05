@@ -120,13 +120,13 @@ class Membership_Controller {
     if( is_numeric( $id )) {
       $post_id = $id;
     } else {
-      $wicket_uuid = $id;
+      $membership_wicket_uuid = $id;
       $query = new \WP_Query( 
         array(
         'posts_per_page'   => 1,
         'post_type'        => $this->membership_cpt_slug,
-        'meta_key'         => 'wicket_uuid',
-        'meta_value'       => $wicket_uuid
+        'meta_key'         => 'membership_wicket_uuid',
+        'meta_value'       => $membership_wicket_uuid
     ) );
       $post_id = $query->posts[0]->ID;
     }
@@ -407,7 +407,7 @@ class Membership_Controller {
    * Create the membership records
    */
   public static function create_membership_record( $membership ) {
-    $wicket_uuid = '';
+    $membership_wicket_uuid = '';
     $self = new self();
 
     if($self->bypass_wicket) {
@@ -419,11 +419,11 @@ class Membership_Controller {
     $tier = new Membership_Tier( $membership['membership_tier_post_id'] );
     //we only create the mdp record if not pending approval / not debug 
     if( ! $tier->is_approval_required() && ! $self->bypass_wicket ) {
-      $wicket_uuid = $self->create_mdp_record( $membership );
+      $membership_wicket_uuid = $self->create_mdp_record( $membership );
     }
     
     //always create the local membership record to get post_id
-    $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $wicket_uuid );
+    $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $membership_wicket_uuid );
 
     //we are pending approval so change some statuses and send email
     if( $tier->is_approval_required() ) {
@@ -534,8 +534,8 @@ class Membership_Controller {
    * Create the Membership Record in MDP
    */
   public function create_mdp_record( $membership ) {
-    $wicket_uuid = $this->check_mdp_membership_record_exists( $membership );
-    if( empty( $wicket_uuid ) ) {
+    $membership_wicket_uuid = $this->check_mdp_membership_record_exists( $membership );
+    if( empty( $membership_wicket_uuid ) ) {
       if( $membership['membership_type'] == 'individual' ) {
         $response = wicket_assign_individual_membership( 
           $membership['person_uuid'],
@@ -556,25 +556,25 @@ class Membership_Controller {
       if( is_wp_error( $response ) ) {
         $this->error_message = $response->get_error_message( 'wicket_api_error' );
         $this->surface_error();
-        $wicket_uuid = '';
+        $membership_wicket_uuid = '';
       } else {
-        $wicket_uuid = $response['data']['id'];
+        $membership_wicket_uuid = $response['data']['id'];
       } 
     }
-    return $wicket_uuid;
+    return $membership_wicket_uuid;
   }
 
   /**
    * Check if MDP Membership Record already exists
    */
   private function check_mdp_membership_record_exists( $membership ) {
-    $wicket_uuid = wicket_get_person_membership_exists(
+    $membership_wicket_uuid = wicket_get_person_membership_exists(
       $membership['person_uuid'], 
       $membership['membership_tier_uuid'], 
       $membership['membership_starts_at'], 
       $membership['membership_ends_at']
     );
-    return $wicket_uuid;
+    return $membership_wicket_uuid;
   }
 
   public function update_local_membership_record( $membership_post_id, $meta_data ) {
@@ -594,7 +594,7 @@ class Membership_Controller {
   /**
    * Create the WP Membership Record
    */
-  private function create_local_membership_record( $membership, $wicket_uuid ) {
+  private function create_local_membership_record( $membership, $membership_wicket_uuid ) {
     $status = Wicket_Memberships::STATUS_ACTIVE;
     if( (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
       $membership['membership_status'] = Wicket_Memberships::STATUS_PENDING;
@@ -613,7 +613,7 @@ class Membership_Controller {
       'membership_tier_uuid' => $membership['membership_tier_uuid'],
       'membership_tier_name' => $membership['membership_tier_name'],
       'membership_next_tier_id' => $membership['membership_next_tier_id'],
-      'wicket_uuid' => $wicket_uuid,
+      'membership_wicket_uuid' => $membership_wicket_uuid,
       'user_name' => $membership['membership_wp_user_display_name'],
       'user_email' => $membership['membership_wp_user_email'],
       'membership_order_id' => $membership['membership_parent_order_id'],
@@ -646,13 +646,13 @@ class Membership_Controller {
     $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
     $order_meta_array = json_decode( $order_meta[0], true);
     $order_meta_array['membership_post_id'] = $membership_post;
-    $order_meta_array['membership_wicket_uuid'] = $wicket_uuid;
+    $order_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
     update_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $order_meta_array) );
 
     $subscription_meta = get_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] );
     $subscription_meta_array = json_decode( $subscription_meta[0], true);
     $subscription_meta_array['membership_post_id'] = $membership_post;
-    $subscription_meta_array['membership_wicket_uuid'] = $wicket_uuid;
+    $subscription_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
     update_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );
 
     return $membership_post;

@@ -599,7 +599,7 @@ class Membership_Post_Types {
       'single'            => true,
       'show_in_rest'      => true,
     );
-    register_post_meta($this->membership_cpt_slug, 'wicket_uuid', $args);
+    register_post_meta($this->membership_cpt_slug, 'membership_wicket_uuid', $args);
 
     $args = array(
       'type'              => 'string',

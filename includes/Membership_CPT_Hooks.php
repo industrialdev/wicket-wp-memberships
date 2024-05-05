@@ -132,11 +132,11 @@ class Membership_CPT_Hooks {
    */
   public function replace_title($title, $id) {
     if( get_post_type( $id ) === $this->membership_cpt_slug ) {
-      $wicket_uuid = get_post_meta( $id, 'wicket_uuid', true );
-      if( empty( $wicket_uuid ) ) {
+      $membership_wicket_uuid = get_post_meta( $id, 'membership_wicket_uuid', true );
+      if( empty( $membership_wicket_uuid ) ) {
         return '(Unsynced)';
       }  else {
-        return $wicket_uuid;
+        return $membership_wicket_uuid;
       }
     } else {
       return $title;
