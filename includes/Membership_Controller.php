@@ -51,9 +51,24 @@ class Membership_Controller {
   function extra_info_data_content()
   {
     global $post;
-    echo '<pre>';
-    var_dump( get_post_meta( $post->ID ) );
-    echo '</pre>';
+    $post_meta = get_post_meta( $post->ID );
+    $new_meta = [];
+    array_walk(
+      $post_meta,
+      function(&$val, $key) use ( &$new_meta )
+      {
+        if( str_starts_with( $key, '_' ) ) {
+          return;
+        }
+        $new_meta[$key] = $val[0];
+      }
+    );  
+    echo '<table><tr><td valign="top"><h3>Post Data</h3><pre>';
+    var_dump( $new_meta );
+    echo '</pre></td>';
+    echo '<td valign="top"><h3>Order Json Data</h3><pre>';
+    var_dump( $this->get_membership_array_from_post_id( $post->ID ) );
+    echo '</pre></td></tr></table>"';
   } 
 
   function wps_select_checkout_field_display_admin_order_meta( $post ) {
