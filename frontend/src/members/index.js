@@ -251,14 +251,14 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                     <>
                       <td>
                         <strong>
-                          <a href={addQueryArgs(editMemberUrl, { id: member.ID })}
+                          <a href={addQueryArgs(editMemberUrl, { id: member.meta.org_uuid })}
                             className='row-title'
                           >{member.meta.org_name}</a>
                         </strong>
 
-                        <div class="row-actions">
-                          <span class="edit">
-                            <a href={addQueryArgs(editMemberUrl, { id: member.ID })} aria-label={ __('Edit', 'wicket-memberships') }>
+                        <div className="row-actions">
+                          <span className="edit">
+                            <a href={addQueryArgs(editMemberUrl, { id: member.meta.org_uuid })} aria-label={ __('Edit', 'wicket-memberships') }>
                               { __('Edit', 'wicket-memberships') }
                             </a>
                           </span>
@@ -273,13 +273,13 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                     {memberType === 'individual' && (
                       <>
                         <strong>
-                          <a href={addQueryArgs(editMemberUrl, { id: member.ID })}
+                          <a href={addQueryArgs(editMemberUrl, { id: member.meta.user_id })}
                             className='row-title'
                           >{member.user.display_name}</a>
                         </strong>
-                        <div class="row-actions">
-                          <span class="edit">
-                            <a href={addQueryArgs(editMemberUrl, { id: member.ID })} aria-label={ __('Edit', 'wicket-memberships') }>
+                        <div className="row-actions">
+                          <span className="edit">
+                            <a href={addQueryArgs(editMemberUrl, { id: member.meta.user_id })} aria-label={ __('Edit', 'wicket-memberships') }>
                               { __('Edit', 'wicket-memberships') }
                             </a>
                           </span>

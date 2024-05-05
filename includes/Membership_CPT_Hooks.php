@@ -55,17 +55,23 @@ class Membership_CPT_Hooks {
   }
 
   function render_edit_individual_member_page() {
+    $record_id = isset( $_GET['id'] ) ? $_GET['id'] : '';
+
     echo <<<HTML
       <div
         id="edit_member"
+        data-record-id="{$record_id}"
         data-member-type="individual""></div>
     HTML;
   }
 
   function render_edit_org_member_page() {
+    $record_id = isset( $_GET['id'] ) ? $_GET['id'] : '';
+
     echo <<<HTML
       <div
         id="edit_member"
+        data-record-id="{$record_id}"
         data-member-type="organization""></div>
     HTML;
   }
