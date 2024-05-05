@@ -102,7 +102,7 @@ class Helper {
     }
     $mapping_keys = [
        'membership_type' => 'membership_type',
-       'membership_starts_at' => 'start_date',
+       'membership_starts_at' => 'membership_starts_at',
        'membership_ends_at' => 'membership_ends_at',
        'membership_expires_at' => 'membership_expires_at',
        'membership_early_renew_at' => 'membership_early_renew_at',
@@ -141,7 +141,7 @@ class Helper {
     $membership_json_data = array();
     $mapping_keys = [
         'membership_type' => 'membership_type',
-        'start_date' => 'membership_starts_at',
+        'membership_starts_at' => 'membership_starts_at',
         'membership_ends_at' => 'membership_ends_at',
         'membership_expires_at' => 'membership_expires_at',
         'membership_early_renew_at' => 'membership_early_renew_at',

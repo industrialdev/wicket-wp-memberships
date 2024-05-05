@@ -608,7 +608,7 @@ class Membership_Post_Types {
       'show_in_rest'      => true,
     );
 
-    register_post_meta($this->membership_cpt_slug, 'start_date', $args);
+    register_post_meta($this->membership_cpt_slug, 'membership_starts_at', $args);
 
     $args = array(
       'type'              => 'string',
