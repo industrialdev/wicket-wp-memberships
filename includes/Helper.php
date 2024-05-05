@@ -103,7 +103,7 @@ class Helper {
     $mapping_keys = [
        'membership_type' => 'membership_type',
        'membership_starts_at' => 'start_date',
-       'membership_ends_at' => 'end_date',
+       'membership_ends_at' => 'membership_ends_at',
        'membership_expires_at' => 'membership_expires_at',
        'membership_early_renew_at' => 'membership_early_renew_at',
        'membership_wicket_uuid' => 'membership_wicket_uuid',
@@ -142,7 +142,7 @@ class Helper {
     $mapping_keys = [
         'membership_type' => 'membership_type',
         'start_date' => 'membership_starts_at',
-        'end_date' => 'membership_ends_at',
+        'membership_ends_at' => 'membership_ends_at',
         'membership_expires_at' => 'membership_expires_at',
         'membership_early_renew_at' => 'membership_early_renew_at',
         'membership_wicket_uuid' => 'membership_wicket_uuid',
