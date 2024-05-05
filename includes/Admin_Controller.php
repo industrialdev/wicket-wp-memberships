@@ -312,7 +312,7 @@ class Admin_Controller {
       ( 
         ! array_key_exists( 'start_date', $meta_data ) 
         || ! array_key_exists( 'end_date', $meta_data ) 
-        || ! array_key_exists( 'expiry_date', $meta_data )
+        || ! array_key_exists( 'membership_expires_at', $meta_data )
       )
     ) {
       $response_array['error'] = 'Membership update failed. All dates required.';
@@ -338,7 +338,7 @@ class Admin_Controller {
       //TODO: NEED TO RESTORE LOCAL DATES FROM $member_post data
       $restore_meta_data['start_date'] = $membership_post['start_date'];
       $restore_meta_data['end_date'] = $membership_post['end_date'];
-      $restore_meta_data['expiry_date'] = $membership_post['expiry_date'];
+      $restore_meta_data['membership_expires_at'] = $membership_post['membership_expires_at'];
       $restore_meta_data['membership_next_tier_id'] = $membership_post['membership_next_tier_id'];
 
       $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $restore_meta_data );
