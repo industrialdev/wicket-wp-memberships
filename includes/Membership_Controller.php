@@ -256,7 +256,7 @@ class Membership_Controller {
    */
   public static function get_membership_array_from_post_id( $membership_post_id ) {
     $self = new self();
-    $mship_order_id = get_post_meta( $membership_post_id, 'membership_order_id', true );
+    $mship_order_id = get_post_meta( $membership_post_id, 'membership_parent_order_id', true );
     $mship_product_id = get_post_meta( $membership_post_id, 'membership_product_id', true );
     if( empty( $mship_order_id ) || empty( $mship_product_id ) ) {
       return [];
@@ -344,7 +344,7 @@ class Membership_Controller {
     $expiry_date = strtotime( $membership['membership_expires_at'] );
 
     $args = [
-      'membership_order_id' => $membership['membership_parent_order_id'],
+      'membership_parent_order_id' => $membership['membership_parent_order_id'],
       'membership_product_id' => $membership['membership_product_id'],
     ];
 
@@ -376,18 +376,18 @@ class Membership_Controller {
     }
   }
 
-  function catch_membership_early_renew_at( $membership_order_id, $membership_product_id ) {
-    $membership = $this->get_membership_array_from_order_and_product_id( $membership_order_id, $membership_product_id );
+  function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
+    $membership = $this->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
     $this->membership_early_renew_at_date_reached( $membership );
   }
 
-  function catch_membership_ends_at( $membership_order_id, $membership_product_id ) {
-    $membership = $this->get_membership_array_from_order_and_product_id( $membership_order_id, $membership_product_id );
+  function catch_membership_ends_at( $membership_parent_order_id, $membership_product_id ) {
+    $membership = $this->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
     $this->membership_ends_at_date_reached( $membership );
   }
 
-  function catch_membership_expires_at( $membership_order_id, $membership_product_id ) {
-    $membership = $this->get_membership_array_from_order_and_product_id( $membership_order_id, $membership_product_id );
+  function catch_membership_expires_at( $membership_parent_order_id, $membership_product_id ) {
+    $membership = $this->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
     $this->membership_expires_at_date_reached( $membership );
   }
 
@@ -616,7 +616,7 @@ class Membership_Controller {
       'membership_wicket_uuid' => $membership_wicket_uuid,
       'user_name' => $membership['membership_wp_user_display_name'],
       'user_email' => $membership['membership_wp_user_email'],
-      'membership_order_id' => $membership['membership_parent_order_id'],
+      'membership_parent_order_id' => $membership['membership_parent_order_id'],
       'membership_product_id' => $membership['membership_product_id'],
     ];
     if( $membership['membership_type'] == 'organization') {
