@@ -280,7 +280,7 @@ class Admin_Controller {
         @$membership_item['order']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_parent_order_id'] );
         @$membership_item['order']['total'] = $order->get_total();
         @$membership_item['order']['date_created'] =  $order->get_date_created()->format('m/d/Y');
-        @$membership_item['order']['date_completed'] = (new \DateTime( date("Y-m-d", $order->get_date_completed() ), wp_timezone() ))->format('m/d/Y');
+        @$membership_item['order']['date_completed'] = $order->get_date_completed()->format('m/d/Y');
 
         @$sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
         @$membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
