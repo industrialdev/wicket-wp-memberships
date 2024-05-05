@@ -94,7 +94,7 @@ class Membership_CPT_Hooks {
   public function wicket_membership_table_head( $columns ) {
     add_filter('the_title', [ $this, 'replace_title' ],10, 2);
     $columns['title'] = __( 'Wicket UUID', 'wicket-memberships' );
-    $columns['member_type']  = __( 'Type', 'wicket-memberships' );
+    $columns['membership_type']  = __( 'Type', 'wicket-memberships' );
     $columns['membership_tier_uuid']  = __( 'Membership Tier ID', 'wicket-memberships' );
     $columns['user_id']  = __( 'User ID', 'wicket-memberships' );
     $columns['membership_status']  = __( 'Status', 'wicket-memberships' );
@@ -113,7 +113,7 @@ class Membership_CPT_Hooks {
     $meta = get_post_meta( $post_id );
     if( $column_name == 'membership_status' ) {
       echo $this->status_names[ $meta[$column_name][0] ][ 'name' ];
-    } else if( $column_name == 'member_type' ) {
+    } else if( $column_name == 'membership_type' ) {
       echo ucfirst( $meta[$column_name][0] );
       if( $meta[$column_name][0] == 'organization') {
         echo '<!--';

@@ -644,7 +644,7 @@ class Membership_Post_Types {
       'show_in_rest'      => true,
     );
 
-    register_post_meta($this->membership_cpt_slug, 'member_type', $args);
+    register_post_meta($this->membership_cpt_slug, 'membership_type', $args);
 
     $args = array(
       'type'              => 'string',

@@ -224,7 +224,7 @@ class Admin_Controller {
           'compare' => '='
         ),
         array(
-          'key'     => 'member_type',
+          'key'     => 'membership_type',
           'value'   => 'individual',
           'compare' => '='
         ),
@@ -240,7 +240,7 @@ class Admin_Controller {
           'compare' => '='
         ),
         array(
-          'key'     => 'member_type',
+          'key'     => 'membership_type',
           'value'   => 'organization',
           'compare' => '='
         ),
@@ -330,7 +330,7 @@ class Admin_Controller {
       return new \WP_REST_Response($response_array, $response_code);  
     }
 
-    $membership['membership_type'] = $membership_post['member_type'][0];
+    $membership['membership_type'] = $membership_post['membership_type'][0];
     $membership['membership_wicket_uuid'] = $membership_post['wicket_uuid'][0];
     $wicket_response = $Membership_Controller->update_mdp_record( $membership, $meta_data );
 

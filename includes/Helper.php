@@ -101,7 +101,7 @@ class Helper {
       $membership_array = $membership_json;
     }
     $mapping_keys = [
-       'membership_type' => 'member_type',
+       'membership_type' => 'membership_type',
        'membership_starts_at' => 'start_date',
        'membership_ends_at' => 'end_date',
        'membership_expires_at' => 'expiry_date',
@@ -140,7 +140,7 @@ class Helper {
   public static function get_membership_json_from_membership_post_data( $membership_array, $json_encode = true ) {
     $membership_json_data = array();
     $mapping_keys = [
-        'member_type' => 'membership_type',
+        'membership_type' => 'membership_type',
         'start_date' => 'membership_starts_at',
         'end_date' => 'membership_ends_at',
         'expiry_date' => 'membership_expires_at',
