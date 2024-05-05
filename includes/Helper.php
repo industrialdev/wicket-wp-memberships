@@ -101,15 +101,8 @@ class Helper {
       $membership_array = $membership_json;
     }
     $mapping_keys = [
-       'membership_type' => 'membership_type',
-       'membership_starts_at' => 'membership_starts_at',
-       'membership_ends_at' => 'membership_ends_at',
-       'membership_expires_at' => 'membership_expires_at',
-       'membership_early_renew_at' => 'membership_early_renew_at',
-       'membership_wicket_uuid' => 'membership_wicket_uuid',
        'membership_wp_user_display_name' => 'user_name',
        'membership_wp_user_email' => 'user_email',
-       'membership_parent_order_id' => 'membership_parent_order_id',
        'organization_name' => 'org_name',
        'organization_location' => 'org_location',
        'organization_uuid' => 'org_uuid',
@@ -140,15 +133,8 @@ class Helper {
   public static function get_membership_json_from_membership_post_data( $membership_array, $json_encode = true ) {
     $membership_json_data = array();
     $mapping_keys = [
-        'membership_type' => 'membership_type',
-        'membership_starts_at' => 'membership_starts_at',
-        'membership_ends_at' => 'membership_ends_at',
-        'membership_expires_at' => 'membership_expires_at',
-        'membership_early_renew_at' => 'membership_early_renew_at',
-        'membership_wicket_uuid' => 'membership_wicket_uuid',
         'user_name' => 'membership_wp_user_display_name',
         'user_email' => 'membership_wp_user_email',
-        'membership_parent_order_id' => 'membership_parent_order_id',
         'org_name' => 'organization_name',
         'org_location' => 'organization_location',
         'org_uuid' => 'organization_uuid',
