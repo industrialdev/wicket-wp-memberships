@@ -333,6 +333,7 @@ class Admin_Controller {
       $response_array['response'] = [];
       $response_code = 400;
     } else {
+      $Membership_Controller->amend_membership_order_json( $membership_post_id, $data );
       $response_array['success'] = 'Membership was updated successfully.';
       $response_array['response'] = $wicket_response;
       $response_code = 200;
