@@ -98,7 +98,7 @@ class Membership_CPT_Hooks {
     $columns['membership_tier_uuid']  = __( 'Membership Tier ID', 'wicket-memberships' );
     $columns['user_id']  = __( 'User ID', 'wicket-memberships' );
     $columns['membership_status']  = __( 'Status', 'wicket-memberships' );
-    $columns['start_date']  = __( 'Start Date', 'wicket-memberships' );
+    $columns['membership_starts_at']  = __( 'Start Date', 'wicket-memberships' );
     $columns['membership_early_renew_at']  = __( 'Early Renew Date', 'wicket-memberships' );
     $columns['membership_ends_at']  = __( 'End Date', 'wicket-memberships' );
     $columns['membership_expires_at']  = __( 'Expiry Date', 'wicket-memberships' );

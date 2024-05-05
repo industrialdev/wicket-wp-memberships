@@ -122,7 +122,7 @@ class Admin_Controller {
       //set the renewal scheduler dates
       $Membership_Controller->scheduler_dates_for_expiry( $membership );
       //update subscription dates
-      $Membership_Controller->update_membership_subscription( $membership, ['start_date', 'membership_ends_at'] );  
+      $Membership_Controller->update_membership_subscription( $membership, ['start_date', 'end_date'] );  
       $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
       //set subscription active
       $Membership_Controller->update_subscription_status( 
@@ -213,7 +213,7 @@ class Admin_Controller {
       'post_status' => 'publish',
       'posts_per_page' => -1,
       'orderby'   => 'meta_value',
-      'meta_key' => 'start_date',
+      'meta_key' => 'membership_starts_at',
       'order' => 'DESC',
     );
     if( is_numeric( $id ) ) {
@@ -310,7 +310,7 @@ class Admin_Controller {
 
     if( ! empty( $date_update ) && 
       ( 
-        ! array_key_exists( 'start_date', $meta_data ) 
+        ! array_key_exists( 'membership_starts_at', $meta_data ) 
         || ! array_key_exists( 'membership_ends_at', $meta_data ) 
         || ! array_key_exists( 'membership_expires_at', $meta_data )
       )
@@ -336,7 +336,7 @@ class Admin_Controller {
 
     if( is_wp_error( $wicket_response ) ) {
       //TODO: NEED TO RESTORE LOCAL DATES FROM $member_post data
-      $restore_meta_data['start_date'] = $membership_post['start_date'];
+      $restore_meta_data['membership_starts_at'] = $membership_post['membership_starts_at'];
       $restore_meta_data['membership_ends_at'] = $membership_post['membership_ends_at'];
       $restore_meta_data['membership_expires_at'] = $membership_post['membership_expires_at'];
       $restore_meta_data['membership_next_tier_id'] = $membership_post['membership_next_tier_id'];

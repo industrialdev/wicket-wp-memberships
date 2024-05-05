@@ -338,7 +338,7 @@ class Membership_Controller {
    * Add renewal transition dates to Advanced Scheduler - fallback with wp_cron
    */
   public function scheduler_dates_for_expiry( $membership ) {
-    $start_date = strtotime( $membership['membership_starts_at'] );
+    $membership_starts_at = strtotime( $membership['membership_starts_at'] );
     $membership_early_renew_at = strtotime( $membership['membership_early_renew_at'] );
     $membership_ends_at = strtotime( $membership['membership_ends_at'] );
     $membership_expires_at = strtotime( $membership['membership_expires_at'] );
@@ -355,10 +355,10 @@ class Membership_Controller {
       as_schedule_single_action( $membership_expires_at, 'add_membership_expires_at', $args, 'wicket-membership-plugin', true );
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
-        if( current_time( 'timestamp' ) >= $start_date ) {
+        if( current_time( 'timestamp' ) >= $membership_starts_at ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
         } else {
-          as_schedule_single_action( $start_date, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ], 'wicket-membership-plugin', true );
+          as_schedule_single_action( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ], 'wicket-membership-plugin', true );
         }
       }
     } else {
@@ -367,10 +367,10 @@ class Membership_Controller {
       wp_schedule_single_event( $membership_expires_at, 'add_membership_expires_at', $args );
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
-        if( current_time( 'timestamp' ) >= $start_date ) {
+        if( current_time( 'timestamp' ) >= $membership_starts_at ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
         } else {
-          wp_schedule_single_event( $start_date, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ] );
+          wp_schedule_single_event( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ] );
         }
       }
     }
@@ -442,7 +442,7 @@ class Membership_Controller {
       //set the scheduled tasks
       $self->scheduler_dates_for_expiry( $membership );
       //update subscription dates
-      $self->update_membership_subscription( $membership, [ 'start_date', 'membership_ends_at' ] );  
+      $self->update_membership_subscription( $membership, [ 'start_date', 'end_date' ] );  
     }
     return $membership;
   }
@@ -482,7 +482,7 @@ class Membership_Controller {
     if( in_array ( 'start_date', $fields ) ) {
       $dates_to_update['start_date']    = date('Y-m-d H:i:s', strtotime( substr($start_date,0,10)." 00:00:00"));
     }
-    if( in_array ( 'membership_ends_at', $fields ) ) {
+    if( in_array ( 'end_date', $fields ) ) {
       $dates_to_update['end']           = date('Y-m-d H:i:s', strtotime( substr($expire_date,0,10)." 00:00:00" ));
     }
     if( in_array ( 'next_payment_date', $fields ) ) {
@@ -501,7 +501,7 @@ class Membership_Controller {
       return;
     }
     if( empty( $meta_data['membership_starts_at'] ) ) {
-      $starts_at = $meta_data['start_date'];
+      $starts_at = $meta_data['membership_starts_at'];
     } else {
       $starts_at = $meta_data['membership_starts_at'];
     }
@@ -606,7 +606,7 @@ class Membership_Controller {
       'membership_status' => $status,
       'membership_type' => $membership['membership_type'],
       'user_id' => $membership['user_id'],
-      'start_date' => $membership['membership_starts_at'],
+      'membership_starts_at' => $membership['membership_starts_at'],
       'membership_ends_at' => $membership['membership_ends_at'],
       'membership_expires_at' => !empty($membership['membership_expires_at']) ? $membership['membership_expires_at'] : $membership['membership_ends_at'],
       'membership_early_renew_at' => !empty($membership['membership_early_renew_at']) ? $membership['membership_early_renew_at'] : $membership['membership_ends_at'],
@@ -691,7 +691,7 @@ class Membership_Controller {
           'compare' => '='
         ),
         array(
-          'key'     => 'start_date',
+          'key'     => 'membership_starts_at',
           'value'   => $membership['membership_starts_at'],
           'compare' => '='
         ),
