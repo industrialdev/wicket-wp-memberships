@@ -635,7 +635,7 @@ class Membership_Post_Types {
       'show_in_rest'      => true,
     );
 
-    register_post_meta($this->membership_cpt_slug, 'early_renew_date', $args);
+    register_post_meta($this->membership_cpt_slug, 'membership_early_renew_at', $args);
 
     $args = array(
       'type'              => 'string',

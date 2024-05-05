@@ -339,7 +339,7 @@ class Membership_Controller {
    */
   public function scheduler_dates_for_expiry( $membership ) {
     $start_date = strtotime( $membership['membership_starts_at'] );
-    $early_renew_date = strtotime( $membership['membership_early_renew_at'] );
+    $membership_early_renew_at = strtotime( $membership['membership_early_renew_at'] );
     $end_date = strtotime( $membership['membership_ends_at'] );
     $expiry_date = strtotime( $membership['membership_expires_at'] );
 
@@ -350,7 +350,7 @@ class Membership_Controller {
 
     if ( function_exists('as_schedule_single_action') ) {
       //as_schedule_single_action( $timestamp, $hook, $args, $group, $unique, $priority );
-      as_schedule_single_action( $early_renew_date, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin', true );
+      as_schedule_single_action( $membership_early_renew_at, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin', true );
       as_schedule_single_action( $end_date, 'add_membership_ends_at', $args, 'wicket-membership-plugin', true );
       as_schedule_single_action( $expiry_date, 'add_membership_expires_at', $args, 'wicket-membership-plugin', true );
       //to expire old membership when new one starts
@@ -362,7 +362,7 @@ class Membership_Controller {
         }
       }
     } else {
-      wp_schedule_single_event( $early_renew_date, 'add_membership_early_renew_at', $args );
+      wp_schedule_single_event( $membership_early_renew_at, 'add_membership_early_renew_at', $args );
       wp_schedule_single_event( $end_date, 'add_membership_ends_at', $args );
       wp_schedule_single_event( $expiry_date, 'add_membership_expires_at', $args );
       //to expire old membership when new one starts
@@ -609,7 +609,7 @@ class Membership_Controller {
       'start_date' => $membership['membership_starts_at'],
       'end_date' => $membership['membership_ends_at'],
       'expiry_date' => !empty($membership['membership_expires_at']) ? $membership['membership_expires_at'] : $membership['membership_ends_at'],
-      'early_renew_date' => !empty($membership['membership_early_renew_at']) ? $membership['membership_early_renew_at'] : $membership['membership_ends_at'],
+      'membership_early_renew_at' => !empty($membership['membership_early_renew_at']) ? $membership['membership_early_renew_at'] : $membership['membership_ends_at'],
       'membership_tier_uuid' => $membership['membership_tier_uuid'],
       'membership_tier_name' => $membership['membership_tier_name'],
       'membership_next_tier_id' => $membership['membership_next_tier_id'],
@@ -834,7 +834,7 @@ class Membership_Controller {
 
       $membership->data = $this->get_membership_array_from_post_id( $membership->ID );
       
-      $early_renew_date = strtotime( $membership->early_renew_date );
+      $membership_early_renew_at = strtotime( $membership->membership_early_renew_at );
       $end_date = strtotime( $membership->end_date );
       $expiry_date = strtotime( $membership->expiry_date );
       $current_time = current_time( 'timezone' ); //strtotime ( date( "Y-m-d") . '+18 days'); //debug
@@ -843,7 +843,7 @@ class Membership_Controller {
       $config_id = $Membership_Tier->get_config_id();
       $Membership_Config = new Membership_Config( $config_id );
       $membership->next_tier = $next_tier->tier_data;
-      if( $current_time >= $early_renew_date && $current_time < $end_date ) {
+      if( $current_time >= $membership_early_renew_at && $current_time < $end_date ) {
         $callout['callout_header'] = $Membership_Config->get_renewal_window_callout_header();
         $callout['callout_content'] = $Membership_Config->get_renewal_window_callout_content();
         $callout['callout_button_label'] = $Membership_Config->get_renewal_window_callout_button_label();
