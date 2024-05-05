@@ -165,11 +165,13 @@ class Membership_Controller {
     if( !empty( $membership_post_id_renew ) ) {
       $membership_current = $self->get_membership_array_from_post_id( $membership_post_id_renew );
     }
+    /*
     if( !empty( $membership_current ) && $early_renewal_date = $config->is_valid_renewal_date( $membership_current ) ) {
       $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date)));
       $_SESSION['wicket_membership_error'] = $error_text;
       throw new \Exception( $error_text );
     }
+    */
   }
 
   /**
@@ -204,6 +206,7 @@ class Membership_Controller {
                 'membership_tier_post_id' => $membership_tier->get_membership_tier_post_id(),
                 'membership_tier_name' => $membership_tier->tier_data['mdp_tier_name'],
                 'membership_tier_uuid' => $membership_tier->tier_data['mdp_tier_uuid'],
+                'membership_next_tier_id' => $membership_tier->get_next_tier_id(),
                 'membership_type' => $membership_tier->tier_data['type'],
                 'membership_starts_at' => $dates['start_date'],
                 'membership_ends_at' =>  $dates['end_date'],
@@ -497,17 +500,27 @@ class Membership_Controller {
     if( env( 'BYPASS_WICKET' ) ) {
       return;
     }
+    if( empty( $meta_data['membership_starts_at'] ) ) {
+      $starts_at = $meta_data['start_date'];
+    } else {
+      $starts_at = $meta_data['membership_starts_at'];
+    }
+    if( empty( $meta_data['membership_ends_at'] ) ) {
+      $ends_at = $meta_data['end_date'];
+    } else {
+      $ends_at = $meta_data['membership_ends_at'];
+    }
     if( $membership['membership_type'] == 'individual' ) {
       $response = wicket_update_individual_membership_dates( 
         $membership['membership_wicket_uuid'], 
-        $meta_data['membership_starts_at'],
-        $meta_data['membership_ends_at']
+        $starts_at,
+        $ends_at
       );  
     } else {
       $response = wicket_update_organization_membership_dates(
         $membership['membership_wicket_uuid'], 
-        $meta_data['membership_starts_at'],
-        $meta_data['membership_ends_at']
+        $starts_at,
+        $ends_at
       );  
     }
     if( is_wp_error( $response ) ) {
@@ -573,6 +586,11 @@ class Membership_Controller {
     ]);
   }
 
+  public function get_person_uuid( $user_id ) {
+    $user = get_user_by( 'id', $user_id );
+    return $user->user_login;
+  }
+
   /**
    * Create the WP Membership Record
    */
@@ -594,6 +612,7 @@ class Membership_Controller {
       'early_renew_date' => !empty($membership['membership_early_renew_at']) ? $membership['membership_early_renew_at'] : $membership['membership_ends_at'],
       'membership_tier_uuid' => $membership['membership_tier_uuid'],
       'membership_tier_name' => $membership['membership_tier_name'],
+      'membership_next_tier_id' => $membership['membership_next_tier_id'],
       'wicket_uuid' => $wicket_uuid,
       'user_name' => $membership['membership_wp_user_display_name'],
       'user_email' => $membership['membership_wp_user_email'],
@@ -820,7 +839,7 @@ class Membership_Controller {
       $expiry_date = strtotime( $membership->expiry_date );
       $current_time = current_time( 'timezone' ); //strtotime ( date( "Y-m-d") . '+18 days'); //debug
       $Membership_Tier = new Membership_Tier( $membership->data['membership_tier_post_id'] );
-      $next_tier = $Membership_Tier->get_next_tier();
+      $next_tier = new Membership_Tier( $membership->data['membership_next_tier_id'] );
       $config_id = $Membership_Tier->get_config_id();
       $Membership_Config = new Membership_Config( $config_id );
       $membership->next_tier = $next_tier->tier_data;
@@ -952,8 +971,8 @@ class Membership_Controller {
 
         $user = get_userdata( $tier->meta['user_id'][0]);
         $tier->user = $user->data;
-        $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/people/'.$user->data->user_login;
         if( $type != 'organization' ) {
+          $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/people/'.$user->data->user_login;
           //$tiers_by_uuid = $this->get_tier_info(null);
           $args = array(
             'post_type' => $this->membership_cpt_slug,
@@ -975,6 +994,8 @@ class Membership_Controller {
               //'name' => $tiers_by_uuid['tier_data'][ $user_tier_uuid ]['name'] ,
             ];
           }
+        } else {
+          $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/organizations/' . $tier->meta['org_uuid'];
         }
       }
     return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => $tiers->found_posts ];
