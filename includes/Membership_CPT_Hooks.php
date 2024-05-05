@@ -101,7 +101,7 @@ class Membership_CPT_Hooks {
     $columns['start_date']  = __( 'Start Date', 'wicket-memberships' );
     $columns['membership_early_renew_at']  = __( 'Early Renew Date', 'wicket-memberships' );
     $columns['end_date']  = __( 'End Date', 'wicket-memberships' );
-    $columns['expiry_date']  = __( 'Expiry Date', 'wicket-memberships' );
+    $columns['membership_expires_at']  = __( 'Expiry Date', 'wicket-memberships' );
     unset($columns['date']);
     return $columns;
   }
