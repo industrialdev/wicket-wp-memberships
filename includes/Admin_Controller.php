@@ -206,6 +206,7 @@ class Admin_Controller {
 
   public static function get_membership_entity_records( $id ) {
     $self = new self();
+    $statuses = Helper::get_all_status_names();
     $wicket_settings = get_wicket_settings( env('WP_ENV') );
 
     $args = array(
@@ -268,6 +269,11 @@ class Admin_Controller {
       $membership_data = ( new Membership_Controller )->get_membership_array_from_post_id( $membership->ID );
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
+        $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['name'];
+        $membership_item['data']['membership_starts_at'] = date( "m/d/Y", strtotime( $meta['membership_starts_at'] ) );
+        $membership_item['data']['membership_ends_at'] = date( "m/d/Y", strtotime( $meta['membership_ends_at'] ) );
+        $membership_item['data']['membership_expires_at'] = date( "m/d/Y", strtotime( $meta['membership_expires_at'] ) );
+        $membership_item['data']['membership_early_renew_at'] = date( "m/d/Y", strtotime( $meta['membership_early_renew_at'] ) );
       } else {
         $membership_item['data'] = [];
       }
@@ -275,17 +281,19 @@ class Admin_Controller {
       $membership_item['subscription'] = [];
 
       if( !empty( $membership_item['data'] )) {
-        $order = wc_get_order( $membership_item['data']['membership_parent_order_id'] );
+        @$order = wc_get_order( $membership_item['data']['membership_parent_order_id'] );
         @$membership_item['order']['id'] = $membership_item['data']['membership_parent_order_id'];
         @$membership_item['order']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_parent_order_id'] );
         @$membership_item['order']['total'] = $order->get_total();
         @$membership_item['order']['date_created'] =  $order->get_date_created()->format('m/d/Y');
         @$membership_item['order']['date_completed'] = $order->get_date_completed()->format('m/d/Y');
+        @$membership_item['order']['status'] = ucfirst( $order->get_status() );
 
         @$sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
         @$membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
         @$membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
         @$membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub->get_time('next_payment')), wp_timezone() ))->format('m/d/Y');  
+        @$membership_item['subscription']['status'] = ucfirst( $sub->get_status() );
       } else {
         $membership_item['data'] = Helper::get_membership_json_from_membership_post_data( $meta, false );
         $membership_item['data']['status'] = 'active';
