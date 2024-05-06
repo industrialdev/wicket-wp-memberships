@@ -964,13 +964,7 @@ class Membership_Controller {
     remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     foreach( $tiers->posts as &$tier ) {
       $tier_meta = get_post_meta( $tier->ID );
-/*
-      $tier->meta = array_map( function( $item ) {
-        if( ! str_starts_with( key( (array) $item), '_' ) ) {
-          return $item[0];
-        }
-      }, $tier_meta);
-*/
+
       $tier_new_meta = [];
       array_walk(
         $tier_meta,
