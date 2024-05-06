@@ -20,6 +20,32 @@ const WhiteBorderedBox = styled(BorderedBox)`
   background: #fff;
 `;
 
+const MembershipTable = styled.div`
+  margin-top: 20px;
+
+  .membership_details {
+    background: #F6F7F7;
+
+    td {
+      padding: 15px;
+    }
+  }
+
+  td {
+    vertical-align: middle;
+  }
+
+  .billing_table {
+    margin-top: 15px;
+
+    thead {
+      th {
+        background: #F0F0F1;
+      }
+    }
+  }
+`;
+
 export const RecordTopInfo = styled.div`
   background: #F0F6FC;
   margin-top: 15px;
@@ -40,6 +66,11 @@ const MemberEdit = ({ memberType, recordId }) => {
       path: addQueryArgs(`${PLUGIN_API_URL}/membership_entity`, { entity_id: recordId }),
     }).then((response) => {
       console.log(response);
+
+      // add "show" property to each membership
+      response.forEach((membership) => {
+        membership.showRow = false;
+      });
 
       setMemberships(response);
       setIsLoading(false);
@@ -123,8 +154,173 @@ const MemberEdit = ({ memberType, recordId }) => {
               </MarginedFlex>
             </RecordTopInfo>
           </WhiteBorderedBox>
-        </EditWrap>
 
+          <WhiteBorderedBox>
+            <Flex
+              align='end'
+              justify='start'
+              gap={5}
+              direction={[
+                'column',
+                'row'
+              ]}
+            >
+              <FlexBlock>
+                <Heading
+                  level={4}
+                  weight='300'
+                >
+                  {__('Membership Records', 'wicket-memberships')}
+                </Heading>
+              </FlexBlock>
+              <FlexItem>
+                <Button
+                  variant='primary'
+                >
+                  <Icon icon='plus' />&nbsp;
+                  {__('Add New Membership', 'wicket-memberships')}
+                </Button>
+              </FlexItem>
+            </Flex>
+            <MembershipTable>
+              <table className="widefat" cellSpacing="0">
+                <thead>
+                  <tr>
+                    <th className="manage-column column-columnname" scope="col">
+                      {__('Membership Tier', 'wicket-memberships')}
+                    </th>
+                    <th className="manage-column column-columnname" scope="col">
+                      {__('Status', 'wicket-memberships')}
+                    </th>
+                    <th className="manage-column column-columnname" scope="col">
+                      {__('Start Date', 'wicket-memberships')}
+                    </th>
+                    <th className="manage-column column-columnname" scope="col">
+                      {__('End Date', 'wicket-memberships')}
+                    </th>
+                    <th className="manage-column column-columnname" scope="col">
+                      {__('Exp. Date', 'wicket-memberships')}
+                    </th>
+                    <th className='check-column'></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {memberships && memberships.map((membership, index) => (
+                    <React.Fragment key={index}>
+                      <tr
+                        // className='alternate'
+                      >
+                        <td className="column-columnname">
+                          {membership.data.membership_tier_name}
+                        </td>
+                        <td className="column-columnname">
+                          %STATUS%
+                        </td>
+                        <td className="column-columnname">
+                          {membership.data.membership_starts_at}
+                        </td>
+                        <td className="column-columnname">
+                          {membership.data.membership_ends_at}
+                        </td>
+                        <td className="column-columnname">
+                          {membership.data.membership_expires_at}
+                        </td>
+                        <td>
+                          <Button
+                            variant='primary'
+                            icon={membership.showRow ? 'minus' : 'plus-alt2'}
+                            onClick={() => {
+                              membership.showRow = !membership.showRow;
+                              setMemberships([...memberships]);
+                            }}
+                          >
+                          </Button>
+                        </td>
+                      </tr>
+                      <tr
+                        className='membership_details'
+                        style={{ display: membership.showRow ? 'table-row' : 'none' }}
+                      >
+                        <td colSpan={6} >
+                          <Flex
+                            align='end'
+                            justify='start'
+                            gap={6}
+                            direction={[
+                              'column',
+                              'row'
+                            ]}
+                          >
+                            <FlexBlock>
+                              <Heading
+                                level={4}
+                                // weight='300'
+                              >
+                                {__('Billing Info', 'wicket-memberships')}
+                              </Heading>
+                            </FlexBlock>
+                            <FlexItem>
+                              {__('Subscription:', 'wicket-memberships')}&nbsp;
+                              <a href={membership.subscription.link}>
+                                <strong>#{membership.subscription.id}</strong>
+                              </a>
+                            </FlexItem>
+                            <FlexItem>
+                              {__('Next Payment Date:', 'wicket-memberships')} <strong>{membership.subscription.next_payment_date}</strong>
+                            </FlexItem>
+                          </Flex>
+
+                          <table className="widefat billing_table" cellSpacing="0">
+                            <thead>
+                              <tr>
+                                <th className="manage-column column-columnname" scope="col">
+                                  {__('Order Number', 'wicket-memberships')}
+                                </th>
+                                <th className="manage-column column-columnname" scope="col">
+                                  {__('Order Date', 'wicket-memberships')}
+                                </th>
+                                <th className="manage-column column-columnname" scope="col">
+                                  {__('Order Total', 'wicket-memberships')}
+                                </th>
+                                <th className="manage-column column-columnname" scope="col">
+                                  {__('Order Type', 'wicket-memberships')}
+                                </th>
+                                <th className="manage-column column-columnname" scope="col">
+                                  {__('Order Status', 'wicket-memberships')}
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr>
+                                <td className="column-columnname">
+                                  <a href={membership.order.link}>
+                                    #{membership.order.id}
+                                  </a>
+                                </td>
+                                <td className="column-columnname">
+                                  {membership.order.date_created}
+                                </td>
+                                <td className="column-columnname">
+                                  {membership.order.total}
+                                </td>
+                                <td className="column-columnname">
+                                  %ORDER_TYPE%
+                                </td>
+                                <td className="column-columnname">
+                                  %ORDER_STATUS%
+                                </td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </td>
+                      </tr>
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </MembershipTable>
+          </WhiteBorderedBox>
+        </EditWrap>
 			</div>
 		</>
 	);

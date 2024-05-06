@@ -12702,6 +12702,31 @@ const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_8__["default"
 const WhiteBorderedBox = (0,styled_components__WEBPACK_IMPORTED_MODULE_8__["default"])((0,_styled_elements__WEBPACK_IMPORTED_MODULE_6__.BorderedBox))`
   background: #fff;
 `;
+const MembershipTable = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  margin-top: 20px;
+
+  .membership_details {
+    background: #F6F7F7;
+
+    td {
+      padding: 15px;
+    }
+  }
+
+  td {
+    vertical-align: middle;
+  }
+
+  .billing_table {
+    margin-top: 15px;
+
+    thead {
+      th {
+        background: #F0F0F1;
+      }
+    }
+  }
+`;
 const RecordTopInfo = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
   background: #F0F6FC;
   margin-top: 15px;
@@ -12723,6 +12748,11 @@ const MemberEdit = ({
       })
     }).then(response => {
       console.log(response);
+
+      // add "show" property to each membership
+      response.forEach(membership => {
+        membership.showRow = false;
+      });
       setMemberships(response);
       setIsLoading(false);
     }).catch(error => {
@@ -12759,7 +12789,105 @@ const MemberEdit = ({
     justify: "start",
     gap: 10,
     direction: ['column', 'row']
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Location:', 'wicket-memberships')), " %LOCATION%"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Season:', 'wicket-memberships')), " %SEASON%"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Primary Contact:', 'wicket-memberships')), " %CONTACT%")))))));
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Location:', 'wicket-memberships')), " %LOCATION%"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Season:', 'wicket-memberships')), " %SEASON%"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Primary Contact:', 'wicket-memberships')), " %CONTACT%")))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(WhiteBorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex, {
+    align: "end",
+    justify: "start",
+    gap: 5,
+    direction: ['column', 'row']
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.__experimentalHeading, {
+    level: 4,
+    weight: "300"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership Records', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
+    variant: "primary"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Icon, {
+    icon: "plus"
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add New Membership', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MembershipTable, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
+    className: "widefat",
+    cellSpacing: "0"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership Tier', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Status', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Exp. Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "check-column"
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, memberships && memberships.map((membership, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(React.Fragment, {
+    key: index
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, membership.data.membership_tier_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, "%STATUS%"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, membership.data.membership_starts_at), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, membership.data.membership_ends_at), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, membership.data.membership_expires_at), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
+    variant: "primary",
+    icon: membership.showRow ? 'minus' : 'plus-alt2',
+    onClick: () => {
+      membership.showRow = !membership.showRow;
+      setMemberships([...memberships]);
+    }
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
+    className: "membership_details",
+    style: {
+      display: membership.showRow ? 'table-row' : 'none'
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    colSpan: 6
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex, {
+    align: "end",
+    justify: "start",
+    gap: 6,
+    direction: ['column', 'row']
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.__experimentalHeading, {
+    level: 4
+    // weight='300'
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Billing Info', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Subscription:', 'wicket-memberships'), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+    href: membership.subscription.link
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "#", membership.subscription.id))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Next Payment Date:', 'wicket-memberships'), " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, membership.subscription.next_payment_date))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
+    className: "widefat billing_table",
+    cellSpacing: "0"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Order Number', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Order Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Order Total', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Order Type', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Order Status', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+    href: membership.order.link
+  }, "#", membership.order.id)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, membership.order.date_created), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, membership.order.total), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, "%ORDER_TYPE%"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, "%ORDER_STATUS%")))))))))))))));
 };
 const app = document.getElementById('edit_member');
 if (app) {
