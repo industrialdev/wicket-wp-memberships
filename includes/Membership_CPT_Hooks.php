@@ -166,14 +166,14 @@ class Membership_CPT_Hooks {
   public function wicket_membership_table_head( $columns ) {
     add_filter('the_title', [ $this, 'replace_title' ],10, 2);
     $columns['title'] = __( 'Wicket UUID', 'wicket-memberships' );
-    $columns['member_type']  = __( 'Type', 'wicket-memberships' );
+    $columns['membership_type']  = __( 'Type', 'wicket-memberships' );
     $columns['membership_tier_uuid']  = __( 'Membership Tier ID', 'wicket-memberships' );
     $columns['user_id']  = __( 'User ID', 'wicket-memberships' );
     $columns['membership_status']  = __( 'Status', 'wicket-memberships' );
-    $columns['start_date']  = __( 'Start Date', 'wicket-memberships' );
-    $columns['early_renew_date']  = __( 'Early Renew Date', 'wicket-memberships' );
-    $columns['end_date']  = __( 'End Date', 'wicket-memberships' );
-    $columns['expiry_date']  = __( 'Expiry Date', 'wicket-memberships' );
+    $columns['membership_starts_at']  = __( 'Start Date', 'wicket-memberships' );
+    $columns['membership_early_renew_at']  = __( 'Early Renew Date', 'wicket-memberships' );
+    $columns['membership_ends_at']  = __( 'End Date', 'wicket-memberships' );
+    $columns['membership_expires_at']  = __( 'Expiry Date', 'wicket-memberships' );
     unset($columns['date']);
     return $columns;
   }
@@ -185,7 +185,7 @@ class Membership_CPT_Hooks {
     $meta = get_post_meta( $post_id );
     if( $column_name == 'membership_status' ) {
       echo $this->status_names[ $meta[$column_name][0] ][ 'name' ];
-    } else if( $column_name == 'member_type' ) {
+    } else if( $column_name == 'membership_type' ) {
       echo ucfirst( $meta[$column_name][0] );
       if( $meta[$column_name][0] == 'organization') {
         echo '<!--';
@@ -204,11 +204,11 @@ class Membership_CPT_Hooks {
    */
   public function replace_title($title, $id) {
     if( get_post_type( $id ) === $this->membership_cpt_slug ) {
-      $wicket_uuid = get_post_meta( $id, 'wicket_uuid', true );
-      if( empty( $wicket_uuid ) ) {
+      $membership_wicket_uuid = get_post_meta( $id, 'membership_wicket_uuid', true );
+      if( empty( $membership_wicket_uuid ) ) {
         return '(Unsynced)';
       }  else {
-        return $wicket_uuid;
+        return $membership_wicket_uuid;
       }
     } else {
       return $title;

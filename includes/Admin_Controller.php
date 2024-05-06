@@ -107,7 +107,7 @@ class Admin_Controller {
 
       //create the mdp record we skipped before
       if( empty( $membership['membership_wicket_uuid'] ) ) {
-        $membership['membership_wicket_uuid'] = $meta_data['wicket_uuid'] = $Membership_Controller->create_mdp_record( $membership );
+        $membership['membership_wicket_uuid'] = $meta_data['membership_wicket_uuid'] = $Membership_Controller->create_mdp_record( $membership );
       } else {
         $Membership_Controller->update_mdp_record( $membership, $meta_data );
       }
@@ -213,7 +213,7 @@ class Admin_Controller {
       'post_status' => 'publish',
       'posts_per_page' => -1,
       'orderby'   => 'meta_value',
-      'meta_key' => 'start_date',
+      'meta_key' => 'membership_starts_at',
       'order' => 'DESC',
     );
     if( is_numeric( $id ) ) {
@@ -224,7 +224,7 @@ class Admin_Controller {
           'compare' => '='
         ),
         array(
-          'key'     => 'member_type',
+          'key'     => 'membership_type',
           'value'   => 'individual',
           'compare' => '='
         ),
@@ -240,7 +240,7 @@ class Admin_Controller {
           'compare' => '='
         ),
         array(
-          'key'     => 'member_type',
+          'key'     => 'membership_type',
           'value'   => 'organization',
           'compare' => '='
         ),
@@ -261,9 +261,9 @@ class Admin_Controller {
       );
       $membership_item['ID'] = $membership->ID;
       if( !empty( $mdp_link )) {
-        $membership_item['mdp_membership_link'] = $mdp_link . '/memberships/' . $meta['wicket_uuid'];
-        $membership_item['max_assignments'] = $org_memberships[ $meta['wicket_uuid'] ]['membership']['attributes']['max_assignments'] ?? 0;
-        $membership_item['active_assignments_count'] = $org_memberships[ $meta['wicket_uuid'] ]['membership']['attributes']['active_assignments_count'];
+        $membership_item['mdp_membership_link'] = $mdp_link . '/memberships/' . $meta['membership_wicket_uuid'];
+        $membership_item['max_assignments'] = $org_memberships[ $meta['membership_wicket_uuid'] ]['membership']['attributes']['max_assignments'] ?? 0;
+        $membership_item['active_assignments_count'] = $org_memberships[ $meta['membership_wicket_uuid'] ]['membership']['attributes']['active_assignments_count'];
       }
       $membership_data = ( new Membership_Controller )->get_membership_array_from_post_id( $membership->ID );
       if( !empty( $membership_data ) ) {
@@ -298,31 +298,24 @@ class Admin_Controller {
   public static function update_membership_entity_record( $data ) {
     $Membership_Controller = new Membership_Controller();
     $membership_post_id = $data['membership_post_id'];
-    $data_filter = Helper::get_membership_post_data_from_membership_json( $data, false );
-    foreach( $data_filter as $key => $val ) {
-        if( str_contains( $key, '_date')) {
-          $meta_data[ $key ]  = (new \DateTime( date("Y-m-d", strtotime( $val )), wp_timezone() ))->format('c');
-          $date_update = true;
-        } else {
-          $meta_data[ $key ] = $val;
-        }
-    }
-
-    if( ! empty( $date_update ) && 
-      ( 
-        ! array_key_exists( 'start_date', $meta_data ) 
-        || ! array_key_exists( 'end_date', $meta_data ) 
-        || ! array_key_exists( 'expiry_date', $meta_data )
-      )
-    ) {
+    if( 
+        ! array_key_exists( 'membership_starts_at', $data )
+        || ! array_key_exists( 'membership_ends_at', $data )
+        || ! array_key_exists( 'membership_expires_at', $data )
+      ) {
       $response_array['error'] = 'Membership update failed. All dates required.';
       $response_array['response'] = [];
       $response_code = 400;
       return new \WP_REST_Response($response_array, $response_code);  
+    } else {
+      $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_starts_at' ] )), wp_timezone() ))->format('c');
+      $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_ends_at' ] )), wp_timezone() ))->format('c');
+      $data[ 'membership_expires_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_expires_at' ] )), wp_timezone() ))->format('c');
     }
 
     $membership_post = get_post_meta( $membership_post_id );
-    $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $meta_data );
+    $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
+
     if( empty( $local_response ) || is_wp_error( $local_response ) ) {
       $response_array['error'] = 'Membership update failed.';
       $response_array['response'] = [];
@@ -330,22 +323,17 @@ class Admin_Controller {
       return new \WP_REST_Response($response_array, $response_code);  
     }
 
-    $membership['membership_type'] = $membership_post['member_type'][0];
-    $membership['membership_wicket_uuid'] = $membership_post['wicket_uuid'][0];
-    $wicket_response = $Membership_Controller->update_mdp_record( $membership, $meta_data );
+    $membership['membership_type'] = $membership_post['membership_type'][0];
+    $membership['membership_wicket_uuid'] = $membership_post['membership_wicket_uuid'][0];
+    $wicket_response = $Membership_Controller->update_mdp_record( $membership, $data );
 
     if( is_wp_error( $wicket_response ) ) {
-      //TODO: NEED TO RESTORE LOCAL DATES FROM $member_post data
-      $restore_meta_data['start_date'] = $membership_post['start_date'];
-      $restore_meta_data['end_date'] = $membership_post['end_date'];
-      $restore_meta_data['expiry_date'] = $membership_post['expiry_date'];
-      $restore_meta_data['membership_next_tier_id'] = $membership_post['membership_next_tier_id'];
-
-      $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $restore_meta_data );
-      $response_array['error'] = 'Membership dates update. '.$wicket_response->get_error_message( 'wicket_api_error' );
+      $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post );
+      $response_array['error'] = 'Membership dates update failed. '.$wicket_response->get_error_message( 'wicket_api_error' );
       $response_array['response'] = [];
       $response_code = 400;
     } else {
+      $Membership_Controller->amend_membership_order_json( $membership_post_id, $data );
       $response_array['success'] = 'Membership was updated successfully.';
       $response_array['response'] = $wicket_response;
       $response_code = 200;

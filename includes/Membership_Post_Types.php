@@ -599,7 +599,7 @@ class Membership_Post_Types {
       'single'            => true,
       'show_in_rest'      => true,
     );
-    register_post_meta($this->membership_cpt_slug, 'wicket_uuid', $args);
+    register_post_meta($this->membership_cpt_slug, 'membership_wicket_uuid', $args);
 
     $args = array(
       'type'              => 'string',
@@ -608,7 +608,7 @@ class Membership_Post_Types {
       'show_in_rest'      => true,
     );
 
-    register_post_meta($this->membership_cpt_slug, 'start_date', $args);
+    register_post_meta($this->membership_cpt_slug, 'membership_starts_at', $args);
 
     $args = array(
       'type'              => 'string',
@@ -617,7 +617,7 @@ class Membership_Post_Types {
       'show_in_rest'      => true,
     );
 
-    register_post_meta($this->membership_cpt_slug, 'end_date', $args);
+    register_post_meta($this->membership_cpt_slug, 'membership_ends_at', $args);
 
     $args = array(
       'type'              => 'string',
@@ -626,7 +626,7 @@ class Membership_Post_Types {
       'show_in_rest'      => true,
     );
 
-    register_post_meta($this->membership_cpt_slug, 'expiry_date', $args);
+    register_post_meta($this->membership_cpt_slug, 'membership_expires_at', $args);
 
     $args = array(
       'type'              => 'string',
@@ -635,7 +635,7 @@ class Membership_Post_Types {
       'show_in_rest'      => true,
     );
 
-    register_post_meta($this->membership_cpt_slug, 'early_renew_date', $args);
+    register_post_meta($this->membership_cpt_slug, 'membership_early_renew_at', $args);
 
     $args = array(
       'type'              => 'string',
@@ -644,7 +644,7 @@ class Membership_Post_Types {
       'show_in_rest'      => true,
     );
 
-    register_post_meta($this->membership_cpt_slug, 'member_type', $args);
+    register_post_meta($this->membership_cpt_slug, 'membership_type', $args);
 
     $args = array(
       'type'              => 'string',
@@ -689,7 +689,7 @@ class Membership_Post_Types {
       'show_in_rest'      => true,
     );
 
-    register_post_meta($this->membership_cpt_slug, 'membership_order_id', $args);
+    register_post_meta($this->membership_cpt_slug, 'membership_parent_order_id', $args);
 
     $args = array(
       'type'              => 'string',
