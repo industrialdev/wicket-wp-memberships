@@ -7,6 +7,9 @@ import { PLUGIN_API_URL } from '../constants';
 import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled } from '../styled_elements';
 import { TextControl, Spinner, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled, __experimentalHeading as Heading, Icon } from '@wordpress/components';
 import styled from 'styled-components';
+import { fetchTiers } from '../services/api';
+import he from 'he';
+import moment from 'moment';
 
 export const EditWrap = styled.div`
 	max-width: 1000px;
@@ -59,8 +62,9 @@ const MemberEdit = ({ memberType, recordId }) => {
 
   const [member, setMember] = useState(null);
   const [memberships, setMemberships] = useState(null);
+  const [tiers, setTiers] = useState([]);
 
-  const fetchMemberships = async () => {
+  const fetchMemberships = () => {
     setIsLoading(true);
     apiFetch({
       path: addQueryArgs(`${PLUGIN_API_URL}/membership_entity`, { entity_id: recordId }),
@@ -79,9 +83,22 @@ const MemberEdit = ({ memberType, recordId }) => {
     });
   }
 
+  const getTiers = () => {
+    fetchTiers()
+      .then((response) => {
+        setTiers(response);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }
+
   useEffect(() => {
     fetchMemberships();
+    getTiers();
   }, []);
+
+  console.log('TIERS', tiers);
 
 	return (
 		<>
@@ -184,6 +201,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                   </Button>
                 </FlexItem>
               </Flex>
+              {/* Membership List */}
               <MembershipTable>
                 <table className="widefat" cellSpacing="0">
                   <thead>
@@ -239,6 +257,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                             </Button>
                           </td>
                         </tr>
+                        {/* Membership Details */}
                         <tr
                           className='membership_details'
                           style={{ display: membership.showRow ? 'table-row' : 'none' }}
@@ -272,6 +291,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                               </FlexItem>
                             </Flex>
 
+                            {/* Attached order information */}
                             <table className="widefat billing_table" cellSpacing="0">
                               <thead>
                                 <tr>
@@ -314,6 +334,102 @@ const MemberEdit = ({ memberType, recordId }) => {
                                 </tr>
                               </tbody>
                             </table>
+
+                            {/* Membership update form */}
+                            <form>
+                              <MarginedFlex
+                                align='end'
+                                justify='start'
+                                gap={6}
+                                direction={[
+                                  'column',
+                                  'row'
+                                ]}
+                              >
+                                <FlexBlock>
+                                  <SelectControl
+                                    label={__('Membership Status', 'wicket-memberships')}
+                                    value={''}
+                                    options={[
+                                      { label: 'Status 1', value: 1 },
+                                    ]}
+                                  />
+                                </FlexBlock>
+                                <FlexBlock>
+                                  <SelectControl
+                                    label={__('Renew as', 'wicket-memberships')}
+                                    value={membership.data.membership_next_tier_id}
+                                    options={tiers.map((tier) => {
+                                      return {
+                                        label: he.decode(tier.title.rendered),
+                                        value: tier.id
+                                      };
+                                    })}
+                                  />
+                                </FlexBlock>
+                              </MarginedFlex>
+
+                              <MarginedFlex
+                                align='end'
+                                justify='start'
+                                gap={6}
+                                direction={[
+                                  'column',
+                                  'row'
+                                ]}
+                              >
+                                <FlexBlock>
+                                  <TextControl
+                                    label={__('Start Date', 'wicket-memberships')}
+                                    value={moment(membership.data.membership_starts_at).format('YYYY-MM-DD')}
+                                    type="date"
+                                    onChange={(value) => {
+                                      console.log(value);
+                                    }}
+                                  />
+                                </FlexBlock>
+                                <FlexBlock>
+                                  <TextControl
+                                    label={__('End Date', 'wicket-memberships')}
+                                    value={moment(membership.data.membership_ends_at).format('YYYY-MM-DD')}
+                                    type="date"
+                                    onChange={(value) => {
+                                      console.log(value);
+                                    }}
+                                  />
+                                </FlexBlock>
+                                <FlexBlock>
+                                  <TextControl
+                                    label={__('Expiration Date', 'wicket-memberships')}
+                                    value={moment(membership.data.membership_expires_at).format('YYYY-MM-DD')}
+                                    type="date"
+                                    onChange={(value) => {
+                                      console.log(value);
+                                    }}
+                                  />
+                                </FlexBlock>
+                              </MarginedFlex>
+
+                              <MarginedFlex
+                                align='end'
+                                justify='start'
+                                gap={6}
+                                direction={[
+                                  'column',
+                                  'row'
+                                ]}
+                              >
+                                <FlexItem>
+                                  <Button
+                                    variant='primary'
+                                    type='submit'
+                                    disabled={true}
+                                  >
+                                    {__('Update Membership', 'wicket-memberships')}
+                                  </Button>
+                                </FlexItem>
+                              </MarginedFlex>
+                            </form>
                           </td>
                         </tr>
                       </React.Fragment>

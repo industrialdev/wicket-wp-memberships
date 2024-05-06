@@ -2300,10 +2300,12 @@ var weakMemoize = function weakMemoize(func) {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   API_URL: () => (/* binding */ API_URL),
-/* harmony export */   PLUGIN_API_URL: () => (/* binding */ PLUGIN_API_URL)
+/* harmony export */   PLUGIN_API_URL: () => (/* binding */ PLUGIN_API_URL),
+/* harmony export */   TIER_CPT_SLUG: () => (/* binding */ TIER_CPT_SLUG)
 /* harmony export */ });
 const API_URL = '/wp/v2';
 const PLUGIN_API_URL = '/wicket_member/v1';
+const TIER_CPT_SLUG = 'wicket_mship_tier';
 
 /***/ }),
 
