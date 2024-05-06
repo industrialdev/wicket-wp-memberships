@@ -467,7 +467,7 @@ const MemberList = ({
     className: "tablenav-pages"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     className: "displaying-num"
-  }, totalMembers, " ", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('items', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+  }, totalMembers, " ", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('items', 'wicket-memberships')), totalPages > 1 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     className: "pagination-links"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("button", {
     className: "prev-page button",

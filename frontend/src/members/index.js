@@ -326,43 +326,42 @@ const MemberList = ({ memberType, editMemberUrl }) => {
             </span>
 
             {/* Pagination */}
-            <span className="pagination-links">
+            {totalPages > 1 && (
+              <span className="pagination-links">
+                <button
+                  className="prev-page button"
+                  disabled={searchParams.page === 1}
+                  onClick={() => {
+                    const newSearchParams = {
+                      ...searchParams,
+                      page: searchParams.page - 1,
+                    };
+                    setSearchParams(newSearchParams);
+                    fetchMembers(newSearchParams);
+                  }}
+                >‹</button>
 
-              <button
-                className="prev-page button"
-                disabled={searchParams.page === 1}
-                onClick={() => {
-                  const newSearchParams = {
-                    ...searchParams,
-                    page: searchParams.page - 1,
-                  };
-                  setSearchParams(newSearchParams);
-                  fetchMembers(newSearchParams);
-                }}
-              >‹</button>
+                <span className="screen-reader-text">{__('Current Page', 'wicket-memberships')}</span>
+                <span id="table-paging" className="paging-input">
+                  &nbsp;
+                  <span className="tablenav-paging-text">{searchParams.page} {__('of', 'wicket-memberships')} <span className="total-pages">{totalPages}</span></span>
+                  &nbsp;
+                </span>
 
-              <span className="screen-reader-text">{__('Current Page', 'wicket-memberships')}</span>
-              <span id="table-paging" className="paging-input">
-                &nbsp;
-                <span className="tablenav-paging-text">{searchParams.page} {__('of', 'wicket-memberships')} <span className="total-pages">{totalPages}</span></span>
-                &nbsp;
+                <button
+                  className="next-page button"
+                  disabled={searchParams.page === totalPages}
+                  onClick={() => {
+                    const newSearchParams = {
+                      ...searchParams,
+                      page: searchParams.page + 1,
+                    };
+                    setSearchParams(newSearchParams);
+                    fetchMembers(newSearchParams);
+                  }}
+                >›</button>
               </span>
-
-              <button
-                className="next-page button"
-                disabled={searchParams.page === totalPages}
-                onClick={() => {
-                  const newSearchParams = {
-                    ...searchParams,
-                    page: searchParams.page + 1,
-                  };
-                  setSearchParams(newSearchParams);
-                  fetchMembers(newSearchParams);
-                }}
-              >›</button>
-
-            </span>
-
+            )}
           </div>
           <br className="clear" />
         </div>
