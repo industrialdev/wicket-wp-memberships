@@ -7,7 +7,7 @@ import { PLUGIN_API_URL } from '../constants';
 import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled } from '../styled_elements';
 import { TextControl, Spinner, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled, __experimentalHeading as Heading, Icon } from '@wordpress/components';
 import styled from 'styled-components';
-import { fetchTiers } from '../services/api';
+import { fetchTiers, updateMembership } from '../services/api';
 import he from 'he';
 import moment from 'moment';
 
@@ -97,6 +97,29 @@ const MemberEdit = ({ memberType, recordId }) => {
     fetchMemberships();
     getTiers();
   }, []);
+
+
+  const handleUpdateMembership = (event) => {
+    event.preventDefault();
+    // get all form data and send it to the API
+    const form = event.target;
+    const formData = new FormData(form);
+    const data = {};
+    const membershipId = form.dataset.membershipId;
+    console.log(form);
+
+    for (let [key, value] of formData.entries()) {
+      data[key] = value;
+    }
+
+    updateMembership(membershipId, data)
+      .then((response) => {
+        console.log(response);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }
 
   console.log('TIERS', tiers);
 
@@ -336,7 +359,10 @@ const MemberEdit = ({ memberType, recordId }) => {
                             </table>
 
                             {/* Membership update form */}
-                            <form>
+                            <form
+                              data-membership-id={membership.ID}
+                              onSubmit={handleUpdateMembership}
+                            >
                               <MarginedFlex
                                 align='end'
                                 justify='start'
@@ -358,7 +384,18 @@ const MemberEdit = ({ memberType, recordId }) => {
                                 <FlexBlock>
                                   <SelectControl
                                     label={__('Renew as', 'wicket-memberships')}
+                                    name='membership_next_tier_id'
                                     value={membership.data.membership_next_tier_id}
+                                    onChange={(value) => {
+                                      setMemberships(
+                                        memberships.map((m) => {
+                                          if (m.ID === membership.ID) {
+                                            m.data.membership_next_tier_id = value;
+                                          }
+                                          return m;
+                                        })
+                                      );
+                                    }}
                                     options={tiers.map((tier) => {
                                       return {
                                         label: he.decode(tier.title.rendered),
@@ -381,30 +418,54 @@ const MemberEdit = ({ memberType, recordId }) => {
                                 <FlexBlock>
                                   <TextControl
                                     label={__('Start Date', 'wicket-memberships')}
+                                    name='membership_starts_at'
                                     value={moment(membership.data.membership_starts_at).format('YYYY-MM-DD')}
                                     type="date"
                                     onChange={(value) => {
-                                      console.log(value);
+                                      setMemberships(
+                                        memberships.map((m) => {
+                                          if (m.ID === membership.ID) {
+                                            m.data.membership_starts_at = value;
+                                          }
+                                          return m;
+                                        })
+                                      );
                                     }}
                                   />
                                 </FlexBlock>
                                 <FlexBlock>
                                   <TextControl
                                     label={__('End Date', 'wicket-memberships')}
+                                    name='membership_ends_at'
                                     value={moment(membership.data.membership_ends_at).format('YYYY-MM-DD')}
                                     type="date"
                                     onChange={(value) => {
-                                      console.log(value);
+                                      setMemberships(
+                                        memberships.map((m) => {
+                                          if (m.ID === membership.ID) {
+                                            m.data.membership_ends_at = value;
+                                          }
+                                          return m;
+                                        })
+                                      );
                                     }}
                                   />
                                 </FlexBlock>
                                 <FlexBlock>
                                   <TextControl
                                     label={__('Expiration Date', 'wicket-memberships')}
+                                    name='membership_expires_at'
                                     value={moment(membership.data.membership_expires_at).format('YYYY-MM-DD')}
                                     type="date"
                                     onChange={(value) => {
-                                      console.log(value);
+                                      setMemberships(
+                                        memberships.map((m) => {
+                                          if (m.ID === membership.ID) {
+                                            m.data.membership_expires_at = value;
+                                          }
+                                          return m;
+                                        })
+                                      );
                                     }}
                                   />
                                 </FlexBlock>
@@ -423,7 +484,6 @@ const MemberEdit = ({ memberType, recordId }) => {
                                   <Button
                                     variant='primary'
                                     type='submit'
-                                    disabled={true}
                                   >
                                     {__('Update Membership', 'wicket-memberships')}
                                   </Button>
