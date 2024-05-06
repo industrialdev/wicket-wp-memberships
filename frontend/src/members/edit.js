@@ -71,9 +71,11 @@ const MemberEdit = ({ memberType, recordId }) => {
     }).then((response) => {
       console.log(response);
 
-      // add "show" property to each membership
+      // add addtional properties to each membership
       response.forEach((membership) => {
         membership.showRow = false;
+        membership.updatingNow = false;
+        membership.updateResult = '';
       });
 
       setMemberships(response);
@@ -108,17 +110,61 @@ const MemberEdit = ({ memberType, recordId }) => {
     const membershipId = form.dataset.membershipId;
     console.log(form);
 
+    if ( memberships.find((m) => m.ID == membershipId).updatingNow ) {
+      return;
+    }
+
     for (let [key, value] of formData.entries()) {
       data[key] = value;
     }
 
+    // set updating flag
+    setMemberships(
+      memberships.map((m) => {
+        if (m.ID == membershipId) {
+          m.updatingNow = true;
+        }
+        return m;
+      })
+    );
+
     updateMembership(membershipId, data)
       .then((response) => {
         console.log(response);
+        let updateMessage = '';
+
+        if (response.success) {
+          updateMessage = response.success;
+        } else {
+          updateMessage = response.error;
+        }
+
+        // set updating flag
+        setMemberships(
+          memberships.map((m) => {
+            if (m.ID == membershipId) {
+              m.updatingNow = false;
+              m.updateResult = updateMessage;
+            }
+            return m;
+          })
+        );
       })
       .catch((error) => {
-        console.error(error);
+        console.log(error);
       });
+  }
+
+  // on membership field change
+  const handleMembershipFieldChange = (membershipId, field, value) => {
+    setMemberships(
+      memberships.map((m) => {
+        if (m.ID == membershipId) {
+          m.data[field] = value;
+        }
+        return m;
+      })
+    );
   }
 
   console.log('TIERS', tiers);
@@ -359,6 +405,23 @@ const MemberEdit = ({ memberType, recordId }) => {
                             </table>
 
                             {/* Membership update form */}
+                            {membership.updateResult.length > 0 && (
+                              <ErrorsRow>
+                                <Notice
+                                  isDismissible={true}
+                                  onDismiss={() => {
+                                    setMemberships(
+                                      memberships.map((m) => {
+                                        if (m.ID == membership.ID) {
+                                          m.updateResult = '';
+                                        }
+                                        return m;
+                                      })
+                                    );
+                                  }}
+                                  status="info">{membership.updateResult}</Notice>
+                              </ErrorsRow>
+                            )}
                             <form
                               data-membership-id={membership.ID}
                               onSubmit={handleUpdateMembership}
@@ -387,14 +450,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                                     name='membership_next_tier_id'
                                     value={membership.data.membership_next_tier_id}
                                     onChange={(value) => {
-                                      setMemberships(
-                                        memberships.map((m) => {
-                                          if (m.ID === membership.ID) {
-                                            m.data.membership_next_tier_id = value;
-                                          }
-                                          return m;
-                                        })
-                                      );
+                                      handleMembershipFieldChange(membership.ID, 'membership_next_tier_id', value);
                                     }}
                                     options={tiers.map((tier) => {
                                       return {
@@ -422,14 +478,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                                     value={moment(membership.data.membership_starts_at).format('YYYY-MM-DD')}
                                     type="date"
                                     onChange={(value) => {
-                                      setMemberships(
-                                        memberships.map((m) => {
-                                          if (m.ID === membership.ID) {
-                                            m.data.membership_starts_at = value;
-                                          }
-                                          return m;
-                                        })
-                                      );
+                                      handleMembershipFieldChange(membership.ID, 'membership_starts_at', value);
                                     }}
                                   />
                                 </FlexBlock>
@@ -440,14 +489,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                                     value={moment(membership.data.membership_ends_at).format('YYYY-MM-DD')}
                                     type="date"
                                     onChange={(value) => {
-                                      setMemberships(
-                                        memberships.map((m) => {
-                                          if (m.ID === membership.ID) {
-                                            m.data.membership_ends_at = value;
-                                          }
-                                          return m;
-                                        })
-                                      );
+                                      handleMembershipFieldChange(membership.ID, 'membership_ends_at', value);
                                     }}
                                   />
                                 </FlexBlock>
@@ -458,14 +500,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                                     value={moment(membership.data.membership_expires_at).format('YYYY-MM-DD')}
                                     type="date"
                                     onChange={(value) => {
-                                      setMemberships(
-                                        memberships.map((m) => {
-                                          if (m.ID === membership.ID) {
-                                            m.data.membership_expires_at = value;
-                                          }
-                                          return m;
-                                        })
-                                      );
+                                      handleMembershipFieldChange(membership.ID, 'membership_expires_at', value);
                                     }}
                                   />
                                 </FlexBlock>
@@ -484,6 +519,8 @@ const MemberEdit = ({ memberType, recordId }) => {
                                   <Button
                                     variant='primary'
                                     type='submit'
+                                    disabled={membership.updatingNow}
+                                    isBusy={membership.updatingNow}
                                   >
                                     {__('Update Membership', 'wicket-memberships')}
                                   </Button>

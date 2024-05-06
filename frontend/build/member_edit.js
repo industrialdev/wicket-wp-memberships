@@ -13173,9 +13173,11 @@ const MemberEdit = ({
     }).then(response => {
       console.log(response);
 
-      // add "show" property to each membership
+      // add addtional properties to each membership
       response.forEach(membership => {
         membership.showRow = false;
+        membership.updatingNow = false;
+        membership.updateResult = '';
       });
       setMemberships(response);
       setIsLoading(false);
@@ -13202,14 +13204,50 @@ const MemberEdit = ({
     const data = {};
     const membershipId = form.dataset.membershipId;
     console.log(form);
+    if (memberships.find(m => m.ID == membershipId).updatingNow) {
+      return;
+    }
     for (let [key, value] of formData.entries()) {
       data[key] = value;
     }
+
+    // set updating flag
+    setMemberships(memberships.map(m => {
+      if (m.ID == membershipId) {
+        m.updatingNow = true;
+      }
+      return m;
+    }));
     (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.updateMembership)(membershipId, data).then(response => {
       console.log(response);
+      let updateMessage = '';
+      if (response.success) {
+        updateMessage = response.success;
+      } else {
+        updateMessage = response.error;
+      }
+
+      // set updating flag
+      setMemberships(memberships.map(m => {
+        if (m.ID == membershipId) {
+          m.updatingNow = false;
+          m.updateResult = updateMessage;
+        }
+        return m;
+      }));
     }).catch(error => {
-      console.error(error);
+      console.log(error);
     });
+  };
+
+  // on membership field change
+  const handleMembershipFieldChange = (membershipId, field, value) => {
+    setMemberships(memberships.map(m => {
+      if (m.ID == membershipId) {
+        m.data[field] = value;
+      }
+      return m;
+    }));
   };
   console.log('TIERS', tiers);
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
@@ -13332,7 +13370,18 @@ const MemberEdit = ({
     className: "column-columnname"
   }, "%ORDER_TYPE%"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
-  }, "%ORDER_STATUS%")))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+  }, "%ORDER_STATUS%")))), membership.updateResult.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ErrorsRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Notice, {
+    isDismissible: true,
+    onDismiss: () => {
+      setMemberships(memberships.map(m => {
+        if (m.ID == membership.ID) {
+          m.updateResult = '';
+        }
+        return m;
+      }));
+    },
+    status: "info"
+  }, membership.updateResult)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
     "data-membership-id": membership.ID,
     onSubmit: handleUpdateMembership
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, {
@@ -13352,12 +13401,7 @@ const MemberEdit = ({
     name: "membership_next_tier_id",
     value: membership.data.membership_next_tier_id,
     onChange: value => {
-      setMemberships(memberships.map(m => {
-        if (m.ID === membership.ID) {
-          m.data.membership_next_tier_id = value;
-        }
-        return m;
-      }));
+      handleMembershipFieldChange(membership.ID, 'membership_next_tier_id', value);
     },
     options: tiers.map(tier => {
       return {
@@ -13376,12 +13420,7 @@ const MemberEdit = ({
     value: moment__WEBPACK_IMPORTED_MODULE_10___default()(membership.data.membership_starts_at).format('YYYY-MM-DD'),
     type: "date",
     onChange: value => {
-      setMemberships(memberships.map(m => {
-        if (m.ID === membership.ID) {
-          m.data.membership_starts_at = value;
-        }
-        return m;
-      }));
+      handleMembershipFieldChange(membership.ID, 'membership_starts_at', value);
     }
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships'),
@@ -13389,12 +13428,7 @@ const MemberEdit = ({
     value: moment__WEBPACK_IMPORTED_MODULE_10___default()(membership.data.membership_ends_at).format('YYYY-MM-DD'),
     type: "date",
     onChange: value => {
-      setMemberships(memberships.map(m => {
-        if (m.ID === membership.ID) {
-          m.data.membership_ends_at = value;
-        }
-        return m;
-      }));
+      handleMembershipFieldChange(membership.ID, 'membership_ends_at', value);
     }
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Expiration Date', 'wicket-memberships'),
@@ -13402,12 +13436,7 @@ const MemberEdit = ({
     value: moment__WEBPACK_IMPORTED_MODULE_10___default()(membership.data.membership_expires_at).format('YYYY-MM-DD'),
     type: "date",
     onChange: value => {
-      setMemberships(memberships.map(m => {
-        if (m.ID === membership.ID) {
-          m.data.membership_expires_at = value;
-        }
-        return m;
-      }));
+      handleMembershipFieldChange(membership.ID, 'membership_expires_at', value);
     }
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, {
     align: "end",
@@ -13416,7 +13445,9 @@ const MemberEdit = ({
     direction: ['column', 'row']
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
     variant: "primary",
-    type: "submit"
+    type: "submit",
+    disabled: membership.updatingNow,
+    isBusy: membership.updatingNow
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Update Membership', 'wicket-memberships'))))))))))))))));
 };
 const app = document.getElementById('edit_member');
