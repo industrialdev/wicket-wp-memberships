@@ -7,7 +7,7 @@ import { PLUGIN_API_URL } from '../constants';
 import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled } from '../styled_elements';
 import { TextControl, Spinner, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled, __experimentalHeading as Heading, Icon } from '@wordpress/components';
 import styled from 'styled-components';
-import { fetchTiers, updateMembership } from '../services/api';
+import { fetchTiers, updateMembership, fetchMembershipStatuses } from '../services/api';
 import he from 'he';
 import moment from 'moment';
 
@@ -63,6 +63,7 @@ const MemberEdit = ({ memberType, recordId }) => {
   const [member, setMember] = useState(null);
   const [memberships, setMemberships] = useState(null);
   const [tiers, setTiers] = useState([]);
+  const [membershipStatuses, setMembershipStatuses] = useState([]);
 
   const fetchMemberships = () => {
     setIsLoading(true);
@@ -95,9 +96,20 @@ const MemberEdit = ({ memberType, recordId }) => {
       });
   }
 
+  const getStatuses = () => {
+    fetchMembershipStatuses()
+      .then((response) => {
+        setMembershipStatuses(response);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }
+
   useEffect(() => {
     fetchMemberships();
     getTiers();
+    getStatuses();
   }, []);
 
 
@@ -351,7 +363,10 @@ const MemberEdit = ({ memberType, recordId }) => {
                               </FlexBlock>
                               <FlexItem>
                                 {__('Subscription:', 'wicket-memberships')}&nbsp;
-                                <a href={membership.subscription.link}>
+                                <a
+                                  target='_blank'
+                                  href={membership.subscription.link}
+                                >
                                   <strong>#{membership.subscription.id}</strong>
                                 </a>
                               </FlexItem>
@@ -374,9 +389,6 @@ const MemberEdit = ({ memberType, recordId }) => {
                                     {__('Order Total', 'wicket-memberships')}
                                   </th>
                                   <th className="manage-column column-columnname" scope="col">
-                                    {__('Order Type', 'wicket-memberships')}
-                                  </th>
-                                  <th className="manage-column column-columnname" scope="col">
                                     {__('Order Status', 'wicket-memberships')}
                                   </th>
                                 </tr>
@@ -384,7 +396,10 @@ const MemberEdit = ({ memberType, recordId }) => {
                               <tbody>
                                 <tr>
                                   <td className="column-columnname">
-                                    <a href={membership.order.link}>
+                                    <a
+                                      target='_blank'
+                                      href={membership.order.link}
+                                    >
                                       #{membership.order.id}
                                     </a>
                                   </td>
@@ -395,10 +410,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                                     {membership.order.total}
                                   </td>
                                   <td className="column-columnname">
-                                    %ORDER_TYPE%
-                                  </td>
-                                  <td className="column-columnname">
-                                    %ORDER_STATUS%
+                                    {membership.order.status}
                                   </td>
                                 </tr>
                               </tbody>
@@ -438,10 +450,17 @@ const MemberEdit = ({ memberType, recordId }) => {
                                 <FlexBlock>
                                   <SelectControl
                                     label={__('Membership Status', 'wicket-memberships')}
-                                    value={''}
-                                    options={[
-                                      { label: 'Status 1', value: 1 },
-                                    ]}
+                                    name='membership_status'
+                                    value={membership.data.membership_status}
+                                    onChange={(value) => {
+                                      handleMembershipFieldChange(membership.ID, 'membership_status', value);
+                                    }}
+                                    options={Object.keys(membershipStatuses).map((status) => {
+                                      return {
+                                        label: membershipStatuses[status].name,
+                                        value: membershipStatuses[status].slug
+                                      };
+                                    })}
                                   />
                                 </FlexBlock>
                                 <FlexBlock>

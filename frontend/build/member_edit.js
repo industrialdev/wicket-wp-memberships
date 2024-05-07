@@ -2318,6 +2318,7 @@ const TIER_CPT_SLUG = 'wicket_mship_tier';
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   fetchMembershipStatuses: () => (/* binding */ fetchMembershipStatuses),
 /* harmony export */   fetchTiers: () => (/* binding */ fetchTiers),
 /* harmony export */   updateMembership: () => (/* binding */ updateMembership)
 /* harmony export */ });
@@ -2349,6 +2350,15 @@ const updateMembership = (membershipId, data) => {
     path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_entity/${membershipId}/update`,
     method: 'POST',
     data: data
+  });
+};
+
+/**
+ * Fetch Membership Statuses
+ */
+const fetchMembershipStatuses = () => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/get_membership_statuses`
   });
 };
 
@@ -13164,6 +13174,7 @@ const MemberEdit = ({
   const [member, setMember] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [memberships, setMemberships] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [tiers, setTiers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
+  const [membershipStatuses, setMembershipStatuses] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const fetchMemberships = () => {
     setIsLoading(true);
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
@@ -13192,9 +13203,17 @@ const MemberEdit = ({
       console.error(error);
     });
   };
+  const getStatuses = () => {
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.fetchMembershipStatuses)().then(response => {
+      setMembershipStatuses(response);
+    }).catch(error => {
+      console.error(error);
+    });
+  };
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     fetchMemberships();
     getTiers();
+    getStatuses();
   }, []);
   const handleUpdateMembership = event => {
     event.preventDefault();
@@ -13339,6 +13358,7 @@ const MemberEdit = ({
     level: 4
     // weight='300'
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Billing Info', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Subscription:', 'wicket-memberships'), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+    target: "_blank",
     href: membership.subscription.link
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "#", membership.subscription.id))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Next Payment Date:', 'wicket-memberships'), " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, membership.subscription.next_payment_date))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
     className: "widefat billing_table",
@@ -13355,12 +13375,10 @@ const MemberEdit = ({
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Order Total', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     className: "manage-column column-columnname",
     scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Order Type', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
-    className: "manage-column column-columnname",
-    scope: "col"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Order Status', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+    target: "_blank",
     href: membership.order.link
   }, "#", membership.order.id)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
@@ -13368,9 +13386,7 @@ const MemberEdit = ({
     className: "column-columnname"
   }, membership.order.total), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
-  }, "%ORDER_TYPE%"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
-    className: "column-columnname"
-  }, "%ORDER_STATUS%")))), membership.updateResult.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ErrorsRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Notice, {
+  }, membership.order.status)))), membership.updateResult.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ErrorsRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Notice, {
     isDismissible: true,
     onDismiss: () => {
       setMemberships(memberships.map(m => {
@@ -13391,11 +13407,17 @@ const MemberEdit = ({
     direction: ['column', 'row']
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.SelectControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership Status', 'wicket-memberships'),
-    value: '',
-    options: [{
-      label: 'Status 1',
-      value: 1
-    }]
+    name: "membership_status",
+    value: membership.data.membership_status,
+    onChange: value => {
+      handleMembershipFieldChange(membership.ID, 'membership_status', value);
+    },
+    options: Object.keys(membershipStatuses).map(status => {
+      return {
+        label: membershipStatuses[status].name,
+        value: membershipStatuses[status].slug
+      };
+    })
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.SelectControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renew as', 'wicket-memberships'),
     name: "membership_next_tier_id",

@@ -49,7 +49,7 @@ class Admin_Controller {
 	}
 
   /**
-   * API Response with all status (no post id received) or only 
+   * API Response with all status (no post id received) or only
    * allowed status transitions based on current membership post status
    *
    * @param integer $membership_post_id
@@ -91,7 +91,7 @@ class Admin_Controller {
     //echo json_encode( [$current_post_status, $new_post_status] );exit;
     if( $current_post_status == Wicket_Memberships::STATUS_PENDING && $new_post_status == Wicket_Memberships::STATUS_ACTIVE ) {
       // ------ WE RETURN EARLY HERE ONLY ------
-      // THIS IS A SPECIAL CASE OF STATUS UPDATE 
+      // THIS IS A SPECIAL CASE OF STATUS UPDATE
       //apply the rules
       $meta_data = [
         'membership_status' => $new_post_status,
@@ -122,12 +122,12 @@ class Admin_Controller {
       //set the renewal scheduler dates
       $Membership_Controller->scheduler_dates_for_expiry( $membership );
       //update subscription dates
-      $Membership_Controller->update_membership_subscription( $membership, ['start_date', 'end_date'] );  
+      $Membership_Controller->update_membership_subscription( $membership, ['start_date', 'end_date'] );
       $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
       //set subscription active
-      $Membership_Controller->update_subscription_status( 
-        $membership['membership_subscription_id'], 
-        'active', 
+      $Membership_Controller->update_subscription_status(
+        $membership['membership_subscription_id'],
+        'active',
         'Membership approved and dates updated.'
       );
       $response_array['success'] = 'Pending membership activated successfully.';
@@ -135,8 +135,8 @@ class Admin_Controller {
       $response_code = 200;
 
       // ------ WE RETURN EARLY HERE ONLY ------
-      // THIS IS A SPECIAL CASE OF STATUS UPDATE 
-      return new \WP_REST_Response($response_array, $response_code);  
+      // THIS IS A SPECIAL CASE OF STATUS UPDATE
+      return new \WP_REST_Response($response_array, $response_code);
     } else if( $new_post_status == Wicket_Memberships::STATUS_CANCELLED ) {
       //apply the rules
       if( $current_post_status == Wicket_Memberships::STATUS_PENDING  || $current_post_status == Wicket_Memberships::STATUS_DELAYED) {
@@ -162,7 +162,7 @@ class Admin_Controller {
       $sub = wcs_get_subscription( $membership_new['membership_subscription_id'] );
       $sub->update_status( 'cancelled' );
       //return the order id ( FE will redirect user to refund order )
-      $response_array['order_id'] = $membership_new['membership_parent_order_id'];     
+      $response_array['order_id'] = $membership_new['membership_parent_order_id'];
     } else if( $current_post_status == Wicket_Memberships::STATUS_GRACE && $new_post_status == Wicket_Memberships::STATUS_EXPIRED ) {
       //apply the rules
       $meta_data = [
@@ -177,14 +177,14 @@ class Admin_Controller {
       $Membership_Controller->amend_membership_order_json( $membership_post_id, $meta_data );
     } else if( ! $Membership_Controller->bypass_status_change_lockout ) {
       // WE ONLY ALLOW CERTAIN TRANSITIONS ACCORDING TO RULES
-      // 
+      //
       return new \WP_REST_Response(['error' => 'Invalid status transition. Request did not succeed.'], 400);
     } else {
       ( new Membership_Controller() )->update_membership_status( $membership_post_id, $new_post_status);
       // temprarily return a debug message to show undefined status change
       return new \WP_REST_Response(['debug' => 'BYPASSED STATUS LOCKOUT --- DEBUG ENABLED --- SET AS '. $new_post_status], 200);
-    } 
-  
+    }
+
     //update membership dates in MDP
     if( !empty( $updated ) && ! $Membership_Controller->bypass_wicket ) {
       $response = $Membership_Controller->update_mdp_record( $membership_new, $meta_data );
@@ -198,7 +198,7 @@ class Admin_Controller {
         $response_array['response'] = [];
         $response_code = 400;
       }
-      return new \WP_REST_Response($response_array, $response_code);  
+      return new \WP_REST_Response($response_array, $response_code);
     } else {
       return new \WP_REST_Response(['error' => 'Failed status transition. No change was made.'], 400);
     }
@@ -269,7 +269,7 @@ class Admin_Controller {
       $membership_data = ( new Membership_Controller )->get_membership_array_from_post_id( $membership->ID );
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
-        $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['name'];
+        $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['slug'];
         $membership_item['data']['membership_starts_at'] = date( "m/d/Y", strtotime( $meta['membership_starts_at'] ) );
         $membership_item['data']['membership_ends_at'] = date( "m/d/Y", strtotime( $meta['membership_ends_at'] ) );
         $membership_item['data']['membership_expires_at'] = date( "m/d/Y", strtotime( $meta['membership_expires_at'] ) );
@@ -300,7 +300,7 @@ class Admin_Controller {
         @$membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
         @$membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
         if( !empty( $sub->get_time('next_payment') )) {
-          @$membership_item['subscription']['next_payment_date'] = date("m/d/Y", $sub->get_time('next_payment'));  
+          @$membership_item['subscription']['next_payment_date'] = date("m/d/Y", $sub->get_time('next_payment'));
         } else {
           $membership_item['subscription']['next_payment_date'] = 'N/A';
         }
@@ -317,7 +317,7 @@ class Admin_Controller {
   public static function update_membership_entity_record( $data ) {
     $Membership_Controller = new Membership_Controller();
     $membership_post_id = $data['membership_post_id'];
-    if( 
+    if(
         ! array_key_exists( 'membership_starts_at', $data )
         || ! array_key_exists( 'membership_ends_at', $data )
         || ! array_key_exists( 'membership_expires_at', $data )
@@ -325,7 +325,7 @@ class Admin_Controller {
       $response_array['error'] = 'Membership update failed. All dates required.';
       $response_array['response'] = [];
       $response_code = 400;
-      return new \WP_REST_Response($response_array, $response_code);  
+      return new \WP_REST_Response($response_array, $response_code);
     } else {
       $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_starts_at' ] )), wp_timezone() ))->format('c');
       $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_ends_at' ] )), wp_timezone() ))->format('c');
@@ -339,7 +339,7 @@ class Admin_Controller {
       $response_array['error'] = 'Membership update failed.';
       $response_array['response'] = [];
       $response_code = 400;
-      return new \WP_REST_Response($response_array, $response_code);  
+      return new \WP_REST_Response($response_array, $response_code);
     }
 
     $membership['membership_type'] = $membership_post['membership_type'][0];
@@ -358,6 +358,6 @@ class Admin_Controller {
       $response_code = 200;
     }
 
-    return new \WP_REST_Response($response_array, $response_code);  
+    return new \WP_REST_Response($response_array, $response_code);
   }
 }

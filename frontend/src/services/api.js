@@ -21,3 +21,12 @@ export const updateMembership = (membershipId, data) => {
     data: data
   });
 }
+
+/**
+ * Fetch Membership Statuses
+ */
+export const fetchMembershipStatuses = () => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/get_membership_statuses`
+  });
+}
