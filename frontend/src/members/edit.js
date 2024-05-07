@@ -449,6 +449,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                                     label={__('Renew as', 'wicket-memberships')}
                                     name='membership_next_tier_id'
                                     value={membership.data.membership_next_tier_id}
+                                    disabled={tiers.length === 0}
                                     onChange={(value) => {
                                       handleMembershipFieldChange(membership.ID, 'membership_next_tier_id', value);
                                     }}
