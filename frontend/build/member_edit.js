@@ -2354,11 +2354,16 @@ const updateMembership = (membershipId, data) => {
 };
 
 /**
- * Fetch Membership Statuses
+ * Fetch Available Membership Statuses for a Membership Post
  */
-const fetchMembershipStatuses = () => {
+const fetchMembershipStatuses = (postId = null) => {
+  if (postId === null) {
+    return;
+  }
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/get_membership_statuses`
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/admin/status_options`, {
+      post_id: postId
+    })
   });
 };
 
@@ -13203,9 +13208,12 @@ const MemberEdit = ({
       console.error(error);
     });
   };
-  const getStatuses = () => {
-    (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.fetchMembershipStatuses)().then(response => {
-      setMembershipStatuses(response);
+  const getMembershipStatuses = membershipPostId => {
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.fetchMembershipStatuses)(membershipPostId).then(response => {
+      setMembershipStatuses({
+        ...membershipStatuses,
+        [membershipPostId]: response
+      });
     }).catch(error => {
       console.error(error);
     });
@@ -13213,7 +13221,6 @@ const MemberEdit = ({
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     fetchMemberships();
     getTiers();
-    getStatuses();
   }, []);
   const handleUpdateMembership = event => {
     event.preventDefault();
@@ -13268,7 +13275,16 @@ const MemberEdit = ({
       return m;
     }));
   };
+
+  // get membership status from state, return null if not found
+  const getMembershipStatus = membershipId => {
+    if (membershipStatuses[membershipId]) {
+      return membershipStatuses[membershipId];
+    }
+    return null;
+  };
   console.log('TIERS', tiers);
+  console.log('STATUSES', membershipStatuses);
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     className: "wrap"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("h1", {
@@ -13329,7 +13345,7 @@ const MemberEdit = ({
     className: "column-columnname"
   }, membership.data.membership_tier_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
-  }, Object.keys(membershipStatuses).length > 0 && membershipStatuses[membership.data.membership_status].name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+  }, membership.data.membership_status), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
   }, membership.data.membership_starts_at), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
@@ -13340,6 +13356,9 @@ const MemberEdit = ({
     icon: membership.showRow ? 'minus' : 'plus-alt2',
     onClick: () => {
       membership.showRow = !membership.showRow;
+      if (membershipStatuses[membership.data.membership_post_id] === undefined) {
+        getMembershipStatuses(membership.data.membership_post_id);
+      }
       setMemberships([...memberships]);
     }
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
@@ -13407,15 +13426,16 @@ const MemberEdit = ({
     direction: ['column', 'row']
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.SelectControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership Status', 'wicket-memberships'),
-    name: "membership_status",
-    value: membership.data.membership_status,
+    name: "membership_status"
+    // value={membership.data.membership_status}
+    ,
     onChange: value => {
       handleMembershipFieldChange(membership.ID, 'membership_status', value);
     },
-    options: Object.keys(membershipStatuses).map(status => {
+    options: getMembershipStatus(membership.ID) !== null && Object.keys(getMembershipStatus(membership.ID)).map(status => {
       return {
-        label: membershipStatuses[status].name,
-        value: membershipStatuses[status].slug
+        label: membershipStatuses[membership.ID][status].name,
+        value: membershipStatuses[membership.ID][status].slug
       };
     })
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.SelectControl, {

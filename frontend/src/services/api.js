@@ -23,10 +23,12 @@ export const updateMembership = (membershipId, data) => {
 }
 
 /**
- * Fetch Membership Statuses
+ * Fetch Available Membership Statuses for a Membership Post
  */
-export const fetchMembershipStatuses = () => {
+export const fetchMembershipStatuses = (postId = null) => {
+  if (postId === null) { return; }
+
   return apiFetch({
-    path: `${PLUGIN_API_URL}/get_membership_statuses`
+    path: addQueryArgs(`${PLUGIN_API_URL}/admin/status_options`, { post_id: postId })
   });
 }

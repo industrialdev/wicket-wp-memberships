@@ -61,19 +61,6 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     );
 
     /**
-    * Get All Membership Statuses
-    */
-    register_rest_route( $this->namespace, '/get_membership_statuses', array(
-        array(
-          'methods'  => \WP_REST_Server::READABLE,
-          'callback'  => array( $this, 'get_membership_statuses' ),
-          'permission_callback' => array( $this, 'permissions_check_read' ),
-        ),
-        'schema' => array( $this, '' ),
-      )
-    );
-
-    /**
     * Get Org Data WP
     * Can filter by UUID and add properties like: count
     */
@@ -349,11 +336,6 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $tier_info = Membership_Controller::get_tier_info( $params['filter']['tier_uuid'], $params['properties'] );
     return rest_ensure_response( $tier_info );
-  }
-
-  public function get_membership_statuses(  \WP_REST_Request $request  ) {
-    $statuses = Helper::get_all_status_names();
-    return rest_ensure_response( $statuses );
   }
 
 	public function get_memberships_table_data($categories = null, $filters = [])

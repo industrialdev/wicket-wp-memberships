@@ -4,8 +4,8 @@ import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { PLUGIN_API_URL } from '../constants';
-import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled } from '../styled_elements';
-import { TextControl, Spinner, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled, __experimentalHeading as Heading, Icon } from '@wordpress/components';
+import { Wrap, ErrorsRow, BorderedBox } from '../styled_elements';
+import { TextControl, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, Disabled, __experimentalHeading as Heading, Icon } from '@wordpress/components';
 import styled from 'styled-components';
 import { fetchTiers, updateMembership, fetchMembershipStatuses } from '../services/api';
 import he from 'he';
@@ -96,10 +96,13 @@ const MemberEdit = ({ memberType, recordId }) => {
       });
   }
 
-  const getStatuses = () => {
-    fetchMembershipStatuses()
+  const getMembershipStatuses = (membershipPostId) => {
+    fetchMembershipStatuses(membershipPostId)
       .then((response) => {
-        setMembershipStatuses(response);
+        setMembershipStatuses({
+          ...membershipStatuses,
+          [membershipPostId]: response
+        });
       })
       .catch((error) => {
         console.error(error);
@@ -109,7 +112,6 @@ const MemberEdit = ({ memberType, recordId }) => {
   useEffect(() => {
     fetchMemberships();
     getTiers();
-    getStatuses();
   }, []);
 
 
@@ -179,7 +181,16 @@ const MemberEdit = ({ memberType, recordId }) => {
     );
   }
 
+  // get membership status from state, return null if not found
+  const getMembershipStatus = (membershipId) => {
+    if (membershipStatuses[membershipId]) {
+      return membershipStatuses[membershipId];
+    }
+    return null;
+  }
+
   console.log('TIERS', tiers);
+  console.log('STATUSES', membershipStatuses);
 
 	return (
 		<>
@@ -312,7 +323,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                             {membership.data.membership_tier_name}
                           </td>
                           <td className="column-columnname">
-                            {Object.keys(membershipStatuses).length > 0 && membershipStatuses[membership.data.membership_status].name}
+                            {membership.data.membership_status}
                           </td>
                           <td className="column-columnname">
                             {membership.data.membership_starts_at}
@@ -329,6 +340,9 @@ const MemberEdit = ({ memberType, recordId }) => {
                               icon={membership.showRow ? 'minus' : 'plus-alt2'}
                               onClick={() => {
                                 membership.showRow = !membership.showRow;
+                                if ( membershipStatuses[membership.data.membership_post_id] === undefined) {
+                                  getMembershipStatuses(membership.data.membership_post_id);
+                                }
                                 setMemberships([...memberships]);
                               }}
                             >
@@ -448,16 +462,19 @@ const MemberEdit = ({ memberType, recordId }) => {
                                   <SelectControl
                                     label={__('Membership Status', 'wicket-memberships')}
                                     name='membership_status'
-                                    value={membership.data.membership_status}
+                                    // value={membership.data.membership_status}
                                     onChange={(value) => {
                                       handleMembershipFieldChange(membership.ID, 'membership_status', value);
                                     }}
-                                    options={Object.keys(membershipStatuses).map((status) => {
-                                      return {
-                                        label: membershipStatuses[status].name,
-                                        value: membershipStatuses[status].slug
-                                      };
-                                    })}
+                                    options={
+                                      getMembershipStatus(membership.ID) !== null && Object.keys(getMembershipStatus(membership.ID))
+                                        .map((status) => {
+                                          return {
+                                            label: membershipStatuses[membership.ID][status].name,
+                                            value: membershipStatuses[membership.ID][status].slug
+                                          }
+                                        })
+                                    }
                                   />
                                 </FlexBlock>
                                 <FlexBlock>

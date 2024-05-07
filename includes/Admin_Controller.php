@@ -269,7 +269,7 @@ class Admin_Controller {
       $membership_data = ( new Membership_Controller )->get_membership_array_from_post_id( $membership->ID );
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
-        $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['slug'];
+        $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['name'];
         $membership_item['data']['membership_starts_at'] = date( "m/d/Y", strtotime( $meta['membership_starts_at'] ) );
         $membership_item['data']['membership_ends_at'] = date( "m/d/Y", strtotime( $meta['membership_ends_at'] ) );
         $membership_item['data']['membership_expires_at'] = date( "m/d/Y", strtotime( $meta['membership_expires_at'] ) );
