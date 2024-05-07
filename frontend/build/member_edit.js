@@ -13218,6 +13218,31 @@ const MemberEdit = ({
       console.error(error);
     });
   };
+
+  // get membership status options
+  const getMembershipStatusOptions = membershipId => {
+    if (Object.keys(membershipStatuses).length === 0) {
+      return [];
+    }
+    if (membershipStatuses[membershipId] === undefined) {
+      return [];
+    }
+    let statuses = Object.keys(getMembershipStatus(membershipId)).map(status => {
+      return {
+        label: membershipStatuses[membershipId][status].name,
+        value: membershipStatuses[membershipId][status].slug
+      };
+    });
+
+    // prepend the disabled option
+    statuses.unshift({
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('-- Nothing Selected --', 'wicket-memberships'),
+      value: ''
+    });
+    console.log('statuses');
+    console.log(statuses);
+    return statuses;
+  };
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     fetchMemberships();
     getTiers();
@@ -13236,6 +13261,13 @@ const MemberEdit = ({
     for (let [key, value] of formData.entries()) {
       data[key] = value;
     }
+
+    // remove empty values
+    Object.keys(data).forEach(key => {
+      if (data[key] === '') {
+        delete data[key];
+      }
+    });
 
     // set updating flag
     setMemberships(memberships.map(m => {
@@ -13432,12 +13464,7 @@ const MemberEdit = ({
     onChange: value => {
       handleMembershipFieldChange(membership.ID, 'membership_status', value);
     },
-    options: getMembershipStatus(membership.ID) !== null && Object.keys(getMembershipStatus(membership.ID)).map(status => {
-      return {
-        label: membershipStatuses[membership.ID][status].name,
-        value: membershipStatuses[membership.ID][status].slug
-      };
-    })
+    options: getMembershipStatusOptions(membership.ID)
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.SelectControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renew as', 'wicket-memberships'),
     name: "membership_next_tier_id",

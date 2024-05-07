@@ -109,6 +109,32 @@ const MemberEdit = ({ memberType, recordId }) => {
       });
   }
 
+  // get membership status options
+  const getMembershipStatusOptions = (membershipId) => {
+    if ( Object.keys(membershipStatuses).length === 0 ) { return []; }
+
+    if (membershipStatuses[membershipId] === undefined) { return []; }
+
+    let statuses = Object.keys(getMembershipStatus(membershipId))
+      .map((status) => {
+        return {
+          label: membershipStatuses[membershipId][status].name,
+          value: membershipStatuses[membershipId][status].slug
+        }
+      })
+
+    // prepend the disabled option
+    statuses.unshift({
+      label: __('-- Nothing Selected --', 'wicket-memberships'),
+      value: ''
+    })
+
+    console.log( 'statuses' );
+    console.log( statuses );
+
+    return statuses;
+  }
+
   useEffect(() => {
     fetchMemberships();
     getTiers();
@@ -131,6 +157,13 @@ const MemberEdit = ({ memberType, recordId }) => {
     for (let [key, value] of formData.entries()) {
       data[key] = value;
     }
+
+    // remove empty values
+    Object.keys(data).forEach((key) => {
+      if (data[key] === '') {
+        delete data[key];
+      }
+    });
 
     // set updating flag
     setMemberships(
@@ -467,13 +500,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                                       handleMembershipFieldChange(membership.ID, 'membership_status', value);
                                     }}
                                     options={
-                                      getMembershipStatus(membership.ID) !== null && Object.keys(getMembershipStatus(membership.ID))
-                                        .map((status) => {
-                                          return {
-                                            label: membershipStatuses[membership.ID][status].name,
-                                            value: membershipStatuses[membership.ID][status].slug
-                                          }
-                                        })
+                                      getMembershipStatusOptions(membership.ID)
                                     }
                                   />
                                 </FlexBlock>
