@@ -13174,7 +13174,7 @@ const MemberEdit = ({
   const [member, setMember] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [memberships, setMemberships] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [tiers, setTiers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
-  const [membershipStatuses, setMembershipStatuses] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
+  const [membershipStatuses, setMembershipStatuses] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({});
   const fetchMemberships = () => {
     setIsLoading(true);
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
@@ -13329,7 +13329,7 @@ const MemberEdit = ({
     className: "column-columnname"
   }, membership.data.membership_tier_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
-  }, "%STATUS%"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+  }, Object.keys(membershipStatuses).length > 0 && membershipStatuses[membership.data.membership_status].name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
   }, membership.data.membership_starts_at), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"

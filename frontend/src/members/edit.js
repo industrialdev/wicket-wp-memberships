@@ -63,7 +63,7 @@ const MemberEdit = ({ memberType, recordId }) => {
   const [member, setMember] = useState(null);
   const [memberships, setMemberships] = useState(null);
   const [tiers, setTiers] = useState([]);
-  const [membershipStatuses, setMembershipStatuses] = useState([]);
+  const [membershipStatuses, setMembershipStatuses] = useState({});
 
   const fetchMemberships = () => {
     setIsLoading(true);
@@ -244,10 +244,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                   <strong>{__('Location:', 'wicket-memberships')}</strong> %LOCATION%
                 </FlexItem>
                 <FlexItem>
-                  <strong>{__('Season:', 'wicket-memberships')}</strong> %SEASON%
-                </FlexItem>
-                <FlexItem>
-                  <strong>{__('Primary Contact:', 'wicket-memberships')}</strong> %CONTACT%
+                  <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> %CONTACT%
                 </FlexItem>
               </MarginedFlex> */}
             </RecordTopInfo>
@@ -315,7 +312,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                             {membership.data.membership_tier_name}
                           </td>
                           <td className="column-columnname">
-                            %STATUS%
+                            {Object.keys(membershipStatuses).length > 0 && membershipStatuses[membership.data.membership_status].name}
                           </td>
                           <td className="column-columnname">
                             {membership.data.membership_starts_at}
