@@ -83,6 +83,8 @@ class Helper {
           'slug' => Wicket_Memberships::STATUS_CANCELLED
         ],
       ];
+    } else {
+      return new \StdClass();
     }
   }
   
