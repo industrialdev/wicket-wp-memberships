@@ -23,6 +23,20 @@ export const updateMembership = (membershipId, data) => {
 }
 
 /**
+ * Update Membership Status
+ */
+export const updateMembershipStatus = (membershipId, status) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/admin/manage_status`,
+    method: 'POST',
+    data: {
+      post_id: membershipId,
+      status: status
+    }
+  });
+}
+
+/**
  * Fetch Available Membership Statuses for a Membership Post
  */
 export const fetchMembershipStatuses = (postId = null) => {
