@@ -82,13 +82,21 @@ class Admin_Controller {
     //load membership order json data
     $Membership_Controller = new Membership_Controller();
     $membership_new = $Membership_Controller->get_membership_array_from_post_id( $membership_post_id );
-    $membership_current = $Membership_Controller->get_membership_array_from_post_id( $previous_membership_post_id );
-    //get tier configuration
-    $membership_tier = new Membership_Tier( $membership_new['membership_tier_post_id'] );
-    $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
-    //get membership dates ( new or based on previous membership if exists )
-    $dates = $config->get_membership_dates( $membership_current );
-    //echo json_encode( [$current_post_status, $new_post_status] );exit;
+    
+    if( empty( $new_post_status )) {
+      $response_array['error'] = 'Invalid status transition. Request did not succeed.';
+    } else if( empty( $membership_new )) {
+      $current_post_status = $new_post_status = '';
+      $response_array['error'] = 'Membership not found. Request did not succeed.';
+    } else {
+      $membership_current = $Membership_Controller->get_membership_array_from_post_id( $previous_membership_post_id );
+      //get tier configuration
+      $membership_tier = new Membership_Tier( $membership_new['membership_tier_post_id'] );
+      $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
+      //get membership dates ( new or based on previous membership if exists )
+      $dates = $config->get_membership_dates( $membership_current );
+      //echo json_encode( [$current_post_status, $new_post_status] );exit;  
+    }
     if( $current_post_status == Wicket_Memberships::STATUS_PENDING && $new_post_status == Wicket_Memberships::STATUS_ACTIVE ) {
       // ------ WE RETURN EARLY HERE ONLY ------
       // THIS IS A SPECIAL CASE OF STATUS UPDATE 
@@ -178,11 +186,17 @@ class Admin_Controller {
     } else if( ! $Membership_Controller->bypass_status_change_lockout ) {
       // WE ONLY ALLOW CERTAIN TRANSITIONS ACCORDING TO RULES
       // 
-      return new \WP_REST_Response(['error' => 'Invalid status transition. Request did not succeed.'], 400);
+      if( empty($response_array) ) {
+        $response_array['error'] = 'Invalid status transition. Request did not succeed.';
+      }
+      return new \WP_REST_Response($response_array, 400);
     } else {
       ( new Membership_Controller() )->update_membership_status( $membership_post_id, $new_post_status);
       // temprarily return a debug message to show undefined status change
-      return new \WP_REST_Response(['debug' => 'BYPASSED STATUS LOCKOUT --- DEBUG ENABLED --- SET AS '. $new_post_status], 200);
+      if( empty($response_array) ) {
+        $response_array['success'] = 'BYPASSED STATUS LOCKOUT --- DEBUG ENABLED --- SET AS '. $new_post_status;
+      }
+      return new \WP_REST_Response($response_array, 200);
     } 
   
     //update membership dates in MDP
