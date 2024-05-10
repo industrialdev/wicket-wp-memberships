@@ -1076,7 +1076,7 @@ class Membership_Controller {
           $args['meta_query'][] = $tier_arg;
       }
       $tiers = new \WP_Query( $args );
-      foreach( $tiers->postsexpired as $tier ) {
+      foreach( $tiers->posts as $tier ) {
         $tier_meta = get_post_meta( $tier->ID );
         $tier->meta = array_map( function( $item ) {
             return $item[0];
