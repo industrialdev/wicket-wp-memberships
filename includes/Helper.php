@@ -10,6 +10,9 @@ class Helper {
   // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
   add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
   add_action( 'add_meta_boxes', [$this, 'action_buttons_add_meta_boxes'] );
+  add_action( 'admin_menu', function() {
+    remove_meta_box( 'extra_info_data', self::get_membership_cpt_slug(), 'normal' );
+} );
   }
 
   // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
@@ -36,11 +39,11 @@ class Helper {
   function extra_info_add_meta_boxes()
   {
     global $post;
-    add_meta_box( 'extra_info_data', __('Extra Info','your_text_domain'), [$this, 'extra_info_data_content'], self::get_membership_cpt_slug(), 'normal', 'core' );
+    add_meta_box( 'extra_info_data_content', __('Extra Info','your_text_domain'), [$this, 'extra_info_data_contents'], self::get_membership_cpt_slug(), 'normal', 'core' );
   }
   
   // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
-  function extra_info_data_content()
+  function extra_info_data_contents()
   {
     global $post;
     $post_meta = get_post_meta( $post->ID );
@@ -78,6 +81,10 @@ class Helper {
 
   public static function get_membership_tier_cpt_slug() {
     return 'wicket_mship_tier';
+  }
+
+  public static function is_valid_membership_post( $membership_post_id ) {
+    return ( !empty( get_post_status( $membership_post_id ) ) && get_post_status( $membership_post_id ) == 'publish' );
   }
 
   public static function get_all_status_names() {

@@ -328,8 +328,10 @@ class Admin_Controller {
       $data[ 'membership_expires_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_expires_at' ] )), wp_timezone() ))->format('c');
     }
 
-    $membership_post = get_post_meta( $membership_post_id );
-    $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
+    if ( Helper::is_valid_membership_post( $membership_post_id ) ) {
+      $membership_post = get_post_meta( $membership_post_id );
+      $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );  
+    }
 
     if( empty( $local_response ) || is_wp_error( $local_response ) ) {
       $response_array['error'] = 'Membership update failed.';
@@ -337,7 +339,6 @@ class Admin_Controller {
       $response_code = 400;
       return new \WP_REST_Response($response_array, $response_code);  
     }
-
     $membership['membership_type'] = $membership_post['membership_type'][0];
     $membership['membership_wicket_uuid'] = $membership_post['membership_wicket_uuid'][0];
     $wicket_response = $Membership_Controller->update_mdp_record( $membership, $data );
