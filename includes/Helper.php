@@ -5,6 +5,69 @@ namespace Wicket_Memberships;
 defined( 'ABSPATH' ) || exit;
 
 class Helper {
+
+  public function __construct() {
+  // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
+  add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
+  add_action( 'add_meta_boxes', [$this, 'action_buttons_add_meta_boxes'] );
+  }
+
+  // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
+  function action_buttons_add_meta_boxes() {
+    global $post;
+    add_meta_box( 'action_buttons_add_meta_boxes', __('[do_action] Buttons','your_text_domain'), [$this, 'display_action_buttons'], self::get_membership_cpt_slug(), 'side', 'core' );
+  }
+
+  function display_action_buttons() {
+    global $post;
+    $order_id = get_post_meta( $post->ID, 'membership_parent_order_id', true );
+    $product_id = get_post_meta( $post->ID, 'membership_product_id', true );
+    ?>
+      <input type="submit" name="wicket_do_action_early_renew_at" value="Early Renew"><br>
+      <input type="submit" name="wicket_do_action_ends_at" value="Ends At"><br>
+      <input type="submit" name="wicket_do_action_expires_at" value="Grace Period"><br>
+      membership_parent_order_id<br>
+      <input type="text" name="wicket_order_id" value="<?php echo $order_id; ?>"><br>
+      membership_product_id<br>
+      <input type="text" name="wicket_product_id" value="<?php echo $product_id; ?>">
+    <?php
+  }
+
+  function extra_info_add_meta_boxes()
+  {
+    global $post;
+    add_meta_box( 'extra_info_data', __('Extra Info','your_text_domain'), [$this, 'extra_info_data_content'], self::get_membership_cpt_slug(), 'normal', 'core' );
+  }
+  
+  // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
+  function extra_info_data_content()
+  {
+    global $post;
+    $post_meta = get_post_meta( $post->ID );
+    $new_meta = [];
+    array_walk(
+      $post_meta,
+      function(&$val, $key) use ( &$new_meta )
+      {
+        if( str_starts_with( $key, '_' ) ) {
+          return;
+        }
+        $new_meta[$key] = $val[0];
+      }
+    );
+    $mship_product_id = get_post_meta( $post->ID, 'membership_product_id', true );
+    echo '<table><tr><td valign="top"><h3>Post Data</h3><pre>';
+    var_dump( $new_meta );
+    echo '</pre></td>';
+    echo '<td valign="top"><h3>Order Json Data ( Post Meta Key: _wicket_membership_';echo $mship_product_id.' )</h3><pre>';
+    var_dump( Membership_Controller::get_membership_array_from_post_id( $post->ID ) );
+    echo '</pre></td>"';
+    echo '<td valign="top"><h3>Customer Json Data ( Post Meta Key: _wicket_membership_';echo $post->ID.' )</h3><pre>';
+    $customer_meta = Membership_Controller::get_membership_array_from_user_meta_by_post_id( $post->ID, $new_meta['user_id'] );
+    var_dump( $customer_meta );
+    echo '</pre></td></tr></table>"';
+  } 
+
   public static function get_membership_config_cpt_slug() {
     return 'wicket_mship_config';
   }
