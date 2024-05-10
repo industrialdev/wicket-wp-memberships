@@ -270,7 +270,7 @@ class Membership_Controller {
    * @return array
    */
   public static function get_membership_array_from_user_meta_by_post_id( $membership_post_id, $user_id = 0 ) {
-    if( empty( $user_id ) ) {
+    if( !$user_id ) {
       $user_id = get_current_user_id();
     }
     $customer_meta = get_user_meta( $user_id, '_wicket_membership_' . $membership_post_id, true ); 
@@ -314,14 +314,19 @@ class Membership_Controller {
    *
    * @param integer $membership_post_id
    * @param array $meta_array
-   * @return void
+   * @return boolean
    */
   public function amend_membership_json( $membership_post_id, $meta_array ) {
-    $membership_array = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id );
-    $updated_membership_array = array_merge($membership_array, $meta_array);
-    update_user_meta( $membership_array['user_id'], '_wicket_membership_'.$membership_post_id, json_encode( $updated_membership_array) );
-    update_post_meta( $membership_array['membership_parent_order_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
-    update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+    $user_id = $this->get_user_id_from_membership_post( $membership_post_id );
+    $membership_array = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id, $user_id );
+    if( ! empty( $membership_array ) ) {
+      $updated_membership_array = array_merge($membership_array, $meta_array);
+      update_user_meta( $membership_array['user_id'], '_wicket_membership_'.$membership_post_id, json_encode( $updated_membership_array) );
+      update_post_meta( $membership_array['membership_parent_order_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+      update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );  
+      return true;
+    }
+    return false;
   }
 
   /**
