@@ -13192,7 +13192,7 @@ const MemberEdit = ({
 }) => {
   const [isLoading, setIsLoading] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(true);
   const [member, setMember] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
-  const [memberships, setMemberships] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [memberships, setMemberships] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [tiers, setTiers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [membershipStatuses, setMembershipStatuses] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({});
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
@@ -13349,6 +13349,30 @@ const MemberEdit = ({
       return m;
     }));
   };
+
+  // get individual user name
+  const getIndividualName = () => {
+    if (memberType !== 'individual' || memberships.length === 0) {
+      return '';
+    }
+    return memberships[0].data.membership_wp_user_display_name;
+  };
+
+  // get individual email
+  const getIndividualEmail = () => {
+    if (memberType !== 'individual' || memberships.length === 0) {
+      return '';
+    }
+    return memberships[0].data.membership_wp_user_email;
+  };
+
+  // get individual id
+  const getIndividualId = () => {
+    if (memberType !== 'individual' || memberships.length === 0) {
+      return '';
+    }
+    return memberships[0].data.membership_wp_user_id;
+  };
   console.log('TIERS', tiers);
   console.log('STATUSES', membershipStatuses);
   console.log('manageStatusFormData', manageStatusFormData);
@@ -13365,7 +13389,7 @@ const MemberEdit = ({
     direction: ['column', 'row']
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.__experimentalHeading, {
     level: 3
-  }, "%NAME%")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
+  }, memberType === 'individual' ? getIndividualName() : '%OrganizationName%')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
     variant: "primary"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Icon, {
     icon: "external"
@@ -13374,7 +13398,7 @@ const MemberEdit = ({
     justify: "start",
     gap: 10,
     direction: ['column', 'row']
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Email:', 'wicket-memberships')), " %EMAIL%"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Identifying Number:', 'wicket-memberships')), " %ID%")))), isLoading && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Spinner, null), !isLoading && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(WhiteBorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex, {
+  }, memberType === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Email:', 'wicket-memberships')), " ", getIndividualEmail()), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Identifying Number:', 'wicket-memberships')), " ", getIndividualId()))))), isLoading && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Spinner, null), !isLoading && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(WhiteBorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex, {
     align: "end",
     justify: "start",
     gap: 5,
@@ -13406,7 +13430,7 @@ const MemberEdit = ({
     scope: "col"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Exp. Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     className: "check-column"
-  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, memberships && memberships.map((membership, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(React.Fragment, {
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, memberships.map((membership, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(React.Fragment, {
     key: index
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"

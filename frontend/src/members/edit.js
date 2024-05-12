@@ -61,7 +61,7 @@ const MemberEdit = ({ memberType, recordId }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const [member, setMember] = useState(null);
-  const [memberships, setMemberships] = useState(null);
+  const [memberships, setMemberships] = useState([]);
   const [tiers, setTiers] = useState([]);
   const [membershipStatuses, setMembershipStatuses] = useState({});
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
@@ -250,6 +250,33 @@ const MemberEdit = ({ memberType, recordId }) => {
     );
   }
 
+  // get individual user name
+  const getIndividualName = () => {
+    if (memberType !== 'individual' || memberships.length === 0 ) {
+      return '';
+    }
+
+    return memberships[0].data.membership_wp_user_display_name;
+  }
+
+  // get individual email
+  const getIndividualEmail = () => {
+    if (memberType !== 'individual' || memberships.length === 0 ) {
+      return '';
+    }
+
+    return memberships[0].data.membership_wp_user_email;
+  }
+
+  // get individual id
+  const getIndividualId = () => {
+    if (memberType !== 'individual' || memberships.length === 0 ) {
+      return '';
+    }
+
+    return memberships[0].data.membership_wp_user_id;
+  }
+
   console.log('TIERS', tiers);
   console.log('STATUSES', membershipStatuses);
   console.log('manageStatusFormData', manageStatusFormData);
@@ -276,7 +303,9 @@ const MemberEdit = ({ memberType, recordId }) => {
               <FlexBlock>
                 <Heading
                   level={3}
-                >%NAME%</Heading>
+                >
+                  {memberType === 'individual' ? getIndividualName() : '%OrganizationName%'}
+                </Heading>
               </FlexBlock>
               <FlexItem>
                 <Button
@@ -297,12 +326,16 @@ const MemberEdit = ({ memberType, recordId }) => {
                   'row'
                 ]}
               >
-                <FlexItem>
-                  <strong>{__('Email:', 'wicket-memberships')}</strong> %EMAIL%
-                </FlexItem>
-                <FlexItem>
-                  <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> %ID%
-                </FlexItem>
+                {memberType === 'individual' &&
+                  <>
+                    <FlexItem>
+                      <strong>{__('Email:', 'wicket-memberships')}</strong> {getIndividualEmail()}
+                    </FlexItem>
+                    <FlexItem>
+                      <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> {getIndividualId()}
+                    </FlexItem>
+                  </>
+                }
               </Flex>
               {/* <MarginedFlex
                 align='end'
@@ -376,7 +409,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {memberships && memberships.map((membership, index) => (
+                    {memberships.map((membership, index) => (
                       <React.Fragment key={index}>
                         <tr
                           // className='alternate'
