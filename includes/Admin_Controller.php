@@ -81,14 +81,23 @@ class Admin_Controller {
     $previous_membership_post_id = get_post_meta( $membership_post_id, 'previous_membership_post_id', true );
     //load membership order json data
     $Membership_Controller = new Membership_Controller();
-    $membership_new = $Membership_Controller->get_membership_array_from_post_id( $membership_post_id );
-    $membership_current = $Membership_Controller->get_membership_array_from_post_id( $previous_membership_post_id );
-    //get tier configuration
-    $membership_tier = new Membership_Tier( $membership_new['membership_tier_post_id'] );
-    $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
-    //get membership dates ( new or based on previous membership if exists )
-    $dates = $config->get_membership_dates( $membership_current );
-    //echo json_encode( [$current_post_status, $new_post_status] );exit;
+    $user_id = $Membership_Controller->get_user_id_from_membership_post( $membership_post_id );
+    $membership_new = $Membership_Controller->get_membership_array_from_user_meta_by_post_id( $membership_post_id, $user_id );
+
+    if( empty( $new_post_status )) {
+      $response_array['error'] = 'Invalid status transition. Request did not succeed.';
+    } else if( empty( $membership_new )) {
+      $current_post_status = $new_post_status = '';
+      $response_array['error'] = 'Membership not found. Request did not succeed.';
+    } else {
+      $membership_current = $Membership_Controller->get_membership_array_from_user_meta_by_post_id( $previous_membership_post_id, $user_id );
+      //get tier configuration
+      $membership_tier = new Membership_Tier( $membership_new['membership_tier_post_id'] );
+      $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
+      //get membership dates ( new or based on previous membership if exists )
+      $dates = $config->get_membership_dates( $membership_current );
+      //echo json_encode( [$current_post_status, $new_post_status] );exit;
+    }
     if( $current_post_status == Wicket_Memberships::STATUS_PENDING && $new_post_status == Wicket_Memberships::STATUS_ACTIVE ) {
       // ------ WE RETURN EARLY HERE ONLY ------
       // THIS IS A SPECIAL CASE OF STATUS UPDATE
@@ -117,7 +126,7 @@ class Admin_Controller {
       //update the membership post
       $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( json_encode($membership) );
       $response = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post_meta_data );
-      $Membership_Controller->amend_membership_order_json( $membership_post_id, $meta_data );
+      $Membership_Controller->amend_membership_json( $membership_post_id, $meta_data );
 
       //set the renewal scheduler dates
       $Membership_Controller->scheduler_dates_for_expiry( $membership );
@@ -174,15 +183,21 @@ class Admin_Controller {
     if( ! empty( $meta_data ) ) {
       $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( json_encode($meta_data) );
       $updated = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post_meta_data );
-      $Membership_Controller->amend_membership_order_json( $membership_post_id, $meta_data );
+      $Membership_Controller->amend_membership_json( $membership_post_id, $meta_data );
     } else if( ! $Membership_Controller->bypass_status_change_lockout ) {
       // WE ONLY ALLOW CERTAIN TRANSITIONS ACCORDING TO RULES
       //
-      return new \WP_REST_Response(['error' => 'Invalid status transition. Request did not succeed.'], 400);
+      if( empty($response_array) ) {
+        $response_array['error'] = 'Invalid status transition. Request did not succeed.';
+      }
+      return new \WP_REST_Response($response_array, 400);
     } else {
       ( new Membership_Controller() )->update_membership_status( $membership_post_id, $new_post_status);
       // temprarily return a debug message to show undefined status change
-      return new \WP_REST_Response(['debug' => 'BYPASSED STATUS LOCKOUT --- DEBUG ENABLED --- SET AS '. $new_post_status], 200);
+      if( empty($response_array) ) {
+        $response_array['success'] = 'BYPASSED STATUS LOCKOUT --- DEBUG ENABLED --- SET AS '. $new_post_status;
+      }
+      return new \WP_REST_Response($response_array, 200);
     }
 
     //update membership dates in MDP
@@ -266,7 +281,7 @@ class Admin_Controller {
         $membership_item['max_assignments'] = $org_memberships[ $meta['membership_wicket_uuid'] ]['membership']['attributes']['max_assignments'] ?? 0;
         $membership_item['active_assignments_count'] = $org_memberships[ $meta['membership_wicket_uuid'] ]['membership']['attributes']['active_assignments_count'];
       }
-      $membership_data = ( new Membership_Controller )->get_membership_array_from_post_id( $membership->ID );
+      $membership_data = Membership_Controller::get_membership_array_from_user_meta_by_post_id( $membership->ID, $meta['user_id'] );
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
         $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['name'];
@@ -285,6 +300,7 @@ class Admin_Controller {
         @$membership_item['order']['id'] = $membership_item['data']['membership_parent_order_id'];
         @$membership_item['order']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_parent_order_id'] );
         @$membership_item['order']['total'] = $order->get_total();
+<<<<<<< HEAD
         if( !empty( $order->get_date_created() ) ) {
           @$membership_item['order']['date_created'] = $order->get_date_created()->format('m/d/Y');
         } else {
@@ -305,6 +321,15 @@ class Admin_Controller {
           $membership_item['subscription']['next_payment_date'] = 'N/A';
         }
         @$membership_item['subscription']['status'] = ucfirst( $sub->get_status() );
+=======
+        @$membership_item['order']['date_created'] =  $order->get_date_created()->format('Y-m-d');
+        @$membership_item['order']['date_completed'] = $order->get_date_completed()->format('Y-m-d');
+
+        @$sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
+        @$membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
+        @$membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
+        @$membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub->get_time('next_payment')), wp_timezone() ))->format('Y-m-d');
+>>>>>>> main
       } else {
         $membership_item['data'] = Helper::get_membership_json_from_membership_post_data( $meta, false );
         $membership_item['data']['status'] = 'active';
@@ -332,8 +357,10 @@ class Admin_Controller {
       $data[ 'membership_expires_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_expires_at' ] )), wp_timezone() ))->format('c');
     }
 
-    $membership_post = get_post_meta( $membership_post_id );
-    $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
+    if ( Helper::is_valid_membership_post( $membership_post_id ) ) {
+      $membership_post = get_post_meta( $membership_post_id );
+      $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
+    }
 
     if( empty( $local_response ) || is_wp_error( $local_response ) ) {
       $response_array['error'] = 'Membership update failed.';
@@ -341,7 +368,6 @@ class Admin_Controller {
       $response_code = 400;
       return new \WP_REST_Response($response_array, $response_code);
     }
-
     $membership['membership_type'] = $membership_post['membership_type'][0];
     $membership['membership_wicket_uuid'] = $membership_post['membership_wicket_uuid'][0];
     $wicket_response = $Membership_Controller->update_mdp_record( $membership, $data );
@@ -352,7 +378,7 @@ class Admin_Controller {
       $response_array['response'] = [];
       $response_code = 400;
     } else {
-      $Membership_Controller->amend_membership_order_json( $membership_post_id, $data );
+      $Membership_Controller->amend_membership_json( $membership_post_id, $data );
       $response_array['success'] = 'Membership was updated successfully.';
       $response_array['response'] = $wicket_response;
       $response_code = 200;

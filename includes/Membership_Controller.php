@@ -178,7 +178,7 @@ class Membership_Controller {
 
     //if we have a current membership_post ID now  get the current membership data
     if( !empty( $membership_post_id_renew ) ) {
-      $membership_current = $self->get_membership_array_from_post_id( $membership_post_id_renew );
+      $membership_current = $self->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
     }
     /*
     if( !empty( $membership_current ) && $early_renewal_date = $config->is_valid_renewal_date( $membership_current ) ) {
@@ -209,7 +209,7 @@ class Membership_Controller {
               $period_data = $config->get_period_data();
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
-                $membership_current = $this->get_membership_array_from_post_id( $membership_post_id_renew );
+                $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
               }
               //TODO: do renewal memberships start on current date or end date of previous membership - current is end_date last membersrship
               $dates = $config->get_membership_dates( $membership_current );
@@ -269,6 +269,20 @@ class Membership_Controller {
    * @param integer $membership_post_id
    * @return array
    */
+  public static function get_membership_array_from_user_meta_by_post_id( $membership_post_id, $user_id = 0 ) {
+    if( !$user_id ) {
+      $user_id = get_current_user_id();
+    }
+    $customer_meta = get_user_meta( $user_id, '_wicket_membership_' . $membership_post_id, true ); 
+    return json_decode( $customer_meta, true ); 
+  }
+
+  /**
+   * Get the membership json data on order using membership post_id
+   *
+   * @param integer $membership_post_id
+   * @return array
+   */
   public static function get_membership_array_from_post_id( $membership_post_id ) {
     $self = new self();
     $mship_order_id = get_post_meta( $membership_post_id, 'membership_parent_order_id', true );
@@ -300,13 +314,19 @@ class Membership_Controller {
    *
    * @param integer $membership_post_id
    * @param array $meta_array
-   * @return void
+   * @return boolean
    */
-  public function amend_membership_order_json( $membership_post_id, $meta_array ) {
-    $membership_array = $this->get_membership_array_from_post_id( $membership_post_id );
-    $updated_membership_array = array_merge($membership_array, $meta_array);
-    update_post_meta( $membership_array['membership_parent_order_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
-    update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+  public function amend_membership_json( $membership_post_id, $meta_array ) {
+    $user_id = $this->get_user_id_from_membership_post( $membership_post_id );
+    $membership_array = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id, $user_id );
+    if( ! empty( $membership_array ) ) {
+      $updated_membership_array = array_merge($membership_array, $meta_array);
+      update_user_meta( $membership_array['user_id'], '_wicket_membership_'.$membership_post_id, json_encode( $updated_membership_array) );
+      update_post_meta( $membership_array['membership_parent_order_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+      update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );  
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -606,6 +626,11 @@ class Membership_Controller {
     return $user->user_login;
   }
 
+  public static function get_user_id_from_membership_post( $membership_post_id ) {
+    $membership_post = get_post( $membership_post_id );
+    return $membership_post->user_id;
+  }
+
   /**
    * Create the WP Membership Record
    */
@@ -670,6 +695,14 @@ class Membership_Controller {
     $subscription_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
     update_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );
 
+    if( ! ($customer_meta = get_user_meta( $membership['user_id'], '_wicket_membership_'.$membership['membership_post_id'] ))) {
+      $customer_meta_array = $meta;
+    } else {
+      $customer_meta_array = json_decode( $customer_meta[0], true);
+    }
+    $customer_meta_array['membership_post_id'] = $membership_post;
+    $customer_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
+    update_user_meta( $membership['user_id'], '_wicket_membership_'.$membership_post, json_encode( $customer_meta_array) );
     return $membership_post;
   }
 
@@ -847,7 +880,7 @@ class Membership_Controller {
         }
       }, $meta_data);
 
-      $membership->data = $this->get_membership_array_from_post_id( $membership->ID );
+      $membership->data = $this->get_membership_array_from_user_meta_by_post_id( $membership->ID, $user_id );
       
       $membership_early_renew_at = strtotime( $membership->membership_early_renew_at );
       $membership_ends_at = strtotime( $membership->membership_ends_at );
