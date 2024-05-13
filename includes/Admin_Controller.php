@@ -74,6 +74,7 @@ class Admin_Controller {
    * @return \WP_REST_Response
    */
   public static function admin_manage_status( $membership_post_id, $new_post_status ) {
+    $tomorrow_iso_date = (new \DateTime( date("Y-m-d", strtotime( "+1 day" )), wp_timezone() ))->format('c');
     $yesterday_iso_date = (new \DateTime( date("Y-m-d", strtotime( "-1 day" )), wp_timezone() ))->format('c');
     $now_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
     //get membership records
@@ -164,7 +165,7 @@ class Admin_Controller {
       else {
         $meta_data = [
           'membership_status' => $new_post_status,
-          'membership_ends_at' => $now_iso_date,
+          'membership_ends_at' => $tomorrow_iso_date,
         ];
       }
       // cancel the associated subscription
@@ -179,6 +180,7 @@ class Admin_Controller {
         'membership_expires_at' => $now_iso_date,
       ];
     }
+    $meta_data['membership_type'] = $membership_new['membership_type'];
     //update the membership post and order json data
     if( ! empty( $meta_data ) ) {
       $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( json_encode($meta_data) );
