@@ -4,8 +4,8 @@ import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { PLUGIN_API_URL } from '../constants';
-import { Wrap, ErrorsRow, BorderedBox, ActionRow } from '../styled_elements';
-import { TextControl, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, Disabled, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
+import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled } from '../styled_elements';
+import { TextControl, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import styled from 'styled-components';
 import { fetchTiers, updateMembership, fetchMembershipStatuses, updateMembershipStatus } from '../services/api';
 import he from 'he';
@@ -60,10 +60,8 @@ const MemberEdit = ({ memberType, recordId }) => {
 
   const [isLoading, setIsLoading] = useState(true);
 
-  const [member, setMember] = useState(null);
   const [memberships, setMemberships] = useState([]);
   const [tiers, setTiers] = useState([]);
-  const [membershipStatuses, setMembershipStatuses] = useState({});
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
   const [manageStatusErrors, setManageStatusErrors] = useState([]);
   const [manageStatusFormData, setManageStatusFormData] = useState({
@@ -278,7 +276,6 @@ const MemberEdit = ({ memberType, recordId }) => {
   }
 
   console.log('TIERS', tiers);
-  console.log('STATUSES', membershipStatuses);
   console.log('manageStatusFormData', manageStatusFormData);
 
 	return (
@@ -308,12 +305,14 @@ const MemberEdit = ({ memberType, recordId }) => {
                 </Heading>
               </FlexBlock>
               <FlexItem>
-                <Button
-                  variant='primary'
-                >
-                  <Icon icon='external' />&nbsp;
-                  {__('View in MDP', 'wicket-memberships')}
-                </Button>
+                <CustomDisabled>
+                  <Button
+                    variant='primary'
+                  >
+                    <Icon icon='external' />&nbsp;
+                    {__('View in MDP', 'wicket-memberships')}
+                  </Button>
+                </CustomDisabled>
               </FlexItem>
             </Flex>
             <RecordTopInfo>
@@ -377,12 +376,14 @@ const MemberEdit = ({ memberType, recordId }) => {
                   </Heading>
                 </FlexBlock>
                 <FlexItem>
-                  <Button
-                    variant='primary'
-                  >
-                    <Icon icon='plus' />&nbsp;
-                    {__('Add New Membership', 'wicket-memberships')}
-                  </Button>
+                  <CustomDisabled>
+                    <Button
+                      variant='primary'
+                    >
+                      <Icon icon='plus' />&nbsp;
+                      {__('Add New Membership', 'wicket-memberships')}
+                    </Button>
+                  </CustomDisabled>
                 </FlexItem>
               </Flex>
               {/* Membership List */}
@@ -519,25 +520,6 @@ const MemberEdit = ({ memberType, recordId }) => {
                               </tbody>
                             </table>
 
-                            {/* Membership update form */}
-                            {membership.updateResult.length > 0 && (
-                              <ErrorsRow>
-                                <Notice
-                                  isDismissible={true}
-                                  onDismiss={() => {
-                                    setMemberships(
-                                      memberships.map((m) => {
-                                        if (m.ID == membership.ID) {
-                                          m.updateResult = '';
-                                        }
-                                        return m;
-                                      })
-                                    );
-                                  }}
-                                  status="info">{membership.updateResult}</Notice>
-                              </ErrorsRow>
-                            )}
-
                             <MarginedFlex
                               align='end'
                               justify='start'
@@ -566,6 +548,25 @@ const MemberEdit = ({ memberType, recordId }) => {
                                 </Button>
                               </FlexBlock>
                             </MarginedFlex>
+
+                            {/* Membership update form */}
+                            {membership.updateResult.length > 0 && (
+                              <ErrorsRow>
+                                <Notice
+                                  isDismissible={true}
+                                  onDismiss={() => {
+                                    setMemberships(
+                                      memberships.map((m) => {
+                                        if (m.ID == membership.ID) {
+                                          m.updateResult = '';
+                                        }
+                                        return m;
+                                      })
+                                    );
+                                  }}
+                                  status="info">{membership.updateResult}</Notice>
+                              </ErrorsRow>
+                            )}
 
                             <form
                               data-membership-id={membership.ID}
