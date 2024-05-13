@@ -294,13 +294,13 @@ class Admin_Controller {
         @$membership_item['order']['id'] = $membership_item['data']['membership_parent_order_id'];
         @$membership_item['order']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_parent_order_id'] );
         @$membership_item['order']['total'] = $order->get_total();
-        @$membership_item['order']['date_created'] =  $order->get_date_created()->format('m/d/Y');
-        @$membership_item['order']['date_completed'] = $order->get_date_completed()->format('m/d/Y');
+        @$membership_item['order']['date_created'] =  $order->get_date_created()->format('Y-m-d');
+        @$membership_item['order']['date_completed'] = $order->get_date_completed()->format('Y-m-d');
 
         @$sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
         @$membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
         @$membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
-        @$membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub->get_time('next_payment')), wp_timezone() ))->format('m/d/Y');  
+        @$membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub->get_time('next_payment')), wp_timezone() ))->format('Y-m-d');  
       } else {
         $membership_item['data'] = Helper::get_membership_json_from_membership_post_data( $meta, false );
         $membership_item['data']['status'] = 'active';
