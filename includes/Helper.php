@@ -253,7 +253,10 @@ class Helper {
         if( str_starts_with( $key, '_' ) ) {
           return;
         }
-        $new_meta[$key] = $val[0];
+        if( str_ends_with( $key, '_at' ) ) {
+          return $new_meta[$key] = date( "Y-m-d", strtotime( $val[0] ));
+        }
+        return $new_meta[$key] = $val[0];
       }
     );
     return $new_meta;
