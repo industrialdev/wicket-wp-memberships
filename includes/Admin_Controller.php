@@ -302,7 +302,9 @@ class Admin_Controller {
         $membership_item['order']['total'] = $order->get_total();
         $membership_item['order']['status'] = $order->get_status();
         $membership_item['order']['date_created'] =  $order->get_date_created()->format('Y-m-d');
-        $membership_item['order']['date_completed'] = $order->get_date_completed()->format('Y-m-d');
+        if(!empty( $order->get_date_completed() )) {
+          $membership_item['order']['date_completed'] = $order->get_date_completed()->format('Y-m-d');
+        }
         $sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
         $membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
         $membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );

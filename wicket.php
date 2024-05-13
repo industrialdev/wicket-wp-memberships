@@ -83,6 +83,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 			new Membership_Tier_CPT_Hooks;
       new Membership_WP_REST_Controller;
       new Membership_Subscription_Controller;
+      new Helper;
 
 			register_activation_hook( WICKET_MEMBERSHIP_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
 			add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );

@@ -701,6 +701,8 @@ class Membership_Controller {
       $customer_meta_array = json_decode( $customer_meta[0], true);
     }
     $customer_meta_array['membership_post_id'] = $membership_post;
+    $customer_meta_array['membership_parent_order_id'] = $membership['membership_parent_order_id'];
+    $customer_meta_array['membership_subscription_id'] = $membership['membership_subscription_id'];
     $customer_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
     update_user_meta( $membership['user_id'], '_wicket_membership_'.$membership_post, json_encode( $customer_meta_array) );
     return $membership_post;
