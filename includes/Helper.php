@@ -117,6 +117,9 @@ class Helper {
   }
 
   public static function get_allowed_transition_status( $status ) {
+    if( env('BYPASS_STATUS_CHANGE_LOCKOUT') ) {
+      return self::get_all_status_names();
+    }
     if( $status == Wicket_Memberships::STATUS_PENDING ) {
       return [
         Wicket_Memberships::STATUS_ACTIVE => [
