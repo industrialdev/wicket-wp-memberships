@@ -255,7 +255,7 @@ const MemberEdit = ({ memberType, recordId }) => {
       return '';
     }
 
-    return memberships[0].data.membership_wp_user_display_name;
+    return memberships[0].data.user_name;
   }
 
   // get individual email
@@ -264,7 +264,7 @@ const MemberEdit = ({ memberType, recordId }) => {
       return '';
     }
 
-    return memberships[0].data.membership_wp_user_email;
+    return memberships[0].data.user_email;
   }
 
   // get individual id
@@ -273,7 +273,7 @@ const MemberEdit = ({ memberType, recordId }) => {
       return '';
     }
 
-    return memberships[0].data.membership_wp_user_id;
+    return memberships[0].data.user_id;
   }
 
   console.log('TIERS', tiers);
@@ -740,6 +740,9 @@ const MemberEdit = ({ memberType, recordId }) => {
 								<TextControl
 									label={__('Current Status', 'wicket-memberships')}
                   disabled={true}
+                  style={{
+                    backgroundColor: '#F6F7F7'
+                  }}
 									value={manageStatusFormData.currentStatus}
                   __nextHasNoMarginBottom={true}
 								/>

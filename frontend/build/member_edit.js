@@ -42479,7 +42479,7 @@ const MemberEdit = ({
     if (memberType !== 'individual' || memberships.length === 0) {
       return '';
     }
-    return memberships[0].data.membership_wp_user_display_name;
+    return memberships[0].data.user_name;
   };
 
   // get individual email
@@ -42487,7 +42487,7 @@ const MemberEdit = ({
     if (memberType !== 'individual' || memberships.length === 0) {
       return '';
     }
-    return memberships[0].data.membership_wp_user_email;
+    return memberships[0].data.user_email;
   };
 
   // get individual id
@@ -42495,7 +42495,7 @@ const MemberEdit = ({
     if (memberType !== 'individual' || memberships.length === 0) {
       return '';
     }
-    return memberships[0].data.membership_wp_user_id;
+    return memberships[0].data.user_id;
   };
   console.log('TIERS', tiers);
   console.log('manageStatusFormData', manageStatusFormData);
@@ -42740,6 +42740,9 @@ const MemberEdit = ({
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Current Status', 'wicket-memberships'),
     disabled: true,
+    style: {
+      backgroundColor: '#F6F7F7'
+    },
     value: manageStatusFormData.currentStatus,
     __nextHasNoMarginBottom: true
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
