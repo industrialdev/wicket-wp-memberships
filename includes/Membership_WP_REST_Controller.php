@@ -32,7 +32,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
       'schema' => array( $this, '' ),
-    ) 
+    )
     );
     /**
     * Get All Orgs MDP
@@ -44,7 +44,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
       'schema' => array( $this, '' ),
-    ) 
+    )
     );
     /**
     * Get Tier Data WP
@@ -57,8 +57,9 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
       'schema' => array( $this, '' ),
-    ) 
+    )
     );
+
     /**
     * Get Org Data WP
     * Can filter by UUID and add properties like: count
@@ -70,7 +71,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
       'schema' => array( $this, '' ),
-    ) 
+    )
     );
     /**
      * Get Tier by Product_ID
@@ -82,7 +83,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
       'schema' => array( $this, '' ),
-    ) 
+    )
     );
     /**
      * Get Memberships by Org or User
@@ -94,7 +95,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
       'schema' => array( $this, '' ),
-    ) 
+    )
     );
     /**
      * Write to a Membership
@@ -106,7 +107,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
       'schema' => array( $this, '' ),
-    ) 
+    )
     );
   /**
    * Get membership filters by Membership Type
@@ -115,7 +116,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       array(
         'methods'  => \WP_REST_Server::READABLE,
         'callback'  => array( $this, 'get_membership_filters' ),
-        'permission_callback' => array( $this, 'permissions_check_read' ),        
+        'permission_callback' => array( $this, 'permissions_check_read' ),
         'args' => array(
           'type' => array(
             'required' => true,
@@ -125,7 +126,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         ),
       ),
       'schema' => array( $this, '' ),
-    ) 
+    )
     );
     /**
      * Main Search and FIlter Memberships Endpoint
@@ -152,23 +153,23 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
           'status' => array(
             'type' => 'string',
             'description' => 'membership status',
-          ),  
+          ),
           'order_col' => array(
             'type' => 'string',
             'description' => 'order by column name',
-          ),  
+          ),
           'order_dir' => array(
             'type' => 'string',
             'description' => 'order by direction',
-          ),       
+          ),
           'filter[]' => array(
             'type' => 'string',
             'description' => 'list filters',
-          ),          
+          ),
         )
       ),
       'schema' => array( $this, '' ),
-    ) 
+    )
     );
     /**
      * Get Membership Dates with Config_ID
@@ -231,7 +232,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
       'schema' => array( $this, '' ),
-    ) 
+    )
     );
   }
 
@@ -283,7 +284,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     $response = $mc->get_members_list( $params['type'], $params['page'], $params['posts_per_page'], $params['status'], $params['search'], $params['filter'], $params['order_col'], $params['order_dir'] );
     return rest_ensure_response( $response );
   }
-  
+
   public function modify_subscription( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $mc = new Membership_Subscription_Controller();
@@ -302,7 +303,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
 
   public function get_product_tiers( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Membership_Tier::get_tier_by_product_id( $params['id'] ); 
+    $response = Membership_Tier::get_tier_by_product_id( $params['id'] );
     return rest_ensure_response( $response );
   }
 

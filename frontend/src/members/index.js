@@ -6,7 +6,7 @@ import { addQueryArgs } from '@wordpress/url';
 import { Spinner, Icon } from '@wordpress/components';
 import { PLUGIN_API_URL } from '../constants';
 
-const MemberList = ({ memberType }) => {
+const MemberList = ({ memberType, editMemberUrl }) => {
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -250,14 +250,48 @@ const MemberList = ({ memberType }) => {
                   { memberType === 'organization' && (
                     <>
                       <td>
-                        {member.meta.org_name}
+                        <strong>
+                          <a href={addQueryArgs(editMemberUrl, { id: member.meta.org_uuid })}
+                            className='row-title'
+                          >{member.meta.org_name}</a>
+                        </strong>
+
+                        <div className="row-actions">
+                          <span className="edit">
+                            <a href={addQueryArgs(editMemberUrl, { id: member.meta.org_uuid })} aria-label={ __('Edit', 'wicket-memberships') }>
+                              { __('Edit', 'wicket-memberships') }
+                            </a>
+                          </span>
+                        </div>
                       </td>
                       <td>
                         {member.meta.org_location}
                       </td>
                     </>
                   )}
-                  <td>{member.user.display_name}</td>
+                  <td>
+                    {memberType === 'individual' && (
+                      <>
+                        <strong>
+                          <a href={addQueryArgs(editMemberUrl, { id: member.meta.user_id })}
+                            className='row-title'
+                          >{member.user.display_name}</a>
+                        </strong>
+                        <div className="row-actions">
+                          <span className="edit">
+                            <a href={addQueryArgs(editMemberUrl, { id: member.meta.user_id })} aria-label={ __('Edit', 'wicket-memberships') }>
+                              { __('Edit', 'wicket-memberships') }
+                            </a>
+                          </span>
+                        </div>
+                      </>
+                    )}
+                    {memberType === 'organization' && (
+                      <>
+                        {member.user.display_name}
+                      </>
+                    )}
+                  </td>
                   <td>
                     <span style={{
                           color: (member.meta.membership_status === 'active' ? 'green' : ''),
@@ -292,43 +326,42 @@ const MemberList = ({ memberType }) => {
             </span>
 
             {/* Pagination */}
-            <span className="pagination-links">
+            {totalPages > 1 && (
+              <span className="pagination-links">
+                <button
+                  className="prev-page button"
+                  disabled={searchParams.page === 1}
+                  onClick={() => {
+                    const newSearchParams = {
+                      ...searchParams,
+                      page: searchParams.page - 1,
+                    };
+                    setSearchParams(newSearchParams);
+                    fetchMembers(newSearchParams);
+                  }}
+                >‹</button>
 
-              <button
-                className="prev-page button"
-                disabled={searchParams.page === 1}
-                onClick={() => {
-                  const newSearchParams = {
-                    ...searchParams,
-                    page: searchParams.page - 1,
-                  };
-                  setSearchParams(newSearchParams);
-                  fetchMembers(newSearchParams);
-                }}
-              >‹</button>
+                <span className="screen-reader-text">{__('Current Page', 'wicket-memberships')}</span>
+                <span id="table-paging" className="paging-input">
+                  &nbsp;
+                  <span className="tablenav-paging-text">{searchParams.page} {__('of', 'wicket-memberships')} <span className="total-pages">{totalPages}</span></span>
+                  &nbsp;
+                </span>
 
-              <span className="screen-reader-text">{__('Current Page', 'wicket-memberships')}</span>
-              <span id="table-paging" className="paging-input">
-                &nbsp;
-                <span className="tablenav-paging-text">{searchParams.page} {__('of', 'wicket-memberships')} <span className="total-pages">{totalPages}</span></span>
-                &nbsp;
+                <button
+                  className="next-page button"
+                  disabled={searchParams.page === totalPages}
+                  onClick={() => {
+                    const newSearchParams = {
+                      ...searchParams,
+                      page: searchParams.page + 1,
+                    };
+                    setSearchParams(newSearchParams);
+                    fetchMembers(newSearchParams);
+                  }}
+                >›</button>
               </span>
-
-              <button
-                className="next-page button"
-                disabled={searchParams.page === totalPages}
-                onClick={() => {
-                  const newSearchParams = {
-                    ...searchParams,
-                    page: searchParams.page + 1,
-                  };
-                  setSearchParams(newSearchParams);
-                  fetchMembers(newSearchParams);
-                }}
-              >›</button>
-
-            </span>
-
+            )}
           </div>
           <br className="clear" />
         </div>
