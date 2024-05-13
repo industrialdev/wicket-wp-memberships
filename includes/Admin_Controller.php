@@ -141,7 +141,7 @@ class Admin_Controller {
         'Membership approved and dates updated.'
       );
       $response_array['success'] = 'Pending membership activated successfully.';
-      $response_array['response'] = $response;
+      $response_array['response'] = Helper::get_post_meta( $membership_post_id );
       $response_code = 200;
 
       // ------ WE RETURN EARLY HERE ONLY ------
@@ -208,11 +208,11 @@ class Admin_Controller {
       if( empty ( $response['error'] ) ) {
         $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
         $response_array['success'] = 'Status was updated successfully.';
-        $response_array['response'] = $response;
+        $response_array['response'] = Helper::get_post_meta( $membership_post_id );
         $response_code = 200;
       } else {
         $response_array['error'] = $response['error'];
-        $response_array['response'] = [];
+        $response_array['response'] = Helper::get_post_meta( $membership_post_id );
         $response_code = 400;
       }
       return new \WP_REST_Response($response_array, $response_code);
@@ -362,7 +362,7 @@ class Admin_Controller {
     } else {
       $Membership_Controller->amend_membership_json( $membership_post_id, $data );
       $response_array['success'] = 'Membership was updated successfully.';
-      $response_array['response'] = $wicket_response;
+      $response_array['response'] = Helper::get_post_meta( $membership_post_id );
       $response_code = 200;
     }
 

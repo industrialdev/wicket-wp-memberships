@@ -239,4 +239,20 @@ class Helper {
     $data['name'] = $org_data['data']['attributes']['alternate_name'];
     return $data;
   }
+
+  public static function get_post_meta( $post_id ) {
+    $post_meta = get_post_meta( $post_id );
+    $new_meta = [];
+    array_walk(
+      $post_meta,
+      function(&$val, $key) use ( &$new_meta )
+      {
+        if( str_starts_with( $key, '_' ) ) {
+          return;
+        }
+        $new_meta[$key] = $val[0];
+      }
+    );
+    return $new_meta;
+  }
 }
