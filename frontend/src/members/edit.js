@@ -3,9 +3,10 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { PLUGIN_API_URL } from '../constants';
-import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled } from '../styled_elements';
+import { DEFAULT_DATE_FORMAT, PLUGIN_API_URL } from '../constants';
+import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap } from '../styled_elements';
 import { TextControl, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
+import DatePicker from "react-datepicker";
 import styled from 'styled-components';
 import { fetchTiers, updateMembership, fetchMembershipStatuses, updateMembershipStatus } from '../services/api';
 import he from 'he';
@@ -279,7 +280,7 @@ const MemberEdit = ({ memberType, recordId }) => {
   console.log('manageStatusFormData', manageStatusFormData);
 
 	return (
-		<>
+		<AppWrap>
 			<div className="wrap" >
 				<h1 className="wp-heading-inline">
 					{memberType === 'individual' ? __('Individual Members', 'wicket-memberships') : __('Organization Members', 'wicket-memberships')}
@@ -610,37 +611,64 @@ const MemberEdit = ({ memberType, recordId }) => {
                                 ]}
                               >
                                 <FlexBlock>
-                                  <TextControl
-                                    label={__('Start Date', 'wicket-memberships')}
-                                    name='membership_starts_at'
-                                    value={moment(membership.data.membership_starts_at).format('YYYY-MM-DD')}
-                                    type="date"
-                                    onChange={(value) => {
-                                      handleMembershipFieldChange(membership.ID, 'membership_starts_at', value);
-                                    }}
-                                  />
+                                  <LabelWpStyled htmlFor="mdp_tier">
+                                    {__('Start Date', 'wicket-memberships')}
+                                  </LabelWpStyled>
+                                  <ReactDatePickerStyledWrap>
+                                    <DatePicker
+                                      aria-label={__('Start Date', 'wicket-memberships')}
+                                      name='membership_starts_at'
+                                      dateFormat={DEFAULT_DATE_FORMAT}
+                                      showMonthDropdown
+                                      showYearDropdown
+                                      dropdownMode="select"
+                                      selected={ moment(membership.data.membership_starts_at).format('YYYY-MM-DD') }
+                                      onChange={(value) => {
+                                        console.log(value);
+                                        handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment(value).format('YYYY-MM-DD'));
+                                      }}
+                                    />
+                                  </ReactDatePickerStyledWrap>
                                 </FlexBlock>
                                 <FlexBlock>
-                                  <TextControl
-                                    label={__('End Date', 'wicket-memberships')}
-                                    name='membership_ends_at'
-                                    value={moment(membership.data.membership_ends_at).format('YYYY-MM-DD')}
-                                    type="date"
-                                    onChange={(value) => {
-                                      handleMembershipFieldChange(membership.ID, 'membership_ends_at', value);
-                                    }}
-                                  />
+                                  <LabelWpStyled htmlFor="mdp_tier">
+                                    {__('End Date', 'wicket-memberships')}
+                                  </LabelWpStyled>
+                                  <ReactDatePickerStyledWrap>
+                                    <DatePicker
+                                      aria-label={__('End Date', 'wicket-memberships')}
+                                      name='membership_ends_at'
+                                      dateFormat={DEFAULT_DATE_FORMAT}
+                                      showMonthDropdown
+                                      showYearDropdown
+                                      dropdownMode="select"
+                                      selected={ moment(membership.data.membership_ends_at).format('YYYY-MM-DD') }
+                                      onChange={(value) => {
+                                        handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment(value).format('YYYY-MM-DD'));
+                                      }}
+                                    />
+                                  </ReactDatePickerStyledWrap>
                                 </FlexBlock>
                                 <FlexBlock>
-                                  <TextControl
-                                    label={__('Expiration Date', 'wicket-memberships')}
-                                    name='membership_expires_at'
-                                    value={moment(membership.data.membership_expires_at).format('YYYY-MM-DD')}
-                                    type="date"
-                                    onChange={(value) => {
-                                      handleMembershipFieldChange(membership.ID, 'membership_expires_at', value);
-                                    }}
-                                  />
+
+
+                                <LabelWpStyled htmlFor="mdp_tier">
+                                    {__('Expiration Date', 'wicket-memberships')}
+                                  </LabelWpStyled>
+                                  <ReactDatePickerStyledWrap>
+                                    <DatePicker
+                                      aria-label={__('Expiration Date', 'wicket-memberships')}
+                                      name='membership_expires_at'
+                                      dateFormat={DEFAULT_DATE_FORMAT}
+                                      showMonthDropdown
+                                      showYearDropdown
+                                      dropdownMode="select"
+                                      selected={ moment(membership.data.membership_expires_at).format('YYYY-MM-DD') }
+                                      onChange={(value) => {
+                                        handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment(value).format('YYYY-MM-DD'));
+                                      }}
+                                    />
+                                  </ReactDatePickerStyledWrap>
                                 </FlexBlock>
                               </MarginedFlex>
 
@@ -765,7 +793,7 @@ const MemberEdit = ({ memberType, recordId }) => {
 				</Modal>
 			)}
 
-		</>
+		</AppWrap>
 	);
 };
 

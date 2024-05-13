@@ -4,7 +4,8 @@
   "version": "0.0.1",
   "author": "Wicket",
   "devDependencies": {
-    "@wordpress/scripts": "^27.5.0"
+    "@wordpress/scripts": "^27.5.0",
+    "raw-loader": "^4.0.2"
   },
   "scripts": {
     "build": "wp-scripts build",
@@ -14,6 +15,7 @@
     "@wordpress/components": "^27.2.0",
     "he": "^1.2.0",
     "moment": "^2.30.1",
+    "react-datepicker": "^6.9.0",
     "react-router-dom": "^6.23.0",
     "react-select": "^5.8.0",
     "styled-components": "^6.1.8"
