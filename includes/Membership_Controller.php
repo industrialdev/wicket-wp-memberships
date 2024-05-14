@@ -1005,9 +1005,9 @@ class Membership_Controller {
     }
     $tiers = new \WP_Query( $args );
     remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
-    foreach( $tiers->posts as &$tier ) {
+    foreach( $tiers->posts as $tier ) {
       $tier_meta = get_post_meta( $tier->ID );
-
+      $user_id = $tier_meta['user_id'][0];
       $tier_new_meta = [];
       array_walk(
         $tier_meta,
@@ -1020,8 +1020,7 @@ class Membership_Controller {
         }
       );  
       $tier->meta = $tier_new_meta;
-
-        $user = get_userdata( $tier->meta['user_id'][0]);
+        $user = get_userdata( $user_id );
         $tier->user = $user->data;
         if( $type != 'organization' ) {
           $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/people/'.$user->data->user_login;
