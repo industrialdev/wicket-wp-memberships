@@ -312,9 +312,6 @@ class Admin_Controller {
         $membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
         $membership_item['subscription']['status'] = $sub->get_status();
         $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub->get_time('next_payment')), wp_timezone() ))->format('Y-m-d');
-      } else {
-        $membership_item['data'] = Helper::get_membership_json_from_membership_post_data( $meta, false );
-        $membership_item['data']['status'] = 'active';
       }
       $membership_items[] = $membership_item;
     }
