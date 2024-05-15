@@ -6,15 +6,32 @@ defined( 'ABSPATH' ) || exit;
 
 class Helper {
 
-  public function __construct() {
-  // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
-  add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
-  add_action( 'add_meta_boxes', [$this, 'action_buttons_add_meta_boxes'] );
-  add_action( 'admin_menu', function() {
-    remove_meta_box( 'extra_info_data', self::get_membership_cpt_slug(), 'normal' );
-} );
+  public function __construct() {  
+    if( env( 'WICKET_SHOW_ORDER_DEBUG_DATA' ) ) {
+      // INJECT MEMBERSHIP META DATA into order and subscription and member pages -- org_id on checkout page
+      add_action( 'woocommerce_admin_order_data_after_shipping_address', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
+      add_action( 'wcs_subscription_details_table_before_dates', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
+    }
+    if( env( 'WICKET_SHOW_MEMBERSHIP_DEBUG_DATA' ) ) {
+      // INJECT MEMBERSHIP META DATA into membership pages
+      add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
+      //add_action( 'add_meta_boxes', [$this, 'action_buttons_add_meta_boxes'] );
+      add_action( 'admin_menu', function() {
+          remove_meta_box( 'extra_info_data', self::get_membership_cpt_slug(), 'normal' );
+      } );
+    }
   }
 
+
+  function wps_select_checkout_field_display_admin_order_meta( $post ) {
+    $post_meta = get_post_meta( $post->get_id() );
+    foreach($post_meta as $key => $val) {
+    if( str_starts_with( $key, '_wicket_membership_')) {
+        echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';var_dump( json_decode( maybe_unserialize( $val[0] ), true) ); echo '</pre>';
+      }
+    }
+  }
+  
   // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
   function action_buttons_add_meta_boxes() {
     global $post;
@@ -62,12 +79,12 @@ class Helper {
     echo '<table><tr><td valign="top"><h3>Post Data</h3><pre>';
     var_dump( $new_meta );
     echo '</pre></td>';
-    echo '<td valign="top"><h3>Order Json Data ( Post Meta Key: _wicket_membership_';echo $mship_product_id.' )</h3><pre>';
-    var_dump( Membership_Controller::get_membership_array_from_post_id( $post->ID ) );
-    echo '</pre></td>"';
-    echo '<td valign="top"><h3>Customer Json Data ( Post Meta Key: _wicket_membership_';echo $post->ID.' )</h3><pre>';
+    echo '<td valign="top"><h3>Customer Data</h3>( _wicket_membership_';echo $post->ID.' )<br><pre>';
     $customer_meta = Membership_Controller::get_membership_array_from_user_meta_by_post_id( $post->ID, $new_meta['user_id'] );
     var_dump( $customer_meta );
+    echo '</pre></td>"';
+    echo '<td valign="top"><h3>Order Data</h3>( _wicket_membership_';echo $mship_product_id.' )<br><pre>';
+    var_dump( Membership_Controller::get_membership_array_from_post_id( $post->ID ) );
     echo '</pre></td></tr></table>"';
   } 
 

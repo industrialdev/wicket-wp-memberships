@@ -556,6 +556,11 @@ class Membership_Post_Types {
       'name' => _x('Memberships', 'plural', 'wicket-memberships' ),
     );
 
+    $membership_menu_item = false;
+    if( env( 'WICKET_SHOW_MEMBERSHIP_DEBUG_MENU' ) ) {
+      $membership_menu_item = WICKET_MEMBERSHIP_PLUGIN_SLUG;
+    }
+
     $args = array(
       'supports' => $supports,
       'labels' => $labels,
@@ -563,7 +568,7 @@ class Membership_Post_Types {
       'public'             => true,
       'publicly_queryable' => true,
       'show_ui'            => true,
-      'show_in_menu'       => WICKET_MEMBERSHIP_PLUGIN_SLUG,
+      'show_in_menu'       => $membership_menu_item,
       'query_var'          => true,
       'capability_type'    => 'post',
       'map_meta_cap'       => true, //permissions same as 'posts'

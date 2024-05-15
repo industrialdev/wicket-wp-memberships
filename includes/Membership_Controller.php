@@ -34,50 +34,6 @@ class Membership_Controller {
     add_filter( 'woocommerce_get_item_data', [$this, 'get_item_data'] , 25, 2 ); //exposes in cart and checkout
     add_action( 'woocommerce_add_order_item_meta', [$this, 'add_order_item_meta'] , 10, 2);
     add_action( 'woocommerce_before_add_to_cart_button', [$this, 'product_add_on'], 9 ); //collects org data in cart
-
-    // TEMPORY -- INJECT MEMBERSHIP META DATA into order and subscription and member pages -- org_id on checkout page
-    add_action( 'woocommerce_admin_order_data_after_shipping_address', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
-    add_action( 'wcs_subscription_details_table_before_dates', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
-    add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
-  }
-
-  // TEMPORARILY INJECT MEMBERSHIP META DATA into order and subscription and membership pages
-  function extra_info_add_meta_boxes()
-  {
-    global $post;
-    add_meta_box( 'extra_info_data', __('Extra Info','your_text_domain'), [$this, 'extra_info_data_content'], $this->membership_cpt_slug, 'normal', 'core' );
-  }
-  
-  function extra_info_data_content()
-  {
-    global $post;
-    $post_meta = get_post_meta( $post->ID );
-    $new_meta = [];
-    array_walk(
-      $post_meta,
-      function(&$val, $key) use ( &$new_meta )
-      {
-        if( str_starts_with( $key, '_' ) ) {
-          return;
-        }
-        $new_meta[$key] = $val[0];
-      }
-    );  
-    echo '<table><tr><td valign="top"><h3>Post Data</h3><pre>';
-    var_dump( $new_meta );
-    echo '</pre></td>';
-    echo '<td valign="top"><h3>Order Json Data</h3><pre>';
-    var_dump( $this->get_membership_array_from_post_id( $post->ID ) );
-    echo '</pre></td></tr></table>"';
-  } 
-
-  function wps_select_checkout_field_display_admin_order_meta( $post ) {
-    $post_meta = get_post_meta( $post->get_id() );
-    foreach($post_meta as $key => $val) {
-    if( str_starts_with( $key, '_wicket_membership_')) {
-        echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';var_dump( json_decode( maybe_unserialize( $val[0] ), true) ); echo '</pre>';
-      }
-    }
   }
 
   //COLLECT CART ITEM FIELDS ON ADD TO CART
@@ -987,7 +943,10 @@ class Membership_Controller {
 
     if( ! empty( $filter ) ) {
       foreach($filter as $key => $val) {
-        if( in_array( $key,  ['membership_status', 'membership_tier_uuid'] )) {
+        if( in_array( $key,  ['membership_status', 'membership_tier'] )) {
+          if( $key == 'membership_tier' ) {
+            $key = 'membership_tier_uuid';
+          }
           $args['meta_query'][] = array(
             'key'     => $key,
             'value'   => $val,
