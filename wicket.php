@@ -53,6 +53,7 @@ use Wicket_Memberships\Membership_Config_CPT_Hooks;
 use Wicket_Memberships\Membership_Tier_CPT_Hooks;
 use Wicket_Memberships\Membership_WP_REST_Controller;
 use Wicket_Memberships\Membership_Subscription_Controller;
+use Wicket_Memberships\Import_Controller;
 
 if ( ! class_exists( 'Wicket_Memberships' ) ) {
 

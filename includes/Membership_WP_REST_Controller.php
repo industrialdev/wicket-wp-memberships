@@ -234,6 +234,23 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     )
     );
+    //DEBUG
+    register_rest_route( $this->namespace, '/import/person_memberships', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'import_person_memberships' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+      ),
+      'schema' => array( $this, '' ),
+    )
+    );
+
+  }
+
+  public function import_person_memberships( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = (new Import_Controller() )->create_individual_memberships( $params );
+    return rest_ensure_response( $response );
   }
 
   public function get_membership_entity( \WP_REST_Request $request ) {

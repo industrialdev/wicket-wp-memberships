@@ -21,7 +21,7 @@ class Import_Controller {
   public function create_individual_memberships( $record ) {
           $membership_tier_array = $this->get_tier_by_name( $record['Membership_Tier'] );
           if(empty( $membership_tier_array )) {
-            return;
+            return new \WP_REST_Response(['error' => 'Missing Tier in Plugin.']);
           }
 
           $user = get_user_by('login', $record['Person_UUID']);
@@ -69,7 +69,8 @@ class Import_Controller {
           $membership_post_mapping['membership_period'] = $membership_tier_array['period_type'];
           $membership_post_mapping['membership_interval'] = $membership_tier_array['period_count'];
 
-          return (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'] );
+          $response = (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'] );
+          return new \WP_REST_Response(['success' => 'Membership created: ID#'.$response ]);
         }
 
   private function get_tier_by_name( $tier_name ) {
