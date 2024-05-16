@@ -189,7 +189,8 @@ class Membership_Controller {
                 'membership_subscription_interval' => get_post_meta( $subscription_id, '_billing_interval')[0],
                 'membership_wp_user_id' => $user_object->ID,
                 'membership_wp_user_display_name' => $user_object->display_name,
-                'membership_wp_user_email' => $user_object->user_email
+                'membership_wp_user_email' => $user_object->user_email,
+                'membership_grace_period_days' => $config->get_late_fee_window_days()
               ];
 
               if( $membership_tier->tier_data['type'] == 'organization' ) {
@@ -491,16 +492,17 @@ class Membership_Controller {
     if( env( 'BYPASS_WICKET' ) ) {
       return;
     }
-    if( empty( $meta_data['membership_starts_at'] ) ) {
-      $starts_at = $meta_data['membership_starts_at'];
-    } else {
+    $starts_at = '';
+    $ends_at = '';
+
+    if( ! empty( $meta_data['membership_starts_at'] ) ) {
       $starts_at = $meta_data['membership_starts_at'];
     }
-    if( empty( $meta_data['membership_ends_at'] ) ) {
+
+    if( ! empty( $meta_data['membership_ends_at'] ) ) {
       $ends_at = $meta_data['end_date'];
-    } else {
-      $ends_at = $meta_data['membership_ends_at'];
     }
+
     if( $membership['membership_type'] == 'individual' ) {
       $response = wicket_update_individual_membership_dates( 
         $membership['membership_wicket_uuid'], 
@@ -532,7 +534,8 @@ class Membership_Controller {
           $membership['person_uuid'],
           $membership['membership_tier_uuid'], 
           $membership['membership_starts_at'],
-          $membership['membership_ends_at']
+          $membership['membership_ends_at'],
+          $membership['membership_grace_period_days']
         );  
       } else {
         $response = wicket_assign_organization_membership( 
@@ -541,7 +544,8 @@ class Membership_Controller {
           $membership['membership_tier_uuid'], 
           $membership['membership_starts_at'],
           $membership['membership_ends_at'],
-          $membership['membership_seats']
+          $membership['membership_seats'],
+          $membership['membership_grace_period_days']
         );  
       }
       if( is_wp_error( $response ) ) {
@@ -591,7 +595,9 @@ class Membership_Controller {
    * Create the WP Membership Record
    */
   public function create_local_membership_record( $membership, $membership_wicket_uuid ) {
+    $wicket_membership_type = 'person_memberships';
     $status = Wicket_Memberships::STATUS_ACTIVE;
+
     if( (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
       $membership['membership_status'] = Wicket_Memberships::STATUS_PENDING;
     } else if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
@@ -621,6 +627,7 @@ class Membership_Controller {
       $meta['org_name'] = $org_data['name'];
       $meta['org_uuid'] = $membership['organization_uuid'];
       $meta['org_seats'] = $membership['membership_seats'];
+      $wicket_membership_type = 'organization_memberships';
     }
 
     $membership_post = $this->check_local_membership_record_exists( $membership );
@@ -636,7 +643,8 @@ class Membership_Controller {
           'post_type' => $this->membership_cpt_slug,
           'post_status' => 'publish',
           'meta_input'  => $meta
-        ]);  
+        ]);
+        wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
       }
 
     if( !empty( $membership['membership_parent_order_id'] )) {
