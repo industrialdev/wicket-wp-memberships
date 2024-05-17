@@ -83,6 +83,29 @@ class Membership_Tier {
     return false;
   }
 
+    /**
+   * Get the tier Post ID from UUID
+   *
+   * @param int $uuid
+   *
+   * @return int|bool Post ID, false otherwise
+   */
+  public static function get_tier_id_by_wicket_uuid( $uuid ) {
+    $args = array(
+      'post_type' => Helper::get_membership_tier_cpt_slug(),
+      'posts_per_page' => -1,
+    );
+
+    $tiers = get_posts( $args );
+    foreach ( $tiers as $tier ) {
+      $tier_obj = new Membership_Tier( $tier->ID );
+      if ( $tier_obj->get_mdp_tier_uuid() == $uuid ) {
+        return $tier->ID;
+      }
+    }       
+    return false;
+  }
+
   // Get the Tier UUIDs by config ID
   public static function get_tier_uuids_by_config_id( $config_id ) {
     $args = array(
