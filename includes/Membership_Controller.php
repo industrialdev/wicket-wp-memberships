@@ -593,12 +593,16 @@ class Membership_Controller {
   /**
    * Create the WP Membership Record
    */
-  public function create_local_membership_record( $membership, $membership_wicket_uuid ) {
+  public function create_local_membership_record( $membership, $membership_wicket_uuid, $skip_approval = false ) {
     $wicket_membership_type = 'person_memberships';
-    $status = Wicket_Memberships::STATUS_ACTIVE;
+    if( ! empty( $membership['membership_status'] )) {
+      $status = $membership['membership_status'];
+    } else {
+      $status = Wicket_Memberships::STATUS_ACTIVE;
+    }
 
-    if( (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
-      $membership['membership_status'] = Wicket_Memberships::STATUS_PENDING;
+    if( !($skip_approval) && !(new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
+      $status = Wicket_Memberships::STATUS_PENDING;
     } else if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
       $status = Wicket_Memberships::STATUS_DELAYED;
     }

@@ -23,8 +23,9 @@ if (move_uploaded_file($_FILES['userfile']['tmp_name'], $uploadfile)) {
 } else {
   ?><h3>MDP Export file uploads</h3>
 <form enctype="multipart/form-data" action="./csv_post.php" method="POST">
-  <input type="radio" value="individual" name="upload_type"><label for="upload_type">membership_person</label><br>
-  <input type="radio" value="organization" name="upload_type"><label for="upload_type">organization_memberships</label><br><br>
+  <input type="radio" value="individual" name="upload_type"><label for="upload_type">membership_person.csv</label><br>
+  <input type="radio" value="organization" name="upload_type"><label for="upload_type">organization_memberships.csv</label><br><br>
+  <input type="checkbox" value="true" name="skip_approval"><label for="skip_approval">?skip_approval=1</label><br><br>
     Send this CSV file: <input name="userfile" type="file" />
     <input type="submit" value="Send File" />
 </form>
@@ -75,6 +76,10 @@ foreach ($rows as $row) {
       continue;
     }
 
+    if( !empty( $_REQUEST['skip_approval'] ) ) {
+      $array['skip_approval'] = 1;
+    }
+    
     //echo 'Membership Post created: ID#' . $I->create_individual_memberships( $array ).'<br>';
     curl_setopt($ch, CURLOPT_POSTFIELDS, $array);
     echo "<br>---------------------------------------<br>";
