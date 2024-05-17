@@ -253,12 +253,23 @@ class Helper {
 
   public static function get_org_data( $org_uuid ) {
     $org_data = json_decode( get_option( 'org_data_'. $org_uuid ), true);
+    if( empty( $org_data['data']['attributes']['alternate_name'] )) {
+      self::store_an_organizations_data_in_options_table($org_uuid);
+    }
     $data['location'] = $org_data['included'][0]['attributes']['city'] . ', ';
     $data['location'] .= $org_data['included'][0]['attributes']['state_name'] . ', ';
     $data['location'] .= $org_data['included'][0]['attributes']['country_code'];
     $data['name'] = $org_data['data']['attributes']['alternate_name'];
     return $data;
   }
+
+  public static function store_an_organizations_data_in_options_table($org_uuid) {
+    if( !($org_data = get_option('org_data_'.  $org_uuid)) ) {
+      $org_data = wicket_get_organization($org_uuid, 'addresses' );
+      add_option('org_data_'.$org_uuid, json_encode( $org_data) );
+    }
+  }
+
 
   public static function get_post_meta( $post_id ) {
     $post_meta = get_post_meta( $post_id );
