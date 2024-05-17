@@ -201,7 +201,6 @@ class Membership_Controller {
                       $seats = $membership_tier->get_seat_count();
                     }
                     $membership['membership_seats'] = $seats;
-                    do_action('store_organization_data', $membership['organization_uuid']);
               }
               if( !empty( $membership_post_id_renew )) {
                 $membership['previous_membership_post_id'] = $membership_post_id_renew;

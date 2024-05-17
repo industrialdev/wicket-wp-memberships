@@ -110,8 +110,6 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //
       add_action( 'template_redirect', [ $this, 'set_onboarding_posted_data_to_wc_session' ]);
 
-      add_action( 'store_organization_data', [ $this, 'store_an_organizations_data_in_options_table' ], 10, 1);
-
       //temporary admin notice response
       add_action( 'admin_notices', function() {
         if( !empty( $_SESSION['wicket_membership_error'] ) ) {
@@ -119,13 +117,6 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
         }
         unset( $_SESSION['wicket_membership_error'] );
       });
-    }
-
-    public function store_an_organizations_data_in_options_table($org_uuid) {
-      if( !($org_data = get_option('org_data_'.  $org_uuid)) ) {
-        $org_data = wicket_get_organization($org_uuid, 'addresses' );
-        add_option('org_data_'.$org_uuid, json_encode( $org_data) );
-      }
     }
 
     public function set_onboarding_posted_data_to_wc_session() {
