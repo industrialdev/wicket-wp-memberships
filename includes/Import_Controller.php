@@ -19,6 +19,7 @@ class Import_Controller {
   }
 
   public function create_individual_memberships( $record ) {
+          $skip_approval = !empty( $record['skip_approval'] ) ? true : false;
           if( $record['Membership_Type'] == 'organization' ) {
             return new \WP_REST_Response(['success' => 'Skipping an Org Seat Membership.']);
           }
@@ -59,12 +60,17 @@ class Import_Controller {
           $membership_post_mapping['membership_next_tier_id'] = $membership_tier_array['next_tier'];
           $membership_post_mapping['membership_period'] = $membership_tier_array['period_type'];
           $membership_post_mapping['membership_interval'] = $membership_tier_array['period_count'];
+          $membership_post_mapping['membership_status'] = $this->get_status( 
+                                                            $membership_post_mapping['membership_starts_at'], 
+                                                            $membership_post_mapping['membership_ends_at'], 
+                                                            $membership_post_mapping['membership_expires_at'] );
 
-          $response = (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'] );
+          $response = (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'], $skip_approval );
           return new \WP_REST_Response(['success' => 'Individual Membership created: External_ID#'.$response ]);
         }
 
         public function create_organization_memberships( $record ) {
+          $skip_approval = !empty( $record['skip_approval'] ) ? true : false;
           $membership_post_mapping['membership_type'] = $record['Membership_Type'];
           $membership_tier_post_id = Membership_Tier::get_tier_id_by_wicket_uuid( $record['Membership_Tier_UUID'] );
           if( !empty( $membership_tier_post_id ) ) {
@@ -103,9 +109,29 @@ class Import_Controller {
           $membership_post_mapping['membership_next_tier_id'] = $membership_tier_array['next_tier'];
           $membership_post_mapping['membership_period'] = $membership_tier_array['period_type'];
           $membership_post_mapping['membership_interval'] = $membership_tier_array['period_count'];
+          $membership_post_mapping['membership_status'] = $this->get_status( 
+                                                            $membership_post_mapping['membership_starts_at'], 
+                                                            $membership_post_mapping['membership_ends_at'], 
+                                                            $membership_post_mapping['membership_expires_at'] );
 
-          $response = (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'] );
+          $response = (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'], $skip_approval );
           return new \WP_REST_Response(['success' => 'Organization Membership created: External_ID#'.$response ]);
+        }
+
+        private function get_status( $membership_starts_at, $membership_ends_at, $membership_expires_at ) {
+          $membership_starts_at = strtotime( $membership_starts_at );
+          $membership_ends_at = strtotime( $membership_ends_at );
+          $membership_expires_at = strtotime( $membership_expires_at );
+          if( current_time( 'timestamp' ) >= $membership_starts_at && current_time( 'timestamp' ) < $membership_ends_at ) {
+            $status = Wicket_Memberships::STATUS_ACTIVE;
+          } else if (current_time( 'timestamp' ) >= $membership_ends_at && current_time( 'timestamp' ) < $membership_expires_at ) {
+            $status = Wicket_Memberships::STATUS_GRACE;
+          } else if( $membership_starts_at > current_time( 'timestamp' ) ) {
+            $status = Wicket_Memberships::STATUS_DELAYED;
+          } else if ( $membership_ends_at < current_time( 'timestamp' ) ) {
+            $status = Wicket_Memberships::STATUS_EXPIRED;
+          }
+          return $status;
         }
 
   private function get_tier_by_id( $tier_id ) {
