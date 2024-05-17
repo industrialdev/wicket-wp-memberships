@@ -47,11 +47,11 @@ class Import_Controller {
           $membership_post_mapping['membership_expires_at'] = $record['Expires_At'];
           if(empty( $membership_post_mapping['membership_expires_at'] )) {
             $membership_post_mapping['membership_expires_at'] =
-                  (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_expires_at']. " + {$membership_tier_array['grace_period_days']} days")), wp_timezone() ))->format("c");
+                  (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " + {$membership_tier_array['grace_period_days']} days")), wp_timezone() ))->format("c");
             $membership_post_mapping['membership_expires_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_expires_at']).':00Z';
           }
           $membership_post_mapping['membership_early_renew_at'] = 
-                (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_early_renew_at']. " - {$membership_tier_array['early_renew_days']} days")), wp_timezone() ))->format("c");
+                (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " - {$membership_tier_array['early_renew_days']} days")), wp_timezone() ))->format("c");
           $membership_post_mapping['membership_early_renew_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_early_renew_at']).':00Z';
           $membership_post_mapping['membership_seats'] = 1;
           $membership_post_mapping['membership_wicket_uuid'] = $record['Person_Membership_UUID'];
@@ -89,11 +89,11 @@ class Import_Controller {
           $membership_post_mapping['membership_expires_at'] = $record['Expires_At'];
           if(empty( $membership_post_mapping['membership_expires_at'] )) {
             $membership_post_mapping['membership_expires_at'] =
-                  (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_expires_at']. " + {$membership_tier_array['grace_period_days']} days")), wp_timezone() ))->format("c");
+                  (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " + {$membership_tier_array['grace_period_days']} days")), wp_timezone() ))->format("c");
             $membership_post_mapping['membership_expires_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_expires_at']).':00Z';
           }
           $membership_post_mapping['membership_early_renew_at'] = 
-                (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_early_renew_at']. " - {$membership_tier_array['early_renew_days']} days")), wp_timezone() ))->format("c");
+                (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " - {$membership_tier_array['early_renew_days']} days")), wp_timezone() ))->format("c");
           $membership_post_mapping['membership_early_renew_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_early_renew_at']).':00Z';
           $membership_post_mapping['org_name'] = $record['Organization'];
           $membership_post_mapping['organization_uuid'] = $record['Organization_UUID'];
