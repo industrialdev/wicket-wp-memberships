@@ -1,14 +1,12 @@
 import { __ } from '@wordpress/i18n';
 import { createRoot } from 'react-dom/client';
-import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
-import { addQueryArgs } from '@wordpress/url';
-import { DEFAULT_DATE_FORMAT, PLUGIN_API_URL } from '../constants';
+import { DEFAULT_DATE_FORMAT } from '../constants';
 import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap } from '../styled_elements';
 import { TextControl, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
-import DatePicker from "react-datepicker";
+import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
-import { fetchTiers, updateMembership, fetchMembershipStatuses, updateMembershipStatus } from '../services/api';
+import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus } from '../services/api';
 import he from 'he';
 import moment from 'moment';
 
@@ -121,25 +119,25 @@ const MemberEdit = ({ memberType, recordId }) => {
       });
   }
 
-  const fetchMemberships = () => {
+  const getMemberships = () => {
     setIsLoading(true);
-    apiFetch({
-      path: addQueryArgs(`${PLUGIN_API_URL}/membership_entity`, { entity_id: recordId }),
-    }).then((response) => {
-      console.log(response);
 
-      // add addtional properties to each membership
-      response.forEach((membership) => {
-        membership.showRow = false;
-        membership.updatingNow = false;
-        membership.updateResult = '';
+    fetchMemberships(recordId)
+      .then((response) => {
+        console.log(response);
+
+        // add addtional properties to each membership
+        response.forEach((membership) => {
+          membership.showRow = false;
+          membership.updatingNow = false;
+          membership.updateResult = '';
+        });
+
+        setMemberships(response);
+        setIsLoading(false);
+      }).catch((error) => {
+        console.error(error);
       });
-
-      setMemberships(response);
-      setIsLoading(false);
-    }).catch((error) => {
-      console.error(error);
-    });
   }
 
   const getTiers = () => {
@@ -171,7 +169,7 @@ const MemberEdit = ({ memberType, recordId }) => {
   }
 
   useEffect(() => {
-    fetchMemberships();
+    getMemberships();
     getTiers();
   }, []);
 
