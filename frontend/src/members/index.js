@@ -1,10 +1,9 @@
 import { __ } from '@wordpress/i18n';
 import { createRoot } from 'react-dom/client';
-import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { Spinner, Icon } from '@wordpress/components';
-import { PLUGIN_API_URL } from '../constants';
+import { fetchMembers, fetchTiersInfo, fetchMembershipFilters } from '../services/api';
 
 const MemberList = ({ memberType, editMemberUrl }) => {
 
@@ -37,34 +36,29 @@ const MemberList = ({ memberType, editMemberUrl }) => {
   // console.log(tempSearchParams);
   console.log(searchParams);
 
-  // fetch members
-  const fetchMembers = (params) => {
+  const getMembers = (params) => {
     setIsLoading(true);
-    apiFetch({
-      path: addQueryArgs(`${PLUGIN_API_URL}/memberships`, params),
-    }).then((response) => {
-      console.log(response);
 
-      setMembers(response.results);
-      setTotalMembers(response.count);
-      setTotalPages(Math.ceil(response.count / params.posts_per_page));
-      setIsLoading(false);
+    fetchMembers(params)
+      .then((response) => {
+        console.log(response);
 
-      const tierIds = response.results.map((member) => member.meta.membership_tier_uuid);
-      fetchTiersInfo(tierIds);
-    }).catch((error) => {
-      console.error(error);
-    });
+        setMembers(response.results);
+        setTotalMembers(response.count);
+        setTotalPages(Math.ceil(response.count / params.posts_per_page));
+        setIsLoading(false);
+
+        const tierIds = response.results.map((member) => member.meta.membership_tier_uuid);
+        getTiersInfo(tierIds);
+      }).catch((error) => {
+        console.error(error);
+      });
   };
 
-  const fetchTiersInfo = (tierIds) => {
+  const getTiersInfo = (tierIds) => {
     if ( tierIds.length === 0 ) { return }
 
-    apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_tier_info`, {
-      filter: {
-        tier_uuid: tierIds
-      },
-    }) }).then((tiersInfo) => {
+    fetchTiersInfo(tierIds).then((tiersInfo) => {
       setTiersInfo(tiersInfo);
 		}).catch((error) => {
       console.log('Tiers Info Error:');
@@ -72,12 +66,13 @@ const MemberList = ({ memberType, editMemberUrl }) => {
 		});
   }
 
-  const fetchMembershipFilters = () => {
-    apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_filters`, { type: memberType }) }).then((filters) => {
-      setMembershipFilters(filters);
-    }).catch((error) => {
-      console.error(error);
-    });
+  const getMembershipFilters = () => {
+    fetchMembershipFilters(memberType)
+      .then((filters) => {
+        setMembershipFilters(filters);
+      }).catch((error) => {
+        console.error(error);
+      });
   };
 
   const getTierInfo = (tierId) => {
@@ -93,8 +88,8 @@ const MemberList = ({ memberType, editMemberUrl }) => {
   useEffect(() => {
     // https://localhost/wp-json/wicket_member/v1/memberships?order_col=start_date&order_dir=ASC&type=individual
     // https://localhost/wp-json/wicket_member/v1/memberships?order_col=start_date&order_dir=ASC&filter[membership_status]=expired&filter[membership_tier]=88d6a08a-ab3c-4f01-93d7-ddf07995ab25&search=Veterinary&type=individual
-    fetchMembershipFilters();
-    fetchMembers(searchParams);
+    getMembershipFilters();
+    getMembers(searchParams);
   }, []);
 
 	return (
@@ -114,7 +109,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                 search: tempSearchParams.search,
               };
               setSearchParams(newSearchParams);
-              fetchMembers(newSearchParams);
+              getMembers(newSearchParams);
             }
           }
         >
@@ -156,7 +151,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                   delete newSearchParams.filter.membership_tier;
                 }
                 setSearchParams(newSearchParams);
-                fetchMembers(newSearchParams);
+                getMembers(newSearchParams);
               }
             }
           >
@@ -337,7 +332,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                       page: searchParams.page - 1,
                     };
                     setSearchParams(newSearchParams);
-                    fetchMembers(newSearchParams);
+                    getMembers(newSearchParams);
                   }}
                 >‹</button>
 
@@ -357,7 +352,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                       page: searchParams.page + 1,
                     };
                     setSearchParams(newSearchParams);
-                    fetchMembers(newSearchParams);
+                    getMembers(newSearchParams);
                   }}
                 >›</button>
               </span>
