@@ -104,11 +104,12 @@ export const ReactDatePickerStyledWrap = styled.div`
 `;
 
 export const LabelWpStyled = styled.label`
+	display: inline-flex;
+	align-items: center;
 	font-size: 11px;
 	font-weight: 500;
 	line-height: 1.4;
 	text-transform: uppercase;
-	display: inline-block;
 	margin-bottom: 8px;
 	padding: 0px;
 `;

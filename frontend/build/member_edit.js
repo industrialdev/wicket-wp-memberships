@@ -7074,11 +7074,12 @@ const ReactDatePickerStyledWrap = styled_components__WEBPACK_IMPORTED_MODULE_2__
 	}
 `;
 const LabelWpStyled = styled_components__WEBPACK_IMPORTED_MODULE_2__["default"].label`
+	display: inline-flex;
+	align-items: center;
 	font-size: 11px;
 	font-weight: 500;
 	line-height: 1.4;
 	text-transform: uppercase;
-	display: inline-block;
 	margin-bottom: 8px;
 	padding: 0px;
 `;
@@ -42290,8 +42291,7 @@ var __webpack_exports__ = {};
   \*****************************/
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   EditWrap: () => (/* binding */ EditWrap),
-/* harmony export */   RecordTopInfo: () => (/* binding */ RecordTopInfo)
+/* harmony export */   EditWrap: () => (/* binding */ EditWrap)
 /* harmony export */ });
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
@@ -42353,6 +42353,26 @@ const MembershipTable = styled_components__WEBPACK_IMPORTED_MODULE_9__["default"
       th {
         background: #F0F0F1;
       }
+    }
+  }
+`;
+const SeatsBox = styled_components__WEBPACK_IMPORTED_MODULE_9__["default"].div`
+  border: 1px solid #949494;
+  display: flex;
+
+  .box {
+    flex: 1;
+    background: white;
+    padding: 11px 15px;
+    font-size: 13px;
+    color: #50575E;
+
+    strong {
+      margin-left: 3px;
+    }
+
+    &.disabled {
+      background: #e1e1e1;
     }
   }
 `;
@@ -42520,6 +42540,14 @@ const MemberEdit = ({
     }));
   };
 
+  // get org name
+  const getOrgName = () => {
+    if (memberType !== 'organization' || memberships.length === 0) {
+      return '';
+    }
+    return memberships[0].data.org_name;
+  };
+
   // get individual user name
   const getIndividualName = () => {
     if (memberType !== 'individual' || memberships.length === 0) {
@@ -42558,7 +42586,7 @@ const MemberEdit = ({
     direction: ['column', 'row']
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.__experimentalHeading, {
     level: 3
-  }, memberType === 'individual' ? getIndividualName() : '%OrganizationName%')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.CustomDisabled, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+  }, memberType === 'individual' ? getIndividualName() : getOrgName())), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.CustomDisabled, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
     variant: "primary"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
     icon: "external"
@@ -42567,7 +42595,7 @@ const MemberEdit = ({
     justify: "start",
     gap: 10,
     direction: ['column', 'row']
-  }, memberType === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Email:', 'wicket-memberships')), " ", getIndividualEmail()), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Identifying Number:', 'wicket-memberships')), " ", getIndividualId()))))), isLoading && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Spinner, null), !isLoading && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(WhiteBorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+  }, memberType === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Email:', 'wicket-memberships')), " ", getIndividualEmail()), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Identifying Number:', 'wicket-memberships')), " ", getIndividualId())), memberType === 'organization' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Location:', 'wicket-memberships')), " %LOCATION%"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Identifying Number:', 'wicket-memberships')), " %CONTACT%"))))), isLoading && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Spinner, null), !isLoading && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(WhiteBorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "end",
     justify: "start",
     gap: 5,
@@ -42754,6 +42782,61 @@ const MemberEdit = ({
     selected: moment__WEBPACK_IMPORTED_MODULE_8___default()(membership.data.membership_expires_at).format('YYYY-MM-DD'),
     onChange: value => {
       handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment__WEBPACK_IMPORTED_MODULE_8___default()(value).format('YYYY-MM-DD'));
+    }
+  })))), memberType === 'organization' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, {
+    align: "start",
+    justify: "start",
+    gap: 6,
+    direction: ['column', 'row'],
+    style: {
+      marginBottom: '30px'
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, {
+    style: {
+      flexGrow: 2
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.LabelWpStyled, {
+    style: {
+      height: '20px'
+    }
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Seats', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SeatsBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    className: "box disabled"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Total Seats:', 'wicket-memberships'), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "%i%")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    className: "box"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Assigned Seats:', 'wicket-memberships'), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "%i%")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    className: "box"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Unassigned:', 'wicket-memberships'), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "%i%"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginTop: '10px'
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+    variant: "link"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Manage Seats in MDP', 'wicket-memberships')), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
+    icon: "external",
+    style: {
+      color: 'var(--wp-admin-theme-color)'
+    }
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.LabelWpStyled, {
+    style: {
+      height: '20px'
+    }
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership Owner', 'wicket-memberships'), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Tooltip, {
+    text: "Represents the Customer responsible for managing and Renewing the Organization Membership."
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
+    icon: "info"
+  })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
+    disabled: true,
+    value: '%name%'
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginTop: '10px'
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+    variant: "link"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('View in MDP', 'wicket-memberships')), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
+    icon: "external",
+    style: {
+      color: 'var(--wp-admin-theme-color)'
     }
   })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, {
     align: "end",
