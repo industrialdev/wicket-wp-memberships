@@ -5,9 +5,9 @@ import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { TextControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon, __experimentalText as Text } from '@wordpress/components';
 import styled from 'styled-components';
-import { API_URL, PLUGIN_API_URL } from './constants';
+import { API_URL, PLUGIN_API_URL } from '../constants';
 import he from 'he';
-import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, FormFlex, CustomDisabled } from './styled_elements';
+import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, FormFlex, CustomDisabled } from '../styled_elements';
 
 const MarginedFlex = styled(Flex)`
 	margin-top: 15px;

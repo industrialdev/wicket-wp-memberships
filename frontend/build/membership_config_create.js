@@ -2311,10 +2311,10 @@ const DEFAULT_DATE_FORMAT = 'yyyy-MM-dd';
 
 /***/ }),
 
-/***/ "./src/membership_config/tiers.js":
-/*!****************************************!*\
-  !*** ./src/membership_config/tiers.js ***!
-  \****************************************/
+/***/ "./src/membership_configs/tiers.js":
+/*!*****************************************!*\
+  !*** ./src/membership_configs/tiers.js ***!
+  \*****************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -13247,7 +13247,7 @@ var __webpack_exports__ = {};
 (() => {
 "use strict";
 /*!****************************************!*\
-  !*** ./src/membership_config/index.js ***!
+  !*** ./src/membership_configs/edit.js ***!
   \****************************************/
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
@@ -13265,7 +13265,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var he__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! he */ "./node_modules/he/he.js");
 /* harmony import */ var he__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(he__WEBPACK_IMPORTED_MODULE_7__);
 /* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../styled_elements */ "./src/styled_elements.js");
-/* harmony import */ var _tiers__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./tiers */ "./src/membership_config/tiers.js");
+/* harmony import */ var _tiers__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./tiers */ "./src/membership_configs/tiers.js");
 
 
 
