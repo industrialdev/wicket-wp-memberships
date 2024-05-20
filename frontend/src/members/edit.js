@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
 import { DEFAULT_DATE_FORMAT } from '../constants';
 import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap } from '../styled_elements';
-import { TextControl, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
+import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
 import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus } from '../services/api';
@@ -48,7 +48,28 @@ const MembershipTable = styled.div`
   }
 `;
 
-export const RecordTopInfo = styled.div`
+const SeatsBox = styled.div`
+  border: 1px solid #949494;
+  display: flex;
+
+  .box {
+    flex: 1;
+    background: white;
+    padding: 11px 15px;
+    font-size: 13px;
+    color: #50575E;
+
+    strong {
+      margin-left: 3px;
+    }
+
+    &.disabled {
+      background: #e1e1e1;
+    }
+  }
+`;
+
+const RecordTopInfo = styled.div`
   background: #F0F6FC;
   margin-top: 15px;
   padding: 15px;
@@ -247,6 +268,15 @@ const MemberEdit = ({ memberType, recordId }) => {
     );
   }
 
+  // get org name
+  const getOrgName = () => {
+    if (memberType !== 'organization' || memberships.length === 0 ) {
+      return '';
+    }
+
+    return memberships[0].data.org_name;
+  }
+
   // get individual user name
   const getIndividualName = () => {
     if (memberType !== 'individual' || memberships.length === 0 ) {
@@ -300,7 +330,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                 <Heading
                   level={3}
                 >
-                  {memberType === 'individual' ? getIndividualName() : '%OrganizationName%'}
+                  {memberType === 'individual' ? getIndividualName() : getOrgName()}
                 </Heading>
               </FlexBlock>
               <FlexItem>
@@ -334,23 +364,17 @@ const MemberEdit = ({ memberType, recordId }) => {
                     </FlexItem>
                   </>
                 }
+                {memberType === 'organization' &&
+                  <>
+                    <FlexItem>
+                      <strong>{__('Location:', 'wicket-memberships')}</strong> %LOCATION%
+                    </FlexItem>
+                    <FlexItem>
+                      <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> %CONTACT%
+                    </FlexItem>
+                  </>
+                }
               </Flex>
-              {/* <MarginedFlex
-                align='end'
-                justify='start'
-                gap={10}
-                direction={[
-                  'column',
-                  'row'
-                ]}
-              >
-                <FlexItem>
-                  <strong>{__('Location:', 'wicket-memberships')}</strong> %LOCATION%
-                </FlexItem>
-                <FlexItem>
-                  <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> %CONTACT%
-                </FlexItem>
-              </MarginedFlex> */}
             </RecordTopInfo>
           </WhiteBorderedBox>
 
@@ -669,6 +693,73 @@ const MemberEdit = ({ memberType, recordId }) => {
                                   </ReactDatePickerStyledWrap>
                                 </FlexBlock>
                               </MarginedFlex>
+
+                              {memberType === 'organization' && (
+                                <MarginedFlex
+                                  align='start'
+                                  justify='start'
+                                  gap={6}
+                                  direction={[
+                                    'column',
+                                    'row'
+                                  ]}
+                                  style={{
+                                    marginBottom: '30px'
+                                  }}
+                                >
+                                  <FlexBlock
+                                    style={{
+                                      flexGrow: 2
+                                    }}
+                                  >
+                                    <LabelWpStyled
+                                      style={{ height: '20px' }}
+                                    >
+                                      {__('Seats', 'wicket-memberships')}
+                                    </LabelWpStyled>
+                                    <SeatsBox>
+                                      <div className='box disabled'>
+                                        {__('Total Seats:', 'wicket-memberships')}
+                                        <strong>%i%</strong>
+                                      </div>
+                                      <div className='box'>
+                                        {__('Assigned Seats:', 'wicket-memberships')}
+                                        <strong>%i%</strong>
+                                      </div>
+                                      <div className='box'>
+                                        {__('Unassigned:', 'wicket-memberships')}
+                                        <strong>%i%</strong>
+                                      </div>
+                                    </SeatsBox>
+                                    <div style={{ marginTop: '10px' }} >
+                                      <Button variant='link'>
+                                        {__('Manage Seats in MDP', 'wicket-memberships')}
+                                      </Button>
+                                      &nbsp;<Icon icon='external' style={{ color: 'var(--wp-admin-theme-color)' }} />
+                                    </div>
+                                  </FlexBlock>
+                                  <FlexBlock>
+                                    <LabelWpStyled style={{ height: '20px' }} >
+                                      {__('Membership Owner', 'wicket-memberships')}&nbsp;
+                                      <Tooltip
+                                        text="Represents the Customer responsible for managing and Renewing the Organization Membership."
+                                      >
+                                        <div><Icon icon='info' /></div>
+                                      </Tooltip>
+                                    </LabelWpStyled>
+                                    <TextControl
+                                      disabled={true}
+                                      value={'%name%'}
+                                    />
+                                    <div style={{ marginTop: '10px' }} >
+                                      <Button variant='link'>
+                                        {__('View in MDP', 'wicket-memberships')}
+                                      </Button>
+                                      &nbsp;<Icon icon='external' style={{ color: 'var(--wp-admin-theme-color)' }} />
+                                    </div>
+                                  </FlexBlock>
+                                </MarginedFlex>
+                              )}
 
                               <MarginedFlex
                                 align='end'
