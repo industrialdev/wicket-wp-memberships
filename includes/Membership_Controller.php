@@ -1016,7 +1016,9 @@ class Membership_Controller {
             ];
           }
         } else {
-          $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/organizations/' . $tier->meta['org_uuid'];
+          if(! empty($tier->user ) ) {
+            $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/organizations/' . $tier->meta['org_uuid'];
+          }
         }
       }
     return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => $tiers->found_posts ];
