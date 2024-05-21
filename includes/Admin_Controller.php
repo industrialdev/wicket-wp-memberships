@@ -224,7 +224,7 @@ class Admin_Controller {
   public static function get_membership_entity_records( $id ) {
     $self = new self();
     $statuses = Helper::get_all_status_names();
-    $wicket_settings = get_wicket_settings( env('WP_ENV') );
+    $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] );
 
     $args = array(
       'post_type' => $self->membership_cpt_slug,

@@ -23,8 +23,8 @@ class Membership_Controller {
   public $bypass_status_change_lockout;
 
   public function __construct() {
-    $this->bypass_wicket = env('BYPASS_WICKET') ?? false;
-    $this->bypass_status_change_lockout = env('BYPASS_STATUS_CHANGE_LOCKOUT') ?? false;
+    $this->bypass_wicket = !empty( $_ENV['BYPASS_WICKET'] ) ?? false;
+    $this->bypass_status_change_lockout = !empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ?? false;
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
     $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
@@ -488,7 +488,7 @@ class Membership_Controller {
    */
 
    public function update_mdp_record( $membership, $meta_data ) {
-    if( env( 'BYPASS_WICKET' ) ) {
+    if( !empty( $_ENV['BYPASS_WICKET'] )) {
       return;
     }
     $starts_at = '';
@@ -898,7 +898,7 @@ class Membership_Controller {
     if( (! in_array( $type, ['individual', 'organization'] ))) {
       return;
     }
-    $wicket_settings = get_wicket_settings( env('WP_ENV') );
+    $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] );
     if( ! $page = intval( $page )) {
       $page = 1;
     }

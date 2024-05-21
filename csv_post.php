@@ -1,6 +1,6 @@
 <?php
 require  '/var/www/html/web/wp/wp-load.php';
-if( ! env('ALLOW_LOCAL_IMPORTS')) {
+if( empty( $_ENV['ALLOW_LOCAL_IMPORTS'] )) {
   die();
 }
 include '/var/www/html/web/app/plugins/wicket-wp-memberships/includes/Import_Controller.php';
