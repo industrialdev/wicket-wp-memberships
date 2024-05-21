@@ -274,7 +274,16 @@ const MemberEdit = ({ memberType, recordId }) => {
       return '';
     }
 
-    return memberships[0].data.org_name;
+    return memberships[0].data.organization_name;
+  }
+
+  // get org location
+  const getOrgLocation = () => {
+    if (memberType !== 'organization' || memberships.length === 0 ) {
+      return '';
+    }
+
+    return memberships[0].data.organization_location;
   }
 
   // get individual user name
@@ -302,6 +311,29 @@ const MemberEdit = ({ memberType, recordId }) => {
     }
 
     return memberships[0].data.user_id;
+  }
+
+  // get org uuid
+  const getOrgUuid = () => {
+    if (memberType !== 'organization' || memberships.length === 0 ) {
+      return '';
+    }
+
+    return memberships[0].data.organization_uuid;
+  }
+
+  // get Unassigned seats count
+  const getUnassignedSeats = (membership) => {
+    if (memberType !== 'organization') {
+      return 0;
+    }
+
+    // check if the max_assignments and active_assignments_count are numbers
+    if (isNaN(membership.max_assignments) || isNaN(membership.active_assignments_count)) {
+      return 0;
+    }
+
+    return parseInt(membership.max_assignments) - parseInt(membership.active_assignments_count);
   }
 
   console.log('TIERS', tiers);
@@ -367,10 +399,10 @@ const MemberEdit = ({ memberType, recordId }) => {
                 {memberType === 'organization' &&
                   <>
                     <FlexItem>
-                      <strong>{__('Location:', 'wicket-memberships')}</strong> %LOCATION%
+                      <strong>{__('Location:', 'wicket-memberships')}</strong> {getOrgLocation()}
                     </FlexItem>
                     <FlexItem>
-                      <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> %CONTACT%
+                      <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> {getOrgUuid()}
                     </FlexItem>
                   </>
                 }
@@ -720,19 +752,23 @@ const MemberEdit = ({ memberType, recordId }) => {
                                     <SeatsBox>
                                       <div className='box disabled'>
                                         {__('Total Seats:', 'wicket-memberships')}
-                                        <strong>%i%</strong>
+                                        <strong>{membership.max_assignments}</strong>
                                       </div>
                                       <div className='box'>
                                         {__('Assigned Seats:', 'wicket-memberships')}
-                                        <strong>%i%</strong>
+                                        <strong>{membership.active_assignments_count}</strong>
                                       </div>
                                       <div className='box'>
                                         {__('Unassigned:', 'wicket-memberships')}
-                                        <strong>%i%</strong>
+                                        <strong>{getUnassignedSeats(membership)}</strong>
                                       </div>
                                     </SeatsBox>
                                     <div style={{ marginTop: '10px' }} >
-                                      <Button variant='link'>
+                                      <Button
+                                        href={membership.mdp_membership_link}
+                                        target='_blank'
+                                        variant='link'
+                                      >
                                         {__('Manage Seats in MDP', 'wicket-memberships')}
                                       </Button>
                                       &nbsp;<Icon icon='external' style={{ color: 'var(--wp-admin-theme-color)' }} />
@@ -749,7 +785,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                                     </LabelWpStyled>
                                     <TextControl
                                       disabled={true}
-                                      value={'%name%'}
+                                      value={membership.data.membership_wp_user_display_name}
                                     />
                                     <div style={{ marginTop: '10px' }} >
                                       <Button variant='link'>
