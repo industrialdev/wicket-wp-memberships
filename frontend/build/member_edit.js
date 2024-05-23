@@ -42682,7 +42682,7 @@ const MemberEdit = ({
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     colSpan: 6
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
+  }, membership.subscription.id !== undefined && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
     align: "end",
     justify: "start",
     gap: 6,
@@ -42693,7 +42693,7 @@ const MemberEdit = ({
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Billing Info', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Subscription:', 'wicket-memberships'), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
     target: "_blank",
     href: membership.subscription.link
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "#", membership.subscription.id))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Next Payment Date:', 'wicket-memberships'), " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, membership.subscription.next_payment_date))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "#", membership.subscription.id))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Next Payment Date:', 'wicket-memberships'), " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, membership.subscription.next_payment_date))), membership.order.id !== undefined && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
     className: "widefat billing_table",
     cellSpacing: "0"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {

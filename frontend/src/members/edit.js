@@ -503,6 +503,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                           style={{ display: membership.showRow ? 'table-row' : 'none' }}
                         >
                           <td colSpan={6} >
+                            {membership.subscription.id !== undefined &&
                             <Flex
                               align='end'
                               justify='start'
@@ -533,8 +534,10 @@ const MemberEdit = ({ memberType, recordId }) => {
                                 {__('Next Payment Date:', 'wicket-memberships')} <strong>{membership.subscription.next_payment_date}</strong>
                               </FlexItem>
                             </Flex>
+                            }
 
                             {/* Attached order information */}
+                            {membership.order.id !== undefined &&
                             <table className="widefat billing_table" cellSpacing="0">
                               <thead>
                                 <tr>
@@ -574,6 +577,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                                 </tr>
                               </tbody>
                             </table>
+                            }
 
                             <MarginedFlex
                               align='end'
