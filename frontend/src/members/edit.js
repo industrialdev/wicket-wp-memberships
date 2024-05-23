@@ -274,7 +274,7 @@ const MemberEdit = ({ memberType, recordId }) => {
       return '';
     }
 
-    return memberships[0].data.organization_name;
+    return memberships[0].data.org_name;
   }
 
   // get org location
@@ -283,7 +283,7 @@ const MemberEdit = ({ memberType, recordId }) => {
       return '';
     }
 
-    return memberships[0].data.organization_location;
+    return memberships[0].data.org_location;
   }
 
   // get individual user name
@@ -319,7 +319,7 @@ const MemberEdit = ({ memberType, recordId }) => {
       return '';
     }
 
-    return memberships[0].data.organization_uuid;
+    return memberships[0].data.org_uuid;
   }
 
   // get Unassigned seats count
@@ -785,7 +785,7 @@ const MemberEdit = ({ memberType, recordId }) => {
                                     </LabelWpStyled>
                                     <TextControl
                                       disabled={true}
-                                      value={membership.data.membership_wp_user_display_name}
+                                      value={membership.data.user_name}
                                     />
                                     <div style={{ marginTop: '10px' }} >
                                       <Button variant='link'>

@@ -42545,7 +42545,7 @@ const MemberEdit = ({
     if (memberType !== 'organization' || memberships.length === 0) {
       return '';
     }
-    return memberships[0].data.organization_name;
+    return memberships[0].data.org_name;
   };
 
   // get org location
@@ -42553,7 +42553,7 @@ const MemberEdit = ({
     if (memberType !== 'organization' || memberships.length === 0) {
       return '';
     }
-    return memberships[0].data.organization_location;
+    return memberships[0].data.org_location;
   };
 
   // get individual user name
@@ -42585,7 +42585,7 @@ const MemberEdit = ({
     if (memberType !== 'organization' || memberships.length === 0) {
       return '';
     }
-    return memberships[0].data.organization_uuid;
+    return memberships[0].data.org_uuid;
   };
 
   // get Unassigned seats count
@@ -42857,7 +42857,7 @@ const MemberEdit = ({
     icon: "info"
   })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     disabled: true,
-    value: membership.data.membership_wp_user_display_name
+    value: membership.data.user_name
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     style: {
       marginTop: '10px'
