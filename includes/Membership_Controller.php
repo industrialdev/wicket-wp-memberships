@@ -443,14 +443,16 @@ class Membership_Controller {
    */
 
    public function update_subscription_status( $membership_subscription_id, $status, $note = '' ) {
-          $sub = wcs_get_subscription( $membership_subscription_id );
-          try {
-            $sub->update_status( $status, $note );
-          } catch (\Exception $e) {
-            $sub->update_status( 'active', 'Subscription temporarily set active.' );
-            $sub->update_status( $status, $note );
-          }    
-   }
+    $sub = wcs_get_subscription( $membership_subscription_id );
+    if(! empty($sub)) {
+      try {
+        $sub->update_status( $status, $note );
+      } catch (\Exception $e) {
+        $sub->update_status( 'active', 'Subscription temporarily set active.' );
+        $sub->update_status( $status, $note );
+      }  
+    }
+  }
 
   /**
    * Gen UUID
@@ -479,8 +481,10 @@ class Membership_Controller {
     if( in_array ( 'next_payment_date', $fields ) ) {
       $dates_to_update['next_payment']  = date('Y-m-d H:i:s', strtotime( substr($end_date,0,10)." 00:00:00" ));
     }
-    $sub = wcs_get_subscription( $membership['membership_subscription_id'] ); 
-    $sub->update_dates($dates_to_update);
+    $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+    if( !empty( $sub )) {
+      $sub->update_dates($dates_to_update);
+    }
   }
 
   /**

@@ -687,6 +687,44 @@ class Membership_Post_Types {
 
     register_post_meta($this->membership_cpt_slug, 'membership_uuid', $args);
 
+    /** Tier Info */
+
+    $args = array(
+      'type'              => 'string',
+      'description'       => __( 'MDP Tier UUID.', 'wicket-memberships' ),
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_cpt_slug, 'membership_tier_uuid', $args);
+
+    $args = array(
+      'type'              => 'string',
+      'description'       => __( 'Tier Name.', 'wicket-memberships' ),
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_cpt_slug, 'membership_tier_name', $args);
+
+    $args = array(
+      'type'              => 'integer',
+      'description'       => __( 'Sequential Tier WP Post_ID.', 'wicket-memberships' ),
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_cpt_slug, 'membership_next_tier_id', $args);
+
+    $args = array(
+      'type'              => 'integer',
+      'description'       => __( 'Renewal Form WP Page_ID.', 'wicket-memberships' ),
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_cpt_slug, 'membership_next_form_id', $args);
+
     $args = array(
       'type'              => 'string',
       'description'       => __( 'Order ID.', 'wicket-memberships' ),

@@ -170,7 +170,9 @@ class Admin_Controller {
       }
       // cancel the associated subscription
       $sub = wcs_get_subscription( $membership_new['membership_subscription_id'] );
-      $sub->update_status( 'cancelled' );
+      if(! empty( $sub )) {
+        $sub->update_status( 'cancelled' );
+      }
       //return the order id ( FE will redirect user to refund order )
       $response_array['order_id'] = $membership_new['membership_parent_order_id'];
     } else if( $current_post_status == Wicket_Memberships::STATUS_GRACE && $new_post_status == Wicket_Memberships::STATUS_EXPIRED ) {
