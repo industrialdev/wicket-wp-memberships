@@ -2340,7 +2340,6 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-
 const AppWrap = styled_components__WEBPACK_IMPORTED_MODULE_2__["default"].div`
 	${_raw_loader_react_datepicker_dist_react_datepicker_css__WEBPACK_IMPORTED_MODULE_1__["default"]}
 
@@ -2420,6 +2419,10 @@ const SelectWpStyled = (0,styled_components__WEBPACK_IMPORTED_MODULE_2__["defaul
 const ReactDatePickerStyledWrap = styled_components__WEBPACK_IMPORTED_MODULE_2__["default"].div`
 	.react-datepicker-wrapper {
 		width: 100%;
+	}
+
+	.react-datepicker-popper {
+		z-index: 21;
 	}
 
 	.react-datepicker__input-container input {

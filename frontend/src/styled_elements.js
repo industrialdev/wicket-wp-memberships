@@ -2,7 +2,6 @@ import styled from 'styled-components';
 import { Flex, Disabled } from '@wordpress/components';
 import Select from 'react-select';
 import ReactDatePickerCss from "!!raw-loader!react-datepicker/dist/react-datepicker.css";
-import DatePicker from "react-datepicker";
 
 export const AppWrap = styled.div`
 	${ReactDatePickerCss}
@@ -91,6 +90,10 @@ export const SelectWpStyled = styled(Select)`
 export const ReactDatePickerStyledWrap = styled.div`
 	.react-datepicker-wrapper {
 		width: 100%;
+	}
+
+	.react-datepicker-popper {
+		z-index: 21;
 	}
 
 	.react-datepicker__input-container input {
