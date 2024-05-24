@@ -372,7 +372,9 @@ const MemberList = ({
       setTotalPages(Math.ceil(response.count / params.posts_per_page));
       setIsLoading(false);
       const tierIds = response.results.map(member => member.meta.membership_tier_uuid);
-      getTiersInfo(tierIds);
+      if (tiersInfo === null) {
+        getTiersInfo(tierIds);
+      }
     }).catch(error => {
       console.error(error);
     });
@@ -498,10 +500,10 @@ const MemberList = ({
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("option", {
     value: ""
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('All Tiers', 'wicket-memberships')), membershipFilters !== null && membershipFilters.tiers.map((tier, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("option", {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('All Tiers', 'wicket-memberships')), membershipFilters !== null && membershipFilters.tiers.map((tier, index) => getTierInfo(tier.value) !== null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("option", {
     key: index,
     value: tier.value
-  }, getTierInfo(tier.value) !== null && getTierInfo(tier.value).name, getTierInfo(tier.value) === null && (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Loading...', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("input", {
+  }, getTierInfo(tier.value).name))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("input", {
     type: "submit",
     id: "post-query-submit",
     className: "button",

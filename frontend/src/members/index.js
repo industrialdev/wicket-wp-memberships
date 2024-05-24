@@ -49,7 +49,9 @@ const MemberList = ({ memberType, editMemberUrl }) => {
         setIsLoading(false);
 
         const tierIds = response.results.map((member) => member.meta.membership_tier_uuid);
-        getTiersInfo(tierIds);
+        if (tiersInfo === null) {
+          getTiersInfo(tierIds);
+        }
       }).catch((error) => {
         console.error(error);
       });
@@ -190,10 +192,11 @@ const MemberList = ({ memberType, editMemberUrl }) => {
               >
                 <option value="">{__('All Tiers', 'wicket-memberships')}</option>
                 {membershipFilters !== null && membershipFilters.tiers.map((tier, index) => (
-                  <option key={index} value={tier.value}>
-                    {getTierInfo(tier.value) !== null && getTierInfo(tier.value).name}
-                    {getTierInfo(tier.value) === null && __('Loading...', 'wicket-memberships')}
-                  </option>
+                  getTierInfo(tier.value) !== null && (
+                    <option key={index} value={tier.value}>
+                      {getTierInfo(tier.value).name}
+                    </option>
+                  )
                 ))}
               </select>
 
