@@ -3,10 +3,11 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, Disabled, __experimentalHeading as Heading, Icon } from '@wordpress/components';
-import { API_URL } from '../constants';
+import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon } from '@wordpress/components';
+import { API_URL, DEFAULT_DATE_FORMAT } from '../constants';
 import he from 'he';
-import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled } from '../styled_elements';
+import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled, ReactDatePickerStyledWrap, AppWrap } from '../styled_elements';
+import DatePicker from 'react-datepicker';
 import MembershipConfigTiers from './tiers';
 
 const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tierCptSlug, postId, tierMdpUuids }) => {
@@ -902,125 +903,152 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 
 				{/* Season Modal */}
 				{isCreateSeasonModalOpen && (
-					<Modal
-						title={currentSeasonIndex === null ? __('Add Season', 'wicket-memberships') : __('Edit Season', 'wicket-memberships')}
-						onRequestClose={closeCreateSeasonModalOpen}
-						style={
-							{
-								maxWidth: '840px',
-								width: '100%'
+						<Modal
+							title={currentSeasonIndex === null ? __('Add Season', 'wicket-memberships') : __('Edit Season', 'wicket-memberships')}
+							onRequestClose={closeCreateSeasonModalOpen}
+							style={
+								{
+									maxWidth: '840px',
+									width: '100%',
+									paddingTop: '40px'
+								}
 							}
-						}
-					>
-						<form onSubmit={handleCreateSeasonSubmit}>
+						>
+							<AppWrap>
+							<form onSubmit={handleCreateSeasonSubmit}>
 
-							{Object.keys(seasonErrors).length > 0 && (
-								<ErrorsRow>
-									{Object.keys(seasonErrors).map((key) => (
-										<Notice isDismissible={false} key={key} status="warning">{seasonErrors[key]}</Notice>
-									))}
-								</ErrorsRow>
-							)}
+								{Object.keys(seasonErrors).length > 0 && (
+									<ErrorsRow>
+										{Object.keys(seasonErrors).map((key) => (
+											<Notice isDismissible={false} key={key} status="warning">{seasonErrors[key]}</Notice>
+										))}
+									</ErrorsRow>
+								)}
 
-							<TextControl
-								label={__('Season Name', 'wicket-memberships')}
-								onChange={value => {
-									setTempSeason({
-										...tempSeason,
-										season_name: value
-									});
-								}}
-								value={tempSeason.season_name}
-							/>
+								<TextControl
+									label={__('Season Name', 'wicket-memberships')}
+									onChange={value => {
+										setTempSeason({
+											...tempSeason,
+											season_name: value
+										});
+									}}
+									value={tempSeason.season_name}
+								/>
 
-							<SelectControl
-								label={__('Status', 'wicket-memberships')}
-								value={tempSeason.active ? 'true' : 'false'}
-								onChange={value => {
-									setTempSeason({
-										...tempSeason,
-										active: value === 'true'
-									});
-								}}
-								options={[
-									{
-										label: __('Active', 'wicket-memberships'),
-										value: 'true'
-									},
-									{
-										label: __('Inactive', 'wicket-memberships'),
-										value: 'false'
-									}
-								]}
-							/>
-
-							<FormFlex>
-								<FlexBlock>
-									<TextControl
-										label={__('Start Date', 'wicket-memberships')}
-										type="date"
-										value={tempSeason.start_date}
-										onChange={value => {
-											setTempSeason({
-												...tempSeason,
-												start_date: value
-											});
+								<SelectControl
+									label={__('Status', 'wicket-memberships')}
+									value={tempSeason.active ? 'true' : 'false'}
+									onChange={value => {
+										setTempSeason({
+											...tempSeason,
+											active: value === 'true'
+										});
+									}}
+									options={[
+										{
+											label: __('Active', 'wicket-memberships'),
+											value: 'true'
+										},
+										{
+											label: __('Inactive', 'wicket-memberships'),
+											value: 'false'
 										}
-									} />
-								</FlexBlock>
-								<FlexBlock>
-									<TextControl
-										label={__('End Date', 'wicket-memberships')}
-										type="date"
-										value={tempSeason.end_date}
-										onChange={value => {
-											setTempSeason({
-												...tempSeason,
-												end_date: value
-											});
-										}
-									} />
-								</FlexBlock>
-							</FormFlex>
-							<ActionRow>
-								<Flex
-									align='end'
-									gap={5}
-									direction={[
-										'column',
-										'row'
 									]}
-								>
-									<FlexItem>
-										{currentSeasonIndex !== null && (
-											<Button
-												isDestructive={true}
-												onClick={() => {
-													const seasons = form.cycle_data.calendar_items.filter((_, index) => index !== currentSeasonIndex);
-													setForm({
-														...form,
-														cycle_data: {
-															...form.cycle_data,
-															calendar_items: seasons
-														}
-													});
-													closeCreateSeasonModalOpen();
+								/>
+
+								<FormFlex>
+									<FlexBlock>
+										<LabelWpStyled htmlFor="mdp_tier">
+											{__('Start Date', 'wicket-memberships')}
+										</LabelWpStyled>
+										<ReactDatePickerStyledWrap>
+											<DatePicker
+												popperPlacement="bottom"
+												aria-label={__('Start Date', 'wicket-memberships')}
+												dateFormat={DEFAULT_DATE_FORMAT}
+												showMonthDropdown
+												showYearDropdown
+												dropdownMode="select"
+												selected={ moment(tempSeason.start_date).format('YYYY-MM-DD') }
+												popperProps={{
+													zIndex: 25
 												}}
-											>
-												<Icon icon="archive" />&nbsp;
-												{__('Archive', 'wicket-memberships')}
+												onChange={value => {
+													setTempSeason({
+														...tempSeason,
+														start_date: moment(value).format('YYYY-MM-DD')
+													});
+												}}
+											/>
+										</ReactDatePickerStyledWrap>
+									</FlexBlock>
+									<FlexBlock>
+									<LabelWpStyled htmlFor="mdp_tier">
+											{__('End Date', 'wicket-memberships')}
+										</LabelWpStyled>
+										<ReactDatePickerStyledWrap>
+											<DatePicker
+												popperPlacement="bottom"
+												aria-label={__('End Date', 'wicket-memberships')}
+												dateFormat={DEFAULT_DATE_FORMAT}
+												showMonthDropdown
+												showYearDropdown
+												dropdownMode="select"
+												selected={ moment(tempSeason.end_date).format('YYYY-MM-DD') }
+												popperProps={{
+													zIndex: 25
+												}}
+												onChange={value => {
+													setTempSeason({
+														...tempSeason,
+														end_date: moment(value).format('YYYY-MM-DD')
+													});
+												}}
+											/>
+										</ReactDatePickerStyledWrap>
+									</FlexBlock>
+								</FormFlex>
+								<ActionRow>
+									<Flex
+										align='end'
+										gap={5}
+										direction={[
+											'column',
+											'row'
+										]}
+									>
+										<FlexItem>
+											{currentSeasonIndex !== null && (
+												<Button
+													isDestructive={true}
+													onClick={() => {
+														const seasons = form.cycle_data.calendar_items.filter((_, index) => index !== currentSeasonIndex);
+														setForm({
+															...form,
+															cycle_data: {
+																...form.cycle_data,
+																calendar_items: seasons
+															}
+														});
+														closeCreateSeasonModalOpen();
+													}}
+												>
+													<Icon icon="archive" />&nbsp;
+													{__('Archive', 'wicket-memberships')}
+												</Button>
+											)}
+										</FlexItem>
+										<FlexItem>
+											<Button variant="primary" type='submit'>
+												{currentSeasonIndex === null ? __('Add Season', 'wicket-memberships') : __('Update Season', 'wicket-memberships')}
 											</Button>
-										)}
-									</FlexItem>
-									<FlexItem>
-										<Button variant="primary" type='submit'>
-											{currentSeasonIndex === null ? __('Add Season', 'wicket-memberships') : __('Update Season', 'wicket-memberships')}
-										</Button>
-									</FlexItem>
-								</Flex>
-							</ActionRow>
-						</form>
-					</Modal>
+										</FlexItem>
+									</Flex>
+								</ActionRow>
+							</form>
+							</AppWrap>
+						</Modal>
 				)}
 			</div>
 		</>
