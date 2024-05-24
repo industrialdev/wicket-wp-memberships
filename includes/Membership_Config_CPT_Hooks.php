@@ -22,11 +22,21 @@ class Membership_Config_CPT_Hooks {
 	  add_action( 'admin_menu', [ $this, 'add_edit_page' ] );
     add_action( 'admin_init', [ $this, 'create_edit_page_redirects' ] );
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
-    add_action('manage_'.$this->membership_config_cpt_slug.'_posts_columns', [ $this, 'table_head'] );
-    add_action('manage_'.$this->membership_config_cpt_slug.'_posts_custom_column', [ $this, 'table_content'], 10, 2 );
+    add_action( 'manage_'.$this->membership_config_cpt_slug.'_posts_columns', [ $this, 'table_head'] );
+    add_action( 'manage_'.$this->membership_config_cpt_slug.'_posts_custom_column', [ $this, 'table_content'], 10, 2 );
+
+    add_filter( 'post_row_actions', [ $this, 'row_actions' ], 10, 2 );
 
     // Skip trash for membership tiers
-    add_action('trashed_post', [ $this, 'directory_skip_trash' ]);
+    add_action( 'trashed_post', [ $this, 'directory_skip_trash' ] );
+  }
+
+  function row_actions( $actions, $post ){
+    if ( $this->membership_config_cpt_slug === $post->post_type ) {
+      // Removes the "Quick Edit" action.
+      unset( $actions['inline hide-if-no-js'] );
+    }
+    return $actions;
   }
 
   function directory_skip_trash($post_id) {
@@ -123,9 +133,14 @@ class Membership_Config_CPT_Hooks {
    * Customize Wicket Member List Page Header
    */
   public function table_head( $columns ) {
-    $columns['renewal_window_data'] = __( 'Renewal Window Data', 'wicket-memberships' );
-    $columns['late_fee_window_data'] = __( 'Late Fee Window Data', 'wicket-memberships' );
-    $columns['cycle_data'] = __( 'Cycle Data', 'wicket-memberships' );
+    $columns['cycle_type'] = __( 'Cycle', 'wicket-memberships' );
+    $columns['tier_count'] = __( 'Number of Tiers', 'wicket-memberships' );
+
+    if( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
+      $columns['renewal_window_data'] = __( 'Renewal Window Data', 'wicket-memberships' );
+      $columns['late_fee_window_data'] = __( 'Late Fee Window Data', 'wicket-memberships' );
+      $columns['cycle_data'] = __( 'Cycle Data', 'wicket-memberships' );
+    }
     unset($columns['date']);
     return $columns;
   }
@@ -134,6 +149,18 @@ class Membership_Config_CPT_Hooks {
    * Customize Wicket Member List Page Contents
    */
   public function table_content( $column_name, $post_id ) {
+    $config = new Membership_Config( $post_id );
+
+    if ( $column_name === 'cycle_type' ) {
+      echo ucfirst( $config->get_cycle_type() );
+    } else if ( $column_name === 'tier_count' ) {
+      $tier_uuids = Membership_Tier::get_tier_uuids_by_config_id( $post_id );
+      echo count( $tier_uuids );
+    }
+
+    if ( empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
+      return;
+    }
 
     if ( $column_name === 'renewal_window_data' ) {
       $meta = get_post_meta( $post_id, 'renewal_window_data', true );

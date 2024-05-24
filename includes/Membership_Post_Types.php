@@ -557,7 +557,7 @@ class Membership_Post_Types {
     );
 
     $membership_menu_item = false;
-    if( ! empty( $_ENV['WICKET_SHOW_MEMBERSHIP_DEBUG_MENU'] ) ) {
+    if( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
       $membership_menu_item = WICKET_MEMBERSHIP_PLUGIN_SLUG;
     }
 

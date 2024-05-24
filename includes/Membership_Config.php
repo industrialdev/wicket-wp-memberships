@@ -20,6 +20,13 @@ class Membership_Config {
 	}
 
   /**
+   * Get the membership config title
+   */
+  public function get_title() {
+    return get_the_title( $this->post_id );
+  }
+
+  /**
    * Get the renewal window days
    *
    * @return int|bool Integer, false otherwise
@@ -248,7 +255,7 @@ class Membership_Config {
     if( /*$season['active'] && */ ( $membership_start_time >= strtotime( substr($season['start_date'], 0, 10) )) && ( $membership_start_time <= strtotime( substr($season['end_date'], 0, 10) ))) {
         $end_date = $season['end_date'];
       }
-    } 
+    }
     return $end_date;
   }
 
@@ -291,7 +298,7 @@ class Membership_Config {
         }
       }
       $dates['end_date'] = (new \DateTime( $the_end_date, wp_timezone() ))->format('c');
-    } else {    
+    } else {
       $dates['start_date'] = $this->get_seasonal_start_date( $membership );
       $dates['end_date'] = $this->get_seasonal_end_date( $membership );
     }

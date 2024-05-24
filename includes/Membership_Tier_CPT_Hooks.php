@@ -28,8 +28,19 @@ class Membership_Tier_CPT_Hooks {
     // Manipulate post data after saving if needed
     add_action( 'rest_after_insert_' . $this->membership_tier_cpt_slug, [ $this, 'rest_save_post_page' ], 10, 1);
 
+    // Remove quick edit from row actions
+    add_filter( 'post_row_actions', [ $this, 'row_actions' ], 10, 2 );
+
     // Skip trash for membership tiers
     add_action('trashed_post', [ $this, 'directory_skip_trash' ]);
+  }
+
+  function row_actions( $actions, $post ){
+    if ( $this->membership_tier_cpt_slug === $post->post_type ) {
+      // Removes the "Quick Edit" action.
+      unset( $actions['inline hide-if-no-js'] );
+    }
+    return $actions;
   }
 
   function directory_skip_trash($post_id) {
@@ -153,9 +164,17 @@ class Membership_Tier_CPT_Hooks {
    * Customize Membership Tier List Page Header
    */
   public function table_head( $columns ) {
-    $columns['tier_data'] = __( 'Tier Data', 'wicket-memberships' );
+
+    $columns['status'] = __( 'Status', 'wicket-memberships' );
+    $columns['category'] = __( 'Category', 'wicket-memberships' );
+    $columns['member_count'] = __( '# Members', 'wicket-memberships' );
+    $columns['config_name'] = __( 'Config', 'wicket-memberships' );
+
+    if ( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
+      $columns['tier_data'] = __( 'Tier Data', 'wicket-memberships' );
+    }
+
     unset($columns['date']);
-    //unset($columns['title']);
     return $columns;
   }
 
@@ -163,15 +182,37 @@ class Membership_Tier_CPT_Hooks {
    * Customize Membership Tier List Page Contents
    */
   public function table_content( $column_name, $post_id ) {
-    if ( 'tier_data' !== $column_name ) {
+    $tier = new Membership_Tier( $post_id );
+
+    if ( $column_name === 'status' ) {
+      echo '-';
+    }
+
+    if ( $column_name === 'category' ) {
+      echo '-';
+    }
+
+    if ( $column_name === 'member_count' ) {
+      $tier_uuid = $tier->get_mdp_tier_uuid();
+      $tier_info = Membership_Controller::get_tier_info( [ $tier_uuid ], [ 'count' ] );
+      echo $tier_info['tier_data'][$tier_uuid]['count'];
+    }
+
+    if ( $column_name === 'config_name' ) {
+      $config = $tier->get_config();
+      echo $config->get_title();
+    }
+
+    if ( empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
       return;
     }
 
-    $tier_data = get_post_meta( $post_id, 'tier_data', true );
-
-    echo '<pre>';
-    print_r($tier_data);
-    echo '</pre>';
+    if ( $column_name === 'tier_data' ) {
+      $tier_data = get_post_meta( $post_id, 'tier_data', true );
+      echo '<pre>';
+      print_r($tier_data);
+      echo '</pre>';
+    }
   }
 
 }
