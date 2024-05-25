@@ -194,8 +194,18 @@ class Membership_Tier_CPT_Hooks {
 
     if ( $column_name === 'member_count' ) {
       $tier_uuid = $tier->get_mdp_tier_uuid();
-      $tier_info = Membership_Controller::get_tier_info( [ $tier_uuid ], [ 'count' ] );
-      echo $tier_info['tier_data'][$tier_uuid]['count'];
+
+      $cache_key = 'tier_member_count_'.$tier_uuid;
+      $cache_group = 'wicket_memberships_tier';
+      $member_count = wp_cache_get( $cache_key, $cache_group );
+
+      if ( ! $member_count ) {
+        $tier_info = Membership_Controller::get_tier_info( [ $tier_uuid ], [ 'count' ] );
+        $member_count = $tier_info['tier_data'][$tier_uuid]['count'];
+        wp_cache_set( $cache_key, $member_count, $cache_group, 60 * 5); // 5 minutes
+      }
+
+      echo $member_count;
     }
 
     if ( $column_name === 'config_name' ) {
