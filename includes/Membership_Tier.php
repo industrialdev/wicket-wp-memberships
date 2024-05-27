@@ -102,7 +102,7 @@ class Membership_Tier {
       if ( $tier_obj->get_mdp_tier_uuid() == $uuid ) {
         return $tier->ID;
       }
-    }       
+    }
     return false;
   }
 
@@ -190,13 +190,44 @@ class Membership_Tier {
   }
 
   /**
+   * Is form page renewal type
+   *
+   * @return bool
+   */
+  public function is_renewal_form_page() {
+    return ($this->get_next_tier_form_page_id() === false ? false : true);
+  }
+
+  /**
+   * Is tier renewal type
+   *
+   * @return bool
+   */
+  public function is_renewal_tier() {
+    return ($this->get_next_tier_id() === false ? false : true);
+  }
+
+  /**
    * Get the next tier post ID
    *
-   * @return string|bool String, false otherwise
+   * @return int|bool Integer, false otherwise
    */
   public function get_next_tier_id() {
-    if ( isset( $this->tier_data['next_tier_id'] ) ) {
-      return $this->tier_data['next_tier_id'];
+    if ( isset( $this->tier_data['next_tier_id'] ) && $this->tier_data['next_tier_id'] !== 0 ) {
+      return intval( $this->tier_data['next_tier_id'] );
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the next tier form post ID
+   *
+   * @return int|bool Integer, false otherwise
+   */
+  public function get_next_tier_form_page_id() {
+    if ( isset( $this->tier_data['next_tier_form_page_id'] ) && $this->tier_data['next_tier_form_page_id'] !== 0 ) {
+      return intval( $this->tier_data['next_tier_form_page_id'] );
     }
 
     return false;
