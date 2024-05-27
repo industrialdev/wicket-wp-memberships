@@ -1094,14 +1094,16 @@ class Membership_Controller {
     if(! is_array( $properties ) ) {
       $properties = [];
     }
-    $allorgs = wicket_get_organizations();
-    $all_orgs = array_reduce($allorgs['data'], function($acc, $item) {
-      $acc[$item['id']] = $item;
-      return $acc;
-    }, []);
+
     if(! is_array( $org_uuids ) ) {
+      $allorgs = wicket_get_organizations();
+      $all_orgs = array_reduce($allorgs['data'], function($acc, $item) {
+        $acc[$item['id']] = $item;
+        return $acc;
+      }, []);
       $org_uuids = array_keys($all_orgs);
     }
+
     if( in_array( 'count', $properties ) ) {
       $args = array(
         'post_type' => $self->membership_cpt_slug,
@@ -1128,11 +1130,24 @@ class Membership_Controller {
         }, $org_meta);
       }  
     }
+
+    if( in_array('location', $properties ) ) {
+      foreach ($org_uuids as $org_uuid) {
+        $org_data[ $org_uuid ] = Helper::get_org_data( $org_uuid, true );
+        if( empty( $allorgs )) {
+          $all_orgs[ $org_uuid ]['attributes']['alternate_name'] = $org_data[ $org_uuid ][ 'name' ];
+        }
+      }
+    }
+
     foreach( $orgs->posts as $org ) {
       $mship_org_array[ $org->meta['org_uuid'] ]['name']  = $all_orgs[ $org->meta['org_uuid'] ]['attributes']['alternate_name'];
       if( in_array( 'count', $properties ) ) {
         $mship_orgs[$org->meta['org_uuid']] = $mship_orgs[$org->meta['org_uuid']] + 1;
         $mship_org_array[ $org->meta['org_uuid'] ]['count'] = $mship_orgs[ $org->meta['org_uuid']];
+      }
+      if(!empty( $org_data[ $org->meta['org_uuid'] ] )) {
+        $mship_org_array[ $org->meta['org_uuid'] ]['location'] = $org_data[ $org_uuid ]['location'];
       }
     }
     foreach( $all_orgs as $key => $org_item ) {
@@ -1140,6 +1155,9 @@ class Membership_Controller {
         $mship_org_array[ $key ]['name'] = $org_item['attributes']['alternate_name'];
         if( in_array( 'count', $properties ) ) {
           $mship_org_array[ $key ]['count'] = 0;
+        }
+        if(!empty( $org_data[ $key ] )) {
+          $mship_org_array[ $key ]['location'] = $org_data[ $key ]['location'];
         }
       }
     }
