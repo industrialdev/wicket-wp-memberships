@@ -970,7 +970,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 												showMonthDropdown
 												showYearDropdown
 												dropdownMode="select"
-												selected={ moment(tempSeason.start_date).format('YYYY-MM-DD') }
+												selected={ tempSeason.start_date !== '' ? moment(tempSeason.start_date).format('YYYY-MM-DD') : null }
 												popperProps={{
 													zIndex: 25
 												}}
@@ -995,7 +995,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 												showMonthDropdown
 												showYearDropdown
 												dropdownMode="select"
-												selected={ moment(tempSeason.end_date).format('YYYY-MM-DD') }
+												selected={ tempSeason.end_date !== '' ? moment(tempSeason.end_date).format('YYYY-MM-DD') : null }
 												popperProps={{
 													zIndex: 25
 												}}
