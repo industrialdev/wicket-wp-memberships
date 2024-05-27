@@ -15,6 +15,12 @@ const MarginedFlex = styled(Flex)`
 
 const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId, productsInUse, individualListUrl, orgListUrl }) => {
 
+	const renewalTypeOptions = [
+		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' },
+		{ label: __('Sequential Logic', 'wicket-memberships'), value: 'sequential_logic' },
+		{ label: __('Renewal Form Flow', 'wicket-memberships'), value: 'form_flow' }
+	];
+
 	const [isRangeOfSeatsProductsModalOpen, setRangeOfSeatsProductsModalOpen] = useState(false);
 
 	const openRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(true);
@@ -38,6 +44,8 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	const [wpTierOptions, setWpTierOptions] = useState([]); // { id, name }
 
+	const [wpPagesOptions, setWpPagesOptions] = useState([]); // { id, name }
+
 	const [membershipConfigOptions, setMembershipConfigOptions] = useState([]); // { id, name }
 
 	const [wcProductOptions, setWcProductOptions] = useState([]); // { id, name }
@@ -50,7 +58,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		mdp_tier_name: '',
 		mdp_tier_uuid: '',
 		next_tier_id: '',
+		next_tier_form_page_id: '',
 		config_id: '',
+		renewal_type: 'current_tier', // current_tier, sequential_logic, form_flow
 		type: '', // orgranization, individual
 		seat_type: 'per_seat', // per_seat, per_range_of_seats
 		product_data: [] // { product_id:, max_seats: }
@@ -283,6 +293,17 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		return orgListUrl;
 	}
 
+	const handleRenewalTypeChange = (selected) => {
+		const selectedValue = selected.value;
+
+		setForm({
+			...form,
+			next_tier_id: '',
+			next_tier_form_page_id: '',
+			renewal_type: selectedValue
+		});
+	}
+
 	useEffect(() => {
 		let queryParams = {};
 
@@ -300,6 +321,20 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			});
 
 			setWcProductOptions(options);
+		});
+
+		// Fetch Local WP Pages
+		queryParams = { status: 'publish', per_page: -1};
+		apiFetch({ path: addQueryArgs(`${API_URL}/pages`, queryParams) }).then((tiers) => {
+			let options = tiers.map((tier) => {
+				const decodedTitle = he.decode(tier.title.rendered);
+				return {
+					label: `${decodedTitle} | ID: ${tier.id}`,
+					value: tier.id
+				}
+			});
+
+			setWpPagesOptions(options);
 		});
 
 		// Fetch Local Membership Tiers Posts
@@ -365,9 +400,25 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 				// Fetch the tier info to get the count of members
 				fetchTierInfo(post.tier_data.mdp_tier_uuid);
 
+				// Renewal type logic
+				const nextTierFormPageId = post.tier_data.next_tier_form_page_id; // int value
+				const nextTierId = post.tier_data.next_tier_id;
+
+				let initialRenewalType = 'sequential_logic';
+
+				if ( nextTierFormPageId !== 0 ) {
+					initialRenewalType = 'form_flow';
+				} else if ( nextTierId === parseInt(postId) ) {
+					initialRenewalType = 'current_tier';
+				}
+
+				console.log('Initial Renewal Type:');
+				console.log(initialRenewalType);
+
 				setForm({
 					...post.tier_data,
-					product_data: productData
+					product_data: productData,
+					renewal_type: initialRenewalType
 				});
 			});
 		}
@@ -387,6 +438,10 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	console.log('Configs:');
 	console.log(membershipConfigOptions);
+	console.log('--------------');
+
+	console.log('Form:');
+	console.log(form);
 	console.log('--------------');
 
 	console.log('Errors:');
@@ -577,27 +632,67 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 									</MarginedFlex>
 									<MarginedFlex>
 										<FlexBlock>
-											<LabelWpStyled htmlFor="next_tier">
-												{__('Sequential Logic', 'wicket-memberships')}
+											<LabelWpStyled htmlFor="renewal_type">
+												{__('Renewal Type', 'wicket-memberships')}
 											</LabelWpStyled>
 											<SelectWpStyled
-												id="next_tier"
+												id="renewal_type"
 												classNamePrefix="select"
-												placeholder={__('Current Tier', 'wicket-memberships')}
-												value={wpTierOptions.find(option => option.value === form.next_tier_id)}
-												isClearable={true}
+												value={renewalTypeOptions.find(option => option.value === form.renewal_type)}
 												isSearchable={true}
-												options={wpTierOptions}
-												onChange={(selected) => {
-													if (selected === null) {
-														setForm({ ...form, next_tier_id: '' });
-														return;
-													}
-													setForm({ ...form, next_tier_id: selected.value });
-												}}
+												options={renewalTypeOptions}
+												onChange={handleRenewalTypeChange}
 											/>
 										</FlexBlock>
 									</MarginedFlex>
+
+									{/* Sequential Logic */}
+									{form.renewal_type === 'sequential_logic' &&
+										<MarginedFlex>
+											<FlexBlock>
+												<LabelWpStyled htmlFor="next_tier">
+													{__('Sequential Tier', 'wicket-memberships')}
+												</LabelWpStyled>
+												<SelectWpStyled
+													id="next_tier"
+													classNamePrefix="select"
+													value={wpTierOptions.find(option => option.value === form.next_tier_id)}
+													isClearable={true}
+													isSearchable={true}
+													options={wpTierOptions}
+													onChange={(selected) => {
+														if (selected === null) {
+															setForm({ ...form, next_tier_id: '' });
+															return;
+														}
+														setForm({ ...form, next_tier_id: selected.value });
+													}}
+												/>
+											</FlexBlock>
+										</MarginedFlex>
+									}
+
+									{/* Sequential Logic */}
+									{form.renewal_type === 'form_flow' &&
+										<MarginedFlex>
+											<FlexBlock>
+												<LabelWpStyled htmlFor="next_tier_form">
+													{__('Form Page', 'wicket-memberships')}
+												</LabelWpStyled>
+												<SelectWpStyled
+													id="next_tier_form"
+													classNamePrefix="select"
+													value={wpPagesOptions.find(option => option.value === form.next_tier_form_page_id)}
+													isSearchable={true}
+													options={wpPagesOptions}
+													onChange={(selected) => {
+														setForm({ ...form, next_tier_form_page_id: selected.value });
+													}}
+												/>
+											</FlexBlock>
+										</MarginedFlex>
+									}
+
 									{getSelectedTierData().type === 'individual' && (
 										<>
 											<MarginedFlex>

@@ -13125,6 +13125,16 @@ const CreateMembershipTier = ({
   individualListUrl,
   orgListUrl
 }) => {
+  const renewalTypeOptions = [{
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Current Tier', 'wicket-memberships'),
+    value: 'current_tier'
+  }, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Sequential Logic', 'wicket-memberships'),
+    value: 'sequential_logic'
+  }, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renewal Form Flow', 'wicket-memberships'),
+    value: 'form_flow'
+  }];
   const [isRangeOfSeatsProductsModalOpen, setRangeOfSeatsProductsModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   const openRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(true);
   const closeRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(false);
@@ -13139,6 +13149,8 @@ const CreateMembershipTier = ({
   const [mdpTiers, setMdpTiers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [wpTierOptions, setWpTierOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
 
+  const [wpPagesOptions, setWpPagesOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
+
   const [membershipConfigOptions, setMembershipConfigOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
 
   const [wcProductOptions, setWcProductOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
@@ -13151,7 +13163,10 @@ const CreateMembershipTier = ({
     mdp_tier_name: '',
     mdp_tier_uuid: '',
     next_tier_id: '',
+    next_tier_form_page_id: '',
     config_id: '',
+    renewal_type: 'current_tier',
+    // current_tier, sequential_logic, form_flow
     type: '',
     // orgranization, individual
     seat_type: 'per_seat',
@@ -13352,6 +13367,15 @@ const CreateMembershipTier = ({
     }
     return orgListUrl;
   };
+  const handleRenewalTypeChange = selected => {
+    const selectedValue = selected.value;
+    setForm({
+      ...form,
+      next_tier_id: '',
+      next_tier_form_page_id: '',
+      renewal_type: selectedValue
+    });
+  };
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     let queryParams = {};
 
@@ -13373,6 +13397,24 @@ const CreateMembershipTier = ({
         };
       });
       setWcProductOptions(options);
+    });
+
+    // Fetch Local WP Pages
+    queryParams = {
+      status: 'publish',
+      per_page: -1
+    };
+    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/pages`, queryParams)
+    }).then(tiers => {
+      let options = tiers.map(tier => {
+        const decodedTitle = he__WEBPACK_IMPORTED_MODULE_7___default().decode(tier.title.rendered);
+        return {
+          label: `${decodedTitle} | ID: ${tier.id}`,
+          value: tier.id
+        };
+      });
+      setWpPagesOptions(options);
     });
 
     // Fetch Local Membership Tiers Posts
@@ -13446,9 +13488,22 @@ const CreateMembershipTier = ({
 
         // Fetch the tier info to get the count of members
         fetchTierInfo(post.tier_data.mdp_tier_uuid);
+
+        // Renewal type logic
+        const nextTierFormPageId = post.tier_data.next_tier_form_page_id; // int value
+        const nextTierId = post.tier_data.next_tier_id;
+        let initialRenewalType = 'sequential_logic';
+        if (nextTierFormPageId !== 0) {
+          initialRenewalType = 'form_flow';
+        } else if (nextTierId === parseInt(postId)) {
+          initialRenewalType = 'current_tier';
+        }
+        console.log('Initial Renewal Type:');
+        console.log(initialRenewalType);
         setForm({
           ...post.tier_data,
-          product_data: productData
+          product_data: productData,
+          renewal_type: initialRenewalType
         });
       });
     }
@@ -13464,6 +13519,9 @@ const CreateMembershipTier = ({
   console.log('--------------');
   console.log('Configs:');
   console.log(membershipConfigOptions);
+  console.log('--------------');
+  console.log('Form:');
+  console.log(form);
   console.log('--------------');
   console.log('Errors:');
   console.log(errors);
@@ -13571,11 +13629,19 @@ const CreateMembershipTier = ({
     }),
     __nextHasNoMarginBottom: true
   }))))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
+    htmlFor: "renewal_type"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renewal Type', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
+    id: "renewal_type",
+    classNamePrefix: "select",
+    value: renewalTypeOptions.find(option => option.value === form.renewal_type),
+    isSearchable: true,
+    options: renewalTypeOptions,
+    onChange: handleRenewalTypeChange
+  }))), form.renewal_type === 'sequential_logic' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
     htmlFor: "next_tier"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Sequential Logic', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Sequential Tier', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
     id: "next_tier",
     classNamePrefix: "select",
-    placeholder: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Current Tier', 'wicket-memberships'),
     value: wpTierOptions.find(option => option.value === form.next_tier_id),
     isClearable: true,
     isSearchable: true,
@@ -13591,6 +13657,20 @@ const CreateMembershipTier = ({
       setForm({
         ...form,
         next_tier_id: selected.value
+      });
+    }
+  }))), form.renewal_type === 'form_flow' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
+    htmlFor: "next_tier_form"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Form Page', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
+    id: "next_tier_form",
+    classNamePrefix: "select",
+    value: wpPagesOptions.find(option => option.value === form.next_tier_form_page_id),
+    isSearchable: true,
+    options: wpPagesOptions,
+    onChange: selected => {
+      setForm({
+        ...form,
+        next_tier_form_page_id: selected.value
       });
     }
   }))), getSelectedTierData().type === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {

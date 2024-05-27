@@ -403,6 +403,38 @@ class Membership_Post_Types {
                 $errors->add( 'rest_invalid_param_mdp_tier_uuid', __( 'The MDP Tier UUID must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
+              if ( empty( $value['renewal_type'] ) ) {
+                $errors->add( 'rest_invalid_param_renewal_type', __( 'The Renewal Type must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              if ( $value['renewal_type'] === 'current_tier' ) {
+                if ( ! empty( $value['next_tier_id'] ) ) {
+                  $errors->add( 'rest_invalid_param_next_tier_id', __( 'The Next Tier ID must be empty for current tier renewal type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+              }
+
+              if ( $value['renewal_type'] === 'current_tier' || $value['renewal_type'] === 'sequential_logic' ) {
+                if ( ! empty( $value['next_tier_form_page_id'] ) ) {
+                  $errors->add( 'rest_invalid_param_next_tier_form_page_id', __( 'The Next Tier Form Page ID must be empty for current tier or sequential logic renewal type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+              }
+
+              if ( $value['renewal_type'] === 'sequential_logic' ) {
+                if ( empty( $value['next_tier_id'] ) ) {
+                  $errors->add( 'rest_invalid_param_next_tier_id', __( 'The Next Tier ID must not be empty for sequential logic renewal type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+              }
+
+              if ( $value['renewal_type'] === 'form_flow' ) {
+                if ( empty( $value['next_tier_form_page_id'] ) ) {
+                  $errors->add( 'rest_invalid_param_next_tier_form_page_id', __( 'The Next Tier Form Page ID must not be empty for form flow renewal type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+                if ( ! empty( $value['next_tier_id'] ) ) {
+                  $errors->add( 'rest_invalid_param_next_tier_id', __( 'The Next Tier ID must be empty for form flow renewal type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+              }
+
               // if ( empty( $value['next_tier_id'] ) ) {
               //   $errors->add( 'rest_invalid_param_next_tier_id', __( 'The Next Tier ID must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
               // }
@@ -512,6 +544,10 @@ class Membership_Post_Types {
             'next_tier_id' => array(
               'type'        => 'integer',
               'description' => 'Next Tier ID',
+            ),
+            'next_tier_form_page_id' => array(
+              'type'        => 'integer',
+              'description' => 'Next Tier Form Page ID',
             ),
             'config_id' => array(
               'type'        => 'integer',

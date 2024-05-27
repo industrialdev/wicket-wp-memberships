@@ -102,7 +102,7 @@ class Membership_Tier {
       if ( $tier_obj->get_mdp_tier_uuid() == $uuid ) {
         return $tier->ID;
       }
-    }       
+    }
     return false;
   }
 
@@ -197,6 +197,19 @@ class Membership_Tier {
   public function get_next_tier_id() {
     if ( isset( $this->tier_data['next_tier_id'] ) ) {
       return $this->tier_data['next_tier_id'];
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the next tier form post ID
+   *
+   * @return string|bool String, false otherwise
+   */
+  public function get_next_tier_form_page_id() {
+    if ( isset( $this->tier_data['next_tier_form_page_id'] ) ) {
+      return $this->tier_data['next_tier_form_page_id'];
     }
 
     return false;
