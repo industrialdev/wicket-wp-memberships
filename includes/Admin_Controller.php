@@ -86,7 +86,7 @@ class Admin_Controller {
     $membership_new = $Membership_Controller->get_membership_array_from_user_meta_by_post_id( $membership_post_id, $user_id );
 
     if( empty( $new_post_status )) {
-      $response_array['error'] = 'Invalid status transition. Request did not succeed.';
+      $response_array['error'] = 'Invalid status transition. Requested status was not received.';
     } else if( empty( $membership_new )) {
       $current_post_status = $new_post_status = '';
       $response_array['error'] = 'Membership not found. Request did not succeed.';
@@ -188,7 +188,7 @@ class Admin_Controller {
       $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( json_encode($meta_data) );
       $updated = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post_meta_data );
       $Membership_Controller->amend_membership_json( $membership_post_id, $meta_data );
-    } else if( ! $Membership_Controller->bypass_status_change_lockout ) {
+    } else if( empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
       // WE ONLY ALLOW CERTAIN TRANSITIONS ACCORDING TO RULES
       //
       if( empty($response_array) ) {
