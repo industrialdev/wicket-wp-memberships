@@ -271,13 +271,13 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                     {memberType === 'individual' && (
                       <>
                         <strong>
-                          <a href={addQueryArgs(editMemberUrl, { id: member.meta.user_id })}
+                          <a href={addQueryArgs(editMemberUrl, { id: member.user.user_login })}
                             className='row-title'
                           >{member.user.display_name}</a>
                         </strong>
                         <div className="row-actions">
                           <span className="edit">
-                            <a href={addQueryArgs(editMemberUrl, { id: member.meta.user_id })} aria-label={ __('Edit', 'wicket-memberships') }>
+                            <a href={addQueryArgs(editMemberUrl, { id: member.user.user_login })} aria-label={ __('Edit', 'wicket-memberships') }>
                               { __('Edit', 'wicket-memberships') }
                             </a>
                           </span>

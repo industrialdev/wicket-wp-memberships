@@ -556,7 +556,7 @@ const MemberList = ({
     "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Edit', 'wicket-memberships')
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Edit', 'wicket-memberships'))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, member.meta.org_location)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, memberType === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
     href: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_3__.addQueryArgs)(editMemberUrl, {
-      id: member.meta.user_id
+      id: member.user.user_login
     }),
     className: "row-title"
   }, member.user.display_name)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
@@ -565,7 +565,7 @@ const MemberList = ({
     className: "edit"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
     href: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_3__.addQueryArgs)(editMemberUrl, {
-      id: member.meta.user_id
+      id: member.user.user_login
     }),
     "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Edit', 'wicket-memberships')
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Edit', 'wicket-memberships'))))), memberType === 'organization' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, member.user.display_name)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
