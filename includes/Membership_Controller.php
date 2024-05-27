@@ -995,6 +995,7 @@ class Membership_Controller {
       );  
       $tier->meta = $tier_new_meta;
         $user = get_userdata( $user_id );
+        unset( $user->user_pass );
         $tier->user = $user->data;
         if( $type != 'organization' ) {
           $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/people/'.$user->data->user_login;
