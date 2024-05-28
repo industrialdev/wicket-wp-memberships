@@ -424,13 +424,13 @@ class Membership_Controller {
       //send the approval email notification
       $email_address = $tier->get_approval_email();
       if( !empty($membership['organization_uuid']) ) {
-        $path = '?page=wicket_org_member_edit&id=' . $membership['organization_uuid']; //PATH TO THE ORG EDIT PAGE
+        $path = 'admin.php?page=wicket_org_member_edit&id=' . $membership['organization_uuid']; //PATH TO THE ORG EDIT PAGE
       } else {
         $user = get_user_by( 'id', $membership['membership_wp_user_id'] );    
         $membership_person_uuid = $user->data->user_login;
-        $path = '?page=wicket_individual_member_edit&id=' . $membership_person_uuid; //PATH TO THE PERSON EDIT PAGE
+        $path = 'admin.php?page=wicket_individual_member_edit&id=' . $membership_person_uuid; //PATH TO THE PERSON EDIT PAGE
       }
-      $member_page_link = admin_url( $path );
+      $member_page_link = '<a href="'.admin_url( $path ).'">'.admin_url( $path ).'</a>';
       send_approval_required_email( $email_address, $member_page_link );
     } else {
       //set the scheduled tasks
@@ -630,6 +630,7 @@ class Membership_Controller {
       'user_email' => $membership['membership_wp_user_email'],
       'membership_parent_order_id' => $membership['membership_parent_order_id'],
       'membership_product_id' => $membership['membership_product_id'],
+      'membership_subscription_id' => $membership['membership_subscription_id'],
     ];
     if( $membership['membership_type'] == 'organization') {
       $org_data = Helper::get_org_data( $membership['organization_uuid'] );

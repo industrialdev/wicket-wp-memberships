@@ -772,6 +772,15 @@ class Membership_Post_Types {
 
     $args = array(
       'type'              => 'string',
+      'description'       => __( 'Subscription ID.', 'wicket-memberships' ),
+      'single'            => true,
+      'show_in_rest'      => true,
+    );
+
+    register_post_meta($this->membership_cpt_slug, 'membership_subscription_id', $args);
+
+    $args = array(
+      'type'              => 'string',
       'description'       => __( 'Product ID.', 'wicket-memberships' ),
       'single'            => true,
       'show_in_rest'      => true,
