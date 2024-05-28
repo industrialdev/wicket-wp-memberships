@@ -427,7 +427,7 @@ class Membership_Controller {
         $path = '?page=wicket_org_member_edit&id=' . $membership['organization_uuid']; //PATH TO THE ORG EDIT PAGE
       } else {
         $user = get_user_by( 'id', $membership['membership_wp_user_id'] );    
-        $membership_person_uuid = $user->login;
+        $membership_person_uuid = $user->data->user_login;
         $path = '?page=wicket_individual_member_edit&id=' . $membership_person_uuid; //PATH TO THE PERSON EDIT PAGE
       }
       $member_page_link = admin_url( $path );
