@@ -423,13 +423,16 @@ class Membership_Controller {
       $self->update_membership_status( $membership['membership_post_id'], Wicket_Memberships::STATUS_PENDING);
       //send the approval email notification
       $email_address = $tier->get_approval_email();
-      $path = '/' . $membership['membership_wp_user_id']; //PATH TO THE MEMBERSHIP EDIT PAGE
+      if( !empty($membership['organization_uuid']) ) {
+        $path = '?page=wicket_org_member_edit&id=' . $membership['organization_uuid']; //PATH TO THE ORG EDIT PAGE
+      } else {
+        $user = get_user_by( 'id', $membership['membership_wp_user_id'] );    
+        $membership_person_uuid = $user->login;
+        $path = '?page=wicket_individual_member_edit&id=' . $membership_person_uuid; //PATH TO THE PERSON EDIT PAGE
+      }
       $member_page_link = admin_url( $path );
       send_approval_required_email( $email_address, $member_page_link );
-    }
-
-    //we are not pending approval so finish the membership setup
-    if( ! $tier->is_approval_required() ) {
+    } else {
       //set the scheduled tasks
       $self->scheduler_dates_for_expiry( $membership );
       //update subscription dates
