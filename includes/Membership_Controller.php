@@ -136,13 +136,12 @@ class Membership_Controller {
     if( !empty( $membership_post_id_renew ) ) {
       $membership_current = $self->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
     }
-    /*
+    
     if( !empty( $membership_current ) && $early_renewal_date = $config->is_valid_renewal_date( $membership_current ) ) {
       $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date)));
       $_SESSION['wicket_membership_error'] = $error_text;
       throw new \Exception( $error_text );
     }
-    */
   }
 
   /**

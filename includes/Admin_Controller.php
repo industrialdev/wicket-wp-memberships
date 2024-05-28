@@ -132,7 +132,7 @@ class Admin_Controller {
       //set the renewal scheduler dates
       $Membership_Controller->scheduler_dates_for_expiry( $membership );
       //update subscription dates
-      $Membership_Controller->update_membership_subscription( $membership, ['start_date', 'end_date'] );
+      $Membership_Controller->update_membership_subscription( $membership, ['start_date', 'end_date', 'next_payment_date'] );
       $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
       //set subscription active
       $Membership_Controller->update_subscription_status(
