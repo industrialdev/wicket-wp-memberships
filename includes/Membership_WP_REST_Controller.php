@@ -299,7 +299,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       $user_id = $params['user_id'];
     }
     $mc = new Membership_Controller();
-    $response = $mc->get_my_early_renewals( $user_id );
+    $response = $mc->get_membership_callouts( $user_id );
     return rest_ensure_response( $response );
   }
 

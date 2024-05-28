@@ -829,9 +829,10 @@ class Membership_Controller {
   /**
    * Get Memberships in Renewal Periods
    */
-   public function get_my_early_renewals( $user_id = null ) {
+   public function get_membership_callouts( $user_id = null ) {
     $early_renewal = [];
     $grace_period = [];
+    $pending_approval = [];
 
     //TODO: remove open lookup
     if( empty( $user_id ) ) {
@@ -857,6 +858,18 @@ class Membership_Controller {
     );
     $memberships = get_posts( $args );
     foreach( $memberships as &$membership) {
+
+      if ( $membership->membership_status == 'pending') {
+        $callout['callout_header'] = 'pending header';//$Membership_Config->get_late_fee_window_callout_header();
+        $callout['callout_content'] = 'pending content'; //$Membership_Config->get_late_fee_window_callout_content();
+        $callout['callout_button_label'] = 'pending button'; //$Membership_Config->get_late_fee_window_callout_button_label();
+        $pending_approval[]  =[
+          'membership' => $membership,
+          'callout' => $callout
+        ];
+        continue;   
+      }
+
       $meta_data = get_post_meta( $membership->ID );
       $membership->meta = array_map( function( $item ) {
         if( ! str_starts_with( key( (array) $item), '_' ) ) {
@@ -865,16 +878,33 @@ class Membership_Controller {
       }, $meta_data);
 
       $membership->data = $this->get_membership_array_from_user_meta_by_post_id( $membership->ID, $user_id );
+      $membership->next_tier = false;
+      $membership->form_page = false;
       
       $membership_early_renew_at = strtotime( $membership->membership_early_renew_at );
       $membership_ends_at = strtotime( $membership->membership_ends_at );
       $membership_expires_at = strtotime( $membership->membership_expires_at );
-      $current_time = current_time( 'timezone' ); //strtotime ( date( "Y-m-d") . '+18 days'); //debug
+      $current_time = current_time( 'timezone' );
+      $current_time =  strtotime ( date( "Y-m-d") . '+338 days'); //debug current_time( 'timezone' );
       $Membership_Tier = new Membership_Tier( $membership->data['membership_tier_post_id'] );
-      $next_tier = new Membership_Tier( $membership->data['membership_next_tier_id'] );
+
       $config_id = $Membership_Tier->get_config_id();
       $Membership_Config = new Membership_Config( $config_id );
-      $membership->next_tier = $next_tier->tier_data;
+
+      $next_tier_id = $Membership_Tier->get_next_tier_id();
+
+      if( !empty( $next_tier_id ) ) {
+        $next_tier = new Membership_Tier( $next_tier_id );
+        $membership->next_tier = $next_tier->tier_data;  
+      } else {
+        $page_id = $Membership_Tier->get_next_tier_form_page_id();
+        $membership->form_page = [
+          'title' => get_the_title( $page_id ),
+          'permalink' => get_permalink( $page_id ),
+          'page_id'=> $page_id,
+        ];
+      }
+
       if( $current_time >= $membership_early_renew_at && $current_time < $membership_ends_at ) {
         $callout['callout_header'] = $Membership_Config->get_renewal_window_callout_header();
         $callout['callout_content'] = $Membership_Config->get_renewal_window_callout_content();
@@ -893,7 +923,7 @@ class Membership_Controller {
         ];
       }
     }
-    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period];
+    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval];
   }
 
   public function get_members_list_group_by_filter($groupby){
