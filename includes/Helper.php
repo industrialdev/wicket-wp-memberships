@@ -7,12 +7,12 @@ defined( 'ABSPATH' ) || exit;
 class Helper {
 
   public function __construct() {  
-    if( !empty( $_ENV['WICKET_SHOW_ORDER_DEBUG_DATA'] ) ) {
+    if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
       // INJECT MEMBERSHIP META DATA into order and subscription and member pages -- org_id on checkout page
       add_action( 'woocommerce_admin_order_data_after_shipping_address', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
       add_action( 'wcs_subscription_details_table_before_dates', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
     }
-    if( !empty( $_ENV['WICKET_SHOW_MEMBERSHIP_DEBUG_DATA'] ) ) {
+    if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
       // INJECT MEMBERSHIP META DATA into membership pages
       add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
       //add_action( 'add_meta_boxes', [$this, 'action_buttons_add_meta_boxes'] );
@@ -251,14 +251,21 @@ class Helper {
     }
   }
 
-  public static function get_org_data( $org_uuid ) {
+  public static function get_org_data( $org_uuid, $bypass_lookup = false ) {
     $org_data = json_decode( get_option( 'org_data_'. $org_uuid ), true);
+    if(empty( $org_data ) && $bypass_lookup ) {
+      return ['name' => '', 'location' => ''];
+    }
     if( empty( $org_data['data']['attributes']['alternate_name'] )) {
       self::store_an_organizations_data_in_options_table($org_uuid);
     }
-    $data['location'] = $org_data['included'][0]['attributes']['city'] . ', ';
-    $data['location'] .= $org_data['included'][0]['attributes']['state_name'] . ', ';
-    $data['location'] .= $org_data['included'][0]['attributes']['country_code'];
+    if( ! empty( $org_data['included'][0]['attributes']['city'] ) ) {
+      $data['location'] = $org_data['included'][0]['attributes']['city'] . ', ';
+      $data['location'] .= $org_data['included'][0]['attributes']['state_name'] . ', ';
+      $data['location'] .= $org_data['included'][0]['attributes']['country_code'];  
+    } else {
+      $data['location'] = '';
+    }
     $data['name'] = $org_data['data']['attributes']['alternate_name'];
     return $data;
   }

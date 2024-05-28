@@ -423,13 +423,16 @@ class Membership_Controller {
       $self->update_membership_status( $membership['membership_post_id'], Wicket_Memberships::STATUS_PENDING);
       //send the approval email notification
       $email_address = $tier->get_approval_email();
-      $path = '/' . $membership['membership_wp_user_id']; //PATH TO THE MEMBERSHIP EDIT PAGE
-      $member_page_link = admin_url( $path );
+      if( !empty($membership['organization_uuid']) ) {
+        $path = 'admin.php?page=wicket_org_member_edit&id=' . $membership['organization_uuid']; //PATH TO THE ORG EDIT PAGE
+      } else {
+        $user = get_user_by( 'id', $membership['membership_wp_user_id'] );    
+        $membership_person_uuid = $user->data->user_login;
+        $path = 'admin.php?page=wicket_individual_member_edit&id=' . $membership_person_uuid; //PATH TO THE PERSON EDIT PAGE
+      }
+      $member_page_link = '<a href="'.admin_url( $path ).'">'.admin_url( $path ).'</a>';
       send_approval_required_email( $email_address, $member_page_link );
-    }
-
-    //we are not pending approval so finish the membership setup
-    if( ! $tier->is_approval_required() ) {
+    } else {
       //set the scheduled tasks
       $self->scheduler_dates_for_expiry( $membership );
       //update subscription dates
@@ -627,6 +630,7 @@ class Membership_Controller {
       'user_email' => $membership['membership_wp_user_email'],
       'membership_parent_order_id' => $membership['membership_parent_order_id'],
       'membership_product_id' => $membership['membership_product_id'],
+      'membership_subscription_id' => $membership['membership_subscription_id'],
     ];
     if( $membership['membership_type'] == 'organization') {
       $org_data = Helper::get_org_data( $membership['organization_uuid'] );
@@ -995,6 +999,7 @@ class Membership_Controller {
       );  
       $tier->meta = $tier_new_meta;
         $user = get_userdata( $user_id );
+        unset( $user->user_pass );
         $tier->user = $user->data;
         if( $type != 'organization' ) {
           $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/people/'.$user->data->user_login;
@@ -1094,14 +1099,16 @@ class Membership_Controller {
     if(! is_array( $properties ) ) {
       $properties = [];
     }
-    $allorgs = wicket_get_organizations();
-    $all_orgs = array_reduce($allorgs['data'], function($acc, $item) {
-      $acc[$item['id']] = $item;
-      return $acc;
-    }, []);
+
     if(! is_array( $org_uuids ) ) {
+      $allorgs = wicket_get_organizations();
+      $all_orgs = array_reduce($allorgs['data'], function($acc, $item) {
+        $acc[$item['id']] = $item;
+        return $acc;
+      }, []);
       $org_uuids = array_keys($all_orgs);
     }
+
     if( in_array( 'count', $properties ) ) {
       $args = array(
         'post_type' => $self->membership_cpt_slug,
@@ -1128,11 +1135,24 @@ class Membership_Controller {
         }, $org_meta);
       }  
     }
+
+    if( in_array('location', $properties ) ) {
+      foreach ($org_uuids as $org_uuid) {
+        $org_data[ $org_uuid ] = Helper::get_org_data( $org_uuid, true );
+        if( empty( $allorgs )) {
+          $all_orgs[ $org_uuid ]['attributes']['alternate_name'] = $org_data[ $org_uuid ][ 'name' ];
+        }
+      }
+    }
+
     foreach( $orgs->posts as $org ) {
       $mship_org_array[ $org->meta['org_uuid'] ]['name']  = $all_orgs[ $org->meta['org_uuid'] ]['attributes']['alternate_name'];
       if( in_array( 'count', $properties ) ) {
         $mship_orgs[$org->meta['org_uuid']] = $mship_orgs[$org->meta['org_uuid']] + 1;
         $mship_org_array[ $org->meta['org_uuid'] ]['count'] = $mship_orgs[ $org->meta['org_uuid']];
+      }
+      if(!empty( $org_data[ $org->meta['org_uuid'] ] )) {
+        $mship_org_array[ $org->meta['org_uuid'] ]['location'] = $org_data[ $org_uuid ]['location'];
       }
     }
     foreach( $all_orgs as $key => $org_item ) {
@@ -1140,6 +1160,9 @@ class Membership_Controller {
         $mship_org_array[ $key ]['name'] = $org_item['attributes']['alternate_name'];
         if( in_array( 'count', $properties ) ) {
           $mship_org_array[ $key ]['count'] = 0;
+        }
+        if(!empty( $org_data[ $key ] )) {
+          $mship_org_array[ $key ]['location'] = $org_data[ $key ]['location'];
         }
       }
     }

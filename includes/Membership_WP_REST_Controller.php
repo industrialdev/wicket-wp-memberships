@@ -352,7 +352,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
 
   public function get_org_data(  \WP_REST_Request $request  ) {
     $params = $request->get_params();
-    $org_data = Helper::get_org_data( $params['org_uuid'] );
+    $org_data = Helper::get_org_data( $params['org_uuid'], true );
     //$org_data = get_option( 'org_data_' . $params['org_uuid'] );
     return rest_ensure_response( $org_data );
   }
