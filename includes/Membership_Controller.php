@@ -499,26 +499,33 @@ class Membership_Controller {
     }
     $starts_at = '';
     $ends_at = '';
+    $grace_period_days = false;
 
     if( ! empty( $meta_data['membership_starts_at'] ) ) {
       $starts_at = $meta_data['membership_starts_at'];
     }
 
     if( ! empty( $meta_data['membership_ends_at'] ) ) {
-      $ends_at = $meta_data['end_date'];
+      $ends_at = $meta_data['membership_ends_at'];
+    }
+
+    if( ! empty( $meta_data['grace_period_days'] ) ) {
+      $grace_period_days = $meta_data['grace_period_days'];
     }
 
     if( $membership['membership_type'] == 'individual' ) {
       $response = wicket_update_individual_membership_dates( 
         $membership['membership_wicket_uuid'], 
         $starts_at,
-        $ends_at
+        $ends_at,
+        $grace_period_days
       );  
     } else {
       $response = wicket_update_organization_membership_dates(
         $membership['membership_wicket_uuid'], 
         $starts_at,
-        $ends_at
+        $ends_at,
+        $grace_period_days
       );  
     }
     if( is_wp_error( $response ) ) {

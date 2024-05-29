@@ -339,9 +339,14 @@ class Admin_Controller {
       $response_code = 400;
       return new \WP_REST_Response($response_array, $response_code);
     } else {
+      $membership_ends_at_seconds = strtotime( $data[ 'membership_ends_at' ] );
+      $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
+      $grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
+
       $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_starts_at' ] )), wp_timezone() ))->format('c');
-      $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_ends_at' ] )), wp_timezone() ))->format('c');
-      $data[ 'membership_expires_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_expires_at' ] )), wp_timezone() ))->format('c');
+      $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", $membership_ends_at_seconds ), wp_timezone() ))->format('c');
+      $data[ 'membership_expires_at' ]  = (new \DateTime( date("Y-m-d", $membership_expires_at_seconds ), wp_timezone() ))->format('c');
+      $data[ 'grace_period_days' ] = $grace_period_days; 
     }
 
     if ( Helper::is_valid_membership_post( $membership_post_id ) ) {
