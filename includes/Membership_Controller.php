@@ -425,7 +425,7 @@ class Membership_Controller {
       if( !empty($membership['organization_uuid']) ) {
         $path = 'admin.php?page=wicket_org_member_edit&id=' . $membership['organization_uuid']; //PATH TO THE ORG EDIT PAGE
       } else {
-        $user = get_user_by( 'id', $membership['membership_wp_user_id'] );    
+        $user = get_user_by( 'id', $membership['user_id'] );    
         $membership_person_uuid = $user->data->user_login;
         $path = 'admin.php?page=wicket_individual_member_edit&id=' . $membership_person_uuid; //PATH TO THE PERSON EDIT PAGE
       }

@@ -112,12 +112,14 @@ class Admin_Controller {
       ];
       $membership = array_merge( $membership_new, $meta_data );
 
-      $user = get_user_by( 'id', $membership['membership_wp_user_id'] );
+      $user = get_user_by( 'id', $membership['user_id'] );
       $membership['person_uuid'] = $user->data->user_login;
 
       //create the mdp record we skipped before
       if( empty( $membership['membership_wicket_uuid'] ) ) {
-        $membership['membership_wicket_uuid'] = $meta_data['membership_wicket_uuid'] = $Membership_Controller->create_mdp_record( $membership );
+        $membership_data = $membership;
+        $membership_data['membership_grace_period_days'] = $config->get_late_fee_window_days();
+        $membership['membership_wicket_uuid'] = $meta_data['membership_wicket_uuid'] = $Membership_Controller->create_mdp_record( $membership_data );
       } else {
         $Membership_Controller->update_mdp_record( $membership, $meta_data );
       }
@@ -125,7 +127,7 @@ class Admin_Controller {
         $meta_data['membership_wicket_uuid'] = $membership['membership_wicket_uuid'];
       }
       //update the membership post
-      $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( json_encode($membership) );
+      $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( $membership, false);
       $response = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post_meta_data );
       $Membership_Controller->amend_membership_json( $membership_post_id, $meta_data );
 
@@ -207,6 +209,10 @@ class Admin_Controller {
     //update membership dates in MDP
     if( !empty( $updated ) && ! $Membership_Controller->bypass_wicket ) {
       $response = $Membership_Controller->update_mdp_record( $membership_new, $meta_data );
+      if ( strstr( $response['error'], '404 Not Found') !== false && ! empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
+        $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
+        return new \WP_REST_Response(['success' => 'Status Changed. NOTE: No mdp record exists for this membership.'], 200);
+      }
       if( empty ( $response['error'] ) ) {
         $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
         $response_array['success'] = 'Status was updated successfully.';

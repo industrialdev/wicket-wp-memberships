@@ -194,11 +194,17 @@ class Helper {
     }
     $mapping_keys = [
        'membership_wp_user_display_name' => 'user_name',
+       'user_name' => 'membership_wp_user_display_name',
        'membership_wp_user_email' => 'user_email',
+       'user_email' => 'membership_wp_user_email',
        'organization_name' => 'org_name',
+       'org_name' => 'organization_name',
        'organization_location' => 'org_location',
+       'org_location' => 'organization_location',
        'organization_uuid' => 'org_uuid',
+       'org_uuid' => 'organization_uuid',
        'membership_seats' => 'org_seats',
+       'org_seats' => 'membership_seats',
     ];
     array_walk(
       $membership_array,
@@ -206,9 +212,10 @@ class Helper {
       {
         $new_key = $mapping_keys[$key];
         if( empty($new_key) ) {
-          return;
+          $membership_post_data[$key] = $val;
+        } else {
+          $membership_post_data[$new_key] = $val;
         }
-        $membership_post_data[$new_key] = $val;
       }
     );  
     return $membership_post_data;
