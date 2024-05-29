@@ -258,14 +258,17 @@ class Helper {
     }
   }
 
-  public static function get_org_data( $org_uuid, $bypass_lookup = false ) {
+  public static function get_org_data( $org_uuid, $bypass_lookup = false, $force_lookup = false ) {
     $org_data = json_decode( get_option( 'org_data_'. $org_uuid ), true);
     if(empty( $org_data ) && $bypass_lookup ) {
       return ['name' => '', 'location' => ''];
     }
-    if( empty( $org_data['data']['attributes']['alternate_name'] )) {
-      self::store_an_organizations_data_in_options_table($org_uuid);
+
+    //var_dump($org_data);exit;
+    if( empty( $org_data['data']['attributes']['alternate_name'] ) || $force_lookup) {
+      $org_data = self::store_an_organizations_data_in_options_table($org_uuid, $force_lookup);
     }
+
     if( ! empty( $org_data['included'][0]['attributes']['city'] ) ) {
       $data['location'] = $org_data['included'][0]['attributes']['city'] . ', ';
       $data['location'] .= $org_data['included'][0]['attributes']['state_name'] . ', ';
@@ -277,11 +280,12 @@ class Helper {
     return $data;
   }
 
-  public static function store_an_organizations_data_in_options_table($org_uuid) {
-    if( !($org_data = get_option('org_data_'.  $org_uuid)) ) {
+  public static function store_an_organizations_data_in_options_table($org_uuid, $force_update = false ) {
+    if( !($org_data = get_option('org_data_'.  $org_uuid)) || $force_update) {
       $org_data = wicket_get_organization($org_uuid, 'addresses' );
       add_option('org_data_'.$org_uuid, json_encode( $org_data) );
     }
+    return $org_data;
   }
 
 

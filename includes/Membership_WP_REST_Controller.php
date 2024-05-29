@@ -215,6 +215,16 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       'schema' => array( $this, '' ),
     ) );
 
+    // available status options for change status drop-down
+    register_rest_route( $this->namespace, '/admin/get_edit_page_info', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_edit_page_info' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      'schema' => array( $this, '' ),
+    ) );
+
     // test endpoint
     register_rest_route( $this->namespace, '/subscription/(?P<id>\d+)/modify', array(
       array(
@@ -271,6 +281,12 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
   public function get_membership_entity( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $response = Admin_Controller::get_membership_entity_records( $params['entity_id'] );
+    return rest_ensure_response( $response );
+  }
+
+  public function get_edit_page_info( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Admin_Controller::get_edit_page_info( $params['entity_id'] );
     return rest_ensure_response( $response );
   }
 

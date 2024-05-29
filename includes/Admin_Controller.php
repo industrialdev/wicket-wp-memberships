@@ -229,6 +229,29 @@ class Admin_Controller {
     }
   }
 
+  public static function get_edit_page_info( $id ) {
+    $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] );
+    if( is_numeric( $id ) ) {
+      $user = get_user_by( 'id', $id );
+      $person_uuid = $user->user_login;
+      $response = wicket_get_person_by_id( $person_uuid );
+      return [
+        'identifying_number' => $response->getAttribute('identifying_number'),
+        'data' => $response->getAttribute('user')['email'],
+        'mdp_link' => $wicket_settings['wicket_admin'] . '/people/' . $person_uuid
+      ];  
+    } else if(preg_match('/^[a-f\d]{8}(-[a-f\d]{4}){4}[a-f\d]{8}$/i', $id)) {
+      $response = wicket_get_organization( $id );
+      $org_data = Helper::get_org_data( $id, false, true );
+      return [
+        'identifying_number' => $response['data']['attributes']['identifying_number'],
+        'data' => $org_data['location'],
+        'mdp_link' => $wicket_settings['wicket_admin'] . '/organizations/' . $id
+      ];  
+    }
+
+  }
+
   public static function get_membership_entity_records( $id ) {
     $self = new self();
     $statuses = Helper::get_all_status_names();
