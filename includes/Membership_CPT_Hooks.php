@@ -57,10 +57,14 @@ class Membership_CPT_Hooks {
   function render_edit_individual_member_page() {
     $record_id = isset( $_GET['id'] ) ? $_GET['id'] : '';
 
+    // Since we use UUID we need to pass the WP user id to the react component
+    $user = get_user_by( 'login', $record_id );
+    $local_user_id = $user === false ? '' : $user->ID;
+
     echo <<<HTML
       <div
         id="edit_member"
-        data-record-id="{$record_id}"
+        data-record-id="{$local_user_id}"
         data-member-type="individual""></div>
     HTML;
   }
