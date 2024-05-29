@@ -42387,7 +42387,8 @@ const RecordTopInfo = styled_components__WEBPACK_IMPORTED_MODULE_9__["default"].
 `;
 const MemberEdit = ({
   memberType,
-  recordId
+  recordId,
+  membershipUuid
 }) => {
   const [isLoading, setIsLoading] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(true);
   const [memberships, setMemberships] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
@@ -42457,6 +42458,11 @@ const MemberEdit = ({
       // add addtional properties to each membership
       response.forEach(membership => {
         membership.showRow = false;
+
+        // if membershipUuid exists, set showRow to true
+        if (membershipUuid && membership.data.membership_wicket_uuid == membershipUuid) {
+          membership.showRow = true;
+        }
         membership.updatingNow = false;
         membership.updateResult = '';
       });

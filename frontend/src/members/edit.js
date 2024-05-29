@@ -76,7 +76,7 @@ const RecordTopInfo = styled.div`
   font-size: 14px;
 `;
 
-const MemberEdit = ({ memberType, recordId }) => {
+const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -161,6 +161,12 @@ const MemberEdit = ({ memberType, recordId }) => {
         // add addtional properties to each membership
         response.forEach((membership) => {
           membership.showRow = false;
+
+          // if membershipUuid exists, set showRow to true
+          if ( membershipUuid && membership.data.membership_wicket_uuid == membershipUuid ) {
+            membership.showRow = true;
+          }
+
           membership.updatingNow = false;
           membership.updateResult = '';
         });

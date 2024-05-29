@@ -56,6 +56,7 @@ class Membership_CPT_Hooks {
 
   function render_edit_individual_member_page() {
     $record_id = isset( $_GET['id'] ) ? $_GET['id'] : '';
+    $membership_uuid = isset( $_GET['membership_uuid'] ) ? $_GET['membership_uuid'] : '';
 
     // Since we use UUID we need to pass the WP user id to the react component
     $user = get_user_by( 'login', $record_id );
@@ -65,18 +66,21 @@ class Membership_CPT_Hooks {
       <div
         id="edit_member"
         data-record-id="{$local_user_id}"
-        data-member-type="individual""></div>
+        data-membership-uuid="{$membership_uuid}"
+        data-member-type="individual"></div>
     HTML;
   }
 
   function render_edit_org_member_page() {
     $record_id = isset( $_GET['id'] ) ? $_GET['id'] : '';
+    $membership_uuid = isset( $_GET['membership_uuid'] ) ? $_GET['membership_uuid'] : '';
 
     echo <<<HTML
       <div
         id="edit_member"
         data-record-id="{$record_id}"
-        data-member-type="organization""></div>
+        data-membership-uuid="{$membership_uuid}"
+        data-member-type="organization"></div>
     HTML;
   }
 
