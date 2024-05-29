@@ -130,6 +130,17 @@ const MemberEdit = ({ memberType, recordId }) => {
       .then((response) => {
         if (response.success) {
           closeManageStatusModalOpen();
+
+          // update status for this membership
+          setMemberships(
+            memberships.map((m) => {
+              if (m.ID == manageStatusFormData.postId) {
+                m.data.membership_status = manageStatusFormData.newStatus;
+              }
+              return m;
+            })
+          );
+
         } else {
           console.log(response);
           setManageStatusErrors([response.error]);

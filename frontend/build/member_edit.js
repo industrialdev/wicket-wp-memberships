@@ -42433,6 +42433,14 @@ const MemberEdit = ({
     (0,_services_api__WEBPACK_IMPORTED_MODULE_6__.updateMembershipStatus)(manageStatusFormData.postId, manageStatusFormData.newStatus).then(response => {
       if (response.success) {
         closeManageStatusModalOpen();
+
+        // update status for this membership
+        setMemberships(memberships.map(m => {
+          if (m.ID == manageStatusFormData.postId) {
+            m.data.membership_status = manageStatusFormData.newStatus;
+          }
+          return m;
+        }));
       } else {
         console.log(response);
         setManageStatusErrors([response.error]);
