@@ -168,7 +168,7 @@ class Membership_Controller {
               }
               //TODO: do renewal memberships start on current date or end date of previous membership - current is end_date last membersrship
               $dates = $config->get_membership_dates( $membership_current );
-              $user_object = wp_get_current_user();
+              $user_object = get_user_by( 'id', $order->get_user_id() );
               $membership = [
                 'membership_parent_order_id' => $order_id,
                 'membership_subscription_id' => $subscription_id,
@@ -224,8 +224,8 @@ class Membership_Controller {
    * @param integer $membership_post_id
    * @return array
    */
-  public static function get_membership_array_from_user_meta_by_post_id( $membership_post_id, $user_id = 0 ) {
-    if( !$user_id ) {
+  public static function get_membership_array_from_user_meta_by_post_id( $membership_post_id, $user_id = null ) {
+    if( empty( $user_id ) ) {
       $user_id = get_current_user_id();
     }
     $customer_meta = get_user_meta( $user_id, '_wicket_membership_' . $membership_post_id, true ); 
