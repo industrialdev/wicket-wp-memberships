@@ -31,7 +31,9 @@ class Membership_Controller {
 
     //Get onboarding data on add cart item
     add_filter( 'woocommerce_add_cart_item_data', [$this, 'add_cart_item_data'], 25, 2 );
-    add_filter( 'woocommerce_get_item_data', [$this, 'get_item_data'] , 25, 2 ); //exposes in cart and checkout
+    if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
+      add_filter( 'woocommerce_get_item_data', [$this, 'get_item_data'] , 25, 2 ); //exposes in cart and checkout
+    }
     add_action( 'woocommerce_add_order_item_meta', [$this, 'add_order_item_meta'] , 10, 2);
     add_action( 'woocommerce_before_add_to_cart_button', [$this, 'product_add_on'], 9 ); //collects org data in cart
   }
@@ -39,17 +41,14 @@ class Membership_Controller {
   //COLLECT CART ITEM FIELDS ON ADD TO CART
   function product_add_on() {
       //change to hidden fields and remove 'woocommerce_get_item_data' filter to hide data
-      $value = isset( $_REQUEST['org_name'] ) ? sanitize_text_field( $_REQUEST['org_name'] ) : '';
-      echo '<div><label>org_name</label><p><input type="text" name="org_name" value="' . $value . '"></p></div>';
       $value = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field( $_REQUEST['org_uuid'] ) : '';
       echo '<div><label>org_uuid</label><p><input type="text" name="org_uuid" value="' . $value . '"></p></div>';
-      $value = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field( $_REQUEST['membership_post_id_renew'] ) : '';
+      $value = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field( $_REQUEST['membership_post_id_renew'] ) : '';
       echo '<div><label>membership_post_id_renew</label><p><input type="text" name="membership_post_id_renew" value="' . $value . '"></p></div>';
   }
 
   function add_cart_item_data( $cart_item_meta, $product_id ) {
-      if ( isset( $_REQUEST ['org_name'] ) && isset( $_REQUEST ['org_uuid'] ) ) {
-          $org_data[ 'org_name' ] = isset( $_REQUEST['org_name'] ) ?  sanitize_text_field ( $_REQUEST['org_name'] ) : "" ;
+      if ( isset( $_REQUEST ['org_uuid'] ) ) {
           $org_data[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
           $org_data[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
           $cart_item_meta['org_data'] = $org_data ;
@@ -60,7 +59,6 @@ class Membership_Controller {
   function get_item_data ( $other_data, $cart_item ) {
       if ( isset( $cart_item [ 'org_data' ] ) ) {
           $org_data  = $cart_item [ 'org_data' ];
-          $data[] = array( 'name' => 'Org Name', 'display'  => $org_data['org_name'] );
           $data[] = array( 'name' => 'Org UUID', 'display'  => $org_data['org_uuid'] );
           $data[] = array( 'name' => 'Renew Membership Post ID', 'display'  => $org_data['membership_post_id_renew'] );
       }
@@ -70,7 +68,6 @@ class Membership_Controller {
   function add_order_item_meta ( $item_id, $values ) {
       if ( isset( $values [ 'org_data' ] ) ) {
           $custom_data  = $values [ 'org_data' ];
-          wc_add_order_item_meta( $item_id, '_org_name', $custom_data['org_name'] );
           wc_add_order_item_meta( $item_id, '_org_uuid', $custom_data['org_uuid'] );
           wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $custom_data['membership_post_id_renew'] );
       }
