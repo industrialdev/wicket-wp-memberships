@@ -6,7 +6,7 @@ import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyl
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
-import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus } from '../services/api';
+import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo } from '../services/api';
 import he from 'he';
 import moment from 'moment';
 
@@ -80,6 +80,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
   const [isLoading, setIsLoading] = useState(true);
 
+  const [memberInfo, setMemberInfo] = useState(null);
   const [memberships, setMemberships] = useState([]);
   const [tiers, setTiers] = useState([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
@@ -207,6 +208,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   }
 
   useEffect(() => {
+    getMemberInfo();
     getMemberships();
     getTiers();
   }, []);
@@ -285,6 +287,17 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     );
   }
 
+  const getMemberInfo = () => {
+    fetchMemberInfo(recordId)
+      .then((response) => {
+        console.log(response);
+        setMemberInfo(response);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }
+
   // get org name
   const getOrgName = () => {
     if (memberType !== 'organization' || memberships.length === 0 ) {
@@ -294,15 +307,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     return memberships[0].data.org_name;
   }
 
-  // get org location
-  const getOrgLocation = () => {
-    if (memberType !== 'organization' || memberships.length === 0 ) {
-      return '';
-    }
-
-    return memberships[0].data.org_location;
-  }
-
   // get individual user name
   const getIndividualName = () => {
     if (memberType !== 'individual' || memberships.length === 0 ) {
@@ -310,33 +314,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     }
 
     return memberships[0].data.user_name;
-  }
-
-  // get individual email
-  const getIndividualEmail = () => {
-    if (memberType !== 'individual' || memberships.length === 0 ) {
-      return '';
-    }
-
-    return memberships[0].data.user_email;
-  }
-
-  // get individual id
-  const getIndividualId = () => {
-    if (memberType !== 'individual' || memberships.length === 0 ) {
-      return '';
-    }
-
-    return memberships[0].data.user_id;
-  }
-
-  // get org uuid
-  const getOrgUuid = () => {
-    if (memberType !== 'organization' || memberships.length === 0 ) {
-      return '';
-    }
-
-    return memberships[0].data.org_uuid;
   }
 
   // get Unassigned seats count
@@ -383,9 +360,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 </Heading>
               </FlexBlock>
               <FlexItem>
-                <CustomDisabled>
+                <CustomDisabled
+                  isDisabled={memberInfo === null}
+                >
                   <Button
                     variant='primary'
+                    href={memberInfo === null ? '' : memberInfo.mdp_link}
+                    target='_blank'
                   >
                     <Icon icon='external' />&nbsp;
                     {__('View in MDP', 'wicket-memberships')}
@@ -406,20 +387,20 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 {memberType === 'individual' &&
                   <>
                     <FlexItem>
-                      <strong>{__('Email:', 'wicket-memberships')}</strong> {getIndividualEmail()}
+                      <strong>{__('Email:', 'wicket-memberships')}</strong> {memberInfo === null ? '-' : memberInfo.data}
                     </FlexItem>
                     <FlexItem>
-                      <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> {getIndividualId()}
+                      <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> {memberInfo === null ? '-' : memberInfo.identifying_number}
                     </FlexItem>
                   </>
                 }
                 {memberType === 'organization' &&
                   <>
                     <FlexItem>
-                      <strong>{__('Location:', 'wicket-memberships')}</strong> {getOrgLocation()}
+                      <strong>{__('Location:', 'wicket-memberships')}</strong> {memberInfo === null ? '-' : memberInfo.data}
                     </FlexItem>
                     <FlexItem>
-                      <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> {getOrgUuid()}
+                      <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> {memberInfo === null ? '-' : memberInfo.identifying_number}
                     </FlexItem>
                   </>
                 }

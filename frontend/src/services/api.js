@@ -48,6 +48,17 @@ export const fetchMemberships = (recordId = null) => {
 }
 
 /**
+ * Fetch Member Info
+ */
+export const fetchMemberInfo = (recordId = null) => {
+  if (recordId === null) { return; }
+
+  return apiFetch({
+    path: addQueryArgs(`${PLUGIN_API_URL}/admin/get_edit_page_info`, { entity_id: recordId })
+  });
+}
+
+/**
  * Fetch Available Membership Statuses for a Membership Post
  */
 export const fetchMembershipStatuses = (postId = null) => {

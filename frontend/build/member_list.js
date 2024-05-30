@@ -30,6 +30,7 @@ const DEFAULT_DATE_FORMAT = 'yyyy-MM-dd';
 
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   fetchMemberInfo: () => (/* binding */ fetchMemberInfo),
 /* harmony export */   fetchMembers: () => (/* binding */ fetchMembers),
 /* harmony export */   fetchMembershipFilters: () => (/* binding */ fetchMembershipFilters),
 /* harmony export */   fetchMembershipStatuses: () => (/* binding */ fetchMembershipStatuses),
@@ -93,6 +94,20 @@ const fetchMemberships = (recordId = null) => {
   }
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_entity`, {
+      entity_id: recordId
+    })
+  });
+};
+
+/**
+ * Fetch Member Info
+ */
+const fetchMemberInfo = (recordId = null) => {
+  if (recordId === null) {
+    return;
+  }
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/admin/get_edit_page_info`, {
       entity_id: recordId
     })
   });
