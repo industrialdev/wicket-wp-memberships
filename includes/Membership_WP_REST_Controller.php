@@ -186,10 +186,10 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
      * Get memberships early renewal and grace periods by user_id
      */
     // params = user_id
-    register_rest_route( $this->namespace, '/memberships_expiring(?:/(?P<user_id>\d+))?', array(
+    register_rest_route( $this->namespace, '/get_membership_callouts(?:/(?P<user_id>\d+))?', array(
       array(
         'methods'  => \WP_REST_Server::READABLE,
-        'callback'  => array( $this, 'get_memberships_expiring' ),
+        'callback'  => array( $this, 'get_membership_callouts' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
       'schema' => array( $this, '' ),
@@ -308,7 +308,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     return rest_ensure_response( $response );
   }
 
-  public function get_memberships_expiring( \WP_REST_Request $request ) {
+  public function get_membership_callouts( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $user_id = null;
     if( !empty( $params['user_id'] )) {
