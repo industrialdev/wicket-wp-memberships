@@ -442,14 +442,16 @@ class Membership_Controller {
    */
 
    public function update_subscription_status( $membership_subscription_id, $status, $note = '' ) {
-    $sub = wcs_get_subscription( $membership_subscription_id );
-    if(! empty($sub)) {
-      try {
-        $sub->update_status( $status, $note );
-      } catch (\Exception $e) {
-        $sub->update_status( 'active', 'Subscription temporarily set active.' );
-        $sub->update_status( $status, $note );
-      }  
+    if( function_exists( 'wcs_get_subscription' )) {
+      $sub = wcs_get_subscription( $membership_subscription_id );
+      if(! empty($sub)) {
+        try {
+          $sub->update_status( $status, $note );
+        } catch (\Exception $e) {
+          $sub->update_status( 'active', 'Subscription temporarily set active.' );
+          $sub->update_status( $status, $note );
+        }  
+      }
     }
   }
 
@@ -468,21 +470,23 @@ class Membership_Controller {
    * Update the subscription
    */
   public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ] ) {
-    $start_date   = $membership['membership_starts_at'];
-    $end_date     = $membership['membership_ends_at'];
-    $expire_date  = $membership['membership_expires_at'];
-    if( in_array ( 'start_date', $fields ) ) {
-      $dates_to_update['start_date']    = date('Y-m-d H:i:s', strtotime( substr($start_date,0,10)." 00:00:00"));
-    }
-    if( in_array ( 'end_date', $fields ) ) {
-      $dates_to_update['end']           = date('Y-m-d H:i:s', strtotime( substr($expire_date,0,10)." 00:00:00" ));
-    }
-    if( in_array ( 'next_payment_date', $fields ) ) {
-      $dates_to_update['next_payment']  = date('Y-m-d H:i:s', strtotime( substr($end_date,0,10)." 00:00:00" ));
-    }
-    $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
-    if( !empty( $sub )) {
-      $sub->update_dates($dates_to_update);
+    if( function_exists( 'wcs_get_subscription' )) {
+      $start_date   = $membership['membership_starts_at'];
+      $end_date     = $membership['membership_ends_at'];
+      $expire_date  = $membership['membership_expires_at'];
+      if( in_array ( 'start_date', $fields ) ) {
+        $dates_to_update['start_date']    = date('Y-m-d H:i:s', strtotime( substr($start_date,0,10)." 00:00:00"));
+      }
+      if( in_array ( 'end_date', $fields ) ) {
+        $dates_to_update['end']           = date('Y-m-d H:i:s', strtotime( substr($expire_date,0,10)." 00:00:00" ));
+      }
+      if( in_array ( 'next_payment_date', $fields ) ) {
+        $dates_to_update['next_payment']  = date('Y-m-d H:i:s', strtotime( substr($end_date,0,10)." 00:00:00" ));
+      }
+      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+      if( !empty( $sub )) {
+        $sub->update_dates($dates_to_update);
+      }
     }
   }
 
