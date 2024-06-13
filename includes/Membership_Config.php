@@ -46,7 +46,7 @@ class Membership_Config {
    */
   public function get_renewal_window_callout_header() {
     if ( isset( $this->renewal_window_data['callout_header'] ) ) {
-      return sanitize_title( $this->renewal_window_data['callout_header'] );
+      return sanitize_text_field( $this->renewal_window_data['callout_header'] );
     }
 
     return false;
@@ -59,7 +59,7 @@ class Membership_Config {
    */
   public function get_renewal_window_callout_content() {
     if ( isset( $this->renewal_window_data['callout_content'] ) ) {
-      return sanitize_title( $this->renewal_window_data['callout_content'] );
+      return sanitize_text_field( $this->renewal_window_data['callout_content'] );
     }
 
     return false;
@@ -72,7 +72,7 @@ class Membership_Config {
    */
   public function get_renewal_window_callout_button_label() {
     if ( isset( $this->renewal_window_data['callout_button_label'] ) ) {
-      return sanitize_title( $this->renewal_window_data['callout_button_label'] );
+      return sanitize_text_field( $this->renewal_window_data['callout_button_label'] );
     }
 
     return false;
@@ -108,6 +108,20 @@ class Membership_Config {
     return false;
   }
 
+
+  /**
+   * Get the late fee window product_id
+   *
+   * @return int|bool Integer, false otherwise
+   */
+  public function get_late_fee_window_product_id() {
+    if ( isset( $this->late_fee_window_data['product_id'] ) ) {
+      return intval( $this->late_fee_window_data['product_id'] );
+    }
+
+    return false;
+  }
+
   /**
    * Get the late fee window days
    *
@@ -128,7 +142,7 @@ class Membership_Config {
    */
   public function get_late_fee_window_callout_header() {
     if ( isset( $this->late_fee_window_data['callout_header'] ) ) {
-      return sanitize_title( $this->late_fee_window_data['callout_header'] );
+      return sanitize_text_field( $this->late_fee_window_data['callout_header'] );
     }
 
     return false;
@@ -141,7 +155,7 @@ class Membership_Config {
    */
   public function get_late_fee_window_callout_content() {
     if ( isset( $this->late_fee_window_data['callout_content'] ) ) {
-      return sanitize_title( $this->late_fee_window_data['callout_content'] );
+      return sanitize_text_field( $this->late_fee_window_data['callout_content'] );
     }
 
     return false;
@@ -154,7 +168,7 @@ class Membership_Config {
    */
   public function get_late_fee_window_callout_button_label() {
     if ( isset( $this->late_fee_window_data['callout_button_label'] ) ) {
-      return sanitize_title( $this->late_fee_window_data['callout_button_label'] );
+      return sanitize_text_field( $this->late_fee_window_data['callout_button_label'] );
     }
 
     return false;

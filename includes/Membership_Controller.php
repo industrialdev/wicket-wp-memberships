@@ -927,7 +927,8 @@ class Membership_Controller {
         $callout['button_label'] = $Membership_Config->get_late_fee_window_callout_button_label();
         $grace_period[] = [
           'membership' => $membership_data,
-          'callout' => $callout
+          'callout' => $callout,
+          'late_fee_product_id' => $Membership_Config->get_late_fee_window_product_id()
         ];
       }
     }
@@ -1113,6 +1114,9 @@ class Membership_Controller {
     foreach( $tiers->posts as $tier ) {
       $mship_tier_array[ $tier->meta['membership_tier_uuid'] ]['name']  = $all_tiers[ $tier->meta['membership_tier_uuid'] ]['attributes']['name'];
       if( in_array( 'count', $properties ) ) {
+        if( ! isset( $mship_tiers[$tier->meta['membership_tier_uuid']] )) {
+          $mship_tiers[$tier->meta['membership_tier_uuid']] = 0;
+        }
         $mship_tiers[$tier->meta['membership_tier_uuid']] = $mship_tiers[$tier->meta['membership_tier_uuid']] + 1;
         $mship_tier_array[ $tier->meta['membership_tier_uuid'] ]['count'] = $mship_tiers[ $tier->meta['membership_tier_uuid']];
       }
@@ -1185,6 +1189,9 @@ class Membership_Controller {
     foreach( $orgs->posts as $org ) {
       $mship_org_array[ $org->meta['org_uuid'] ]['name']  = $all_orgs[ $org->meta['org_uuid'] ]['attributes']['alternate_name'];
       if( in_array( 'count', $properties ) ) {
+        if( !isset( $mship_orgs[$org->meta['org_uuid']] )) {
+          $mship_orgs[$org->meta['org_uuid']] = 0;
+        }
         $mship_orgs[$org->meta['org_uuid']] = $mship_orgs[$org->meta['org_uuid']] + 1;
         $mship_org_array[ $org->meta['org_uuid'] ]['count'] = $mship_orgs[ $org->meta['org_uuid']];
       }
