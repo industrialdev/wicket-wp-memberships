@@ -858,10 +858,18 @@ class Membership_Controller {
           'compare' => '='
         ),
         array(
-          'key'     => 'membership_status',
-          'value'   => Wicket_Memberships::STATUS_ACTIVE,
-          'compare' => '='
-        ),
+        'relation' => 'OR', 
+          array(
+            'key'     => 'membership_status',
+            'value'   => Wicket_Memberships::STATUS_ACTIVE,
+            'compare' => '='
+          ),
+          array(
+            'key'     => 'membership_status',
+            'value'   => Wicket_Memberships::STATUS_PENDING,
+            'compare' => '='
+          ),
+        )
       )
     );
     $memberships = get_posts( $args );
@@ -895,7 +903,9 @@ class Membership_Controller {
       $membership_ends_at = strtotime( $membership->membership_ends_at );
       $membership_expires_at = strtotime( $membership->membership_expires_at );
       $current_time = current_time( 'timezone' );
-      $current_time =  strtotime ( date( "Y-m-d") . '+338 days'); //debug current_time( 'timezone' );
+      if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) && !empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
+        $current_time =  strtotime ( date( "Y-m-d") . '+' . $_REQUEST['wicket_wp_membership_debug_days'] . ' days');
+      }
       $Membership_Tier = new Membership_Tier( $membership_json_data['membership_tier_post_id'] );
 
       $config_id = $Membership_Tier->get_config_id();
