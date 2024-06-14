@@ -678,10 +678,10 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       showMonthDropdown
                                       showYearDropdown
                                       dropdownMode="select"
-                                      selected={ moment(membership.data.membership_starts_at).format('YYYY-MM-DD') }
+                                      selected={ moment.utc(membership.data.membership_starts_at).format('YYYY-MM-DD') }
                                       onChange={(value) => {
                                         console.log(value);
-                                        handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment(value).format('YYYY-MM-DD'));
+                                        handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment.utc(value).format('YYYY-MM-DD'));
                                       }}
                                     />
                                   </ReactDatePickerStyledWrap>
@@ -698,9 +698,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       showMonthDropdown
                                       showYearDropdown
                                       dropdownMode="select"
-                                      selected={ moment(membership.data.membership_ends_at).format('YYYY-MM-DD') }
+                                      selected={ moment.utc(membership.data.membership_ends_at).format('YYYY-MM-DD') }
                                       onChange={(value) => {
-                                        handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment(value).format('YYYY-MM-DD'));
+                                        handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment.utc(value).format('YYYY-MM-DD'));
                                       }}
                                     />
                                   </ReactDatePickerStyledWrap>
@@ -719,9 +719,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       showMonthDropdown
                                       showYearDropdown
                                       dropdownMode="select"
-                                      selected={ moment(membership.data.membership_expires_at).format('YYYY-MM-DD') }
+                                      selected={ moment.utc(membership.data.membership_expires_at).format('YYYY-MM-DD') }
                                       onChange={(value) => {
-                                        handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment(value).format('YYYY-MM-DD'));
+                                        handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment.utc(value).format('YYYY-MM-DD'));
                                       }}
                                     />
                                   </ReactDatePickerStyledWrap>

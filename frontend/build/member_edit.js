@@ -42795,10 +42795,10 @@ const MemberEdit = ({
     showMonthDropdown: true,
     showYearDropdown: true,
     dropdownMode: "select",
-    selected: moment__WEBPACK_IMPORTED_MODULE_8___default()(membership.data.membership_starts_at).format('YYYY-MM-DD'),
+    selected: moment__WEBPACK_IMPORTED_MODULE_8___default().utc(membership.data.membership_starts_at).format('YYYY-MM-DD'),
     onChange: value => {
       console.log(value);
-      handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment__WEBPACK_IMPORTED_MODULE_8___default()(value).format('YYYY-MM-DD'));
+      handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment__WEBPACK_IMPORTED_MODULE_8___default().utc(value).format('YYYY-MM-DD'));
     }
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.LabelWpStyled, {
     htmlFor: "mdp_tier"
@@ -42809,9 +42809,9 @@ const MemberEdit = ({
     showMonthDropdown: true,
     showYearDropdown: true,
     dropdownMode: "select",
-    selected: moment__WEBPACK_IMPORTED_MODULE_8___default()(membership.data.membership_ends_at).format('YYYY-MM-DD'),
+    selected: moment__WEBPACK_IMPORTED_MODULE_8___default().utc(membership.data.membership_ends_at).format('YYYY-MM-DD'),
     onChange: value => {
-      handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment__WEBPACK_IMPORTED_MODULE_8___default()(value).format('YYYY-MM-DD'));
+      handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment__WEBPACK_IMPORTED_MODULE_8___default().utc(value).format('YYYY-MM-DD'));
     }
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.LabelWpStyled, {
     htmlFor: "mdp_tier"
@@ -42822,9 +42822,9 @@ const MemberEdit = ({
     showMonthDropdown: true,
     showYearDropdown: true,
     dropdownMode: "select",
-    selected: moment__WEBPACK_IMPORTED_MODULE_8___default()(membership.data.membership_expires_at).format('YYYY-MM-DD'),
+    selected: moment__WEBPACK_IMPORTED_MODULE_8___default().utc(membership.data.membership_expires_at).format('YYYY-MM-DD'),
     onChange: value => {
-      handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment__WEBPACK_IMPORTED_MODULE_8___default()(value).format('YYYY-MM-DD'));
+      handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment__WEBPACK_IMPORTED_MODULE_8___default().utc(value).format('YYYY-MM-DD'));
     }
   })))), memberType === 'organization' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, {
     align: "start",

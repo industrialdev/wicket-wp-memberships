@@ -43081,14 +43081,14 @@ const CreateMembershipConfig = ({
     showMonthDropdown: true,
     showYearDropdown: true,
     dropdownMode: "select",
-    selected: tempSeason.start_date !== '' ? moment(tempSeason.start_date).format('YYYY-MM-DD') : null,
+    selected: tempSeason.start_date !== '' ? moment.utc(tempSeason.start_date).format('YYYY-MM-DD') : null,
     popperProps: {
       zIndex: 25
     },
     onChange: value => {
       setTempSeason({
         ...tempSeason,
-        start_date: moment(value).format('YYYY-MM-DD')
+        start_date: moment.utc(value).format('YYYY-MM-DD')
       });
     }
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
@@ -43100,14 +43100,14 @@ const CreateMembershipConfig = ({
     showMonthDropdown: true,
     showYearDropdown: true,
     dropdownMode: "select",
-    selected: tempSeason.end_date !== '' ? moment(tempSeason.end_date).format('YYYY-MM-DD') : null,
+    selected: tempSeason.end_date !== '' ? moment.utc(tempSeason.end_date).format('YYYY-MM-DD') : null,
     popperProps: {
       zIndex: 25
     },
     onChange: value => {
       setTempSeason({
         ...tempSeason,
-        end_date: moment(value).format('YYYY-MM-DD')
+        end_date: moment.utc(value).format('YYYY-MM-DD')
       });
     }
   })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
