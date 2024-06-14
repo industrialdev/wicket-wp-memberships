@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { TextControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon, __experimentalText as Text } from '@wordpress/components';
+import { TextControl, TextareaControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon, __experimentalText as Text } from '@wordpress/components';
 import styled from 'styled-components';
 import { API_URL, PLUGIN_API_URL } from '../constants';
 import he from 'he';
@@ -22,10 +22,12 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	];
 
 	const [isRangeOfSeatsProductsModalOpen, setRangeOfSeatsProductsModalOpen] = useState(false);
-
 	const openRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(true);
-
 	const closeRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(false);
+
+	const [isApprovalCalloutModalOpen, setApprovalCalloutModalOpen] = useState(false);
+	const openApprovalCalloutModal = () => setApprovalCalloutModalOpen(true);
+	const closeApprovalCalloutModal = () => setApprovalCalloutModalOpen(false);
 
 	const [currentRangeOfSeatsProductIndex, setCurrentRangeOfSeatsProductIndex] = useState(null);
 
@@ -63,8 +65,15 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		renewal_type: 'current_tier', // current_tier, sequential_logic, form_flow
 		type: '', // orgranization, individual
 		seat_type: 'per_seat', // per_seat, per_range_of_seats
-		product_data: [] // { product_id:, max_seats: }
+		product_data: [], // { product_id:, max_seats: }
+		approval_callout_data: {
+			callout_header: '',
+			callout_content: '',
+			callout_button_label: ''
+		}
 	});
+
+	const [tempForm, setTempForm] = useState(form);
 
 	const getSelectedTierData = () => {
 		if (!form.mdp_tier_uuid) { return null; }
@@ -302,6 +311,14 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			next_tier_form_page_id: '',
 			renewal_type: selectedValue
 		});
+	}
+
+	/**
+	 * Reinitialize the approval callout form with the current form data
+	 */
+	const reInitApprovalCallout = () => {
+		setTempForm(form)
+		openRenewalWindowCalloutModal()
 	}
 
 	useEffect(() => {
@@ -626,6 +643,16 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 															/>
 														</CustomDisabled>
 													</FlexBlock>
+													<FlexBlock>
+														<Button
+															variant="secondary"
+															disabled={!form.approval_required}
+															onClick={openApprovalCalloutModal}
+														>
+															<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
+															{__('Callout Configuration', 'wicket-memberships')}
+														</Button>
+													</FlexBlock>
 												</Flex>
 											</BorderedBox>
 										</FlexBlock>
@@ -859,6 +886,73 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 					</CustomDisabled>
 				</Wrap>
 			</div>
+
+			{/* Approval Callout Modal */}
+			{isApprovalCalloutModalOpen && (
+				<Modal
+					title={__('Approval - Callout Configuration', 'wicket-memberships')}
+					onRequestClose={closeApprovalCalloutModal}
+					style={
+						{
+							maxWidth: '840px',
+							width: '100%'
+						}
+					}
+				>
+					<form onSubmit={
+						() => {
+							// saveRenewalWindowCallout();
+							closeApprovalCalloutModal();
+						}
+					}>
+						<TextControl
+							label={__('Callout Header', 'wicket-memberships')}
+							onChange={value => {
+								setTempForm({
+									...tempForm,
+									approval_callout_data: {
+										...tempForm.approval_callout_data,
+										callout_header: value
+									}
+								});
+							}}
+							value={tempForm.approval_callout_data.callout_header}
+						/>
+
+						<TextareaControl
+							label={__('Callout Content', 'wicket-memberships')}
+							onChange={value => {
+								setTempForm({
+									...tempForm,
+									approval_callout_data: {
+										...tempForm.approval_callout_data,
+										callout_content: value
+									}
+								});
+							}}
+							value={tempForm.approval_callout_data.callout_content}
+						/>
+
+						<TextControl
+							label={__('Button Label', 'wicket-memberships')}
+							onChange={value => {
+								setTempForm({
+									...tempForm,
+									approval_callout_data: {
+										...tempForm.approval_callout_data,
+										callout_button_label: value
+									}
+								});
+							}}
+							value={tempForm.approval_callout_data.callout_button_label}
+						/>
+
+						<Button variant="primary" type='submit'>
+							{__('Save', 'wicket-memberships')}
+						</Button>
+					</form>
+				</Modal>
+			)}
 
 			{/* Add "Range of Seats" Product Modal */}
 			{isRangeOfSeatsProductsModalOpen && (
