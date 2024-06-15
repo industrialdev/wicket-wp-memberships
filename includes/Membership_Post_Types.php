@@ -393,6 +393,19 @@ class Membership_Post_Types {
                 if ( ! is_email( $value['approval_email_recipient'] ) ) {
                   $errors->add( 'rest_invalid_param_approval_email_recipient', __( 'The approval email recipient must be a valid email.', 'wicket-memberships' ), array( 'status' => 400 ) );
                 }
+
+                // validate callout data if approval required
+                if ( empty( $value['approval_callout_data']['callout_header'] ) ) {
+                  $errors->add( 'rest_invalid_param_approval_callout_header', __( 'The approval callout header must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+                if ( empty( $value['approval_callout_data']['callout_content'] ) ) {
+                  $errors->add( 'rest_invalid_param_approval_callout_content', __( 'The approval callout content must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+                if ( empty( $value['approval_callout_data']['callout_button_label'] ) ) {
+                  $errors->add( 'rest_invalid_param_approval_callout_button_label', __( 'The approval callout button label must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
               }
 
               if ( empty( $value['mdp_tier_name'] ) ) {
@@ -570,6 +583,21 @@ class Membership_Post_Types {
                 ),
                 'max_seats' => array(
                   'type' => 'integer',
+                ),
+              ),
+            ),
+            'approval_callout_data' => array(
+              'type'        => 'object',
+              'description' => 'Approval Callout Data',
+              'properties' => array(
+                'callout_header' => array(
+                  'type' => 'string',
+                ),
+                'callout_content' => array(
+                  'type' => 'string',
+                ),
+                'callout_button_label' => array(
+                  'type' => 'string',
                 ),
               ),
             ),

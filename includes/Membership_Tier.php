@@ -426,6 +426,71 @@ class Membership_Tier {
   }
 
   /**
+   * Get the approval callout data
+   *
+   * @return array|bool Array, false otherwise
+   *
+   * Example return:
+   * [
+   *    'callout_header' => 'Example Header',
+   *    'callout_body' => 'Example Body',
+   *    'callout_button_text' => 'Example Button Text',
+   * ]
+   */
+  private function get_approval_callout_data() {
+    if ( isset( $this->tier_data['approval_callout_data'] ) && is_array( $this->tier_data['approval_callout_data'] ) ) {
+      return $this->tier_data['approval_callout_data'];
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the approval callout header
+   *
+   * @return string|bool String, false otherwise
+   */
+  public function get_approval_callout_header() {
+    $approval_callout_data = $this->get_approval_callout_data();
+
+    if ( isset( $approval_callout_data['callout_header'] ) ) {
+      return $approval_callout_data['callout_header'];
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the approval callout content
+   *
+   * @return string|bool String, false otherwise
+   */
+  public function get_approval_callout_content() {
+    $approval_callout_data = $this->get_approval_callout_data();
+
+    if ( isset( $approval_callout_data['callout_content'] ) ) {
+      return $approval_callout_data['callout_content'];
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the approval callout button label
+   *
+   * @return string|bool String, false otherwise
+   */
+  public function get_approval_callout_button_label() {
+    $approval_callout_data = $this->get_approval_callout_data();
+
+    if ( isset( $approval_callout_data['callout_button_label'] ) ) {
+      return $approval_callout_data['callout_button_label'];
+    }
+
+    return false;
+  }
+
+  /**
    * Get the cycle data
    *
    * @return array|bool Array, false otherwise
