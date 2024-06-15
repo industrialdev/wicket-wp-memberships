@@ -33,6 +33,8 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	const [tierInfo, setTierInfo] = useState(null);
 
+	const [approvalCalloutErrors, setApprovalCalloutErrors] = useState([]);
+
 	const [rangeOfSeatsProductErrors, setRangeOfSeatsProductErrors] = useState([]);
 
 	const [tempRangeOfSeatsProduct, setTempRangeOfSeatsProduct] = useState({
@@ -95,7 +97,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	const handleSubmit = (e) => {
 		e.preventDefault();
 
-		// TODO: Frontend data validation here if needed
+		// TODO: Frontend data validation here if needed?
 
 		setSubmitting(true);
 		console.log('Saving membership tier');
@@ -110,9 +112,11 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			}
 		});
 
+		// next_tier_id should be empty if current_tier is selected
 		const newForm = {
 			...form,
-			product_data: productData
+			product_data: productData,
+			next_tier_id: form.renewal_type === 'current_tier' ? '' : form.next_tier_id,
 		};
 
 		apiFetch({
@@ -254,6 +258,43 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		setRangeOfSeatsProductErrors(newErrors);
 
 		return isValid;
+	}
+
+	const validateApprovalCallout = () => {
+		let isValid = true;
+		const newErrors = [];
+
+		if (tempForm.approval_callout_data.callout_header.length === 0) {
+			newErrors.push(__('Callout Header is required', 'wicket-memberships'));
+			isValid = false;
+		}
+
+		if (tempForm.approval_callout_data.callout_content.length === 0) {
+			newErrors.push(__('Callout Content is required', 'wicket-memberships'));
+			isValid = false;
+		}
+
+		if (tempForm.approval_callout_data.callout_button_label.length === 0) {
+			newErrors.push(__('Callout Button Label is required', 'wicket-memberships'));
+			isValid = false;
+		}
+
+		setApprovalCalloutErrors(newErrors);
+
+		return isValid;
+	}
+
+	const handleApprovalCalloutSubmit = (e) => {
+		e.preventDefault();
+
+		setForm({
+			...form,
+			approval_callout_data: tempForm.approval_callout_data
+		});
+
+		if (!validateApprovalCallout()) { return }
+
+		closeApprovalCalloutModal();
 	}
 
 	const handleRangeOfSeatsModalSubmit = (e) => {
@@ -643,7 +684,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 															/>
 														</CustomDisabled>
 													</FlexBlock>
-													<FlexBlock>
+													<FlexItem>
 														<Button
 															variant="secondary"
 															disabled={!form.approval_required}
@@ -652,7 +693,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 															<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
 															{__('Callout Configuration', 'wicket-memberships')}
 														</Button>
-													</FlexBlock>
+													</FlexItem>
 												</Flex>
 											</BorderedBox>
 										</FlexBlock>
@@ -887,7 +928,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 				</Wrap>
 			</div>
 
-			{/* Approval Callout Modal */}
+			{/* Approval - Callout Modal */}
 			{isApprovalCalloutModalOpen && (
 				<Modal
 					title={__('Approval - Callout Configuration', 'wicket-memberships')}
@@ -898,13 +939,17 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 							width: '100%'
 						}
 					}
-				>
-					<form onSubmit={
-						() => {
-							// saveRenewalWindowCallout();
-							closeApprovalCalloutModal();
-						}
-					}>
+	>
+
+					{approvalCalloutErrors.length > 0 && (
+						<ErrorsRow>
+							{approvalCalloutErrors.map((error) => (
+								<Notice isDismissible={false} key={error} status="warning">{error}</Notice>
+							))}
+						</ErrorsRow>
+					)}
+
+					<form onSubmit={handleApprovalCalloutSubmit}>
 						<TextControl
 							label={__('Callout Header', 'wicket-memberships')}
 							onChange={value => {

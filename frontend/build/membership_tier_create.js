@@ -13143,6 +13143,7 @@ const CreateMembershipTier = ({
   const closeApprovalCalloutModal = () => setApprovalCalloutModalOpen(false);
   const [currentRangeOfSeatsProductIndex, setCurrentRangeOfSeatsProductIndex] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [tierInfo, setTierInfo] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [approvalCalloutErrors, setApprovalCalloutErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [rangeOfSeatsProductErrors, setRangeOfSeatsProductErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [tempRangeOfSeatsProduct, setTempRangeOfSeatsProduct] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     product_id: null,
@@ -13202,7 +13203,7 @@ const CreateMembershipTier = ({
   const handleSubmit = e => {
     e.preventDefault();
 
-    // TODO: Frontend data validation here if needed
+    // TODO: Frontend data validation here if needed?
 
     setSubmitting(true);
     console.log('Saving membership tier');
@@ -13215,9 +13216,12 @@ const CreateMembershipTier = ({
         max_seats: parseInt(product.max_seats) === 0 ? -1 : product.max_seats
       };
     });
+
+    // next_tier_id should be empty if current_tier is selected
     const newForm = {
       ...form,
-      product_data: productData
+      product_data: productData,
+      next_tier_id: form.renewal_type === 'current_tier' ? '' : form.next_tier_id
     };
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
       path: endpoint,
@@ -13339,6 +13343,35 @@ const CreateMembershipTier = ({
     }
     setRangeOfSeatsProductErrors(newErrors);
     return isValid;
+  };
+  const validateApprovalCallout = () => {
+    let isValid = true;
+    const newErrors = [];
+    if (tempForm.approval_callout_data.callout_header.length === 0) {
+      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Header is required', 'wicket-memberships'));
+      isValid = false;
+    }
+    if (tempForm.approval_callout_data.callout_content.length === 0) {
+      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Content is required', 'wicket-memberships'));
+      isValid = false;
+    }
+    if (tempForm.approval_callout_data.callout_button_label.length === 0) {
+      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Button Label is required', 'wicket-memberships'));
+      isValid = false;
+    }
+    setApprovalCalloutErrors(newErrors);
+    return isValid;
+  };
+  const handleApprovalCalloutSubmit = e => {
+    e.preventDefault();
+    setForm({
+      ...form,
+      approval_callout_data: tempForm.approval_callout_data
+    });
+    if (!validateApprovalCallout()) {
+      return;
+    }
+    closeApprovalCalloutModal();
   };
   const handleRangeOfSeatsModalSubmit = e => {
     e.preventDefault();
@@ -13646,7 +13679,7 @@ const CreateMembershipTier = ({
       approval_email_recipient: value
     }),
     __nextHasNoMarginBottom: true
-  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
     variant: "secondary",
     disabled: !form.approval_required,
     onClick: openApprovalCalloutModal
@@ -13791,11 +13824,12 @@ const CreateMembershipTier = ({
       maxWidth: '840px',
       width: '100%'
     }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
-    onSubmit: () => {
-      // saveRenewalWindowCallout();
-      closeApprovalCalloutModal();
-    }
+  }, approvalCalloutErrors.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ErrorsRow, null, approvalCalloutErrors.map(error => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Notice, {
+    isDismissible: false,
+    key: error,
+    status: "warning"
+  }, error))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+    onSubmit: handleApprovalCalloutSubmit
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Header', 'wicket-memberships'),
     onChange: value => {
