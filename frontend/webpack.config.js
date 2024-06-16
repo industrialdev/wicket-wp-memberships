@@ -17,5 +17,6 @@ module.exports = {
 		membership_tier_create: './src/membership_tiers/edit.js',
 		member_list: './src/members/index.js',
 		member_edit: './src/members/edit.js',
+		tier_member_count: './src/membership_tiers/member_count.js',
 	},
 };
