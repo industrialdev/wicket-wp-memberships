@@ -95,6 +95,14 @@ export const fetchTiersInfo = (tierIds = []) => {
   })
 }
 
+/**
+ * Fetch Membership Tiers
+ */
+export const fetchMembershipTiers = (queryParams = {}) => {
+  const url = addQueryArgs(`${PLUGIN_API_URL}/membership_tiers`, queryParams);
+  return apiFetch({ path: url });
+};
+
 export const fetchMembershipFilters = (memberType = null) => {
   if (memberType === null) { return; }
 

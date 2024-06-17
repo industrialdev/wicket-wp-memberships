@@ -5,6 +5,7 @@ import { addQueryArgs } from '@wordpress/url';
 import { Spinner, Flex, __experimentalHeading as Heading, FlexItem, Button } from '@wordpress/components';
 import { PLUGIN_API_URL } from '../constants';
 import { FormFlex, BorderedBox } from '../styled_elements';
+import { fetchMembershipTiers } from '../services/api';
 
 const MembershipConfigTiers = ({ configPostId, tierCptSlug, tierMdpUuids, tierListUrl }) => {
 
@@ -25,11 +26,9 @@ const MembershipConfigTiers = ({ configPostId, tierCptSlug, tierMdpUuids, tierLi
     const tierIdsArray = tierMdpUuids.split(',');
     console.log(tierIdsArray);
 
-		apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_tiers`, {
-      filter: {
-        id: tierIdsArray
-      }
-    }) }).then((tiers) => {
+    fetchMembershipTiers({
+      filters: { id: tierIdsArray }
+    }).then((tiers) => {
       console.log('Tiers.js');
       console.log(tiers);
 

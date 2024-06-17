@@ -8,6 +8,7 @@ import styled from 'styled-components';
 import { API_URL, PLUGIN_API_URL } from '../constants';
 import he from 'he';
 import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, FormFlex, CustomDisabled } from '../styled_elements';
+import { fetchMembershipTiers } from '../services/api';
 
 const MarginedFlex = styled(Flex)`
 	margin-top: 15px;
@@ -410,8 +411,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		});
 
 		// Fetch Membership Configs
-		queryParams = { status: 'publish' };
-		apiFetch({ path: addQueryArgs(`${API_URL}/${configCptSlug}`, queryParams) }).then((configs) => {
+		apiFetch({ path: addQueryArgs(`${API_URL}/${configCptSlug}`, { status: 'publish' }) }).then((configs) => {
 			let options = configs.map((config) => {
 				const decodedTitle = he.decode(config.title.rendered);
 				return {
@@ -424,9 +424,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		});
 
 		// Fetch MDP Tiers
-		queryParams = {};
-		apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_tiers`, queryParams) }).then((tiers) => {
-
+		fetchMembershipTiers().then((tiers) => {
 			setMdpTiers(
 				tiers.map((tier) => {
 					return {
@@ -443,7 +441,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 		// Fetch the membership tier
 		if (postId) {
-			apiFetch({ path: addQueryArgs(`${API_URL}/${tierCptSlug}/${postId}`, queryParams) }).then((post) => {
+			apiFetch({ path: addQueryArgs(`${API_URL}/${tierCptSlug}/${postId}`, { status: 'publish' }) }).then((post) => {
 				console.log('Post:');
 				console.log(post.tier_data);
 

@@ -155,6 +155,16 @@ class Membership_Tier_CPT_Hooks {
       $asset_file['version'],
       true
     );
+
+    $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/wicket_memberships_tier_cell_info.asset.php' );
+
+    wp_enqueue_script(
+      WICKET_MEMBERSHIP_PLUGIN_SLUG . '_tier_cell_info',
+      WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/wicket_memberships_tier_cell_info.js',
+      $asset_file['dependencies'],
+      $asset_file['version'],
+      true
+    );
   }
 
   function enqueue_scripts() {
@@ -206,11 +216,25 @@ class Membership_Tier_CPT_Hooks {
     $tier = new Membership_Tier( $post_id );
 
     if ( $column_name === 'status' ) {
-      echo '-';
+      $tier_uuid = $tier->get_mdp_tier_uuid();
+
+      echo <<<HTML
+      <div
+        class="wicket_memberships_tier_cell_info"
+        data-tier-field="status"
+        data-tier-uuid="{$tier_uuid}"></div>
+      HTML;
     }
 
     if ( $column_name === 'category' ) {
-      echo '-';
+      $tier_uuid = $tier->get_mdp_tier_uuid();
+
+      echo <<<HTML
+      <div
+        class="wicket_memberships_tier_cell_info"
+        data-tier-field="category"
+        data-tier-uuid="{$tier_uuid}"></div>
+      HTML;
     }
 
     if ( $column_name === 'member_count' ) {

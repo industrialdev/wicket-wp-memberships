@@ -6845,6 +6845,8 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__);
 /* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../constants */ "./src/constants.js");
 /* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../styled_elements */ "./src/styled_elements.js");
+/* harmony import */ var _services_api__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../services/api */ "./src/services/api.js");
+
 
 
 
@@ -6871,12 +6873,10 @@ const MembershipConfigTiers = ({
     // tierMdpUuids to array
     const tierIdsArray = tierMdpUuids.split(',');
     console.log(tierIdsArray);
-    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_2___default()({
-      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_3__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_5__.PLUGIN_API_URL}/membership_tiers`, {
-        filter: {
-          id: tierIdsArray
-        }
-      })
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_7__.fetchMembershipTiers)({
+      filters: {
+        id: tierIdsArray
+      }
     }).then(tiers => {
       console.log('Tiers.js');
       console.log(tiers);
@@ -6986,6 +6986,163 @@ const MembershipConfigTiers = ({
   }, tiersInfo === null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Spinner, null), getTierInfo(mdpTier.uuid) !== null && getTierInfo(mdpTier.uuid).count)))))));
 };
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipConfigTiers);
+
+/***/ }),
+
+/***/ "./src/services/api.js":
+/*!*****************************!*\
+  !*** ./src/services/api.js ***!
+  \*****************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   fetchMemberInfo: () => (/* binding */ fetchMemberInfo),
+/* harmony export */   fetchMembers: () => (/* binding */ fetchMembers),
+/* harmony export */   fetchMembershipFilters: () => (/* binding */ fetchMembershipFilters),
+/* harmony export */   fetchMembershipStatuses: () => (/* binding */ fetchMembershipStatuses),
+/* harmony export */   fetchMembershipTiers: () => (/* binding */ fetchMembershipTiers),
+/* harmony export */   fetchMemberships: () => (/* binding */ fetchMemberships),
+/* harmony export */   fetchTiers: () => (/* binding */ fetchTiers),
+/* harmony export */   fetchTiersInfo: () => (/* binding */ fetchTiersInfo),
+/* harmony export */   updateMembership: () => (/* binding */ updateMembership),
+/* harmony export */   updateMembershipStatus: () => (/* binding */ updateMembershipStatus)
+/* harmony export */ });
+/* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @wordpress/api-fetch */ "@wordpress/api-fetch");
+/* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/url */ "@wordpress/url");
+/* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_url__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants */ "./src/constants.js");
+
+
+
+
+/**
+ * Fetch Local Membership Tiers Posts
+ */
+const fetchTiers = () => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.API_URL}/${_constants__WEBPACK_IMPORTED_MODULE_2__.TIER_CPT_SLUG}`, {
+      status: 'publish'
+    })
+  });
+};
+
+/**
+ * Update Membership Record
+ */
+const updateMembership = (membershipId, data) => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_entity/${membershipId}/update`,
+    method: 'POST',
+    data: data
+  });
+};
+
+/**
+ * Update Membership Status
+ */
+const updateMembershipStatus = (membershipId, status) => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/admin/manage_status`,
+    method: 'POST',
+    data: {
+      post_id: membershipId,
+      status: status
+    }
+  });
+};
+
+/**
+ * Fetch Membership Records
+ */
+const fetchMemberships = (recordId = null) => {
+  if (recordId === null) {
+    return;
+  }
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_entity`, {
+      entity_id: recordId
+    })
+  });
+};
+
+/**
+ * Fetch Member Info
+ */
+const fetchMemberInfo = (recordId = null) => {
+  if (recordId === null) {
+    return;
+  }
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/admin/get_edit_page_info`, {
+      entity_id: recordId
+    })
+  });
+};
+
+/**
+ * Fetch Available Membership Statuses for a Membership Post
+ */
+const fetchMembershipStatuses = (postId = null) => {
+  if (postId === null) {
+    return;
+  }
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/admin/status_options`, {
+      post_id: postId
+    })
+  });
+};
+
+/**
+ * Fetch Members
+ */
+const fetchMembers = (params = null) => {
+  if (params === null) {
+    return;
+  }
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/memberships`, params)
+  });
+};
+
+/**
+ * Fetch Membership Tiers Info
+ */
+const fetchTiersInfo = (tierIds = []) => {
+  if (tierIds.length === 0) {
+    return;
+  }
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_tier_info`, {
+      filter: {
+        tier_uuid: tierIds
+      }
+    })
+  });
+};
+
+/**
+ * Fetch Membership Tiers
+ */
+const fetchMembershipTiers = (queryParams = {}) => {
+  const url = (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_tiers`, queryParams);
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: url
+  });
+};
+const fetchMembershipFilters = (memberType = null) => {
+  if (memberType === null) {
+    return;
+  }
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_filters`, {
+      type: memberType
+    })
+  });
+};
 
 /***/ }),
 
