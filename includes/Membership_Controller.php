@@ -882,7 +882,7 @@ class Membership_Controller {
           return $item[0];
         }
       }, $meta_data);
-      
+
       $membership_json_data = $this->get_membership_array_from_user_meta_by_post_id( $membership->ID, $user_id );
       $Membership_Tier = new Membership_Tier( $membership_json_data['membership_tier_post_id'] );
       $membership_data['next_tier'] = false;
@@ -893,6 +893,8 @@ class Membership_Controller {
         $callout['header'] = $Membership_Tier->get_approval_callout_header();
         $callout['content'] = $Membership_Tier->get_approval_callout_content();
         $callout['button_label'] = $Membership_Tier->get_approval_callout_button_label();
+        $callout['email'] = $Membership_Tier->get_approval_email() . '?subject=' . __( 'Re: Pending Membership Request', 'wicket-memberships');
+
         $pending_approval[] = [
           'membership' => $membership_data,
           'callout' => $callout
