@@ -876,11 +876,23 @@ class Membership_Controller {
     foreach( $memberships as &$membership) {
       $membership_data['ID'] = $membership->ID;
 
+      $meta_data = get_post_meta( $membership->ID );
+      $membership_data['meta'] = array_map( function( $item ) {
+        if( ! str_starts_with( key( (array) $item), '_' ) ) {
+          return $item[0];
+        }
+      }, $meta_data);
+      
+      $membership_json_data = $this->get_membership_array_from_user_meta_by_post_id( $membership->ID, $user_id );
+      $Membership_Tier = new Membership_Tier( $membership_json_data['membership_tier_post_id'] );
+      $membership_data['next_tier'] = false;
+      $membership_data['form_page'] = false;
+
       if ( $membership->membership_status == 'pending') {
         $callout['type'] = 'pending_approval';
-        $callout['header'] = 'pending header';//$Membership_Config->get_late_fee_window_callout_header();
-        $callout['content'] = 'pending content'; //$Membership_Config->get_late_fee_window_callout_content();
-        $callout['button_label'] = 'pending button'; //$Membership_Config->get_late_fee_window_callout_button_label();
+        $callout['header'] = $Membership_Tier->get_approval_callout_header();
+        $callout['content'] = $Membership_Tier->get_approval_callout_content();
+        $callout['button_label'] = $Membership_Tier->get_approval_callout_button_label();
         $pending_approval[] = [
           'membership' => $membership_data,
           'callout' => $callout
@@ -888,17 +900,6 @@ class Membership_Controller {
         continue;   
       }
 
-      $meta_data = get_post_meta( $membership->ID );
-      $membership_data['meta'] = array_map( function( $item ) {
-        if( ! str_starts_with( key( (array) $item), '_' ) ) {
-          return $item[0];
-        }
-      }, $meta_data);
-
-      $membership_json_data = $this->get_membership_array_from_user_meta_by_post_id( $membership->ID, $user_id );
-      $membership_data['next_tier'] = false;
-      $membership_data['form_page'] = false;
-      
       $membership_early_renew_at = strtotime( $membership->membership_early_renew_at );
       $membership_ends_at = strtotime( $membership->membership_ends_at );
       $membership_expires_at = strtotime( $membership->membership_expires_at );
@@ -906,7 +907,6 @@ class Membership_Controller {
       if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) && !empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
         $current_time =  strtotime ( date( "Y-m-d") . '+' . $_REQUEST['wicket_wp_membership_debug_days'] . ' days');
       }
-      $Membership_Tier = new Membership_Tier( $membership_json_data['membership_tier_post_id'] );
 
       $config_id = $Membership_Tier->get_config_id();
       $Membership_Config = new Membership_Config( $config_id );
