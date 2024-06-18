@@ -73,6 +73,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
     const STATUS_DELAYED    = 'delayed';
     const STATUS_EXPIRED    = 'expired';
     const STATUS_CANCELLED  = 'cancelled';
+    const WICKET_MEMBERSHIPS_CAPABILITY = 'manage_options';
 
     public function __construct() {
 			// Load the main plugin classes

@@ -24,12 +24,11 @@ class Admin_Controller {
    */
 	public function init_menu() {
     $menu_slug = WICKET_MEMBERSHIP_PLUGIN_SLUG;
-		$capability = 'manage_options';
 
 		add_menu_page(
 			esc_attr__( 'Wicket Memberships', 'wicket-memberships' ),
 			esc_attr__( 'Wicket Memberships', 'wicket-memberships' ),
-			$capability,
+			Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY,
 			$menu_slug,
 			'',
 			'dashicons-list-view'

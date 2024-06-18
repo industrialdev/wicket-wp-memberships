@@ -420,7 +420,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
    * Check permissions to read
    */
   public function permissions_check_read( $request ) {
-    if ( 0 && ! current_user_can( 'read' ) ) {
+    if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
       return new WP_Error( 'rest_forbidden', esc_html__( 'Permission Error.' ), array( 'status' => $this->authorization_error_status_code() ) );
     }
     return true;
@@ -430,7 +430,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
    * Check permissions to write
    */
   public function permissions_check_write( $request ) {
-    if ( 0 && ! current_user_can( 'write' ) ) {
+    if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
       return new WP_Error( 'rest_forbidden', esc_html__( 'Permission Error.' ), array( 'status' => $this->authorization_error_status_code() ) );
     }
     return true;
