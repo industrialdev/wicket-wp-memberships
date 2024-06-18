@@ -298,7 +298,8 @@ class Membership_Config {
       $period_type  = !in_array( $cycle_data['anniversary_data']["period_type"], ['year','month','day'] )
                         ? 'year' : $cycle_data['anniversary_data']["period_type"];
       $the_end_date = date("Y-m-d", strtotime($dates['start_date'] . "+1 ".$period_type));
-      if( in_array( $period_type, ['year', 'month']) && $cycle_data['align_end_dates_enabled'] !== false ) {
+      if( in_array( $period_type, ['year', 'month']) 
+          && (! empty($cycle_data['anniversary_data']['align_end_dates_enabled']) && $cycle_data['anniversary_data']['align_end_dates_enabled'] !== false ) ) {
         switch( $cycle_data['anniversary_data']["align_end_dates_type"] ) {
           case 'first-day-of-month':
             $the_end_date = date("Y-m-1", strtotime($dates['start_date'] . "+1 ".$period_type));
