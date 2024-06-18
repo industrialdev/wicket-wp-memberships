@@ -134,7 +134,7 @@ class Membership_Controller {
       $membership_current = $self->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
     }
     
-    if( !empty( $membership_current ) && $early_renewal_date = $config->is_valid_renewal_date( $membership_current ) ) {
+    if( !empty( $membership_current ) && $early_renewal_date = $config->is_valid_renewal_date( $membership_current ) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] )) {
       $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date)));
       $_SESSION['wicket_membership_error'] = $error_text;
       throw new \Exception( $error_text );
@@ -615,7 +615,7 @@ class Membership_Controller {
       $status = Wicket_Memberships::STATUS_ACTIVE;
     }
 
-    if( !($skip_approval) && !(new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
+    if( !($skip_approval) && (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
       $status = Wicket_Memberships::STATUS_PENDING;
     } else if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
       $status = Wicket_Memberships::STATUS_DELAYED;
