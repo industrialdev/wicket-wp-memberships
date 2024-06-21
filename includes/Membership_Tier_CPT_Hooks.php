@@ -104,6 +104,9 @@ class Membership_Tier_CPT_Hooks {
 
     $all_tier_product_ids_comma_separated = implode( ',', $all_tier_product_ids );
 
+    $language_codes = Helper::get_wp_languages_iso();
+    $language_codes_comma_separated = implode( ',', $language_codes );
+
     echo <<<HTML
       <div
         id="create_membership_tier"
@@ -113,6 +116,7 @@ class Membership_Tier_CPT_Hooks {
         data-tier-list-url="{$tier_list_page}"
         data-individual-list-url="{$individual_member_list_page_url}"
         data-org-list-url="{$org_member_list_page_url}"
+        data-language-codes="{$language_codes_comma_separated}"
         data-post-id="{$post_id}"></div>
     HTML;
   }

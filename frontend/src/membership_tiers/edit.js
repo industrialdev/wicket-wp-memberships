@@ -14,7 +14,11 @@ const MarginedFlex = styled(Flex)`
 	margin-top: 15px;
 `;
 
-const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId, productsInUse, individualListUrl, orgListUrl }) => {
+const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId, productsInUse, individualListUrl, orgListUrl, languageCodes }) => {
+
+	const languageCodesArray = languageCodes.split(',');
+
+	const [currentApprovalCalloutLocale, setCurrentApprovalCalloutLocale] = useState(languageCodesArray[0]);
 
 	const renewalTypeOptions = [
 		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' },
@@ -57,6 +61,15 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	const [errors, setErrors] = useState([]); // Array of strings
 
+	let default_locales = {};
+	languageCodesArray.forEach((code) => {
+		default_locales[code] = {
+			callout_header: '',
+			callout_content: '',
+			callout_button_label: ''
+		}
+	});
+
 	const [form, setForm] = useState({
 		approval_required: false,
 		approval_email_recipient: '',
@@ -70,9 +83,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		seat_type: 'per_seat', // per_seat, per_range_of_seats
 		product_data: [], // { product_id:, max_seats: }
 		approval_callout_data: {
-			callout_header: '',
-			callout_content: '',
-			callout_button_label: ''
+			locales: default_locales
 		}
 	});
 
@@ -265,20 +276,20 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		let isValid = true;
 		const newErrors = [];
 
-		if (tempForm.approval_callout_data.callout_header.length === 0) {
-			newErrors.push(__('Callout Header is required', 'wicket-memberships'));
-			isValid = false;
-		}
+		// if (tempForm.approval_callout_data.callout_header.length === 0) {
+		// 	newErrors.push(__('Callout Header is required', 'wicket-memberships'));
+		// 	isValid = false;
+		// }
 
-		if (tempForm.approval_callout_data.callout_content.length === 0) {
-			newErrors.push(__('Callout Content is required', 'wicket-memberships'));
-			isValid = false;
-		}
+		// if (tempForm.approval_callout_data.callout_content.length === 0) {
+		// 	newErrors.push(__('Callout Content is required', 'wicket-memberships'));
+		// 	isValid = false;
+		// }
 
-		if (tempForm.approval_callout_data.callout_button_label.length === 0) {
-			newErrors.push(__('Callout Button Label is required', 'wicket-memberships'));
-			isValid = false;
-		}
+		// if (tempForm.approval_callout_data.callout_button_label.length === 0) {
+		// 	newErrors.push(__('Callout Button Label is required', 'wicket-memberships'));
+		// 	isValid = false;
+		// }
 
 		setApprovalCalloutErrors(newErrors);
 
@@ -360,7 +371,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	 */
 	const reInitApprovalCallout = () => {
 		setTempForm(form)
-		openRenewalWindowCalloutModal()
+		openApprovalCalloutModal();
 	}
 
 	useEffect(() => {
@@ -686,7 +697,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 														<Button
 															variant="secondary"
 															disabled={!form.approval_required}
-															onClick={openApprovalCalloutModal}
+															onClick={reInitApprovalCallout}
 														>
 															<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
 															{__('Callout Configuration', 'wicket-memberships')}
@@ -948,6 +959,20 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 					)}
 
 					<form onSubmit={handleApprovalCalloutSubmit}>
+						<SelectControl
+							label={__('Language', 'wicket-memberships')}
+							options={
+								languageCodesArray.map((code) => {
+									return {
+										label: code,
+										value: code
+									}
+								})
+							}
+							value={currentApprovalCalloutLocale}
+							onChange={value => setCurrentApprovalCalloutLocale(value)}
+						/>
+
 						<TextControl
 							label={__('Callout Header', 'wicket-memberships')}
 							onChange={value => {
@@ -955,11 +980,17 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 									...tempForm,
 									approval_callout_data: {
 										...tempForm.approval_callout_data,
-										callout_header: value
+										locales: {
+											...tempForm.approval_callout_data.locales,
+											[currentApprovalCalloutLocale]: {
+												...tempForm.approval_callout_data.locales[currentApprovalCalloutLocale],
+												callout_header: value
+											}
+										}
 									}
 								});
 							}}
-							value={tempForm.approval_callout_data.callout_header}
+							value={tempForm.approval_callout_data.locales[currentApprovalCalloutLocale].callout_header}
 						/>
 
 						<TextareaControl
@@ -969,11 +1000,17 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 									...tempForm,
 									approval_callout_data: {
 										...tempForm.approval_callout_data,
-										callout_content: value
+										locales: {
+											...tempForm.approval_callout_data.locales,
+											[currentApprovalCalloutLocale]: {
+												...tempForm.approval_callout_data.locales[currentApprovalCalloutLocale],
+												callout_content: value
+											}
+										}
 									}
 								});
 							}}
-							value={tempForm.approval_callout_data.callout_content}
+							value={tempForm.approval_callout_data.locales[currentApprovalCalloutLocale].callout_content}
 						/>
 
 						<TextControl
@@ -983,11 +1020,17 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 									...tempForm,
 									approval_callout_data: {
 										...tempForm.approval_callout_data,
-										callout_button_label: value
+										locales: {
+											...tempForm.approval_callout_data.locales,
+											[currentApprovalCalloutLocale]: {
+												...tempForm.approval_callout_data.locales[currentApprovalCalloutLocale],
+												callout_button_label: value
+											}
+										}
 									}
 								});
 							}}
-							value={tempForm.approval_callout_data.callout_button_label}
+							value={tempForm.approval_callout_data.locales[currentApprovalCalloutLocale].callout_button_label}
 						/>
 
 						<Button variant="primary" type='submit'>
