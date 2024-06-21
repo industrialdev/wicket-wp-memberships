@@ -447,14 +447,15 @@ class Membership_Tier {
 
   /**
    * Get the approval callout header
+   * @param string $lang Language code
    *
    * @return string|bool String, false otherwise
    */
-  public function get_approval_callout_header() {
+  public function get_approval_callout_header($lang = 'en') {
     $approval_callout_data = $this->get_approval_callout_data();
 
-    if ( isset( $approval_callout_data['callout_header'] ) ) {
-      return $approval_callout_data['callout_header'];
+    if ( isset( $approval_callout_data['locales'][$lang]['callout_header'] ) ) {
+      return $approval_callout_data['locales'][$lang]['callout_header'];
     }
 
     return false;
@@ -462,14 +463,15 @@ class Membership_Tier {
 
   /**
    * Get the approval callout content
+   * @param string $lang Language code
    *
    * @return string|bool String, false otherwise
    */
-  public function get_approval_callout_content() {
+  public function get_approval_callout_content($lang = 'en') {
     $approval_callout_data = $this->get_approval_callout_data();
 
-    if ( isset( $approval_callout_data['callout_content'] ) ) {
-      return $approval_callout_data['callout_content'];
+    if ( isset( $approval_callout_data['locales'][$lang]['callout_content'] ) ) {
+      return $approval_callout_data['locales'][$lang]['callout_content'];
     }
 
     return false;
@@ -477,14 +479,15 @@ class Membership_Tier {
 
   /**
    * Get the approval callout button label
+   * @param string $lang Language code
    *
    * @return string|bool String, false otherwise
    */
-  public function get_approval_callout_button_label() {
+  public function get_approval_callout_button_label($lang = 'en') {
     $approval_callout_data = $this->get_approval_callout_data();
 
-    if ( isset( $approval_callout_data['callout_button_label'] ) ) {
-      return $approval_callout_data['callout_button_label'];
+    if ( isset( $approval_callout_data['locales'][$lang]['callout_button_label'] ) ) {
+      return $approval_callout_data['locales'][$lang]['callout_button_label'];
     }
 
     return false;
