@@ -841,6 +841,13 @@ class Membership_Controller {
     $early_renewal = [];
     $grace_period = [];
     $pending_approval = [];
+    $debug = [];
+
+    $iso_code = apply_filters( 'wpml_current_language', null );
+    if( empty( $iso_code )) {
+      $locale = get_locale(); // Get the full locale (e.g., en_US)
+      $iso_code = substr($locale, 0, 2); // Extract the first two characters  
+    }
 
     //TODO: remove open lookup
     if( empty( $user_id ) ) {
@@ -890,9 +897,9 @@ class Membership_Controller {
 
       if ( $membership->membership_status == 'pending') {
         $callout['type'] = 'pending_approval';
-        $callout['header'] = $Membership_Tier->get_approval_callout_header();
-        $callout['content'] = $Membership_Tier->get_approval_callout_content();
-        $callout['button_label'] = $Membership_Tier->get_approval_callout_button_label();
+        $callout['header'] = $Membership_Tier->get_approval_callout_header( $iso_code );
+        $callout['content'] = $Membership_Tier->get_approval_callout_content( $iso_code );
+        $callout['button_label'] = $Membership_Tier->get_approval_callout_button_label( $iso_code );
         $callout['email'] = $Membership_Tier->get_approval_email() . '?subject=' . __( 'Re: Pending Membership Request', 'wicket-memberships');
 
         $pending_approval[] = [
@@ -929,26 +936,32 @@ class Membership_Controller {
 
       if( $current_time >= $membership_early_renew_at && $current_time < $membership_ends_at ) {
         $callout['type'] = 'early_renewal';
-        $callout['header'] = $Membership_Config->get_renewal_window_callout_header();
-        $callout['content'] = $Membership_Config->get_renewal_window_callout_content();
-        $callout['button_label'] = $Membership_Config->get_renewal_window_callout_button_label();
+        $callout['header'] = $Membership_Config->get_renewal_window_callout_header( $iso_code );
+        $callout['content'] = $Membership_Config->get_renewal_window_callout_content( $iso_code );
+        $callout['button_label'] = $Membership_Config->get_renewal_window_callout_button_label( $iso_code );
         $early_renewal[] = [
           'membership' => $membership_data,
           'callout' => $callout
         ];
       } else if ( $current_time >= $membership_ends_at && $current_time <= $membership_expires_at ) {
         $callout['type'] = 'grace_period';
-        $callout['header'] = $Membership_Config->get_late_fee_window_callout_header();
-        $callout['content'] = $Membership_Config->get_late_fee_window_callout_content();
-        $callout['button_label'] = $Membership_Config->get_late_fee_window_callout_button_label();
+        $callout['header'] = $Membership_Config->get_late_fee_window_callout_header( $iso_code );
+        $callout['content'] = $Membership_Config->get_late_fee_window_callout_content( $iso_code );
+        $callout['button_label'] = $Membership_Config->get_late_fee_window_callout_button_label( $iso_code );
         $grace_period[] = [
           'membership' => $membership_data,
           'callout' => $callout,
           'late_fee_product_id' => $Membership_Config->get_late_fee_window_product_id()
         ];
+      } else if( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) {
+        $debug[] = [
+          'membership' => $membership_data,
+        ];
+
       }
     }
-    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval];
+
+    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'debug' => $debug];
   }
 
   public function get_members_list_group_by_filter($groupby){
