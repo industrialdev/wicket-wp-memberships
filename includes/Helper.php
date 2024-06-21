@@ -6,7 +6,7 @@ defined( 'ABSPATH' ) || exit;
 
 class Helper {
 
-  public function __construct() {  
+  public function __construct() {
     if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
       // INJECT MEMBERSHIP META DATA into order and subscription and member pages -- org_id on checkout page
       add_action( 'woocommerce_admin_order_data_after_shipping_address', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
@@ -31,7 +31,7 @@ class Helper {
       }
     }
   }
-  
+
   // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
   function action_buttons_add_meta_boxes() {
     global $post;
@@ -58,7 +58,7 @@ class Helper {
     global $post;
     add_meta_box( 'extra_info_data_content', __('Extra Info','your_text_domain'), [$this, 'extra_info_data_contents'], self::get_membership_cpt_slug(), 'normal', 'core' );
   }
-  
+
   // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
   function extra_info_data_contents()
   {
@@ -86,7 +86,25 @@ class Helper {
     echo '<td valign="top"><h3>Order Data</h3>( _wicket_membership_';echo $mship_product_id.' )<br><pre>';
     var_dump( Membership_Controller::get_membership_array_from_post_id( $post->ID ) );
     echo '</pre></td></tr></table>"';
-  } 
+  }
+
+  public static function get_wp_languages_iso() {
+    // get WPML active languages if WPML is installed and active
+    if ( has_filter( 'wpml_active_languages' ) ) {
+      $languages = apply_filters( 'wpml_active_languages', NULL, 'orderby=id&order=desc' );
+      $language_codes = array_map( function( $lang ) {
+        return $lang['code'];
+      }, $languages );
+      array_unique( $language_codes );
+
+      return $language_codes;
+    }
+
+    // If WPML is not installed or active, return the default WP language
+    $locale = get_locale(); // Get the full locale (e.g., en_US)
+    $iso_code = substr($locale, 0, 2); // Extract the first two characters
+    return [ $iso_code ];
+  }
 
   public static function get_membership_config_cpt_slug() {
     return 'wicket_mship_config';
@@ -153,7 +171,7 @@ class Helper {
         Wicket_Memberships::STATUS_CANCELLED => [
           'name' => __('Cancelled', 'wicket-memberships'),
           'slug' => Wicket_Memberships::STATUS_CANCELLED
-        ],  
+        ],
       ];
     } else if( $status == Wicket_Memberships::STATUS_GRACE ) {
       return [
@@ -164,7 +182,7 @@ class Helper {
         Wicket_Memberships::STATUS_CANCELLED => [
           'name' => __('Cancelled', 'wicket-memberships'),
           'slug' => Wicket_Memberships::STATUS_CANCELLED
-        ],  
+        ],
       ];
     } else if( $status == Wicket_Memberships::STATUS_ACTIVE ) {
       return [
@@ -177,9 +195,9 @@ class Helper {
       return new \StdClass();
     }
   }
-  
+
   /**
-   * Convert json membership data to post_data 
+   * Convert json membership data to post_data
    *
    * @param string|array $membership_json json or array
    * @param boolean $json_encoded is this json encoded or array data
@@ -217,7 +235,7 @@ class Helper {
           $membership_post_data[$new_key] = $val;
         }
       }
-    );  
+    );
     return $membership_post_data;
   }
 
@@ -249,7 +267,7 @@ class Helper {
         }
         $membership_json_data[$new_key] = $val;
       }
-    );  
+    );
     if( $json_encode === true ) {
       $membership_json = json_encode( $membership_json_data );
       return $membership_json;
@@ -272,7 +290,7 @@ class Helper {
     if( ! empty( $org_data['included'][0]['attributes']['city'] ) ) {
       $data['location'] = $org_data['included'][0]['attributes']['city'] . ', ';
       $data['location'] .= $org_data['included'][0]['attributes']['state_name'] . ', ';
-      $data['location'] .= $org_data['included'][0]['attributes']['country_code'];  
+      $data['location'] .= $org_data['included'][0]['attributes']['country_code'];
     } else {
       $data['location'] = '';
     }

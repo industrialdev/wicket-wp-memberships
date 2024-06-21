@@ -10,7 +10,13 @@ import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, Cust
 import DatePicker from 'react-datepicker';
 import MembershipConfigTiers from './tiers';
 
-const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tierCptSlug, postId, tierMdpUuids }) => {
+const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tierCptSlug, postId, tierMdpUuids, languageCodes }) => {
+
+	const languageCodesArray = languageCodes.split(',');
+
+	const [currentRenewalWindowDataLocale, setCurrentRenewalWindowDataLocale] = useState(languageCodesArray[0]); // at least one language code should always exist
+
+	const [currentLateFeeWindowDataLocale, setCurrentLateFeeWindowDataLocale] = useState(languageCodesArray[0]);
 
 	const [currentSeasonIndex, setCurrentSeasonIndex] = useState(null);
 
@@ -38,20 +44,25 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 	const [seasonErrors, setSeasonErrors] = useState({});
 	const [wcProductOptions, setWcProductOptions] = useState([]);
 
+	let default_locales = {};
+	languageCodesArray.forEach((code) => {
+		default_locales[code] = {
+			callout_header: '',
+			callout_content: '',
+			callout_button_label: ''
+		}
+	});
+
 	const [form, setForm] = useState({
 		name: '',
 		renewal_window_data: {
 			days_count: '1',
-			callout_header: '',
-			callout_content: '',
-			callout_button_label: ''
+			locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
 		},
 		late_fee_window_data: {
 			days_count: '1',
 			product_id: '-1',
-			callout_header: '',
-			callout_content: '',
-			callout_button_label: ''
+			locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
 		},
 		cycle_data: {
 			cycle_type: 'calendar', // calendar/anniversary
@@ -103,33 +114,6 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
       isValid = false
     }
 
-		// if (form.renewal_window_data.callout_header.length === 0) {
-		// 	newErrors.renewalWindowcallout_header = __('Renewal Window Callout Header is required', 'wicket-memberships')
-		// 	isValid = false
-		// }
-
-		// if (form.renewal_window_data.callout_content.length === 0) {
-		// 	newErrors.renewalWindowCalloutContent = __('Renewal Window Callout Content is required', 'wicket-memberships')
-		// 	isValid = false
-		// }
-
-		// if (form.renewal_window_data.callout_button_label.length === 0) {
-		// 	newErrors.renewalWindowButtonLabel = __('Renewal Window Callout Button Label is required', 'wicket-memberships')
-		// 	isValid = false
-		// }
-
-		// if (form.late_fee_window_data.product_id === '-1') {
-		// 	newErrors.lateFeeProduct = __('Late Fee Window Product is required', 'wicket-memberships')
-		// 	isValid = false
-		// }
-
-		// if (form.cycle_data.cycle_type === 'calendar') {
-		// 	if (form.cycle_data.calendar_items.length === 0) {
-		// 		newErrors.calendarItems = __('At least one season is required', 'wicket-memberships')
-		// 		isValid = false
-		// 	}
-		// }
-
     setErrors(newErrors)
     return isValid
   }
@@ -165,9 +149,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 			...form,
 			renewal_window_data: {
 				...form.renewal_window_data,
-				callout_header: tempForm.renewal_window_data.callout_header,
-				callout_content: tempForm.renewal_window_data.callout_content,
-				callout_button_label: tempForm.renewal_window_data.callout_button_label
+				locales: tempForm.renewal_window_data.locales
 			}
 		});
 	}
@@ -179,9 +161,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 			...form,
 			late_fee_window_data: {
 				...form.late_fee_window_data,
-				callout_header: tempForm.late_fee_window_data.callout_header,
-				callout_content: tempForm.late_fee_window_data.callout_content,
-				callout_button_label: tempForm.late_fee_window_data.callout_button_label
+				locales: tempForm.late_fee_window_data.locales
 			}
 		});
 	}
@@ -785,6 +765,20 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 								closeRenewalWindowCalloutModal();
 							}
 						}>
+							<SelectControl
+								label={__('Language', 'wicket-memberships')}
+								options={
+									languageCodesArray.map((code) => {
+										return {
+											label: code,
+											value: code
+										}
+									})
+								}
+								value={currentRenewalWindowDataLocale}
+								onChange={value => setCurrentRenewalWindowDataLocale(value)}
+							/>
+
 							<TextControl
 								label={__('Callout Header', 'wicket-memberships')}
 								onChange={value => {
@@ -792,11 +786,17 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 										...tempForm,
 										renewal_window_data: {
 											...tempForm.renewal_window_data,
-											callout_header: value
+											locales: {
+												...tempForm.renewal_window_data.locales,
+												[currentRenewalWindowDataLocale]: {
+													...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
+													callout_header: value
+												}
+											}
 										}
 									});
 								}}
-								value={tempForm.renewal_window_data.callout_header}
+								value={tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_header}
 							/>
 
 							<TextareaControl
@@ -806,11 +806,17 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 										...tempForm,
 										renewal_window_data: {
 											...tempForm.renewal_window_data,
-											callout_content: value
+											locales: {
+												...tempForm.renewal_window_data.locales,
+												[currentRenewalWindowDataLocale]: {
+													...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
+													callout_content: value
+												}
+											}
 										}
 									});
 								}}
-								value={tempForm.renewal_window_data.callout_content}
+								value={tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_content}
 							/>
 
 							<TextControl
@@ -820,11 +826,17 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 										...tempForm,
 										renewal_window_data: {
 											...tempForm.renewal_window_data,
-											callout_button_label: value
+											locales: {
+												...tempForm.renewal_window_data.locales,
+												[currentRenewalWindowDataLocale]: {
+													...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
+													callout_button_label: value
+												}
+											}
 										}
 									});
 								}}
-								value={tempForm.renewal_window_data.callout_button_label}
+								value={tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_button_label}
 							/>
 
 							<Button variant="primary" type='submit'>
@@ -852,6 +864,20 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 								closeLateFeeWindowCalloutModal();
 							}
 						}>
+							<SelectControl
+								label={__('Language', 'wicket-memberships')}
+								options={
+									languageCodesArray.map((code) => {
+										return {
+											label: code,
+											value: code
+										}
+									})
+								}
+								value={currentLateFeeWindowDataLocale}
+								onChange={value => setCurrentLateFeeWindowDataLocale(value)}
+							/>
+
 							<TextControl
 								label={__('Callout Header', 'wicket-memberships')}
 								onChange={value => {
@@ -859,11 +885,17 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 										...tempForm,
 										late_fee_window_data: {
 											...tempForm.late_fee_window_data,
-											callout_header: value
+											locales: {
+												...tempForm.late_fee_window_data.locales,
+												[currentLateFeeWindowDataLocale]: {
+													...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
+													callout_header: value
+												}
+											}
 										}
 									});
 								}}
-								value={tempForm.late_fee_window_data.callout_header}
+								value={tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_header}
 							/>
 
 							<TextareaControl
@@ -873,11 +905,17 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 										...tempForm,
 										late_fee_window_data: {
 											...tempForm.late_fee_window_data,
-											callout_content: value
+											locales: {
+												...tempForm.late_fee_window_data.locales,
+												[currentLateFeeWindowDataLocale]: {
+													...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
+													callout_content: value
+												}
+											}
 										}
 									});
 								}}
-								value={tempForm.late_fee_window_data.callout_content}
+								value={tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_content}
 							/>
 
 							<TextControl
@@ -887,11 +925,17 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 										...tempForm,
 										late_fee_window_data: {
 											...tempForm.late_fee_window_data,
-											callout_button_label: value
+											locales: {
+												...tempForm.late_fee_window_data.locales,
+												[currentLateFeeWindowDataLocale]: {
+													...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
+													callout_button_label: value
+												}
+											}
 										}
 									});
 								}}
-								value={tempForm.late_fee_window_data.callout_button_label}
+								value={tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_button_label}
 							/>
 
 							<Button variant="primary" type='submit'>
