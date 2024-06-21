@@ -70,6 +70,9 @@ class Membership_Config_CPT_Hooks {
 
     $tier_uuids_comma_separated = implode( ',', $tier_uuids );
 
+    $language_codes = Helper::get_wp_languages_iso();
+    $language_codes_comma_separated = implode( ',', $language_codes );
+
     echo <<<HTML
       <div
         id="create_membership_config"
@@ -78,6 +81,7 @@ class Membership_Config_CPT_Hooks {
         data-config-list-url="{$config_list_page_url}"
         data-tier-list-url="{$tier_list_page_url}"
         data-tier-mdp-uuids="{$tier_uuids_comma_separated}"
+        data-language-codes="{$language_codes_comma_separated}"
         data-post-id="{$post_id}"></div>
     HTML;
   }

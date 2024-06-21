@@ -41,12 +41,13 @@ class Membership_Config {
 
   /**
    * Get the renewal callout header
+   * @param string $lang, language code
    *
-   * @return int|bool Integer, false otherwise
+   * @return string|bool String, false otherwise
    */
-  public function get_renewal_window_callout_header() {
-    if ( isset( $this->renewal_window_data['callout_header'] ) ) {
-      return sanitize_text_field( $this->renewal_window_data['callout_header'] );
+  public function get_renewal_window_callout_header($lang = 'en') {
+    if ( isset( $this->renewal_window_data['locales'][$lang]['callout_header'] ) ) {
+      return sanitize_text_field( $this->renewal_window_data['locales'][$lang]['callout_header'] );
     }
 
     return false;
@@ -54,12 +55,13 @@ class Membership_Config {
 
   /**
    * Get the renewal callout header
+   * @param string $lang, language code
    *
-   * @return int|bool Integer, false otherwise
+   * @return string|bool String, false otherwise
    */
-  public function get_renewal_window_callout_content() {
-    if ( isset( $this->renewal_window_data['callout_content'] ) ) {
-      return sanitize_text_field( $this->renewal_window_data['callout_content'] );
+  public function get_renewal_window_callout_content($lang = 'en') {
+    if ( isset( $this->renewal_window_data['locales'][$lang]['callout_content'] ) ) {
+      return sanitize_text_field( $this->renewal_window_data['locales'][$lang]['callout_content'] );
     }
 
     return false;
@@ -67,12 +69,13 @@ class Membership_Config {
 
   /**
    * Get the renewal callout button label
+   * @param string $lang, language code
    *
-   * @return int|bool Integer, false otherwise
+   * @return string|bool String, false otherwise
    */
-  public function get_renewal_window_callout_button_label() {
-    if ( isset( $this->renewal_window_data['callout_button_label'] ) ) {
-      return sanitize_text_field( $this->renewal_window_data['callout_button_label'] );
+  public function get_renewal_window_callout_button_label($lang = 'en') {
+    if ( isset( $this->renewal_window_data['locales'][$lang]['callout_button_label'] ) ) {
+      return sanitize_text_field( $this->renewal_window_data['locales'][$lang]['callout_button_label'] );
     }
 
     return false;
@@ -137,12 +140,13 @@ class Membership_Config {
 
   /**
    * Get the late fee window callout header
+   * @param string $lang, language code
    *
-   * @return int|bool Integer, false otherwise
+   * @return string|bool String, false otherwise
    */
-  public function get_late_fee_window_callout_header() {
-    if ( isset( $this->late_fee_window_data['callout_header'] ) ) {
-      return sanitize_text_field( $this->late_fee_window_data['callout_header'] );
+  public function get_late_fee_window_callout_header($lang = 'en') {
+    if ( isset( $this->late_fee_window_data['locales'][$lang]['callout_header'] ) ) {
+      return sanitize_text_field( $this->late_fee_window_data['locales'][$lang]['callout_header'] );
     }
 
     return false;
@@ -150,12 +154,13 @@ class Membership_Config {
 
   /**
    * Get the late fee window callout content
+   * @param string $lang, language code
    *
-   * @return int|bool Integer, false otherwise
+   * @return string|bool String, false otherwise
    */
-  public function get_late_fee_window_callout_content() {
-    if ( isset( $this->late_fee_window_data['callout_content'] ) ) {
-      return sanitize_text_field( $this->late_fee_window_data['callout_content'] );
+  public function get_late_fee_window_callout_content($lang = 'en') {
+    if ( isset( $this->late_fee_window_data['locales'][$lang]['callout_content'] ) ) {
+      return sanitize_text_field( $this->late_fee_window_data['locales'][$lang]['callout_content'] );
     }
 
     return false;
@@ -163,12 +168,13 @@ class Membership_Config {
 
   /**
    * Get the late fee window callout button label
+   * @param string $lang, language code
    *
-   * @return int|bool Integer, false otherwise
+   * @return string|bool String, false otherwise
    */
-  public function get_late_fee_window_callout_button_label() {
-    if ( isset( $this->late_fee_window_data['callout_button_label'] ) ) {
-      return sanitize_text_field( $this->late_fee_window_data['callout_button_label'] );
+  public function get_late_fee_window_callout_button_label($lang = 'en') {
+    if ( isset( $this->late_fee_window_data['locales'][$lang]['callout_button_label'] ) ) {
+      return sanitize_text_field( $this->late_fee_window_data['locales'][$lang]['callout_button_label'] );
     }
 
     return false;
@@ -298,7 +304,7 @@ class Membership_Config {
       $period_type  = !in_array( $cycle_data['anniversary_data']["period_type"], ['year','month','day'] )
                         ? 'year' : $cycle_data['anniversary_data']["period_type"];
       $the_end_date = date("Y-m-d", strtotime($dates['start_date'] . "+1 ".$period_type));
-      if( in_array( $period_type, ['year', 'month']) 
+      if( in_array( $period_type, ['year', 'month'])
           && (! empty($cycle_data['anniversary_data']['align_end_dates_enabled']) && $cycle_data['anniversary_data']['align_end_dates_enabled'] !== false ) ) {
         switch( $cycle_data['anniversary_data']["align_end_dates_type"] ) {
           case 'first-day-of-month':

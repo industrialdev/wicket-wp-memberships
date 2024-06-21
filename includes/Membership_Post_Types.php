@@ -58,18 +58,6 @@ class Membership_Post_Types {
                 $errors->add( 'rest_invalid_param_days_count', __( 'The renewal window days count must be greater than 0.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
-              if ( empty( $value['callout_header'] ) ) {
-                $errors->add( 'rest_invalid_param_callout_header', __( 'The renewal window callout header must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
-              }
-
-              if ( empty( $value['callout_content'] ) ) {
-                $errors->add( 'rest_invalid_param_callout_content', __( 'The renewal window callout content must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
-              }
-
-              if ( empty( $value['callout_button_label'] ) ) {
-                $errors->add( 'rest_invalid_param_callout_button_label', __( 'The renewal window callout button label must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
-              }
-
               if ( $errors->has_errors() ) {
                 return $errors;
               }
@@ -82,17 +70,26 @@ class Membership_Post_Types {
               'type'        => 'integer',
               'description' => 'The number of days before the end of the membership that the renewal window starts',
             ),
-            'callout_header'       => array(
-              'type'        => 'string',
-              'description' => 'The header for the renewal window callout',
-            ),
-            'callout_content'      => array(
-              'type'        => 'string',
-              'description' => 'The content for the renewal window callout',
-            ),
-            'callout_button_label' => array(
-              'type'        => 'string',
-              'description' => 'The label for the renewal window callout button',
+            'locales' => array(
+              'type'        => 'object',
+              'description' => 'Localized renewal window callout data',
+              'properties'  => array(
+                'type'        => 'object',
+                'properties'  => array(
+                  'header'       => array(
+                    'type'        => 'string',
+                    'description' => 'The localized header for the renewal window callout',
+                  ),
+                  'content'      => array(
+                    'type'        => 'string',
+                    'description' => 'The localized content for the renewal window callout',
+                  ),
+                  'button_label' => array(
+                    'type'        => 'string',
+                    'description' => 'The localized label for the renewal window callout button',
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -132,18 +129,6 @@ class Membership_Post_Types {
                 $errors->add( 'rest_invalid_param_product_id', __( 'The late fee window product must be a valid product.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
-              if ( empty( $value['callout_header'] ) ) {
-                $errors->add( 'rest_invalid_param_callout_header', __( 'The late fee window callout header must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
-              }
-
-              if ( empty( $value['callout_content'] ) ) {
-                $errors->add( 'rest_invalid_param_callout_content', __( 'The late fee window callout content must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
-              }
-
-              if ( empty( $value['callout_button_label'] ) ) {
-                $errors->add( 'rest_invalid_param_callout_button_label', __( 'The late fee window callout button label must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
-              }
-
               if ( $errors->has_errors() ) {
                 return $errors;
               }
@@ -158,14 +143,26 @@ class Membership_Post_Types {
             'product_id' => array(
               'type' => 'integer',
             ),
-            'callout_header' => array(
-              'type' => 'string',
-            ),
-            'callout_content' => array(
-              'type' => 'string',
-            ),
-            'callout_button_label' => array(
-              'type' => 'string',
+            'locales' => array(
+              'type'        => 'object',
+              'description' => 'Localized late fee window callout data',
+              'properties'  => array(
+                'type'        => 'object',
+                'properties'  => array(
+                  'header'       => array(
+                    'type'        => 'string',
+                    'description' => 'The localized header for the late fee window callout',
+                  ),
+                  'content'      => array(
+                    'type'        => 'string',
+                    'description' => 'The localized content for the late fee window callout',
+                  ),
+                  'button_label' => array(
+                    'type'        => 'string',
+                    'description' => 'The localized label for the late fee window callout button',
+                  ),
+                ),
+              ),
             ),
           ),
         ),
