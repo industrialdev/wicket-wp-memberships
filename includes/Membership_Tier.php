@@ -106,8 +106,18 @@ class Membership_Tier {
     return false;
   }
 
-  // Get the Tier UUIDs by config ID
+  /**
+   * Get the Tier UUIDs by config ID
+   *
+   * @param int $config_id
+   *
+   * @return array Array of tier UUIDs
+   */
   public static function get_tier_uuids_by_config_id( $config_id ) {
+    if ( ! $config_id ) {
+      return [];
+    }
+
     $args = array(
       'post_type' => Helper::get_membership_tier_cpt_slug(),
       'posts_per_page' => -1,
@@ -535,5 +545,23 @@ class Membership_Tier {
     $product_data = $this->get_products_data();
     $seats = $product_data['max_seats'];
     return $seats;
+  }
+
+  public function get_membership_posts() {
+    $args = array(
+      'post_type' => Helper::get_membership_cpt_slug(),
+      'posts_per_page' => -1,
+      'meta_query' => array(
+        array(
+          'key' => 'membership_tier_uuid',
+          'value' => $this->get_mdp_tier_uuid(),
+          'compare' => '='
+        )
+      )
+    );
+
+    $memberships = get_posts( $args );
+
+    return $memberships;
   }
 }

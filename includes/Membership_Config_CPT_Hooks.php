@@ -29,6 +29,21 @@ class Membership_Config_CPT_Hooks {
 
     // Skip trash for membership tiers
     add_action( 'trashed_post', [ $this, 'directory_skip_trash' ] );
+
+    // Prevent moving post to trash if it has associated tiers
+    add_filter( 'pre_trash_post', [ $this, 'prevent_trash' ], 10, 2 );
+  }
+
+  function prevent_trash( $trash, $post ) {
+    if ( $this->membership_config_cpt_slug === $post->post_type ) {
+      $tier_uuids = Membership_Tier::get_tier_uuids_by_config_id( $post->ID );
+
+      if ( count( $tier_uuids ) > 0 ) {
+        wp_die('This configuration has associated tiers. It cannot be moved to trash.');
+      }
+    }
+
+    return $trash;
   }
 
   function row_actions( $actions, $post ){

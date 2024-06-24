@@ -34,9 +34,25 @@ class Membership_Tier_CPT_Hooks {
 
     // Skip trash for membership tiers
     add_action('trashed_post', [ $this, 'directory_skip_trash' ]);
+
+    // Prevent moving post to trash if it has associated memberships
+    add_filter( 'pre_trash_post', [ $this, 'prevent_trash' ], 10, 2 );
   }
 
-  function row_actions( $actions, $post ){
+  function prevent_trash( $trash, $post ) {
+    if ( $this->membership_tier_cpt_slug === $post->post_type ) {
+      $tier = new Membership_Tier( $post->ID );
+      $member_count = count( $tier->get_membership_posts() );
+
+      if ( $member_count > 0 ) {
+        wp_die('This tier has associated memberships. It cannot be moved to trash.');
+      }
+    }
+
+    return $trash;
+  }
+
+  function row_actions( $actions, $post ) {
     if ( $this->membership_tier_cpt_slug === $post->post_type ) {
       // Removes the "Quick Edit" action.
       unset( $actions['inline hide-if-no-js'] );
