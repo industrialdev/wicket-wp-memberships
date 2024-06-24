@@ -62,15 +62,15 @@ class Membership_Post_Types {
               $language_codes = Helper::get_wp_languages_iso();
               $locales_valid = true;
               foreach ( $language_codes as $language_code ) {
-                if ( empty( $value['locales'][ $language_code ]['header'] ) ) {
+                if ( empty( $value['locales'][ $language_code ]['callout_header'] ) ) {
                   $locales_valid = false;
                 }
 
-                if ( empty( $value['locales'][ $language_code ]['content'] ) ) {
+                if ( empty( $value['locales'][ $language_code ]['callout_content'] ) ) {
                   $locales_valid = false;
                 }
 
-                if ( empty( $value['locales'][ $language_code ]['button_label'] ) ) {
+                if ( empty( $value['locales'][ $language_code ]['callout_button_label'] ) ) {
                   $locales_valid = false;
                 }
               }
@@ -97,15 +97,15 @@ class Membership_Post_Types {
               'properties'  => array(
                 'type'        => 'object',
                 'properties'  => array(
-                  'header'       => array(
+                  'callout_header'       => array(
                     'type'        => 'string',
                     'description' => 'The localized header for the renewal window callout',
                   ),
-                  'content'      => array(
+                  'callout_content'      => array(
                     'type'        => 'string',
                     'description' => 'The localized content for the renewal window callout',
                   ),
-                  'button_label' => array(
+                  'callout_button_label' => array(
                     'type'        => 'string',
                     'description' => 'The localized label for the renewal window callout button',
                   ),
@@ -154,15 +154,15 @@ class Membership_Post_Types {
               $language_codes = Helper::get_wp_languages_iso();
               $locales_valid = true;
               foreach ( $language_codes as $language_code ) {
-                if ( empty( $value['locales'][ $language_code ]['header'] ) ) {
+                if ( empty( $value['locales'][ $language_code ]['callout_header'] ) ) {
                   $locales_valid = false;
                 }
 
-                if ( empty( $value['locales'][ $language_code ]['content'] ) ) {
+                if ( empty( $value['locales'][ $language_code ]['callout_content'] ) ) {
                   $locales_valid = false;
                 }
 
-                if ( empty( $value['locales'][ $language_code ]['button_label'] ) ) {
+                if ( empty( $value['locales'][ $language_code ]['callout_button_label'] ) ) {
                   $locales_valid = false;
                 }
               }
@@ -191,15 +191,15 @@ class Membership_Post_Types {
               'properties'  => array(
                 'type'        => 'object',
                 'properties'  => array(
-                  'header'       => array(
+                  'callout_header'       => array(
                     'type'        => 'string',
                     'description' => 'The localized header for the late fee window callout',
                   ),
-                  'content'      => array(
+                  'callout_content'      => array(
                     'type'        => 'string',
                     'description' => 'The localized content for the late fee window callout',
                   ),
-                  'button_label' => array(
+                  'callout_button_label' => array(
                     'type'        => 'string',
                     'description' => 'The localized label for the late fee window callout button',
                   ),

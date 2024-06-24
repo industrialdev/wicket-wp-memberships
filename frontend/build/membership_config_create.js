@@ -42542,21 +42542,21 @@ const CreateMembershipConfig = ({
   let default_locales = {};
   languageCodesArray.forEach(code => {
     default_locales[code] = {
-      header: '',
-      content: '',
-      button_label: ''
+      callout_header: '',
+      callout_content: '',
+      callout_button_label: ''
     };
   });
   const [form, setForm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     name: '',
     renewal_window_data: {
       days_count: '1',
-      locales: default_locales // { en: { header: '', content: '', button_label: '' } }
+      locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
     },
     late_fee_window_data: {
       days_count: '1',
       product_id: '-1',
-      locales: default_locales // { en: { header: '', content: '', button_label: '' } }
+      locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
     },
     cycle_data: {
       cycle_type: 'calendar',
@@ -43098,13 +43098,13 @@ const CreateMembershipConfig = ({
             ...tempForm.renewal_window_data.locales,
             [currentRenewalWindowDataLocale]: {
               ...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
-              header: value
+              callout_header: value
             }
           }
         }
       });
     },
-    value: tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].header
+    value: tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_header
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextareaControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Content', 'wicket-memberships'),
     onChange: value => {
@@ -43116,13 +43116,13 @@ const CreateMembershipConfig = ({
             ...tempForm.renewal_window_data.locales,
             [currentRenewalWindowDataLocale]: {
               ...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
-              content: value
+              callout_content: value
             }
           }
         }
       });
     },
-    value: tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].content
+    value: tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_content
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Button Label', 'wicket-memberships'),
     onChange: value => {
@@ -43134,13 +43134,13 @@ const CreateMembershipConfig = ({
             ...tempForm.renewal_window_data.locales,
             [currentRenewalWindowDataLocale]: {
               ...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
-              button_label: value
+              callout_button_label: value
             }
           }
         }
       });
     },
-    value: tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].button_label
+    value: tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_button_label
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
     variant: "primary",
     type: "submit"
@@ -43177,13 +43177,13 @@ const CreateMembershipConfig = ({
             ...tempForm.late_fee_window_data.locales,
             [currentLateFeeWindowDataLocale]: {
               ...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
-              header: value
+              callout_header: value
             }
           }
         }
       });
     },
-    value: tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].header
+    value: tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_header
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextareaControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Callout Content', 'wicket-memberships'),
     onChange: value => {
@@ -43195,13 +43195,13 @@ const CreateMembershipConfig = ({
             ...tempForm.late_fee_window_data.locales,
             [currentLateFeeWindowDataLocale]: {
               ...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
-              content: value
+              callout_content: value
             }
           }
         }
       });
     },
-    value: tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].content
+    value: tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_content
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Button Label', 'wicket-memberships'),
     onChange: value => {
@@ -43213,13 +43213,13 @@ const CreateMembershipConfig = ({
             ...tempForm.late_fee_window_data.locales,
             [currentLateFeeWindowDataLocale]: {
               ...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
-              button_label: value
+              callout_button_label: value
             }
           }
         }
       });
     },
-    value: tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].button_label
+    value: tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_button_label
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
     variant: "primary",
     type: "submit"

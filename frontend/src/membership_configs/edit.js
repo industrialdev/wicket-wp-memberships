@@ -47,9 +47,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 	let default_locales = {};
 	languageCodesArray.forEach((code) => {
 		default_locales[code] = {
-			header: '',
-			content: '',
-			button_label: ''
+			callout_header: '',
+			callout_content: '',
+			callout_button_label: ''
 		}
 	});
 
@@ -57,12 +57,12 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 		name: '',
 		renewal_window_data: {
 			days_count: '1',
-			locales: default_locales // { en: { header: '', content: '', button_label: '' } }
+			locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
 		},
 		late_fee_window_data: {
 			days_count: '1',
 			product_id: '-1',
-			locales: default_locales // { en: { header: '', content: '', button_label: '' } }
+			locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
 		},
 		cycle_data: {
 			cycle_type: 'calendar', // calendar/anniversary
@@ -790,13 +790,13 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 												...tempForm.renewal_window_data.locales,
 												[currentRenewalWindowDataLocale]: {
 													...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
-													header: value
+													callout_header: value
 												}
 											}
 										}
 									});
 								}}
-								value={tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].header}
+								value={tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_header}
 							/>
 
 							<TextareaControl
@@ -810,13 +810,13 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 												...tempForm.renewal_window_data.locales,
 												[currentRenewalWindowDataLocale]: {
 													...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
-													content: value
+													callout_content: value
 												}
 											}
 										}
 									});
 								}}
-								value={tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].content}
+								value={tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_content}
 							/>
 
 							<TextControl
@@ -830,13 +830,13 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 												...tempForm.renewal_window_data.locales,
 												[currentRenewalWindowDataLocale]: {
 													...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
-													button_label: value
+													callout_button_label: value
 												}
 											}
 										}
 									});
 								}}
-								value={tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].button_label}
+								value={tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_button_label}
 							/>
 
 							<Button variant="primary" type='submit'>
@@ -889,13 +889,13 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 												...tempForm.late_fee_window_data.locales,
 												[currentLateFeeWindowDataLocale]: {
 													...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
-													header: value
+													callout_header: value
 												}
 											}
 										}
 									});
 								}}
-								value={tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].header}
+								value={tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_header}
 							/>
 
 							<TextareaControl
@@ -909,13 +909,13 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 												...tempForm.late_fee_window_data.locales,
 												[currentLateFeeWindowDataLocale]: {
 													...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
-													content: value
+													callout_content: value
 												}
 											}
 										}
 									});
 								}}
-								value={tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].content}
+								value={tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_content}
 							/>
 
 							<TextControl
@@ -929,13 +929,13 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 												...tempForm.late_fee_window_data.locales,
 												[currentLateFeeWindowDataLocale]: {
 													...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
-													button_label: value
+													callout_button_label: value
 												}
 											}
 										}
 									});
 								}}
-								value={tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].button_label}
+								value={tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_button_label}
 							/>
 
 							<Button variant="primary" type='submit'>
