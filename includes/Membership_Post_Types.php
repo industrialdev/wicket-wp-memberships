@@ -58,6 +58,27 @@ class Membership_Post_Types {
                 $errors->add( 'rest_invalid_param_days_count', __( 'The renewal window days count must be greater than 0.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
+              // Validate locales to be not empty
+              $language_codes = Helper::get_wp_languages_iso();
+              $locales_valid = true;
+              foreach ( $language_codes as $language_code ) {
+                if ( empty( $value['locales'][ $language_code ]['header'] ) ) {
+                  $locales_valid = false;
+                }
+
+                if ( empty( $value['locales'][ $language_code ]['content'] ) ) {
+                  $locales_valid = false;
+                }
+
+                if ( empty( $value['locales'][ $language_code ]['button_label'] ) ) {
+                  $locales_valid = false;
+                }
+              }
+
+              if ( $locales_valid === false ) {
+                $errors->add( 'rest_invalid_param_locales', __( 'The renewal window callout data must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
               if ( $errors->has_errors() ) {
                 return $errors;
               }
@@ -127,6 +148,27 @@ class Membership_Post_Types {
               $wc_product = new \WC_Product( $value['product_id'] );
               if ( $wc_product->exists() === false ) {
                 $errors->add( 'rest_invalid_param_product_id', __( 'The late fee window product must be a valid product.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              // Validate locales to be not empty
+              $language_codes = Helper::get_wp_languages_iso();
+              $locales_valid = true;
+              foreach ( $language_codes as $language_code ) {
+                if ( empty( $value['locales'][ $language_code ]['header'] ) ) {
+                  $locales_valid = false;
+                }
+
+                if ( empty( $value['locales'][ $language_code ]['content'] ) ) {
+                  $locales_valid = false;
+                }
+
+                if ( empty( $value['locales'][ $language_code ]['button_label'] ) ) {
+                  $locales_valid = false;
+                }
+              }
+
+              if ( $locales_valid === false ) {
+                $errors->add( 'rest_invalid_param_locales', __( 'The late fee window callout data must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
               if ( $errors->has_errors() ) {
@@ -389,6 +431,27 @@ class Membership_Post_Types {
 
                 if ( ! is_email( $value['approval_email_recipient'] ) ) {
                   $errors->add( 'rest_invalid_param_approval_email_recipient', __( 'The approval email recipient must be a valid email.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+                // validate locales to be not empty
+                $locales_valid = true;
+                $language_codes = Helper::get_wp_languages_iso();
+                foreach ( $language_codes as $language_code ) {
+                  if ( empty( $value['approval_callout_data']['locales'][ $language_code ]['callout_header'] ) ) {
+                    $locales_valid = false;
+                  }
+
+                  if ( empty( $value['approval_callout_data']['locales'][ $language_code ]['callout_content'] ) ) {
+                    $locales_valid = false;
+                  }
+
+                  if ( empty( $value['approval_callout_data']['locales'][ $language_code ]['callout_button_label'] ) ) {
+                    $locales_valid = false;
+                  }
+                }
+
+                if ( $locales_valid === false ) {
+                  $errors->add( 'rest_invalid_param_approval_callout_data', __( 'The approval callout data must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
                 }
               }
 
