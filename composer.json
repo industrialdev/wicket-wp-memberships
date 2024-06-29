@@ -16,7 +16,7 @@
     }
   },
   "require": {
-    "php": ">=8.2",
+    "php": ">=8.0",
     "jeffreyvanrossum/wp-settings": "1.2.1"
   }
 }
