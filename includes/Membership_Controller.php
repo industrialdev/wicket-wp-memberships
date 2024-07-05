@@ -912,7 +912,8 @@ class Membership_Controller {
       $membership_early_renew_at = strtotime( $membership->membership_early_renew_at );
       $membership_ends_at = strtotime( $membership->membership_ends_at );
       $membership_expires_at = strtotime( $membership->membership_expires_at );
-      $current_time = current_time( 'timezone' );
+      $current_time =  current_time( 'timestamp' );
+      $membership_data['ends_in_days'] = ( ( $membership_ends_at - $current_time ) / 86400 );
       if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) && !empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
         $current_time =  strtotime ( date( "Y-m-d") . '+' . $_REQUEST['wicket_wp_membership_debug_days'] . ' days');
       }

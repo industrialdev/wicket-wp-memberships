@@ -94,7 +94,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //Hooks fired twice included in class contructor
       add_action( 'init', [$this, 'wicket_membership_init_session'] );
       //catch the order status change to complete
-      add_action( 'woocommerce_order_status_changed', array ( __NAMESPACE__.'\\Membership_Controller' , 'catch_order_completed' ), 10, 1);
+      add_action( 'woocommerce_order_status_completed', array ( __NAMESPACE__.'\\Membership_Controller' , 'catch_order_completed' ), 10, 1);
       //create the membership record
       add_action( 'wicket_member_create_record', array( __NAMESPACE__.'\\Membership_Controller', 'create_membership_record'), 10, 3 );
 
