@@ -32,7 +32,7 @@ class Membership_Config {
    * @return int|bool Integer, false otherwise
    */
   public function get_renewal_window_days() {
-    if ( isset( $this->renewal_window_data['days_count'] ) ) {
+    if ( isset( $this->renewal_window_data['days_count'] ) && is_numeric( $this->renewal_window_data['days_count'] ) ) {
       return intval( $this->renewal_window_data['days_count'] );
     }
 
@@ -131,7 +131,7 @@ class Membership_Config {
    * @return int|bool Integer, false otherwise
    */
   public function get_late_fee_window_days() {
-    if ( isset( $this->late_fee_window_data['days_count'] ) ) {
+    if ( isset( $this->late_fee_window_data['days_count'] ) && is_numeric( $this->late_fee_window_data['days_count'] ) ) {
       return intval( $this->late_fee_window_data['days_count'] );
     }
 

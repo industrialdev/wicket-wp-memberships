@@ -60,7 +60,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 			locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
 		},
 		late_fee_window_data: {
-			days_count: '1',
+			days_count: '0',
 			product_id: '-1',
 			locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
 		},
@@ -424,7 +424,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 									<TextControl
 										label={__('Late Fee Window (Days)', 'wicket-memberships')}
 										type="number"
-										min="1"
+										min="0"
 										onChange={value => {
 											setForm({
 												...form,
@@ -444,18 +444,28 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 										id="late_fee_product_id"
 										classNamePrefix="select"
 										value={wcProductOptions.find(option => option.value === form.late_fee_window_data.product_id)}
-										isClearable={false}
+										isClearable={true}
 										isSearchable={true}
 										isLoading={wcProductOptions.length === 0}
 										options={wcProductOptions}
 										onChange={selected => {
-											setForm({
-												...form,
-												late_fee_window_data: {
-													...form.late_fee_window_data,
-													product_id: selected.value
-												}
-											});
+											if (selected === null) {
+												setForm({
+													...form,
+													late_fee_window_data: {
+														...form.late_fee_window_data,
+														product_id: '-1'
+													}
+												});
+											} else {
+												setForm({
+													...form,
+													late_fee_window_data: {
+														...form.late_fee_window_data,
+														product_id: selected.value
+													}
+												});
+											}
 										}}
 									/>
 								</FlexBlock>

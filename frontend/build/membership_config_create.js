@@ -42554,7 +42554,7 @@ const CreateMembershipConfig = ({
       locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
     },
     late_fee_window_data: {
-      days_count: '1',
+      days_count: '0',
       product_id: '-1',
       locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
     },
@@ -42853,7 +42853,7 @@ const CreateMembershipConfig = ({
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Late Fee Window (Days)', 'wicket-memberships'),
     type: "number",
-    min: "1",
+    min: "0",
     onChange: value => {
       setForm({
         ...form,
@@ -42871,18 +42871,28 @@ const CreateMembershipConfig = ({
     id: "late_fee_product_id",
     classNamePrefix: "select",
     value: wcProductOptions.find(option => option.value === form.late_fee_window_data.product_id),
-    isClearable: false,
+    isClearable: true,
     isSearchable: true,
     isLoading: wcProductOptions.length === 0,
     options: wcProductOptions,
     onChange: selected => {
-      setForm({
-        ...form,
-        late_fee_window_data: {
-          ...form.late_fee_window_data,
-          product_id: selected.value
-        }
-      });
+      if (selected === null) {
+        setForm({
+          ...form,
+          late_fee_window_data: {
+            ...form.late_fee_window_data,
+            product_id: '-1'
+          }
+        });
+      } else {
+        setForm({
+          ...form,
+          late_fee_window_data: {
+            ...form.late_fee_window_data,
+            product_id: selected.value
+          }
+        });
+      }
     }
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
     variant: "secondary",
