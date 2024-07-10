@@ -17,6 +17,7 @@ class Admin_Controller {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     add_action( 'admin_menu', array( $this, 'init_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+    add_filter('rest_prepare_product', array( $this, 'add_product_type_to_rest_api' ), 10, 2);
   }
 
 	/**
@@ -174,7 +175,7 @@ class Admin_Controller {
         $sub = wcs_get_subscription( $membership_new['membership_subscription_id'] );
         if(! empty( $sub )) {
           $sub->update_status( 'cancelled' );
-        }  
+        }
       }
       //return the order id ( FE will redirect user to refund order )
       $response_array['order_id'] = $membership_new['membership_parent_order_id'];
@@ -240,7 +241,7 @@ class Admin_Controller {
         'identifying_number' => $response->getAttribute('identifying_number'),
         'data' => $response->getAttribute('user')['email'],
         'mdp_link' => $wicket_settings['wicket_admin'] . '/people/' . $person_uuid
-      ];  
+      ];
     } else if(preg_match('/^[a-f\d]{8}(-[a-f\d]{4}){4}[a-f\d]{8}$/i', $id)) {
       $response = wicket_get_organization( $id );
       $org_data = Helper::get_org_data( $id, false, true );
@@ -248,7 +249,7 @@ class Admin_Controller {
         'identifying_number' => $response['data']['attributes']['identifying_number'],
         'data' => $org_data['location'],
         'mdp_link' => $wicket_settings['wicket_admin'] . '/organizations/' . $id
-      ];  
+      ];
     }
 
   }
@@ -372,7 +373,7 @@ class Admin_Controller {
       $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_starts_at' ] )), wp_timezone() ))->format('c');
       $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", $membership_ends_at_seconds ), wp_timezone() ))->format('c');
       $data[ 'membership_expires_at' ]  = (new \DateTime( date("Y-m-d", $membership_expires_at_seconds ), wp_timezone() ))->format('c');
-      $data[ 'grace_period_days' ] = $grace_period_days; 
+      $data[ 'grace_period_days' ] = $grace_period_days;
     }
 
     if ( Helper::is_valid_membership_post( $membership_post_id ) ) {
@@ -403,5 +404,13 @@ class Admin_Controller {
     }
 
     return new \WP_REST_Response($response_array, $response_code);
+  }
+
+  function add_product_type_to_rest_api($response, $post) {
+    if ($response->data['type'] === 'product') {
+      $product = wc_get_product($post->ID);
+      $response->data['product_type'] = $product->get_type();
+    }
+    return $response;
   }
 }
