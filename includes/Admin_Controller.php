@@ -108,6 +108,7 @@ class Admin_Controller {
         'membership_ends_at' =>  $dates['end_date'],
         'membership_expires_at' => !empty($dates['expires_at']) ? $dates['expires_at'] : $dates['end_date'],
         'membership_early_renew_at' => !empty($dates['early_renew_at']) ? $dates['early_renew_at'] : $dates['end_date'],
+        'membership_grace_period_days' => $config->get_late_fee_window_days()
       ];
       $membership = array_merge( $membership_new, $meta_data );
 
@@ -155,18 +156,25 @@ class Admin_Controller {
           'membership_status' => $new_post_status,
           'membership_starts_at' => $yesterday_iso_date,
           'membership_ends_at' =>  $now_iso_date,
+          'membership_expires_at' => $now_iso_date,
+          'grace_period_days' => 0
         ];
       }
       else if( $current_post_status == Wicket_Memberships::STATUS_GRACE) {
+        //var_dump($membership_current);exit;
         $meta_data = [
           'membership_status' => $new_post_status,
+          //'membership_ends_at' => $membership_current['membership_ends_at'],
           'membership_expires_at' => $now_iso_date,
+          'grace_period_days' => 0
         ];
       }
       else {
         $meta_data = [
           'membership_status' => $new_post_status,
           'membership_ends_at' => $tomorrow_iso_date,
+          'membership_expires_at' => $tomorrow_iso_date,
+          'grace_period_days' => 0
         ];
       }
       // cancel the associated subscription
@@ -183,6 +191,7 @@ class Admin_Controller {
       $meta_data = [
         'membership_status' => $new_post_status,
         'membership_expires_at' => $now_iso_date,
+        'grace_period_days' => 0
       ];
     }
     $meta_data['membership_type'] = $membership_new['membership_type'];

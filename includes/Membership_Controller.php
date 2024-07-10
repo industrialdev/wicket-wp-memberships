@@ -501,6 +501,7 @@ class Membership_Controller {
     $starts_at = '';
     $ends_at = '';
     $grace_period_days = false;
+    $max_assignments = false;
 
     if( ! empty( $meta_data['membership_starts_at'] ) ) {
       $starts_at = $meta_data['membership_starts_at'];
@@ -510,8 +511,14 @@ class Membership_Controller {
       $ends_at = $meta_data['membership_ends_at'];
     }
 
-    if( ! empty( $meta_data['grace_period_days'] ) ) {
+    if( $meta_data['grace_period_days'] == '0' || ! empty( $meta_data['grace_period_days'] ) ) {
       $grace_period_days = $meta_data['grace_period_days'];
+    }
+
+    if( $meta_data['max_assignments'] == '0' || ! empty( $meta_data['max_assignments'] ) ) {
+      $max_assignments = $meta_data['max_assignments'];
+    } else  if( $meta_data['membership_seats'] == '0' || ! empty( $meta_data['membership_seats'] ) ) {
+      $max_assignments = $meta_data['membership_seats'];
     }
 
     if( $membership['membership_type'] == 'individual' ) {
@@ -526,6 +533,7 @@ class Membership_Controller {
         $membership['membership_wicket_uuid'], 
         $starts_at,
         $ends_at,
+        $max_assignments,
         $grace_period_days
       );  
     }
