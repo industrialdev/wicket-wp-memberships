@@ -6813,12 +6813,16 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   API_URL: () => (/* binding */ API_URL),
 /* harmony export */   DEFAULT_DATE_FORMAT: () => (/* binding */ DEFAULT_DATE_FORMAT),
 /* harmony export */   PLUGIN_API_URL: () => (/* binding */ PLUGIN_API_URL),
-/* harmony export */   TIER_CPT_SLUG: () => (/* binding */ TIER_CPT_SLUG)
+/* harmony export */   TIER_CPT_SLUG: () => (/* binding */ TIER_CPT_SLUG),
+/* harmony export */   WC_API_V3_URL: () => (/* binding */ WC_API_V3_URL),
+/* harmony export */   WC_PRODUCT_TYPES: () => (/* binding */ WC_PRODUCT_TYPES)
 /* harmony export */ });
 const API_URL = '/wp/v2';
+const WC_API_V3_URL = '/wc/v3';
 const PLUGIN_API_URL = '/wicket_member/v1';
 const TIER_CPT_SLUG = 'wicket_mship_tier';
 const DEFAULT_DATE_FORMAT = 'yyyy-MM-dd';
+const WC_PRODUCT_TYPES = ['subscription', 'variable-subscription'];
 
 /***/ }),
 
@@ -7006,6 +7010,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   fetchMemberships: () => (/* binding */ fetchMemberships),
 /* harmony export */   fetchTiers: () => (/* binding */ fetchTiers),
 /* harmony export */   fetchTiersInfo: () => (/* binding */ fetchTiersInfo),
+/* harmony export */   fetchWcProducts: () => (/* binding */ fetchWcProducts),
 /* harmony export */   updateMembership: () => (/* binding */ updateMembership),
 /* harmony export */   updateMembershipStatus: () => (/* binding */ updateMembershipStatus)
 /* harmony export */ });
@@ -7133,6 +7138,10 @@ const fetchMembershipTiers = (queryParams = {}) => {
     path: url
   });
 };
+
+/**
+ * Fetch Membership Filters
+ */
 const fetchMembershipFilters = (memberType = null) => {
   if (memberType === null) {
     return;
@@ -7141,6 +7150,15 @@ const fetchMembershipFilters = (memberType = null) => {
     path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_filters`, {
       type: memberType
     })
+  });
+};
+
+/**
+ * Fetch WooCommerce Products
+ */
+const fetchWcProducts = (queryParams = {}) => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.WC_API_V3_URL}/products`, queryParams)
   });
 };
 
@@ -42490,9 +42508,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var he__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! he */ "./node_modules/he/he.js");
 /* harmony import */ var he__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(he__WEBPACK_IMPORTED_MODULE_7__);
 /* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../styled_elements */ "./src/styled_elements.js");
-/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! react-datepicker */ "./node_modules/react-datepicker/dist/react-datepicker.min.js");
-/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_10___default = /*#__PURE__*/__webpack_require__.n(react_datepicker__WEBPACK_IMPORTED_MODULE_10__);
+/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! react-datepicker */ "./node_modules/react-datepicker/dist/react-datepicker.min.js");
+/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_11___default = /*#__PURE__*/__webpack_require__.n(react_datepicker__WEBPACK_IMPORTED_MODULE_11__);
 /* harmony import */ var _tiers__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./tiers */ "./src/membership_configs/tiers.js");
+/* harmony import */ var _services_api__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../services/api */ "./src/services/api.js");
+
 
 
 
@@ -42775,22 +42795,20 @@ const CreateMembershipConfig = ({
     }
 
     // Fetch WooCommerce products
-    queryParams = {
-      status: 'publish'
-    };
-    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
-      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/product`, queryParams)
-    }).then(products => {
-      console.log(products);
-      let options = products.map(product => {
-        const decodedTitle = he__WEBPACK_IMPORTED_MODULE_7___default().decode(product.title.rendered);
-        return {
-          label: `${decodedTitle} | ID: ${product.id}`,
-          value: product.id
-        };
+    _constants__WEBPACK_IMPORTED_MODULE_6__.WC_PRODUCT_TYPES.forEach(type => {
+      (0,_services_api__WEBPACK_IMPORTED_MODULE_10__.fetchWcProducts)({
+        status: 'publish',
+        per_page: 100,
+        type: type
+      }).then(products => {
+        const options = products.map(product => {
+          return {
+            label: `${product.name} | ID: ${product.id}`,
+            value: product.id
+          };
+        });
+        setWcProductOptions(prevOptions => [...prevOptions, ...options]);
       });
-      console.log(options);
-      setWcProductOptions(options);
     });
   }, []);
   console.log(errors);
@@ -43274,7 +43292,7 @@ const CreateMembershipConfig = ({
     }]
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
     htmlFor: "mdp_tier"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_10___default()), {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_11___default()), {
     popperPlacement: "bottom",
     "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships'),
     dateFormat: _constants__WEBPACK_IMPORTED_MODULE_6__.DEFAULT_DATE_FORMAT,
@@ -43293,7 +43311,7 @@ const CreateMembershipConfig = ({
     }
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
     htmlFor: "mdp_tier"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_10___default()), {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_11___default()), {
     popperPlacement: "bottom",
     "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships'),
     dateFormat: _constants__WEBPACK_IMPORTED_MODULE_6__.DEFAULT_DATE_FORMAT,

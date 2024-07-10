@@ -13,12 +13,16 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   API_URL: () => (/* binding */ API_URL),
 /* harmony export */   DEFAULT_DATE_FORMAT: () => (/* binding */ DEFAULT_DATE_FORMAT),
 /* harmony export */   PLUGIN_API_URL: () => (/* binding */ PLUGIN_API_URL),
-/* harmony export */   TIER_CPT_SLUG: () => (/* binding */ TIER_CPT_SLUG)
+/* harmony export */   TIER_CPT_SLUG: () => (/* binding */ TIER_CPT_SLUG),
+/* harmony export */   WC_API_V3_URL: () => (/* binding */ WC_API_V3_URL),
+/* harmony export */   WC_PRODUCT_TYPES: () => (/* binding */ WC_PRODUCT_TYPES)
 /* harmony export */ });
 const API_URL = '/wp/v2';
+const WC_API_V3_URL = '/wc/v3';
 const PLUGIN_API_URL = '/wicket_member/v1';
 const TIER_CPT_SLUG = 'wicket_mship_tier';
 const DEFAULT_DATE_FORMAT = 'yyyy-MM-dd';
+const WC_PRODUCT_TYPES = ['subscription', 'variable-subscription'];
 
 /***/ }),
 

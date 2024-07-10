@@ -1,6 +1,6 @@
 import apiFetch from '@wordpress/api-fetch';
 import { addQueryArgs } from '@wordpress/url';
-import { API_URL, PLUGIN_API_URL, TIER_CPT_SLUG } from '../constants';
+import { API_URL, PLUGIN_API_URL, TIER_CPT_SLUG, WC_API_V3_URL } from '../constants';
 
 /**
  * Fetch Local Membership Tiers Posts
@@ -103,8 +103,20 @@ export const fetchMembershipTiers = (queryParams = {}) => {
   return apiFetch({ path: url });
 };
 
+/**
+ * Fetch Membership Filters
+ */
 export const fetchMembershipFilters = (memberType = null) => {
   if (memberType === null) { return; }
 
   return apiFetch({ path: addQueryArgs(`${PLUGIN_API_URL}/membership_filters`, { type: memberType }) });
+};
+
+/**
+ * Fetch WooCommerce Products
+ */
+export const fetchWcProducts = (queryParams = {}) => {
+  return apiFetch({ path:
+    addQueryArgs(`${WC_API_V3_URL}/products`, queryParams)
+  });
 };

@@ -5,10 +5,10 @@ import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { TextControl, TextareaControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon, __experimentalText as Text } from '@wordpress/components';
 import styled from 'styled-components';
-import { API_URL, PLUGIN_API_URL } from '../constants';
+import { API_URL, WC_API_V3_URL, PLUGIN_API_URL, WC_PRODUCT_TYPES } from '../constants';
 import he from 'he';
 import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, FormFlex, CustomDisabled } from '../styled_elements';
-import { fetchMembershipTiers } from '../services/api';
+import { fetchMembershipTiers, fetchWcProducts } from '../services/api';
 
 const MarginedFlex = styled(Flex)`
 	margin-top: 15px;
@@ -81,7 +81,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		renewal_type: 'current_tier', // current_tier, sequential_logic, form_flow
 		type: '', // orgranization, individual
 		seat_type: 'per_seat', // per_seat, per_range_of_seats
-		product_data: [], // { product_id:, max_seats: }
+		product_data: [], // { product_id:, max_seats:, variation_id: }
 		approval_callout_data: {
 			locales: default_locales
 		}
@@ -375,27 +375,29 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	}
 
 	useEffect(() => {
-		let queryParams = {};
-
 		// Fetch WooCommerce products
-		queryParams = { status: 'publish', per_page: 100, exclude: productsInUse };
-		apiFetch({ path: addQueryArgs(`${API_URL}/product`, queryParams) }).then((products) => {
-			console.log(products);
-
-			let options = products.map((product) => {
-				const decodedTitle = he.decode(product.title.rendered);
-				return {
-					label: `${decodedTitle} | ID: ${product.id}`,
-					value: product.id
-				}
+		WC_PRODUCT_TYPES.forEach((type) => {
+			fetchWcProducts({
+				status: 'publish',
+				per_page: 100,
+				exclude: productsInUse,
+				type: type
+			}).then((products) => {
+				const options = products.map((product) => {
+					return {
+						label: `${product.name} | ID: ${product.id}`,
+						value: product.id
+					}
+				});
+				setWcProductOptions((prevOptions) => [...prevOptions, ...options]);
 			});
-
-			setWcProductOptions(options);
 		});
 
 		// Fetch Local WP Pages
-		queryParams = { status: 'publish', per_page: -1};
-		apiFetch({ path: addQueryArgs(`${API_URL}/pages`, queryParams) }).then((tiers) => {
+		apiFetch({ path: addQueryArgs(`${API_URL}/pages`, {
+			status: 'publish',
+			per_page: -1
+		}) }).then((tiers) => {
 			let options = tiers.map((tier) => {
 				const decodedTitle = he.decode(tier.title.rendered);
 				return {
@@ -408,8 +410,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		});
 
 		// Fetch Local Membership Tiers Posts
-		queryParams = { status: 'publish' };
-		apiFetch({ path: addQueryArgs(`${API_URL}/${tierCptSlug}`, queryParams) }).then((tiers) => {
+		apiFetch({ path: addQueryArgs(`${API_URL}/${tierCptSlug}`, { status: 'publish' }) }).then((tiers) => {
 			let options = tiers.map((tier) => {
 				const decodedTitle = he.decode(tier.title.rendered);
 				return {

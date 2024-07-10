@@ -2302,12 +2302,16 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   API_URL: () => (/* binding */ API_URL),
 /* harmony export */   DEFAULT_DATE_FORMAT: () => (/* binding */ DEFAULT_DATE_FORMAT),
 /* harmony export */   PLUGIN_API_URL: () => (/* binding */ PLUGIN_API_URL),
-/* harmony export */   TIER_CPT_SLUG: () => (/* binding */ TIER_CPT_SLUG)
+/* harmony export */   TIER_CPT_SLUG: () => (/* binding */ TIER_CPT_SLUG),
+/* harmony export */   WC_API_V3_URL: () => (/* binding */ WC_API_V3_URL),
+/* harmony export */   WC_PRODUCT_TYPES: () => (/* binding */ WC_PRODUCT_TYPES)
 /* harmony export */ });
 const API_URL = '/wp/v2';
+const WC_API_V3_URL = '/wc/v3';
 const PLUGIN_API_URL = '/wicket_member/v1';
 const TIER_CPT_SLUG = 'wicket_mship_tier';
 const DEFAULT_DATE_FORMAT = 'yyyy-MM-dd';
+const WC_PRODUCT_TYPES = ['subscription', 'variable-subscription'];
 
 /***/ }),
 
@@ -2328,6 +2332,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   fetchMemberships: () => (/* binding */ fetchMemberships),
 /* harmony export */   fetchTiers: () => (/* binding */ fetchTiers),
 /* harmony export */   fetchTiersInfo: () => (/* binding */ fetchTiersInfo),
+/* harmony export */   fetchWcProducts: () => (/* binding */ fetchWcProducts),
 /* harmony export */   updateMembership: () => (/* binding */ updateMembership),
 /* harmony export */   updateMembershipStatus: () => (/* binding */ updateMembershipStatus)
 /* harmony export */ });
@@ -2455,6 +2460,10 @@ const fetchMembershipTiers = (queryParams = {}) => {
     path: url
   });
 };
+
+/**
+ * Fetch Membership Filters
+ */
 const fetchMembershipFilters = (memberType = null) => {
   if (memberType === null) {
     return;
@@ -2463,6 +2472,15 @@ const fetchMembershipFilters = (memberType = null) => {
     path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_filters`, {
       type: memberType
     })
+  });
+};
+
+/**
+ * Fetch WooCommerce Products
+ */
+const fetchWcProducts = (queryParams = {}) => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.WC_API_V3_URL}/products`, queryParams)
   });
 };
 
@@ -13346,7 +13364,7 @@ const CreateMembershipTier = ({
     seat_type: 'per_seat',
     // per_seat, per_range_of_seats
     product_data: [],
-    // { product_id:, max_seats: }
+    // { product_id:, max_seats:, variation_id: }
     approval_callout_data: {
       locales: default_locales
     }
@@ -13600,35 +13618,30 @@ const CreateMembershipTier = ({
     openApprovalCalloutModal();
   };
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    let queryParams = {};
-
     // Fetch WooCommerce products
-    queryParams = {
-      status: 'publish',
-      per_page: 100,
-      exclude: productsInUse
-    };
-    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
-      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/product`, queryParams)
-    }).then(products => {
-      console.log(products);
-      let options = products.map(product => {
-        const decodedTitle = he__WEBPACK_IMPORTED_MODULE_7___default().decode(product.title.rendered);
-        return {
-          label: `${decodedTitle} | ID: ${product.id}`,
-          value: product.id
-        };
+    _constants__WEBPACK_IMPORTED_MODULE_6__.WC_PRODUCT_TYPES.forEach(type => {
+      (0,_services_api__WEBPACK_IMPORTED_MODULE_9__.fetchWcProducts)({
+        status: 'publish',
+        per_page: 100,
+        exclude: productsInUse,
+        type: type
+      }).then(products => {
+        const options = products.map(product => {
+          return {
+            label: `${product.name} | ID: ${product.id}`,
+            value: product.id
+          };
+        });
+        setWcProductOptions(prevOptions => [...prevOptions, ...options]);
       });
-      setWcProductOptions(options);
     });
 
     // Fetch Local WP Pages
-    queryParams = {
-      status: 'publish',
-      per_page: -1
-    };
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
-      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/pages`, queryParams)
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/pages`, {
+        status: 'publish',
+        per_page: -1
+      })
     }).then(tiers => {
       let options = tiers.map(tier => {
         const decodedTitle = he__WEBPACK_IMPORTED_MODULE_7___default().decode(tier.title.rendered);
@@ -13641,11 +13654,10 @@ const CreateMembershipTier = ({
     });
 
     // Fetch Local Membership Tiers Posts
-    queryParams = {
-      status: 'publish'
-    };
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
-      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/${tierCptSlug}`, queryParams)
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/${tierCptSlug}`, {
+        status: 'publish'
+      })
     }).then(tiers => {
       let options = tiers.map(tier => {
         const decodedTitle = he__WEBPACK_IMPORTED_MODULE_7___default().decode(tier.title.rendered);

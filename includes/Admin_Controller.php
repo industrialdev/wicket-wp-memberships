@@ -17,7 +17,6 @@ class Admin_Controller {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     add_action( 'admin_menu', array( $this, 'init_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
-    add_filter('rest_prepare_product', array( $this, 'add_product_type_to_rest_api' ), 10, 2);
   }
 
 	/**
@@ -406,11 +405,4 @@ class Admin_Controller {
     return new \WP_REST_Response($response_array, $response_code);
   }
 
-  function add_product_type_to_rest_api($response, $post) {
-    if ($response->data['type'] === 'product') {
-      $product = wc_get_product($post->ID);
-      $response->data['product_type'] = $product->get_type();
-    }
-    return $response;
-  }
 }
