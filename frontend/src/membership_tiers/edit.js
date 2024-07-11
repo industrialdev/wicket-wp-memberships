@@ -546,7 +546,15 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 				const productData = post.tier_data.product_data.map((product) => {
 					return {
 						product_id: product.product_id,
-						max_seats: parseInt(product.max_seats) === -1 ? 0 : product.max_seats
+						max_seats: parseInt(product.max_seats) === -1 ? 0 : product.max_seats,
+						variation_id: product.variation_id
+					}
+				});
+
+				// Load variations for the selected product id
+				productData.forEach((product) => {
+					if (product.variation_id) {
+						getProductVariations(product.product_id);
 					}
 				});
 
