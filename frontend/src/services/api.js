@@ -120,3 +120,15 @@ export const fetchWcProducts = (queryParams = {}) => {
     addQueryArgs(`${WC_API_V3_URL}/products`, queryParams)
   });
 };
+
+/**
+ * Fetch WooCommerce Product Variations
+ */
+export const fetchProductVariations = (productId) => {
+  return apiFetch({ path:
+    addQueryArgs(`${WC_API_V3_URL}/products/${productId}/variations`, {
+      per_page: 100,
+      status: 'publish'
+    })
+  });
+}

@@ -7008,6 +7008,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   fetchMembershipStatuses: () => (/* binding */ fetchMembershipStatuses),
 /* harmony export */   fetchMembershipTiers: () => (/* binding */ fetchMembershipTiers),
 /* harmony export */   fetchMemberships: () => (/* binding */ fetchMemberships),
+/* harmony export */   fetchProductVariations: () => (/* binding */ fetchProductVariations),
 /* harmony export */   fetchTiers: () => (/* binding */ fetchTiers),
 /* harmony export */   fetchTiersInfo: () => (/* binding */ fetchTiersInfo),
 /* harmony export */   fetchWcProducts: () => (/* binding */ fetchWcProducts),
@@ -7159,6 +7160,18 @@ const fetchMembershipFilters = (memberType = null) => {
 const fetchWcProducts = (queryParams = {}) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.WC_API_V3_URL}/products`, queryParams)
+  });
+};
+
+/**
+ * Fetch WooCommerce Product Variations
+ */
+const fetchProductVariations = productId => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.WC_API_V3_URL}/products/${productId}/variations`, {
+      per_page: 100,
+      status: 'publish'
+    })
   });
 };
 
