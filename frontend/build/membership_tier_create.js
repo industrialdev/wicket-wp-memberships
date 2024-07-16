@@ -13387,6 +13387,12 @@ const CreateMembershipTier = ({
     }
   });
   const [tempForm, setTempForm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(form);
+  const stateProductDataExists = () => {
+    return form.product_data.length > 0;
+  };
+  const wcProductOptionsExist = () => {
+    return wcProductOptions.length > 0;
+  };
   const getSelectedTierData = () => {
     if (!form.mdp_tier_uuid) {
       return null;
@@ -13419,16 +13425,31 @@ const CreateMembershipTier = ({
    */
   const getSelectedPerSeatProductId = () => {
     // return null if there are no products
-    if (form.product_data.length === 0) {
+    if (!stateProductDataExists()) {
       return null;
     }
 
     // per seat product has only one product so we can return the first product id
     return form.product_data[0].product_id;
   };
+
+  /**
+   * Get the product id of the selected "per range of seats" product (in the modal)
+   */
+  const getSelectedPerRangeSeatsProductId = () => {
+    // return null if there is no product
+    if (tempRangeOfSeatsProduct.product_id === null) {
+      return null;
+    }
+    return tempRangeOfSeatsProduct.product_id;
+  };
+
+  /**
+   * Get the variation id of the selected "per seat" product
+   */
   const getSelectedPerSeatProductVariationId = () => {
     // return null if there are no products
-    if (form.product_data.length === 0) {
+    if (!stateProductDataExists()) {
       return null;
     }
 
@@ -13437,15 +13458,40 @@ const CreateMembershipTier = ({
   };
 
   /**
+   * Get the variation id of the selected "per range of seats" product (in the modal)
+   */
+  const getSelectedPerRangeSeatsProductVariationId = () => {
+    // return null if there are no products
+    if (tempRangeOfSeatsProduct.variation_id === null) {
+      return null;
+    }
+    return tempRangeOfSeatsProduct.variation_id;
+  };
+
+  /**
    * Get the type of the selected "per seat" product
    *
    * @returns {string|null} Returns the type of the selected "per seat" product
    */
   const getSelectedPerSeatProductType = () => {
-    if (form.product_data.length === 0) {
+    if (!stateProductDataExists() || !wcProductOptionsExist()) {
       return null;
     }
     const product = wcProductOptions.find(option => option.value === form.product_data[0].product_id);
+    if (product === undefined) {
+      return null;
+    }
+    return product.type;
+  };
+
+  /**
+   * Get the product id of the selected "per range of seats" product
+   */
+  const getSelectedPerRangeOfSeatsProductType = () => {
+    if (tempRangeOfSeatsProduct.product_id === null) {
+      return null;
+    }
+    const product = wcProductOptions.find(option => option.value === tempRangeOfSeatsProduct.product_id);
     return product.type;
   };
   const handleSubmit = e => {
@@ -13598,6 +13644,13 @@ const CreateMembershipTier = ({
       newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Product is required', 'wicket-memberships'));
       isValid = false;
     }
+
+    // check if the selected product is a variable subscription
+    const product = wcProductOptions.find(option => option.value === tempRangeOfSeatsProduct.product_id);
+    if (product.type === 'variable-subscription' && tempRangeOfSeatsProduct.variation_id === null) {
+      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Variation is required', 'wicket-memberships'));
+      isValid = false;
+    }
     if (tempRangeOfSeatsProduct.max_seats < 0) {
       newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range maximum value cannot be less than 0', 'wicket-memberships'));
       isValid = false;
@@ -13698,7 +13751,7 @@ const CreateMembershipTier = ({
     setTempForm(form);
     openApprovalCalloutModal();
   };
-  const getSelectedVariationOption = () => {
+  const getSelectedPerSeatVariationOption = () => {
     if (productVariations[getSelectedPerSeatProductId()] === undefined) {
       return null;
     }
@@ -13706,6 +13759,19 @@ const CreateMembershipTier = ({
       return null;
     }
     const variation = productVariations[getSelectedPerSeatProductId()].find(variation => variation.id === getSelectedPerSeatProductVariationId());
+    return {
+      label: `#${variation.id}`,
+      value: variation.id
+    };
+  };
+  const getSelectedPerRangeSeatsVariationOption = () => {
+    if (productVariations[getSelectedPerRangeSeatsProductId()] === undefined) {
+      return null;
+    }
+    if (getSelectedPerRangeSeatsProductVariationId() === null) {
+      return null;
+    }
+    const variation = productVariations[getSelectedPerRangeSeatsProductId()].find(variation => variation.id === getSelectedPerRangeSeatsProductVariationId());
     return {
       label: `#${variation.id}`,
       value: variation.id
@@ -14063,7 +14129,7 @@ const CreateMembershipTier = ({
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Variation', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
     id: "variation_id_per_seat",
     classNamePrefix: "select",
-    value: getSelectedVariationOption(),
+    value: getSelectedPerSeatVariationOption(),
     isClearable: false,
     isSearchable: true,
     isLoading: productVariations[getSelectedPerSeatProductId()] === undefined,
@@ -14097,6 +14163,9 @@ const CreateMembershipTier = ({
     className: "manage-column column-columnname",
     scope: "col"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range Max', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Variation', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     className: "check-column"
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, form.product_data.map((product, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
     key: index,
@@ -14105,7 +14174,9 @@ const CreateMembershipTier = ({
     className: "column-columnname"
   }, wcProductOptions.find(option => option.value === product.product_id).label), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
-  }, product.max_seats), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
+  }, product.max_seats), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, product.variation_id ? `#${product.variation_id}` : '-'), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
     onClick: () => {
       initRangeOfSeatsProductModal(index);
     }
@@ -14227,10 +14298,38 @@ const CreateMembershipTier = ({
     onChange: selected => {
       setTempRangeOfSeatsProduct({
         ...tempRangeOfSeatsProduct,
-        product_id: selected.value
+        product_id: selected.value,
+        variation_id: null
+      });
+
+      // Load variations if the selected product is a variable subscription
+      const product = wcProductOptions.find(option => option.value === selected.value);
+      if (product.type === 'variable-subscription') {
+        getProductVariations(selected.value);
+      }
+    }
+  }), getSelectedPerRangeOfSeatsProductType() === 'variable-subscription' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
+    htmlFor: "range_of_seats_variation_id"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Variable', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
+    id: "range_of_seats_variation_id",
+    classNamePrefix: "select",
+    value: getSelectedPerRangeSeatsVariationOption(),
+    isClearable: false,
+    isSearchable: true,
+    isLoading: productVariations[getSelectedPerRangeSeatsProductId()] === undefined,
+    options: productVariations[getSelectedPerRangeSeatsProductId()] ? productVariations[getSelectedPerRangeSeatsProductId()].map(variation => {
+      return {
+        label: `#${variation.id}`,
+        value: variation.id
+      };
+    }) : [],
+    onChange: selected => {
+      setTempRangeOfSeatsProduct({
+        ...tempRangeOfSeatsProduct,
+        variation_id: selected.value
       });
     }
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range Maximum (USE 0 FOR UNLIMITED)', 'wicket-memberships'),
     type: "number",
     min: 0,

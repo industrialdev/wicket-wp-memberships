@@ -507,7 +507,7 @@ class Membership_Post_Types {
 
                   // each product object must have a product_id, variation_id, and max_seats
                   foreach ( [ 'product_id', 'variation_id', 'max_seats' ] as $key ) {
-                    if ( empty( $product[ $key ] ) ) {
+                    if ( ! array_key_exists( $key, $product ) ) {
                       $errors->add( 'rest_invalid_param_product_data', __( 'The product data must have a ' . $key . ' key.', 'wicket-memberships' ), array( 'status' => 400 ) );
                     }
                   }

@@ -93,6 +93,14 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	const [tempForm, setTempForm] = useState(form);
 
+	const stateProductDataExists = () => {
+		return form.product_data.length > 0;
+	}
+
+	const wcProductOptionsExist = () => {
+		return wcProductOptions.length > 0;
+	}
+
 	const getSelectedTierData = () => {
 		if (!form.mdp_tier_uuid) { return null; }
 		const selectedTier = mdpTiers.find(tier => tier.uuid === form.mdp_tier_uuid);
@@ -125,18 +133,41 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	 */
 	const getSelectedPerSeatProductId = () => {
 		// return null if there are no products
-		if (form.product_data.length === 0) { return null; }
+		if ( ! stateProductDataExists() ) { return null; }
 
 		// per seat product has only one product so we can return the first product id
 		return form.product_data[0].product_id;
 	};
 
+	/**
+	 * Get the product id of the selected "per range of seats" product (in the modal)
+	 */
+	const getSelectedPerRangeSeatsProductId = () => {
+		// return null if there is no product
+		if (tempRangeOfSeatsProduct.product_id === null) { return null; }
+
+		return tempRangeOfSeatsProduct.product_id;
+	};
+
+	/**
+	 * Get the variation id of the selected "per seat" product
+	 */
 	const getSelectedPerSeatProductVariationId = () => {
 		// return null if there are no products
-		if (form.product_data.length === 0) { return null; }
+		if ( ! stateProductDataExists() ) { return null; }
 
 		// per seat product has only one product so we can return the first product id
 		return form.product_data[0].variation_id;
+	};
+
+	/**
+	 * Get the variation id of the selected "per range of seats" product (in the modal)
+	 */
+	const getSelectedPerRangeSeatsProductVariationId = () => {
+		// return null if there are no products
+		if (tempRangeOfSeatsProduct.variation_id === null) { return null; }
+
+		return tempRangeOfSeatsProduct.variation_id;
 	};
 
 	/**
@@ -145,9 +176,22 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	 * @returns {string|null} Returns the type of the selected "per seat" product
 	 */
 	const getSelectedPerSeatProductType = () => {
-		if (form.product_data.length === 0) { return null; }
+		if ( ! stateProductDataExists() || ! wcProductOptionsExist() ) { return null; }
 
 		const product = wcProductOptions.find(option => option.value === form.product_data[0].product_id);
+
+		if (product === undefined) { return null; }
+
+		return product.type;
+	};
+
+	/**
+	 * Get the product id of the selected "per range of seats" product
+	 */
+	const getSelectedPerRangeOfSeatsProductType = () => {
+		if (tempRangeOfSeatsProduct.product_id === null) { return null; }
+
+		const product = wcProductOptions.find(option => option.value === tempRangeOfSeatsProduct.product_id);
 
 		return product.type;
 	};
@@ -325,6 +369,14 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			isValid = false;
 		}
 
+		// check if the selected product is a variable subscription
+		const product = wcProductOptions.find(option => option.value === tempRangeOfSeatsProduct.product_id);
+
+		if (product.type === 'variable-subscription' && tempRangeOfSeatsProduct.variation_id === null) {
+			newErrors.push(__('Variation is required', 'wicket-memberships'));
+			isValid = false;
+		}
+
 		if (tempRangeOfSeatsProduct.max_seats < 0) {
 			newErrors.push(__('Range maximum value cannot be less than 0', 'wicket-memberships'));
 			isValid = false;
@@ -445,12 +497,25 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		openApprovalCalloutModal();
 	}
 
-	const getSelectedVariationOption = () => {
+	const getSelectedPerSeatVariationOption = () => {
 		if ( productVariations[getSelectedPerSeatProductId()] === undefined ) { return null; }
 
 		if ( getSelectedPerSeatProductVariationId() === null ) { return null; }
 
 		const variation = productVariations[getSelectedPerSeatProductId()].find(variation => variation.id === getSelectedPerSeatProductVariationId());
+
+		return {
+			label: `#${variation.id}`,
+			value: variation.id
+		}
+	}
+
+	const getSelectedPerRangeSeatsVariationOption = () => {
+		if ( productVariations[getSelectedPerRangeSeatsProductId()] === undefined ) { return null; }
+
+		if ( getSelectedPerRangeSeatsProductVariationId() === null ) { return null; }
+
+		const variation = productVariations[getSelectedPerRangeSeatsProductId()].find(variation => variation.id === getSelectedPerRangeSeatsProductVariationId());
 
 		return {
 			label: `#${variation.id}`,
@@ -943,7 +1008,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 																<SelectWpStyled
 																	id="variation_id_per_seat"
 																	classNamePrefix="select"
-																	value={getSelectedVariationOption()}
+																	value={getSelectedPerSeatVariationOption()}
 																	isClearable={false}
 																	isSearchable={true}
 																	isLoading={productVariations[getSelectedPerSeatProductId()] === undefined}
@@ -1000,6 +1065,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 																		<th className="manage-column column-columnname" scope="col">
 																			{__('Range Max', 'wicket-memberships')}
 																		</th>
+																		<th className="manage-column column-columnname" scope="col">
+																			{__('Variation', 'wicket-memberships')}
+																		</th>
 																		<th className='check-column'></th>
 																	</tr>
 																</thead>
@@ -1011,6 +1079,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 																				</td>
 																				<td className="column-columnname">
 																					{product.max_seats}
+																				</td>
+																				<td className="column-columnname">
+																					{product.variation_id ? `#${product.variation_id}` : '-'}
 																				</td>
 																				<td>
 																					<Button
@@ -1200,10 +1271,46 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 							onChange={selected => {
 								setTempRangeOfSeatsProduct({
 									...tempRangeOfSeatsProduct,
-									product_id: selected.value
+									product_id: selected.value,
+									variation_id: null
 								});
+
+								// Load variations if the selected product is a variable subscription
+								const product = wcProductOptions.find(option => option.value === selected.value);
+
+								if (product.type === 'variable-subscription') {
+									getProductVariations(selected.value);
+								}
 							}}
 						/>
+
+						{getSelectedPerRangeOfSeatsProductType() === 'variable-subscription' && (
+							<MarginedFlex>
+								<FlexBlock>
+								<LabelWpStyled htmlFor="range_of_seats_variation_id">{__('Variable', 'wicket-memberships')}</LabelWpStyled>
+								<SelectWpStyled
+									id="range_of_seats_variation_id"
+									classNamePrefix="select"
+									value={getSelectedPerRangeSeatsVariationOption()}
+									isClearable={false}
+									isSearchable={true}
+									isLoading={productVariations[getSelectedPerRangeSeatsProductId()] === undefined}
+									options={productVariations[getSelectedPerRangeSeatsProductId()] ? productVariations[getSelectedPerRangeSeatsProductId()].map((variation) => {
+										return {
+											label: `#${variation.id}`,
+											value: variation.id
+										}
+									}) : []}
+									onChange={selected => {
+										setTempRangeOfSeatsProduct({
+											...tempRangeOfSeatsProduct,
+											variation_id: selected.value
+										});
+									}}
+								/>
+								</FlexBlock>
+							</MarginedFlex>
+						)}
 
 						<MarginedFlex>
 							<FlexBlock>
