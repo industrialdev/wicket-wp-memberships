@@ -14121,7 +14121,7 @@ const CreateMembershipTier = ({
     value: wcProductOptions.find(option => getSelectedPerSeatProductId() === option.value),
     isClearable: false,
     isSearchable: true,
-    isLoading: wcProductOptions.length === 0,
+    isLoading: !wcProductOptionsExist(),
     options: wcProductOptions,
     onChange: handleOrganizationPerSeatGrantedViaChange
   }))), getSelectedPerSeatProductType() === 'variable-subscription' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
@@ -14293,7 +14293,7 @@ const CreateMembershipTier = ({
     value: wcProductOptions.find(option => option.value === tempRangeOfSeatsProduct.product_id),
     isClearable: false,
     isSearchable: true,
-    isLoading: wcProductOptions.length === 0,
+    isLoading: !wcProductOptionsExist(),
     options: wcProductOptions,
     onChange: selected => {
       setTempRangeOfSeatsProduct({

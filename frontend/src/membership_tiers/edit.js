@@ -992,7 +992,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 																	value={wcProductOptions.find(option => getSelectedPerSeatProductId() === option.value)}
 																	isClearable={false}
 																	isSearchable={true}
-																	isLoading={wcProductOptions.length === 0}
+																	isLoading={ !wcProductOptionsExist() }
 																	options={wcProductOptions}
 																	onChange={handleOrganizationPerSeatGrantedViaChange}
 																/>
@@ -1266,7 +1266,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 							value={wcProductOptions.find(option => option.value === tempRangeOfSeatsProduct.product_id)}
 							isClearable={false}
 							isSearchable={true}
-							isLoading={wcProductOptions.length === 0}
+							isLoading={ !wcProductOptionsExist() }
 							options={wcProductOptions}
 							onChange={selected => {
 								setTempRangeOfSeatsProduct({
