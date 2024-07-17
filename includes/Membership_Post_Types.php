@@ -503,6 +503,19 @@ class Membership_Post_Types {
 
               if ( count( $value['product_data'] ) > 0 ) {
                 foreach ( $value['product_data'] as $product ) {
+                  $wc_product = wc_get_product( $product['product_id'] );
+
+                  // each product object must have a product_id, variation_id, and max_seats
+                  foreach ( [ 'product_id', 'variation_id', 'max_seats' ] as $key ) {
+                    if ( ! array_key_exists( $key, $product ) ) {
+                      $errors->add( 'rest_invalid_param_product_data', __( 'The product data must have a ' . $key . ' key.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                    }
+                  }
+
+                  // each product object must be "variable-subscription" or "subscription"
+                  if ( ! $wc_product->is_type( 'variable-subscription' ) && ! $wc_product->is_type( 'subscription' ) ) {
+                    $errors->add( 'rest_invalid_param_product_data', __( 'All products must be either variable-subscription or subscription.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
 
                   // dissalow products with max_seats less than -1
                   if ( intval( $product['max_seats'] ) < -1 ) {
@@ -523,6 +536,12 @@ class Membership_Post_Types {
                       $errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for all tiers.', 'wicket-memberships' ), array( 'status' => 400 ) );
                     }
                   }
+
+                  // return error if wc product is variable-subscription and variation_id is not set
+                  if ( $wc_product->is_type( 'variable-subscription' ) && empty( $product['variation_id'] ) ) {
+                    $errors->add( 'rest_invalid_param_product_data', __( 'Variation ID must be set for variable subscription products.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+
                 }
               }
 
@@ -607,6 +626,9 @@ class Membership_Post_Types {
               'description' => 'Product Data',
               'properties' => array(
                 'product_id' => array(
+                  'type' => 'integer',
+                ),
+                'variation_id' => array(
                   'type' => 'integer',
                 ),
                 'max_seats' => array(

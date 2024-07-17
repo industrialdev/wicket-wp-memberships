@@ -4,11 +4,12 @@ import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon } from '@wordpress/components';
-import { API_URL, DEFAULT_DATE_FORMAT } from '../constants';
+import { API_URL, DEFAULT_DATE_FORMAT, WC_PRODUCT_TYPES } from '../constants';
 import he from 'he';
 import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled, ReactDatePickerStyledWrap, AppWrap } from '../styled_elements';
 import DatePicker from 'react-datepicker';
 import MembershipConfigTiers from './tiers';
+import { fetchWcProducts } from '../services/api';
 
 const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tierCptSlug, postId, tierMdpUuids, languageCodes }) => {
 
@@ -307,21 +308,20 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 		}
 
 		// Fetch WooCommerce products
-		queryParams = { status: 'publish' };
-		apiFetch({ path: addQueryArgs(`${API_URL}/product`, queryParams) }).then((products) => {
-			console.log(products);
-
-			let options = products.map((product) => {
-				const decodedTitle = he.decode(product.title.rendered);
-				return {
-					label: `${decodedTitle} | ID: ${product.id}`,
-					value: product.id
-				}
+		WC_PRODUCT_TYPES.forEach((type) => {
+			fetchWcProducts({
+				status: 'publish',
+				per_page: 100,
+				type: type
+			}).then((products) => {
+				const options = products.map((product) => {
+					return {
+						label: `${product.name} | ID: ${product.id}`,
+						value: product.id
+					}
+				});
+				setWcProductOptions((prevOptions) => [...prevOptions, ...options]);
 			});
-
-			console.log(options);
-
-			setWcProductOptions(options);
 		});
 
 	}, []);

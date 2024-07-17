@@ -6813,12 +6813,16 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   API_URL: () => (/* binding */ API_URL),
 /* harmony export */   DEFAULT_DATE_FORMAT: () => (/* binding */ DEFAULT_DATE_FORMAT),
 /* harmony export */   PLUGIN_API_URL: () => (/* binding */ PLUGIN_API_URL),
-/* harmony export */   TIER_CPT_SLUG: () => (/* binding */ TIER_CPT_SLUG)
+/* harmony export */   TIER_CPT_SLUG: () => (/* binding */ TIER_CPT_SLUG),
+/* harmony export */   WC_API_V3_URL: () => (/* binding */ WC_API_V3_URL),
+/* harmony export */   WC_PRODUCT_TYPES: () => (/* binding */ WC_PRODUCT_TYPES)
 /* harmony export */ });
 const API_URL = '/wp/v2';
+const WC_API_V3_URL = '/wc/v3';
 const PLUGIN_API_URL = '/wicket_member/v1';
 const TIER_CPT_SLUG = 'wicket_mship_tier';
 const DEFAULT_DATE_FORMAT = 'yyyy-MM-dd';
+const WC_PRODUCT_TYPES = ['subscription', 'variable-subscription'];
 
 /***/ }),
 
@@ -6837,8 +6841,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   fetchMembershipStatuses: () => (/* binding */ fetchMembershipStatuses),
 /* harmony export */   fetchMembershipTiers: () => (/* binding */ fetchMembershipTiers),
 /* harmony export */   fetchMemberships: () => (/* binding */ fetchMemberships),
+/* harmony export */   fetchProductVariations: () => (/* binding */ fetchProductVariations),
 /* harmony export */   fetchTiers: () => (/* binding */ fetchTiers),
 /* harmony export */   fetchTiersInfo: () => (/* binding */ fetchTiersInfo),
+/* harmony export */   fetchWcProducts: () => (/* binding */ fetchWcProducts),
 /* harmony export */   updateMembership: () => (/* binding */ updateMembership),
 /* harmony export */   updateMembershipStatus: () => (/* binding */ updateMembershipStatus)
 /* harmony export */ });
@@ -6966,6 +6972,10 @@ const fetchMembershipTiers = (queryParams = {}) => {
     path: url
   });
 };
+
+/**
+ * Fetch Membership Filters
+ */
 const fetchMembershipFilters = (memberType = null) => {
   if (memberType === null) {
     return;
@@ -6973,6 +6983,27 @@ const fetchMembershipFilters = (memberType = null) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_filters`, {
       type: memberType
+    })
+  });
+};
+
+/**
+ * Fetch WooCommerce Products
+ */
+const fetchWcProducts = (queryParams = {}) => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.WC_API_V3_URL}/products`, queryParams)
+  });
+};
+
+/**
+ * Fetch WooCommerce Product Variations
+ */
+const fetchProductVariations = productId => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.WC_API_V3_URL}/products/${productId}/variations`, {
+      per_page: 100,
+      status: 'publish'
     })
   });
 };
@@ -6995,6 +7026,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   ErrorsRow: () => (/* binding */ ErrorsRow),
 /* harmony export */   FormFlex: () => (/* binding */ FormFlex),
 /* harmony export */   LabelWpStyled: () => (/* binding */ LabelWpStyled),
+/* harmony export */   ModalStyled: () => (/* binding */ ModalStyled),
 /* harmony export */   ReactDatePickerStyledWrap: () => (/* binding */ ReactDatePickerStyledWrap),
 /* harmony export */   SelectWpStyled: () => (/* binding */ SelectWpStyled),
 /* harmony export */   Wrap: () => (/* binding */ Wrap)
@@ -7111,6 +7143,11 @@ const LabelWpStyled = styled_components__WEBPACK_IMPORTED_MODULE_2__["default"].
 	text-transform: uppercase;
 	margin-bottom: 8px;
 	padding: 0px;
+`;
+const ModalStyled = (0,styled_components__WEBPACK_IMPORTED_MODULE_2__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_0__.Modal))`
+	&, .components-modal__content {
+		overflow: visible;
+	}
 `;
 
 /***/ }),
