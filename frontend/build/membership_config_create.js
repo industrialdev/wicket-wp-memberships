@@ -7193,6 +7193,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   ErrorsRow: () => (/* binding */ ErrorsRow),
 /* harmony export */   FormFlex: () => (/* binding */ FormFlex),
 /* harmony export */   LabelWpStyled: () => (/* binding */ LabelWpStyled),
+/* harmony export */   ModalStyled: () => (/* binding */ ModalStyled),
 /* harmony export */   ReactDatePickerStyledWrap: () => (/* binding */ ReactDatePickerStyledWrap),
 /* harmony export */   SelectWpStyled: () => (/* binding */ SelectWpStyled),
 /* harmony export */   Wrap: () => (/* binding */ Wrap)
@@ -7309,6 +7310,11 @@ const LabelWpStyled = styled_components__WEBPACK_IMPORTED_MODULE_2__["default"].
 	text-transform: uppercase;
 	margin-bottom: 8px;
 	padding: 0px;
+`;
+const ModalStyled = (0,styled_components__WEBPACK_IMPORTED_MODULE_2__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_0__.Modal))`
+	&, .components-modal__content {
+		overflow: visible;
+	}
 `;
 
 /***/ }),

@@ -3,12 +3,13 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { TextControl, TextareaControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon, __experimentalText as Text } from '@wordpress/components';
+import { TextControl, TextareaControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalText as Text } from '@wordpress/components';
 import styled from 'styled-components';
-import { API_URL, PLUGIN_API_URL, WC_PRODUCT_TYPES } from '../constants';
+import { API_URL, PLUGIN_API_URL } from '../constants';
 import he from 'he';
-import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, FormFlex, CustomDisabled } from '../styled_elements';
-import { fetchMembershipTiers, fetchProductVariations, fetchWcProducts } from '../services/api';
+import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, CustomDisabled } from '../styled_elements';
+import { fetchMembershipTiers } from '../services/api';
+import ManageTierProducts from './manage_products';
 
 const MarginedFlex = styled(Flex)`
 	margin-top: 15px;
@@ -26,27 +27,13 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		{ label: __('Renewal Form Flow', 'wicket-memberships'), value: 'form_flow' }
 	];
 
-	const [isRangeOfSeatsProductsModalOpen, setRangeOfSeatsProductsModalOpen] = useState(false);
-	const openRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(true);
-	const closeRangeOfSeatsProductsModalOpen = () => setRangeOfSeatsProductsModalOpen(false);
-
 	const [isApprovalCalloutModalOpen, setApprovalCalloutModalOpen] = useState(false);
 	const openApprovalCalloutModal = () => setApprovalCalloutModalOpen(true);
 	const closeApprovalCalloutModal = () => setApprovalCalloutModalOpen(false);
 
-	const [currentRangeOfSeatsProductIndex, setCurrentRangeOfSeatsProductIndex] = useState(null);
-
 	const [tierInfo, setTierInfo] = useState(null);
 
 	const [approvalCalloutErrors, setApprovalCalloutErrors] = useState([]);
-
-	const [rangeOfSeatsProductErrors, setRangeOfSeatsProductErrors] = useState([]);
-
-	const [tempRangeOfSeatsProduct, setTempRangeOfSeatsProduct] = useState({
-		product_id: null,
-		max_seats: 0,
-		variation_id: null
-	});
 
 	const [isSubmitting, setSubmitting] = useState(false);
 
@@ -57,11 +44,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	const [wpPagesOptions, setWpPagesOptions] = useState([]); // { id, name }
 
 	const [membershipConfigOptions, setMembershipConfigOptions] = useState([]); // { id, name }
-
-	const [wcProductOptions, setWcProductOptions] = useState([]); // { label, value, type }
-
-	// we are going to store variations for the loaded products in this state
-	const [productVariations, setProductVariations] = useState([]); // { product_id: [] }
 
 	const [errors, setErrors] = useState([]); // Array of strings
 
@@ -93,14 +75,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	const [tempForm, setTempForm] = useState(form);
 
-	const stateProductDataExists = () => {
-		return form.product_data.length > 0;
-	}
-
-	const wcProductOptionsExist = () => {
-		return wcProductOptions.length > 0;
-	}
-
 	const getSelectedTierData = () => {
 		if (!form.mdp_tier_uuid) { return null; }
 		const selectedTier = mdpTiers.find(tier => tier.uuid === form.mdp_tier_uuid);
@@ -108,93 +82,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		return selectedTier;
 	}
 
-	// Load variations for the selected product id
-	const getProductVariations = (productId) => {
-
-		// check if we already have variations for this product
-		if (productId === null || productVariations[productId]) { return; }
-
-		fetchProductVariations(productId).then((variations) => {
-			setProductVariations({
-				...productVariations,
-				[productId]: variations
-			});
-		});
-	}
-
 	const allRemoteDataLoaded = () => {
-		return mdpTiers.length > 0 && membershipConfigOptions.length > 0 && wcProductOptions.length > 0;
+		return mdpTiers.length > 0 && membershipConfigOptions.length > 0;
 	}
-
-	/**
-	 * Get the product id of the selected "per seat" product
-	 *
-	 * @returns {number|null} Returns the product id of the selected per seat product
-	 */
-	const getSelectedPerSeatProductId = () => {
-		// return null if there are no products
-		if ( ! stateProductDataExists() ) { return null; }
-
-		// per seat product has only one product so we can return the first product id
-		return form.product_data[0].product_id;
-	};
-
-	/**
-	 * Get the product id of the selected "per range of seats" product (in the modal)
-	 */
-	const getSelectedPerRangeSeatsProductId = () => {
-		// return null if there is no product
-		if (tempRangeOfSeatsProduct.product_id === null) { return null; }
-
-		return tempRangeOfSeatsProduct.product_id;
-	};
-
-	/**
-	 * Get the variation id of the selected "per seat" product
-	 */
-	const getSelectedPerSeatProductVariationId = () => {
-		// return null if there are no products
-		if ( ! stateProductDataExists() ) { return null; }
-
-		// per seat product has only one product so we can return the first product id
-		return form.product_data[0].variation_id;
-	};
-
-	/**
-	 * Get the variation id of the selected "per range of seats" product (in the modal)
-	 */
-	const getSelectedPerRangeSeatsProductVariationId = () => {
-		// return null if there are no products
-		if (tempRangeOfSeatsProduct.variation_id === null) { return null; }
-
-		return tempRangeOfSeatsProduct.variation_id;
-	};
-
-	/**
-	 * Get the type of the selected "per seat" product
-	 *
-	 * @returns {string|null} Returns the type of the selected "per seat" product
-	 */
-	const getSelectedPerSeatProductType = () => {
-		if ( ! stateProductDataExists() || ! wcProductOptionsExist() ) { return null; }
-
-		const product = wcProductOptions.find(option => option.value === form.product_data[0].product_id);
-
-		if (product === undefined) { return null; }
-
-		return product.type;
-	};
-
-	/**
-	 * Get the product id of the selected "per range of seats" product
-	 */
-	const getSelectedPerRangeOfSeatsProductType = () => {
-		if (tempRangeOfSeatsProduct.product_id === null) { return null; }
-
-		const product = wcProductOptions.find(option => option.value === tempRangeOfSeatsProduct.product_id);
-
-		return product.type;
-	};
 
 	const handleSubmit = (e) => {
 		e.preventDefault();
@@ -288,129 +178,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		});
 	}
 
-	const handleIndividualGrantedViaChange = (selected) => {
-		const productData = selected.map((product) => {
-			return {
-				product_id: product.value,
-				max_seats: -1,
-				variation_id: null
-			}
-		});
-
-		setForm({
-			...form,
-			product_data: productData
-		});
-	}
-
-	const handleOrganizationPerSeatGrantedViaChange = (selected) => {
-		// Load variations if the selected product is a variable subscription
-		const product = wcProductOptions.find(option => option.value === selected.value);
-
-		if (product.type === 'variable-subscription') {
-			getProductVariations(selected.value);
-		}
-
-		setForm({
-			...form,
-			product_data: [
-				{
-					product_id: selected.value,
-					max_seats: -1,
-					variation_id: null
-				}
-			]
-		});
-	}
-
-	const handleOrganizationPerSeatVariationChange = (selected) => {
-
-		setForm({
-			...form,
-			product_data: [
-				{
-					...form.product_data[0],
-					variation_id: selected.value
-				}
-			]
-		});
-
-	}
-
-	const initRangeOfSeatsProductModal = (rangeOfSeatsProductIndex) => {
-		setCurrentRangeOfSeatsProductIndex(rangeOfSeatsProductIndex);
-
-		// Clear errors
-		setRangeOfSeatsProductErrors([]);
-
-		if (rangeOfSeatsProductIndex === null) {
-			// Adding new
-			console.log('Add new product');
-			setTempRangeOfSeatsProduct({
-				product_id: null,
-				max_seats: 0,
-				variation_id: null
-			});
-		} else {
-			// Editing existing product
-			console.log('Editing existing product');
-			const product = form.product_data[rangeOfSeatsProductIndex];
-			setTempRangeOfSeatsProduct(product);
-		}
-		openRangeOfSeatsProductsModalOpen();
-	}
-
-	const validateRangeOfSeatsProduct = () => {
-		let isValid = true;
-		const newErrors = [];
-
-		if (tempRangeOfSeatsProduct.product_id === null) {
-			newErrors.push(__('Product is required', 'wicket-memberships'));
-			isValid = false;
-		}
-
-		// check if the selected product is a variable subscription
-		const product = wcProductOptions.find(option => option.value === tempRangeOfSeatsProduct.product_id);
-
-		if (product.type === 'variable-subscription' && tempRangeOfSeatsProduct.variation_id === null) {
-			newErrors.push(__('Variation is required', 'wicket-memberships'));
-			isValid = false;
-		}
-
-		if (tempRangeOfSeatsProduct.max_seats < 0) {
-			newErrors.push(__('Range maximum value cannot be less than 0', 'wicket-memberships'));
-			isValid = false;
-		}
-
-
-		if (parseInt(tempRangeOfSeatsProduct.max_seats) === NaN) {
-			newErrors.push(__('Range maximum value must be a number', 'wicket-memberships'));
-			isValid = false;
-		}
-
-		setRangeOfSeatsProductErrors(newErrors);
-
-		return isValid;
-	}
-
 	const validateApprovalCallout = () => {
 		let isValid = true;
 		const newErrors = [];
-
-		// if (tempForm.approval_callout_data.callout_header.length === 0) {
-		// 	newErrors.push(__('Callout Header is required', 'wicket-memberships'));
-		// 	isValid = false;
-		// }
-
-		// if (tempForm.approval_callout_data.callout_content.length === 0) {
-		// 	newErrors.push(__('Callout Content is required', 'wicket-memberships'));
-		// 	isValid = false;
-		// }
-
-		// if (tempForm.approval_callout_data.callout_button_label.length === 0) {
-		// 	newErrors.push(__('Callout Button Label is required', 'wicket-memberships'));
-		// 	isValid = false;
-		// }
 
 		setApprovalCalloutErrors(newErrors);
 
@@ -428,46 +198,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		if (!validateApprovalCallout()) { return }
 
 		closeApprovalCalloutModal();
-	}
-
-	const handleRangeOfSeatsModalSubmit = (e) => {
-		e.preventDefault();
-
-		console.log('Saving product')
-
-		if (!validateRangeOfSeatsProduct()) { return }
-
-		if (currentRangeOfSeatsProductIndex === null) {
-			setForm({
-				...form,
-				product_data: [
-					...form.product_data,
-					{
-						product_id: tempRangeOfSeatsProduct.product_id,
-						max_seats: tempRangeOfSeatsProduct.max_seats,
-						variation_id: tempRangeOfSeatsProduct.variation_id
-					}
-				]
-			});
-		} else {
-			const product_data = form.product_data.map((product, index) => {
-				if (index === currentRangeOfSeatsProductIndex) {
-					return {
-						product_id: tempRangeOfSeatsProduct.product_id,
-						max_seats: tempRangeOfSeatsProduct.max_seats,
-						variation_id: tempRangeOfSeatsProduct.variation_id
-					}
-				}
-				return product;
-			});
-
-			setForm({
-				...form,
-				product_data: product_data
-			});
-		}
-
-		closeRangeOfSeatsProductsModalOpen()
 	}
 
 	const getMemberListUrl = () => {
@@ -497,51 +227,14 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		openApprovalCalloutModal();
 	}
 
-	const getSelectedPerSeatVariationOption = () => {
-		if ( productVariations[getSelectedPerSeatProductId()] === undefined ) { return null; }
-
-		if ( getSelectedPerSeatProductVariationId() === null ) { return null; }
-
-		const variation = productVariations[getSelectedPerSeatProductId()].find(variation => variation.id === getSelectedPerSeatProductVariationId());
-
-		return {
-			label: `#${variation.id}`,
-			value: variation.id
-		}
-	}
-
-	const getSelectedPerRangeSeatsVariationOption = () => {
-		if ( productVariations[getSelectedPerRangeSeatsProductId()] === undefined ) { return null; }
-
-		if ( getSelectedPerRangeSeatsProductVariationId() === null ) { return null; }
-
-		const variation = productVariations[getSelectedPerRangeSeatsProductId()].find(variation => variation.id === getSelectedPerRangeSeatsProductVariationId());
-
-		return {
-			label: `#${variation.id}`,
-			value: variation.id
-		}
+	const updateProductData = (productData) => {
+		setForm({
+			...form,
+			product_data: productData
+		});
 	}
 
 	useEffect(() => {
-		// Fetch WooCommerce products
-		WC_PRODUCT_TYPES.forEach((type) => {
-			fetchWcProducts({
-				status: 'publish',
-				per_page: 100,
-				exclude: productsInUse,
-				type: type
-			}).then((products) => {
-				const options = products.map((product) => {
-					return {
-						label: `${product.name} | ID: ${product.id}`,
-						value: product.id,
-						type: product.type
-					}
-				});
-				setWcProductOptions((prevOptions) => [...prevOptions, ...options]);
-			});
-		});
 
 		// Fetch Local WP Pages
 		apiFetch({ path: addQueryArgs(`${API_URL}/pages`, {
@@ -616,13 +309,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 					}
 				});
 
-				// Load variations for the selected product id
-				productData.forEach((product) => {
-					if (product.variation_id) {
-						getProductVariations(product.product_id);
-					}
-				});
-
 				// Fetch the tier info to get the count of members
 				fetchTierInfo(post.tier_data.mdp_tier_uuid);
 
@@ -658,10 +344,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	console.log(wpTierOptions);
 	console.log('--------------');
 
-	console.log('Products:');
-	console.log(wcProductOptions);
-	console.log('--------------');
-
 	console.log('Configs:');
 	console.log(membershipConfigOptions);
 	console.log('--------------');
@@ -672,10 +354,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	console.log('Errors:');
 	console.log(errors);
-	console.log('--------------');
-
-	console.log('Product Variations:');
-	console.log(productVariations);
 	console.log('--------------');
 
 	return (
@@ -935,24 +613,14 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 									{getSelectedTierData().type === 'individual' && (
 										<>
-											<MarginedFlex>
-												<FlexBlock>
-													<LabelWpStyled htmlFor="seat_data">
-														{__('Granted Via', 'wicket-memberships')}
-													</LabelWpStyled>
-													<SelectWpStyled
-														id="seat_data"
-														classNamePrefix="select"
-														value={wcProductOptions.filter(option => form.product_data.map(product => product.product_id).includes(option.value))}
-														isClearable={false}
-														isMulti={true}
-														isSearchable={true}
-														isLoading={wcProductOptions.length === 0}
-														options={wcProductOptions}
-														onChange={handleIndividualGrantedViaChange}
-													/>
-												</FlexBlock>
-											</MarginedFlex>
+											<ManageTierProducts
+												saveProductChanges={updateProductData}
+												products={form.product_data}
+												limit={1}
+												productsInUse={productsInUse}
+												productListLabel={'Granted Via'}
+
+											/>
 										</>
 									)}
 									{getSelectedTierData().type === 'organization' && (
@@ -981,123 +649,24 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 												{form.seat_type === 'per_seat' && (
 													<>
-														<MarginedFlex>
-															<FlexBlock>
-																<LabelWpStyled htmlFor="seat_data_per_seat">
-																	{__('Product', 'wicket-memberships')}
-																</LabelWpStyled>
-																<SelectWpStyled
-																	id="seat_data_per_seat"
-																	classNamePrefix="select"
-																	value={wcProductOptions.find(option => getSelectedPerSeatProductId() === option.value)}
-																	isClearable={false}
-																	isSearchable={true}
-																	isLoading={ !wcProductOptionsExist() }
-																	options={wcProductOptions}
-																	onChange={handleOrganizationPerSeatGrantedViaChange}
-																/>
-															</FlexBlock>
-														</MarginedFlex>
-
-														{getSelectedPerSeatProductType() === 'variable-subscription' && (
-														<MarginedFlex>
-															<FlexBlock>
-																<LabelWpStyled htmlFor="variation_id_per_seat">
-																	{__('Variation', 'wicket-memberships')}
-																</LabelWpStyled>
-																<SelectWpStyled
-																	id="variation_id_per_seat"
-																	classNamePrefix="select"
-																	value={getSelectedPerSeatVariationOption()}
-																	isClearable={false}
-																	isSearchable={true}
-																	isLoading={productVariations[getSelectedPerSeatProductId()] === undefined}
-																	options={productVariations[getSelectedPerSeatProductId()] ? productVariations[getSelectedPerSeatProductId()].map((variation) => {
-																		return {
-																			label: `#${variation.id}`,
-																			value: variation.id
-																		}
-																	}) : []}
-
-																	onChange={handleOrganizationPerSeatVariationChange}
-																/>
-															</FlexBlock>
-														</MarginedFlex>
-														)}
+														<ManageTierProducts
+															saveProductChanges={updateProductData}
+															limit={1}
+															products={form.product_data}
+															productsInUse={productsInUse}
+														/>
 													</>
 												)}
 
 												{form.seat_type === 'per_range_of_seats' && (
 													<>
-														<MarginedFlex
-															align='end'
-															justify='start'
-															gap={5}
-															direction={[
-																'column',
-																'row'
-															]}
-														>
-															<FlexBlock>
-																<Button
-																	variant="secondary"
-																	onClick={() => initRangeOfSeatsProductModal(null)}
-																>
-																	<Icon icon="plus" />&nbsp;
-																	{__('Add Product', 'wicket-memberships')}
-																</Button>
-															</FlexBlock>
-														</MarginedFlex>
-
-														{/* Seats Data Table */}
-														<FormFlex>
-															<Heading level='4' weight='300' >
-																{__('Seats Data', 'wicket-memberships')}
-															</Heading>
-														</FormFlex>
-														<FormFlex>
-															<table className="widefat" cellSpacing="0">
-																<thead>
-																	<tr>
-																		<th className="manage-column column-columnname" scope="col">
-																			{__('Product Name', 'wicket-memberships')}
-																		</th>
-																		<th className="manage-column column-columnname" scope="col">
-																			{__('Range Max', 'wicket-memberships')}
-																		</th>
-																		<th className="manage-column column-columnname" scope="col">
-																			{__('Variation', 'wicket-memberships')}
-																		</th>
-																		<th className='check-column'></th>
-																	</tr>
-																</thead>
-																<tbody>
-																	{form.product_data.map((product, index) => (
-																			<tr key={index} className={index % 2 === 0 ? 'alternate' : ''}>
-																				<td className="column-columnname">
-																					{wcProductOptions.find(option => option.value === product.product_id).label}
-																				</td>
-																				<td className="column-columnname">
-																					{product.max_seats}
-																				</td>
-																				<td className="column-columnname">
-																					{product.variation_id ? `#${product.variation_id}` : '-'}
-																				</td>
-																				<td>
-																					<Button
-																						onClick={() => {
-																							initRangeOfSeatsProductModal(index)
-																						}}
-																					>
-																						<span className="dashicons dashicons-edit"></span>
-																					</Button>
-																				</td>
-																			</tr>
-																		)
-																	)}
-																</tbody>
-															</table>
-														</FormFlex>
+														<ManageTierProducts
+															saveProductChanges={updateProductData}
+															maxRangeEnabled={true}
+															products={form.product_data}
+															productsInUse={productsInUse}
+															productListLabel={'Seats Data'}
+														/>
 													</>
 												)}
 											</BorderedBox>
@@ -1237,138 +806,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 				</Modal>
 			)}
 
-			{/* Add "Range of Seats" Product Modal */}
-			{isRangeOfSeatsProductsModalOpen && (
-				<Modal
-					title={currentRangeOfSeatsProductIndex === null ? __('Add Product', 'wicket-memberships') : __('Edit Product', 'wicket-memberships')}
-					onRequestClose={closeRangeOfSeatsProductsModalOpen}
-					style={
-						{
-							maxWidth: '840px',
-							width: '100%'
-						}
-					}
-				>
-					<form onSubmit={handleRangeOfSeatsModalSubmit}>
-
-						{rangeOfSeatsProductErrors.length > 0 && (
-							<ErrorsRow>
-								{rangeOfSeatsProductErrors.map((errorMessage, index) => (
-									<Notice isDismissible={false} key={index} status="warning">{errorMessage}</Notice>
-								))}
-							</ErrorsRow>
-						)}
-
-						<LabelWpStyled htmlFor="range_of_seats_product_id">{__('Product', 'wicket-memberships')}</LabelWpStyled>
-						<SelectWpStyled
-							id="range_of_seats_product_id"
-							classNamePrefix="select"
-							value={wcProductOptions.find(option => option.value === tempRangeOfSeatsProduct.product_id)}
-							isClearable={false}
-							isSearchable={true}
-							isLoading={ !wcProductOptionsExist() }
-							options={wcProductOptions}
-							onChange={selected => {
-								setTempRangeOfSeatsProduct({
-									...tempRangeOfSeatsProduct,
-									product_id: selected.value,
-									variation_id: null
-								});
-
-								// Load variations if the selected product is a variable subscription
-								const product = wcProductOptions.find(option => option.value === selected.value);
-
-								if (product.type === 'variable-subscription') {
-									getProductVariations(selected.value);
-								}
-							}}
-						/>
-
-						{getSelectedPerRangeOfSeatsProductType() === 'variable-subscription' && (
-							<MarginedFlex>
-								<FlexBlock>
-								<LabelWpStyled htmlFor="range_of_seats_variation_id">{__('Variable', 'wicket-memberships')}</LabelWpStyled>
-								<SelectWpStyled
-									id="range_of_seats_variation_id"
-									classNamePrefix="select"
-									value={getSelectedPerRangeSeatsVariationOption()}
-									isClearable={false}
-									isSearchable={true}
-									isLoading={productVariations[getSelectedPerRangeSeatsProductId()] === undefined}
-									options={productVariations[getSelectedPerRangeSeatsProductId()] ? productVariations[getSelectedPerRangeSeatsProductId()].map((variation) => {
-										return {
-											label: `#${variation.id}`,
-											value: variation.id
-										}
-									}) : []}
-									onChange={selected => {
-										setTempRangeOfSeatsProduct({
-											...tempRangeOfSeatsProduct,
-											variation_id: selected.value
-										});
-									}}
-								/>
-								</FlexBlock>
-							</MarginedFlex>
-						)}
-
-						<MarginedFlex>
-							<FlexBlock>
-								<TextControl
-									label={__('Range Maximum (USE 0 FOR UNLIMITED)', 'wicket-memberships')}
-									type="number"
-									min={0}
-									onChange={value => {
-										setTempRangeOfSeatsProduct({
-											...tempRangeOfSeatsProduct,
-											max_seats: value
-										});
-									}}
-									value={tempRangeOfSeatsProduct.max_seats}
-								/>
-							</FlexBlock>
-						</MarginedFlex>
-
-						<ActionRow>
-							<Flex
-								align='end'
-								gap={5}
-								direction={[
-									'column',
-									'row'
-								]}
-							>
-								<FlexItem>
-									{currentRangeOfSeatsProductIndex !== null && (
-										<Button
-											isDestructive={true}
-											onClick={() => {
-												const productData = form.product_data.filter((_, index) => index !== currentRangeOfSeatsProductIndex);
-
-												setForm({
-													...form,
-													product_data: productData
-												});
-
-												closeRangeOfSeatsProductsModalOpen();
-											}}
-										>
-											<Icon icon="archive" />&nbsp;
-											{__('Delete', 'wicket-memberships')}
-										</Button>
-									)}
-								</FlexItem>
-								<FlexItem>
-									<Button variant="primary" type='submit'>
-										{currentRangeOfSeatsProductIndex === null ? __('Add Product', 'wicket-memberships') : __('Update Product', 'wicket-memberships')}
-									</Button>
-								</FlexItem>
-							</Flex>
-
-						</ActionRow>
-					</form>
-				</Modal>
-			)}
 		</>
 	);
 };

@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import { Flex, Disabled } from '@wordpress/components';
+import { Flex, Disabled, Modal } from '@wordpress/components';
 import Select from 'react-select';
 import ReactDatePickerCss from "!!raw-loader!react-datepicker/dist/react-datepicker.css";
 
@@ -115,4 +115,10 @@ export const LabelWpStyled = styled.label`
 	text-transform: uppercase;
 	margin-bottom: 8px;
 	padding: 0px;
+`;
+
+export const ModalStyled = styled(Modal)`
+	&, .components-modal__content {
+		overflow: visible;
+	}
 `;
