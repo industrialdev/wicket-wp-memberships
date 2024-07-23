@@ -115,7 +115,11 @@ class Membership_Controller {
    */
   public static function validate_renewal_order_items( $item, $cart_item_key, $values, $order ) {
     $self = new self();
-    $membership_tier = Membership_Tier::get_tier_by_product_id( $item->get_product_id() );
+    $product_id = $item->get_variation_id();
+    if(empty($product_id)) {
+      $product_id = $item->get_product_id();
+    }
+    $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id );
     $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
 
     // do we have a current membership post_id from cart for renewal
@@ -154,7 +158,10 @@ class Membership_Controller {
     foreach( $subscriptions as $subscription_id => $subscription ) {
         $subscription_products = $subscription->get_items();
         foreach( $subscription_products as $item ) {
-          $product_id = $item->get_product_id();
+          $product_id = $item->get_variation_id();
+          if(empty($product_id)) {
+            $product_id = $item->get_product_id();
+          }
           $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id );
           if( !empty( $membership_tier->tier_data )) {
               $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
@@ -760,6 +767,14 @@ class Membership_Controller {
       $args['meta_query'][] = array(
         'key'     => 'org_uuid',
         'value'   => $membership['organization_uuid'],
+        'compare' => '='
+      );
+    }
+
+    if( ! empty( $membership['membership_seats']) ) {
+      $args['meta_query'][] = array(
+        'key'     => 'org_seats',
+        'value'   => $membership['membership_seats'],
         'compare' => '='
       );
     }
