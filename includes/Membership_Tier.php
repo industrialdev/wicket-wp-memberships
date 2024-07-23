@@ -72,6 +72,10 @@ class Membership_Tier {
 
       if ( $products_data ) {
         foreach ( $products_data as $product_data ) {
+          if ( $product_data['variation_id'] == $product_id ) {
+            $tier_obj->tier_data['product_data'] = $product_data;
+            return $tier_obj;
+          }
           if ( $product_data['product_id'] == $product_id ) {
             $tier_obj->tier_data['product_data'] = $product_data;
             return $tier_obj;
@@ -394,12 +398,14 @@ class Membership_Tier {
     //   [0] => Array
     //       (
     //           [product_id] => 803
+    //           [variation_id] => 805
     //           [max_seats] => -1
     //       )
 
     //   [1] => Array
     //       (
     //           [product_id] => 804
+    //           [variation_id] => 806
     //           [max_seats] => -1
     //       )
     // ]
