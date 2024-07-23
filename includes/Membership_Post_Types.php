@@ -525,7 +525,7 @@ class Membership_Post_Types {
                   // product_id must be unique for all tiers
                   if ( $tier_post_id === null ) {
                     if ( Membership_Tier::get_tier_by_product_id( $product['product_id'] ) !== false ) {
-                      $errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for all tiers.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                      //$errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for all tiers.', 'wicket-memberships' ), array( 'status' => 400 ) );
                     }
                   } else {
                     // if we are editing a tier, then we need to exclude the current tier product id from the list
@@ -533,7 +533,7 @@ class Membership_Post_Types {
                     $tier_product_ids = $tier->get_product_ids();
 
                     if ( Membership_Tier::get_tier_by_product_id( $product['product_id'] ) !== false && ! in_array( $product['product_id'], $tier_product_ids ) ) {
-                      $errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for all tiers.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                      //$errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for all tiers.', 'wicket-memberships' ), array( 'status' => 400 ) );
                     }
                   }
 
@@ -573,7 +573,7 @@ class Membership_Post_Types {
                 }, $value['product_data'] );
 
                 if ( count( $product_ids ) !== count( array_unique( $product_ids ) ) ) {
-                  $errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for organization tier types with "per_range_of_seats" type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  //$errors->add( 'rest_invalid_param_product_data', __( 'Product IDs must be unique for organization tier types with "per_range_of_seats" type.', 'wicket-memberships' ), array( 'status' => 400 ) );
                 }
               }
 

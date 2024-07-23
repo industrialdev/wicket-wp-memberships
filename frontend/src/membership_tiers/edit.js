@@ -616,7 +616,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 											<ManageTierProducts
 												saveProductChanges={updateProductData}
 												products={form.product_data}
-												limit={1}
+												limit={99}
 												productsInUse={productsInUse}
 												productListLabel={'Granted Via'}
 
