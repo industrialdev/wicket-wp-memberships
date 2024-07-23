@@ -28,6 +28,9 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.20 =
+* Launch Date: July 23 2024
+
 = 0.0.1 =
 *Release Date March 1st 2024*
 
