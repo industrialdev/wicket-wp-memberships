@@ -33,9 +33,9 @@ class Membership_Controller {
     add_filter( 'woocommerce_add_cart_item_data', [$this, 'add_cart_item_data'], 25, 2 );
     if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
       add_filter( 'woocommerce_get_item_data', [$this, 'get_item_data'] , 25, 2 ); //exposes in cart and checkout
+      add_action( 'woocommerce_before_add_to_cart_button', [$this, 'product_add_on'], 9 ); //collects org data in cart
     }
     add_action( 'woocommerce_add_order_item_meta', [$this, 'add_order_item_meta'] , 10, 2);
-    add_action( 'woocommerce_before_add_to_cart_button', [$this, 'product_add_on'], 9 ); //collects org data in cart
   }
 
   //COLLECT CART ITEM FIELDS ON ADD TO CART
@@ -49,18 +49,23 @@ class Membership_Controller {
 
   function add_cart_item_data( $cart_item_meta, $product_id ) {
       if ( isset( $_REQUEST ['org_uuid'] ) ) {
-          $org_data[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
-          $org_data[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
-          $cart_item_meta['org_data'] = $org_data ;
+        $org_data['org_data'][ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
       }
-      return $cart_item_meta;
+      if( isset( $_REQUEST['membership_post_id_renew']) ) {
+        $org_data['org_data'][ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
+      }
+      return $org_data;
   }
 
   function get_item_data ( $other_data, $cart_item ) {
       if ( isset( $cart_item [ 'org_data' ] ) ) {
           $org_data  = $cart_item [ 'org_data' ];
-          $data[] = array( 'name' => 'Org UUID', 'display'  => $org_data['org_uuid'] );
-          $data[] = array( 'name' => 'Renew Membership Post ID', 'display'  => $org_data['membership_post_id_renew'] );
+      if(!empty($org_data['org_uuid'])) {
+            $data[] = array( 'name' => 'Org UUID', 'display'  => $org_data['org_uuid'] );
+          }
+          if(!empty($org_data['membership_post_id_renew'])) {
+            $data[] = array( 'name' => 'Renew Membership Post ID', 'display'  => $org_data['membership_post_id_renew'] );            
+          }
       }
       return $data;
   }
@@ -197,7 +202,11 @@ class Membership_Controller {
               ];
 
               if( $membership_tier->tier_data['type'] == 'organization' ) {
-                    $membership['organization_uuid'] = wc_get_order_item_meta( $item->get_id(), '_org_uuid', true);
+                    if(empty($membership_current['org_uuid'])) {
+                      $membership['organization_uuid'] = wc_get_order_item_meta( $item->get_id(), '_org_uuid', true);
+                    } else {
+                      $membership['organization_uuid'] = $membership_current['org_uuid'];
+                    }
                     if( $membership_tier->is_per_seat() ) {
                       $seats = $item->get_quantity();
                     } else if ( $membership_tier->is_per_range_of_seats() ) {
