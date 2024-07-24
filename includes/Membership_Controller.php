@@ -73,8 +73,12 @@ class Membership_Controller {
   function add_order_item_meta ( $item_id, $values ) {
       if ( isset( $values [ 'org_data' ] ) ) {
           $custom_data  = $values [ 'org_data' ];
-          wc_add_order_item_meta( $item_id, '_org_uuid', $custom_data['org_uuid'] );
-          wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $custom_data['membership_post_id_renew'] );
+          if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($custom_data['org_uuid']))) {
+            wc_add_order_item_meta( $item_id, '_org_uuid', $custom_data['org_uuid'] );
+          }
+          if(empty(wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)) && !empty($custom_data['membership_post_id_renew'])) {
+            wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $custom_data['membership_post_id_renew'] );
+          }
       }
   }
 
@@ -137,13 +141,12 @@ class Membership_Controller {
         $membership_post_id_renew = $self_renew[0]->ID;
       }
     }
-
     //if we have a current membership_post ID now  get the current membership data
     if( !empty( $membership_post_id_renew ) ) {
       $membership_current = $self->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
+      $early_renewal_date = $config->is_valid_renewal_date( $membership_current );
     }
-    
-    if( !empty( $membership_current ) && $early_renewal_date = $config->is_valid_renewal_date( $membership_current ) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] )) {
+    if( !empty( $early_renewal_date ) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] )) {
       $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date)));
       $_SESSION['wicket_membership_error'] = $error_text;
       throw new \Exception( $error_text );
@@ -174,6 +177,7 @@ class Membership_Controller {
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
                 $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
+                $processing_renewal = true;
               }
               //TODO: do renewal memberships start on current date or end date of previous membership - current is end_date last membersrship
               $dates = $config->get_membership_dates( $membership_current );
@@ -200,7 +204,12 @@ class Membership_Controller {
                 'membership_wp_user_email' => $user_object->user_email,
                 'membership_grace_period_days' => $config->get_late_fee_window_days()
               ];
-
+              if(!empty($processing_renewal) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) ) {
+                if( $config->is_valid_renewal_date( $membership_current ) ) {
+                  $order->update_status('on-hold', __('Attempted to renew outside of valid renewal period. Membership not created.'));
+                  return;
+                }
+              }
               if( $membership_tier->tier_data['type'] == 'organization' ) {
                     if(empty($membership_current['org_uuid'])) {
                       $membership['organization_uuid'] = wc_get_order_item_meta( $item->get_id(), '_org_uuid', true);
@@ -323,7 +332,10 @@ class Membership_Controller {
 
     //get membership_data from subscriptions
     $memberships = $self->get_memberships_data_from_subscription_products( $order ); // get_membership_data_from_order
-
+    if(empty($memberships)) {
+      return;
+    }
+    
     //membership data arrays
     $memberships = array_map(function (array $arr) use ($user_id, $person_uuid) {
         $arr['person_uuid'] = $person_uuid;

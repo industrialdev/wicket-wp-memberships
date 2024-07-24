@@ -288,7 +288,7 @@ class Membership_Config {
     $dates = $this->get_membership_dates( $membership );
 
     if( ( $current_timestamp <= strtotime( $dates['early_renew_at'] ) ) || ( $current_timestamp >= strtotime( $dates['expires_at'] ) ) ) {
-      return $dates['early_renew_at'] ;
+      return $membership['membership_early_renew_at'] ;
     }
   }
 
