@@ -247,7 +247,7 @@ class Admin_Controller {
       $response = wicket_get_person_by_id( $person_uuid );
       return [
         'identifying_number' => $response->getAttribute('identifying_number'),
-        'data' => $response->getAttribute('user')['email'],
+        'data' => $user->user_email,
         'mdp_link' => $wicket_settings['wicket_admin'] . '/people/' . $person_uuid
       ];
     } else if(preg_match('/^[a-f\d]{8}(-[a-f\d]{4}){4}[a-f\d]{8}$/i', $id)) {

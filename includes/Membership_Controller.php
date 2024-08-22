@@ -1111,6 +1111,9 @@ class Membership_Controller {
       );  
       $tier->meta = $tier_new_meta;
         $user = get_userdata( $user_id );
+        if( $user->display_name == $user->user_login ) {
+          $user->display_name = $user->first_name . ' ' . $user->last_name;
+        }
         unset( $user->user_pass );
         $tier->user = $user->data;
         if( $type != 'organization' ) {

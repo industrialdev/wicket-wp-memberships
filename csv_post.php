@@ -1,13 +1,16 @@
 <?php
-require  '/var/www/html/web/wp/wp-load.php';
+ini_set('display_errors', '0');
+ini_set('max_execution_time', '0');
+
+require  '../../../wp-load.php';
 if( empty( $_ENV['ALLOW_LOCAL_IMPORTS'] )) {
   die();
 }
-include '/var/www/html/web/app/plugins/wicket-wp-memberships/includes/Import_Controller.php';
 
+include WP_PLUGIN_DIR . '/wicket-wp-memberships/includes/Import_Controller.php';
 
-$uploaddir = '/var/www/html/web/app/uploads/';
-$uploadfile = $uploaddir . basename($_FILES['userfile']['name']);
+$uploaddir = wp_upload_dir();
+$uploadfile = $uploaddir['basedir'] . '/' . basename($_FILES['userfile']['name']);
 
 if( !empty($_FILES['userfile']['tmp_name']) && empty($_REQUEST['upload_type'])) {
   echo 'Choose a upload file type.<br><br>';

@@ -34,6 +34,11 @@ class Import_Controller {
 
           $user = get_user_by('login', $record['Person_UUID']);
           $membership_post_mapping['user_id'] = $user->ID;
+          if( $user->display_name == $record['Person_UUID'] ) {
+            $membership_post_mapping['membership_wp_user_display_name'] = $user->first_name . ' ' . $user->last_name;
+          } else {
+            $membership_post_mapping['membership_wp_user_display_name'] = $user->display_name;
+          }
           $membership_post_mapping['membership_wp_user_display_name'] = $user->display_name;
     	    $membership_post_mapping['membership_wp_user_email'] = $user->user_email;
           
