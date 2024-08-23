@@ -28,6 +28,11 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.22 =
+* Date: Aug 23 2024
+* Simplify cart meta structure
+* Import improvements
+
 = 1.0.20 =
 * Launch Date: July 23 2024
 

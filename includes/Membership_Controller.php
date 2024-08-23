@@ -40,48 +40,41 @@ class Membership_Controller {
 
   //COLLECT CART ITEM FIELDS ON ADD TO CART
   function product_add_on() {
-      //change to hidden fields and remove 'woocommerce_get_item_data' filter to hide data
-      $value = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field( $_REQUEST['org_uuid'] ) : '';
-      echo '<div><label>org_uuid</label><p><input type="text" name="org_uuid" value="' . $value . '"></p></div>';
-      $value = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field( $_REQUEST['membership_post_id_renew'] ) : '';
-      echo '<div><label>membership_post_id_renew</label><p><input type="text" name="membership_post_id_renew" value="' . $value . '"></p></div>';
-  }
+    //change to hidden fields and remove 'woocommerce_get_item_data' filter to hide data
+    $value = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field( $_REQUEST['org_uuid'] ) : '';
+    echo '<div><label>org_uuid</label><p><input type="text" name="org_uuid" value="' . $value . '"></p></div>';
+    $value = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field( $_REQUEST['membership_post_id_renew'] ) : '';
+    echo '<div><label>membership_post_id_renew</label><p><input type="text" name="membership_post_id_renew" value="' . $value . '"></p></div>';
+}
 
-  function add_cart_item_data( $cart_item_meta, $product_id ) {
-      if ( isset( $_REQUEST ['org_uuid'] ) ) {
-        $org_data[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
-      }
-      if( isset( $_REQUEST['membership_post_id_renew']) ) {
-        $org_data[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
-      }
-      $cart_item_meta['org_data'] = $org_data;
-      return $cart_item_meta;
-  }
+function add_cart_item_data( $cart_item_meta, $product_id ) {
+    if ( isset( $_REQUEST ['org_uuid'] ) ) {
+      $cart_item_meta[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
+    }
+    if( isset( $_REQUEST['membership_post_id_renew']) ) {
+      $cart_item_meta[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
+    }
+    return $cart_item_meta;
+}
 
-  function get_item_data ( $other_data, $cart_item ) {
-      if ( isset( $cart_item [ 'org_data' ] ) ) {
-          $org_data  = $cart_item [ 'org_data' ];
-      if(!empty($org_data['org_uuid'])) {
-            $data[] = array( 'name' => 'Org UUID', 'display'  => $org_data['org_uuid'] );
-          }
-          if(!empty($org_data['membership_post_id_renew'])) {
-            $data[] = array( 'name' => 'Renew Membership Post ID', 'display'  => $org_data['membership_post_id_renew'] );            
-          }
-      }
-      return $data;
-  }
+function get_item_data ( $other_data, $cart_item ) {
+    if(!empty($cart_item['org_uuid'])) {
+      $data[] = array( 'name' => 'Org UUID', 'display'  => $cart_item['org_uuid'] );
+    }
+    if(!empty($cart_item['membership_post_id_renew'])) {
+      $data[] = array( 'name' => 'Renew Membership Post ID', 'display'  => $cart_item['membership_post_id_renew'] );            
+    }
+    return $data;
+}
 
-  function add_order_item_meta ( $item_id, $values ) {
-      if ( isset( $values [ 'org_data' ] ) ) {
-          $custom_data  = $values [ 'org_data' ];
-          if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($custom_data['org_uuid']))) {
-            wc_add_order_item_meta( $item_id, '_org_uuid', $custom_data['org_uuid'] );
-          }
-          if(empty(wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)) && !empty($custom_data['membership_post_id_renew'])) {
-            wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $custom_data['membership_post_id_renew'] );
-          }
-      }
-  }
+function add_order_item_meta ( $item_id, $values ) {
+    if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
+      wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
+    }
+    if(empty(wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)) && !empty($values['membership_post_id_renew'])) {
+      wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $values['membership_post_id_renew'] );
+    }
+}
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
   // Membership_Controller methods start here
