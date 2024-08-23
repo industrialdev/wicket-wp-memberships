@@ -49,12 +49,13 @@ class Membership_Controller {
 
   function add_cart_item_data( $cart_item_meta, $product_id ) {
       if ( isset( $_REQUEST ['org_uuid'] ) ) {
-        $org_data['org_data'][ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
+        $org_data[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
       }
       if( isset( $_REQUEST['membership_post_id_renew']) ) {
-        $org_data['org_data'][ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
+        $org_data[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
       }
-      return $org_data;
+      $cart_item_meta['org_data'] = $org_data;
+      return $cart_item_meta;
   }
 
   function get_item_data ( $other_data, $cart_item ) {
