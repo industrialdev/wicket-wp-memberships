@@ -500,7 +500,7 @@ function add_order_item_meta ( $item_id, $values ) {
         $dates_to_update['start_date']    = date('Y-m-d H:i:s', strtotime( substr($start_date,0,10)." 00:00:00"));
       }
       if( in_array ( 'end_date', $fields ) ) {
-        $dates_to_update['end']           = date('Y-m-d H:i:s', strtotime( substr($expire_date,0,10)." 00:00:00" ));
+        $dates_to_update['end']           = date('Y-m-d H:i:s', strtotime( substr($expire_date,0,10)." 00:00:01" ));
       }
       if( in_array ( 'next_payment_date', $fields ) ) {
         $dates_to_update['next_payment']  = date('Y-m-d H:i:s', strtotime( substr($end_date,0,10)." 00:00:00" ));
@@ -581,6 +581,9 @@ function add_order_item_meta ( $item_id, $values ) {
           $membership['membership_grace_period_days']
         );  
       } else {
+        if(empty($membership['organization_uuid'])) {
+          $membership['organization_uuid'] = $membership['org_uuid'] ;
+        }
         $response = wicket_assign_organization_membership( 
           $membership['person_uuid'],
           $membership['organization_uuid'],
