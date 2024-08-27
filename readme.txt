@@ -28,7 +28,7 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
-= 1.0.24 =
+= 1.0.25 =
 * Date: Aug 27 2024
 * Bug fixes
 
