@@ -330,6 +330,14 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     return parseInt(membership.max_assignments) - parseInt(membership.active_assignments_count);
   }
 
+  const getNextPaymentDate = (subscription)  => {
+    if( subscription.next_payment_date == "1970-01-01" ) {
+      return "N/A"
+    }   else {
+      return membership.subscription.next_payment_date
+    }
+  }
+
   console.log('TIERS', tiers);
   console.log('manageStatusFormData', manageStatusFormData);
 
@@ -475,13 +483,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                             {membership.data.membership_status}
                           </td>
                           <td className="column-columnname">
-                            {membership.data.membership_starts_at}
+                            { moment(membership.data.membership_starts_at).format('YYYY-MM-DD') }
                           </td>
                           <td className="column-columnname">
-                            {membership.data.membership_ends_at}
+                            { moment(membership.data.membership_ends_at).format('YYYY-MM-DD') }
                           </td>
                           <td className="column-columnname">
-                            {membership.data.membership_expires_at}
+                            { moment(membership.data.membership_expires_at).format('YYYY-MM-DD') }
                           </td>
                           <td>
                             <Button
@@ -529,7 +537,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                 </a>
                               </FlexItem>
                               <FlexItem>
-                                {__('Next Payment Date:', 'wicket-memberships')} <strong>{membership.subscription.next_payment_date}</strong>
+                                {__('Next Payment Date:', 'wicket-memberships')} <strong>{ getNextPaymentDate(membership.subscription) }</strong>
                               </FlexItem>
                             </Flex>
                             }
@@ -564,7 +572,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                     </a>
                                   </td>
                                   <td className="column-columnname">
-                                    {membership.order.date_created}
+                                    { moment(membership.order.date_created).format('YYYY-MM-DD') }
                                   </td>
                                   <td className="column-columnname">
                                     {membership.order.total}
@@ -678,7 +686,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       showMonthDropdown
                                       showYearDropdown
                                       dropdownMode="select"
-                                      selected={ moment.utc(membership.data.membership_starts_at).format('YYYY-MM-DD') }
+                                      selected={ membership.data.membership_starts_at }
                                       onChange={(value) => {
                                         console.log(value);
                                         handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment.utc(value).format('YYYY-MM-DD'));
@@ -698,7 +706,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       showMonthDropdown
                                       showYearDropdown
                                       dropdownMode="select"
-                                      selected={ moment.utc(membership.data.membership_ends_at).format('YYYY-MM-DD') }
+                                      selected={ membership.data.membership_ends_at }
                                       onChange={(value) => {
                                         handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment.utc(value).format('YYYY-MM-DD'));
                                       }}
@@ -719,7 +727,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       showMonthDropdown
                                       showYearDropdown
                                       dropdownMode="select"
-                                      selected={ moment.utc(membership.data.membership_expires_at).format('YYYY-MM-DD') }
+                                      selected={ membership.data.membership_expires_at }
                                       onChange={(value) => {
                                         handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment.utc(value).format('YYYY-MM-DD'));
                                       }}
