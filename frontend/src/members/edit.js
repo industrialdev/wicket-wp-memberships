@@ -334,7 +334,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     if( subscription.next_payment_date == "1970-01-01" ) {
       return "N/A"
     }   else {
-      return membership.subscription.next_payment_date
+      return subscription.next_payment_date
     }
   }
 
