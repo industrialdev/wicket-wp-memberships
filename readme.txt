@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.26 =
+* Date: Sep 4 2024
+* automatewoo triggers
+
 = 1.0.25 =
 * Date: Aug 27 2024
 * Bug fixes
