@@ -57,17 +57,17 @@ use Wicket_Memberships\Import_Controller;
 
 if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
-	// Add vendor plugins with composer autoloader
-	if (is_file(WICKET_MEMBERSHIP_PLUGIN_DIR . 'vendor/autoload.php')) {
+        // Add vendor plugins with composer autoloader
+        if (is_file(WICKET_MEMBERSHIP_PLUGIN_DIR . 'vendor/autoload.php')) {
           require_once WICKET_MEMBERSHIP_PLUGIN_DIR . 'vendor/autoload.php';
           if (!class_exists('\Wicket\Client')) {
             require_once( WP_PLUGIN_DIR . '/wicket-wordpressplugin-php-master/vendor/autoload.php' );
           }
-          if(empty($_ENV) && class_exists('\Dotenv\Dotenv')) {
+          if(empty($_ENV['BYPASS_WICKET']) && class_exists('\Dotenv\Dotenv')) {
             $dotenv = \Dotenv\Dotenv::createImmutable( WICKET_MEMBERSHIP_PLUGIN_DIR );
             $dotenv->safeLoad();  
           }
-	}
+      }
 
 	/**
 	 * The main Wicket Memberships class
@@ -125,6 +125,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
         }
         unset( $_SESSION['wicket_membership_error'] );
       });
+      add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_end_date' ), 10, 1 );
+      add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_grace_period' ), 10, 1 );
+      add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_renew_early' ), 10, 1 );
     }
 
     public function set_onboarding_posted_data_to_wc_session() {
@@ -148,7 +151,25 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       }
     }
 
-		/**
+    public static function init_wicket_mship_end_date( $triggers ) {
+      require_once( WICKET_MEMBERSHIP_PLUGIN_DIR . '/automate-woo/triggers/wicket_mship_end_date.php' );
+      $triggers['wicket_mship_end_date'] = 'Wicket_Mship_End_Date';
+      return $triggers;
+    }
+
+    public static function init_wicket_mship_grace_period( $triggers ) {
+      require_once( WICKET_MEMBERSHIP_PLUGIN_DIR . '/automate-woo/triggers/wicket_mship_grace_period.php' );
+      $triggers['wicket_mship_grace_period'] = 'Wicket_Mship_Grace_Period';
+      return $triggers;
+    }
+
+    public static function init_wicket_mship_renew_early( $triggers ) {
+      require_once( WICKET_MEMBERSHIP_PLUGIN_DIR . '/automate-woo/triggers/wicket_mship_renew_early.php' );
+      $triggers['wicket_mship_renew_early'] = 'Wicket_Mship_Renew_Early';
+      return $triggers;
+    }
+
+    /**
 		 * Plugin activation config
 		 */
 		public function plugin_activate() {
