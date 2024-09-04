@@ -142,8 +142,10 @@ class Admin_Controller {
         'active',
         'Membership approved and dates updated.'
       );
+      $membership_post_data = Helper::get_post_meta( $membership_post_id );
+      do_action('wicket_membership_created_mdp', $membership_post_data);
       $response_array['success'] = 'Pending membership activated successfully.';
-      $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      $response_array['response'] = $membership_post_data;
       $response_code = 200;
 
       // ------ WE RETURN EARLY HERE ONLY ------

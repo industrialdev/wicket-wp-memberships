@@ -401,15 +401,15 @@ function add_order_item_meta ( $item_id, $values ) {
   }
 
   public function membership_early_renew_at_date_reached( $membership ) {
-
+    do_action( 'wicket_memberships_renewal_period_open', $membership );
   }
 
   public function membership_ends_at_date_reached( $membership ) {
-
+    do_action( 'wicket_memberships_end_date_reached', $membership );
   }
 
   public function membership_expires_at_date_reached( $membership ) {
-
+    do_action( 'wicket_memberships_grace_period_expired', $membership );
   }
 
   /**
@@ -454,7 +454,9 @@ function add_order_item_meta ( $item_id, $values ) {
       //set the scheduled tasks
       $self->scheduler_dates_for_expiry( $membership );
       //update subscription dates
-      $self->update_membership_subscription( $membership, [ 'start_date', 'end_date' ] );  
+      $self->update_membership_subscription( $membership, [ 'start_date', 'end_date' ] );
+      $membership_post_data = Helper::get_post_meta( $$membership['membership_post_id'] );
+      do_action('wicket_membership_created_mdp', $membership_post_data);
     }
     return $membership;
   }
