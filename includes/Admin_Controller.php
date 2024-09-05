@@ -342,20 +342,22 @@ class Admin_Controller {
 
       if( !empty( $membership_item['data']['membership_parent_order_id'] ) && !empty( $membership_item['data']['membership_subscription_id'] )) {
         $order = wc_get_order( $membership_item['data']['membership_parent_order_id'] );
-        $membership_item['order']['id'] = $membership_item['data']['membership_parent_order_id'];
-        $membership_item['order']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_parent_order_id'] );
-        $membership_item['order']['total'] = $order->get_total();
-        $membership_item['order']['status'] = $order->get_status();
-        $membership_item['order']['date_created'] =  $order->get_date_created()->format('Y-m-d');
-        if(!empty( $order->get_date_completed() )) {
-          $membership_item['order']['date_completed'] = $order->get_date_completed()->format('Y-m-d');
-        }
-        if( function_exists( 'wcs_get_subscription' )) {
-          $sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
-          $membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
-          $membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
-          $membership_item['subscription']['status'] = $sub->get_status();
-          $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub->get_time('next_payment')), wp_timezone() ))->format('Y-m-d');
+        if(!empty($order)) {
+          $membership_item['order']['id'] = $membership_item['data']['membership_parent_order_id'];
+          $membership_item['order']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_parent_order_id'] );
+          $membership_item['order']['total'] = $order->get_total();
+          $membership_item['order']['status'] = $order->get_status();
+          $membership_item['order']['date_created'] =  $order->get_date_created()->format('Y-m-d');
+          if(!empty( $order->get_date_completed() )) {
+            $membership_item['order']['date_completed'] = $order->get_date_completed()->format('Y-m-d');
+          }
+          if( function_exists( 'wcs_get_subscription' )) {
+            $sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
+            $membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
+            $membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
+            $membership_item['subscription']['status'] = $sub->get_status();
+            $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub->get_time('next_payment')), wp_timezone() ))->format('Y-m-d');
+          }  
         }
       }
       $membership_items[] = $membership_item;
