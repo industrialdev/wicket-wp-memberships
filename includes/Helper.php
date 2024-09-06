@@ -263,7 +263,7 @@ class Helper {
       {
         $new_key = $mapping_keys[$key];
         if( empty($new_key) ) {
-          return;
+          $membership_json_data[$key] = $val;
         }
         $membership_json_data[$new_key] = $val;
       }
