@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.29 =
+* Date Sep 6 2024
+* Update transform post data to json 
+
 = 1.0.28 =
 * Date Sep 5 2024
 * Fix Missing Assigned Order Error
