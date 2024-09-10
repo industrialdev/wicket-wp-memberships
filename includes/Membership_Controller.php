@@ -58,6 +58,7 @@ function add_cart_item_data( $cart_item_meta, $product_id ) {
 }
 
 function get_item_data ( $other_data, $cart_item ) {
+    $data = [];
     if(!empty($cart_item['org_uuid'])) {
       $data[] = array( 'name' => 'Org UUID', 'display'  => $cart_item['org_uuid'] );
     }
@@ -969,6 +970,9 @@ function add_order_item_meta ( $item_id, $values ) {
       if( !empty( $next_tier_id ) ) {
         $next_tier = new Membership_Tier( $next_tier_id );
         $membership_data['next_tier'] = $next_tier->tier_data;  
+        if( !empty( $membership_json_data['membership_product_id'] ) && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
+          $membership_data['next_tier']['next_product_id'] = $membership_json_data['membership_product_id'];
+        }
       } else {
         $page_id = $Membership_Tier->get_next_tier_form_page_id();
         $membership_data['form_page'] = [
