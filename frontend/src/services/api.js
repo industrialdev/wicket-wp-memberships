@@ -7,7 +7,7 @@ import { API_URL, PLUGIN_API_URL, TIER_CPT_SLUG, WC_API_V3_URL } from '../consta
  */
 export const fetchTiers = () => {
   return apiFetch({
-    path: addQueryArgs(`${API_URL}/${TIER_CPT_SLUG}`, { status: 'publish' })
+    path: addQueryArgs(`${API_URL}/${TIER_CPT_SLUG}`, { status: 'publish', per_page: 99 })
   });
 }
 
