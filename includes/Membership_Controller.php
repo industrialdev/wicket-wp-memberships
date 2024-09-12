@@ -31,7 +31,7 @@ class Membership_Controller {
 
     //Get onboarding data on add cart item
     add_filter( 'woocommerce_add_cart_item_data', [$this, 'add_cart_item_data'], 25, 2 );
-    if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
+    if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_CART_IDS'] ) ) {
       add_filter( 'woocommerce_get_item_data', [$this, 'get_item_data'] , 25, 2 ); //exposes in cart and checkout
       add_action( 'woocommerce_before_add_to_cart_button', [$this, 'product_add_on'], 9 ); //collects org data in cart
     }
@@ -60,10 +60,10 @@ function add_cart_item_data( $cart_item_meta, $product_id ) {
 function get_item_data ( $other_data, $cart_item ) {
     $data = [];
     if(!empty($cart_item['org_uuid'])) {
-      $data[] = array( 'name' => 'Org UUID', 'display'  => $cart_item['org_uuid'] );
+      $data[] = array( 'name' => 'org_uuid', 'display'  => $cart_item['org_uuid'] );
     }
     if(!empty($cart_item['membership_post_id_renew'])) {
-      $data[] = array( 'name' => 'Renew Membership Post ID', 'display'  => $cart_item['membership_post_id_renew'] );            
+      $data[] = array( 'name' => 'membership_post_id_renew', 'display'  => $cart_item['membership_post_id_renew'] );            
     }
     return $data;
 }

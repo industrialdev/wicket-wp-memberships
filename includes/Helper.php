@@ -7,7 +7,7 @@ defined( 'ABSPATH' ) || exit;
 class Helper {
 
   public function __construct() {
-    if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
+    if( !empty( $_ENV['WICKET_SHOW_ORDER_DEBUG_DATA'] ) ) {
       // INJECT MEMBERSHIP META DATA into order and subscription and member pages -- org_id on checkout page
       add_action( 'woocommerce_admin_order_data_after_shipping_address', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
       add_action( 'wcs_subscription_details_table_before_dates', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );

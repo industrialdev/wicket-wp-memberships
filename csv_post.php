@@ -2,9 +2,16 @@
 ini_set('display_errors', '0');
 ini_set('max_execution_time', '0');
 
-require  '../../../wp-load.php';
+if(file_exists('../../../wp/wp-load.php')) {
+  require '../../../wp/wp-load.php';
+} else if(file_exists('../../../wp-load.php')) {
+  require  '../../../wp-load.php';
+} else {
+  die('Could not load wp?');
+}
+
 if( empty( $_ENV['ALLOW_LOCAL_IMPORTS'] )) {
-  die();
+  die("Disabled");
 }
 
 include WP_PLUGIN_DIR . '/wicket-wp-memberships/includes/Import_Controller.php';

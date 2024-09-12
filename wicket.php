@@ -54,6 +54,7 @@ use Wicket_Memberships\Membership_Tier_CPT_Hooks;
 use Wicket_Memberships\Membership_WP_REST_Controller;
 use Wicket_Memberships\Membership_Subscription_Controller;
 use Wicket_Memberships\Import_Controller;
+use Wicket_Memberships\Settings;
 
 if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
@@ -63,11 +64,29 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
           if (!class_exists('\Wicket\Client')) {
             require_once( WP_PLUGIN_DIR . '/wicket-wordpressplugin-php-master/vendor/autoload.php' );
           }
-          if(empty($_ENV['BYPASS_WICKET']) && class_exists('\Dotenv\Dotenv')) {
-            $dotenv = \Dotenv\Dotenv::createImmutable( WICKET_MEMBERSHIP_PLUGIN_DIR );
-            $dotenv->safeLoad();  
+          $options = get_option( 'wicket_membership_plugin_options' );
+          if($options['bypass_wicket']) {
+            $_ENV['BYPASS_WICKET']=true;          
           }
-      }
+          if($options['wicket_membership_debug_mode']) {
+            $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE']=true;          
+          }
+          if($options['bypass_status_change_lockout']) {
+            $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT']=true;          
+          }
+          if($options['wicket_show_order_debug_data']) {
+            $_ENV['WICKET_SHOW_ORDER_DEBUG_DATA']=true;          
+          }
+          if($options['allow_local_imports']) {
+            $_ENV['ALLOW_LOCAL_IMPORTS']=true;          
+          }
+          if($options['wicket_memberships_debug_cart_ids']) {
+            $_ENV['WICKET_MEMBERSHIPS_DEBUG_CART_IDS']=true;          
+          }
+          if($options['wicket_memberships_debug_renew']) {
+            $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW']=true;          
+          }
+        }
 
 	/**
 	 * The main Wicket Memberships class
@@ -93,6 +112,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       new Membership_WP_REST_Controller;
       new Membership_Subscription_Controller;
       new Helper;
+      new Settings;
 
 			register_activation_hook( WICKET_MEMBERSHIP_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
 			add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
@@ -117,6 +137,10 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'woocommerce_checkout_create_order_line_item', [  __NAMESPACE__.'\\Membership_Controller', 'validate_renewal_order_items'], 10, 4 );
       //
       add_action( 'template_redirect', [ $this, 'set_onboarding_posted_data_to_wc_session' ]);
+
+      //plugin option settings & page including debug
+      add_action( 'admin_menu', array ( __NAMESPACE__.'\\Settings' , 'wicket_membership_add_settings_page' ));
+      add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'wicket_membership_register_settings' ));
 
       //temporary admin notice response
       add_action( 'admin_notices', function() {
