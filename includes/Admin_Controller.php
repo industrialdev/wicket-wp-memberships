@@ -409,6 +409,21 @@ class Admin_Controller {
       $response_array['response'] = [];
       $response_code = 400;
     } else {
+      //update subscription (only add end as next_payment_date if not using next_form_id) and set expiry date as end date
+      $date_flags_array = [ 'start_date', 'end_date' ];
+      $membership_dates_update['membership_subscription_id'] = $membership_post['membership_subscription_id'][0];
+      $membership_dates_update['membership_starts_at'] = $membership_post['membership_starts_at'][0];
+      $membership_dates_update['membership_ends_at'] = $membership_post['membership_ends_at'][0];
+      $membership_dates_update['membership_expires_at'] = $membership_post['membership_expires_at'][0];
+      $Membership_Tier = new Membership_Tier( $membership_post['membership_tier_post_id'][0] );
+
+      $next_tier_id = $Membership_Tier->get_next_tier_id();
+      if(!empty($next_tier_id)) {
+        $date_flags_array[] = 'next_payment_date';
+      }    
+
+      $Membership_Controller->update_membership_subscription( $membership_dates_update, $date_flags_array );
+
       $Membership_Controller->amend_membership_json( $membership_post_id, $data );
       $response_array['success'] = 'Membership was updated successfully.';
       $response_array['response'] = Helper::get_post_meta( $membership_post_id );

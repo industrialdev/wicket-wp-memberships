@@ -499,14 +499,21 @@ function add_order_item_meta ( $item_id, $values ) {
       $start_date   = $membership['membership_starts_at'];
       $end_date     = $membership['membership_ends_at'];
       $expire_date  = $membership['membership_expires_at'];
+      $timezone_string = get_option('timezone_string');
       if( in_array ( 'start_date', $fields ) ) {
-        $dates_to_update['start_date']    = date('Y-m-d H:i:s', strtotime( substr($start_date,0,10)." 00:00:00"));
+        $date = new \DateTime(substr($start_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
+        $date->setTimezone(new \DateTimeZone('UTC'));
+        $dates_to_update['start_date']    = $date->format('Y-m-d H:i:s');
       }
       if( in_array ( 'end_date', $fields ) ) {
-        $dates_to_update['end']           = date('Y-m-d H:i:s', strtotime( substr($expire_date,0,10)." 00:00:01" ));
+        $date = new \DateTime(substr($expire_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
+        $date->setTimezone(new \DateTimeZone('UTC'));
+        $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
       }
       if( in_array ( 'next_payment_date', $fields ) ) {
-        $dates_to_update['next_payment']  = date('Y-m-d H:i:s', strtotime( substr($end_date,0,10)." 00:00:00" ));
+        $date = new \DateTime(substr($end_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
+        $date->setTimezone(new \DateTimeZone('UTC'));
+        $dates_to_update['next_payment']  = $date->format('Y-m-d H:i:s');
       }
       $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
       if( !empty( $sub )) {
@@ -970,8 +977,8 @@ function add_order_item_meta ( $item_id, $values ) {
       if( !empty( $next_tier_id ) ) {
         $next_tier = new Membership_Tier( $next_tier_id );
         $membership_data['next_tier'] = $next_tier->tier_data;  
-        if( !empty( $membership_json_data['membership_product_id'] ) && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
-          $membership_data['next_tier']['next_product_id'] = $membership_json_data['membership_product_id'];
+        if( !empty( $membership_json_data['membership_subscription_id'] ) && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
+          $membership_data['next_tier']['next_subscription_id'] = $membership_json_data['membership_subscription_id'];
         }
       } else {
         $page_id = $Membership_Tier->get_next_tier_form_page_id();
