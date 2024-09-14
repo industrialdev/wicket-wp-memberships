@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.31 =
+* Date Sep 14 2024
+* Self renew will return subscription in callout
+
 = 1.0.30 =
 * Date Sep 12 2024
 * Add settings page and debug options
