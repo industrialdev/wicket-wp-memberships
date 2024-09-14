@@ -972,12 +972,14 @@ function add_order_item_meta ( $item_id, $values ) {
       $config_id = $Membership_Tier->get_config_id();
       $Membership_Config = new Membership_Config( $config_id );
 
-      $next_tier_id = $Membership_Tier->get_next_tier_id();
+      //always check the membership record for next tier / never use current tier values
+      $next_tier_id = $membership_json_data['membership_next_tier_id'];
 
       if( !empty( $next_tier_id ) ) {
         $next_tier = new Membership_Tier( $next_tier_id );
         $membership_data['next_tier'] = $next_tier->tier_data;  
-        if( !empty( $membership_json_data['membership_subscription_id'] ) && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
+        if( !empty( $membership_json_data['membership_subscription_id'] ) 
+            && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
           $membership_data['next_tier']['next_subscription_id'] = $membership_json_data['membership_subscription_id'];
         }
       } else {
