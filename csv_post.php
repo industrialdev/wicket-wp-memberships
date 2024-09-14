@@ -32,15 +32,15 @@ if (move_uploaded_file($_FILES['userfile']['tmp_name'], $uploadfile)) {
     echo "Possible file upload attack!\n";
 } else {
   ?><h3>MDP Export file uploads</h3>
-<form enctype="multipart/form-data" action="./csv_post.php" method="POST">
-  <input type="radio" value="individual" name="upload_type"><label for="upload_type">membership_person.csv</label><br>
-  <input type="radio" value="organization" name="upload_type"><label for="upload_type">organization_memberships.csv</label><br><br>
-  <input type="checkbox" value="true" name="skip_approval"><label for="skip_approval">?skip_approval=1</label><br><br>
-    Send this CSV file: <input name="userfile" type="file" />
-    <input type="submit" value="Send File" />
-</form>
-
-  <?php
+  <form enctype="multipart/form-data" action="./csv_post.php" method="POST">
+    <input type="text" name="api_domain"><br>
+    <input type="radio" value="individual" name="upload_type"><label for="upload_type">membership_person.csv</label><br>
+    <input type="radio" value="organization" name="upload_type"><label for="upload_type">organization_memberships.csv</label><br><br>
+    <input type="checkbox" value="true" name="skip_approval"><label for="skip_approval">?skip_approval=1</label><br><br>
+      Send this CSV file: <input name="userfile" type="file" />
+      <input type="submit" value="Send File" />
+  </form>
+    <?php   
 }
 
 if( empty($uploaded)) {
@@ -68,7 +68,14 @@ if( $_REQUEST['upload_type'] == 'individual' ) {
 } else if( $_REQUEST['upload_type'] == 'organization' ) {
   $endpoint = 'membership_organizations';
 }
-$import_url = 'https://nginx/wp-json/wicket_member/v1/import/' . $endpoint;
+
+$full_endpoint = '/wp-json/wicket_member/v1/import/' . $endpoint;
+if( $_REQUEST['api_domain'] != '' ) {
+  $import_url = $_REQUEST['api_domain'] . $full_endpoint;
+} else {
+  $import_url = get_site_url() . $full_endpoint;
+}
+echo '<br>' . $import_url . '<br>';
 
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
