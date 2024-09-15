@@ -22,6 +22,9 @@ class Membership_Controller {
   public $bypass_wicket;
   public $bypass_status_change_lockout;
 
+  //prop used to bypass pending approval for renewals
+  public $processing_renewal = false;
+
   public function __construct() {
     $this->bypass_wicket = !empty( $_ENV['BYPASS_WICKET'] ) ?? false;
     $this->bypass_status_change_lockout = !empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ?? false;
@@ -172,7 +175,7 @@ function add_order_item_meta ( $item_id, $values ) {
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
                 $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
-                $processing_renewal = true;
+                $this->processing_renewal = true;
               }
               //TODO: do renewal memberships start on current date or end date of previous membership - current is end_date last membersrship
               $dates = $config->get_membership_dates( $membership_current );
@@ -199,7 +202,7 @@ function add_order_item_meta ( $item_id, $values ) {
                 'membership_wp_user_email' => $user_object->user_email,
                 'membership_grace_period_days' => $config->get_late_fee_window_days()
               ];
-              if(!empty($processing_renewal) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) ) {
+              if(!empty($this->processing_renewal) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) ) {
                 if( $config->is_valid_renewal_date( $membership_current ) ) {
                   $order->update_status('on-hold', __('Attempted to renew outside of valid renewal period. Membership not created.'));
                   return;
@@ -427,8 +430,8 @@ function add_order_item_meta ( $item_id, $values ) {
     }
 
     $tier = new Membership_Tier( $membership['membership_tier_post_id'] );
-    //we only create the mdp record if not pending approval / not debug 
-    if( ! $tier->is_approval_required() && ! $self->bypass_wicket ) {
+    //we only create the mdp record if tier not pending approval | tier pending approval and is renewal
+    if( ! $tier->is_approval_required() || ( $tier->is_approval_required() && $self->processing_renewal )) {
       $membership_wicket_uuid = $self->create_mdp_record( $membership );
     }
     
