@@ -457,8 +457,13 @@ function add_order_item_meta ( $item_id, $values ) {
     } else {
       //set the scheduled tasks
       $self->scheduler_dates_for_expiry( $membership );
-      //update subscription dates
-      $self->update_membership_subscription( $membership, [ 'start_date', 'end_date' ] );
+      //update subscription dates (only use next_payment_date on self renewals)
+      $date_flags_array = [ 'start_date', 'end_date' ];
+      if( !empty($membership['membership_tier_post_id']) && !empty($membership['membership_next_tier_id']) 
+        && $membership['membership_tier_post_id'] == $membership['membership_next_tier_id']) {
+          $date_flags_array[] = 'next_payment_date';
+      }
+      $self->update_membership_subscription( $membership, $date_flags_array );
       $membership_post_data = Helper::get_post_meta( $$membership['membership_post_id'] );
       do_action('wicket_membership_created_mdp', $membership_post_data);
     }

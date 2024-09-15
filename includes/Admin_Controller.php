@@ -415,13 +415,10 @@ class Admin_Controller {
       $membership_dates_update['membership_starts_at'] = $membership_post['membership_starts_at'][0];
       $membership_dates_update['membership_ends_at'] = $membership_post['membership_ends_at'][0];
       $membership_dates_update['membership_expires_at'] = $membership_post['membership_expires_at'][0];
-      $Membership_Tier = new Membership_Tier( $membership_post['membership_tier_post_id'][0] );
 
-      $next_tier_id = $Membership_Tier->get_next_tier_id();
-      if(!empty($next_tier_id)) {
+      if( $membership_post['membership_tier_post_id'][0] == $membership_post['membership_next_tier_id'][0]) {
         $date_flags_array[] = 'next_payment_date';
-      }    
-
+      }
       $Membership_Controller->update_membership_subscription( $membership_dates_update, $date_flags_array );
 
       $Membership_Controller->amend_membership_json( $membership_post_id, $data );
