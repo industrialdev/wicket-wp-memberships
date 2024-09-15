@@ -972,16 +972,17 @@ function add_order_item_meta ( $item_id, $values ) {
       $config_id = $Membership_Tier->get_config_id();
       $Membership_Config = new Membership_Config( $config_id );
 
-      //always check the membership record for next tier / never use current tier values
-      $next_tier_id = $membership_json_data['membership_next_tier_id'];
+      //always check the membership record ($membership_json_data) for next tier / never look at tier data values
+      $next_tier = new Membership_Tier( $membership_json_data['membership_next_tier_id'] );
+      $next_tier_id = $next_tier->get_next_tier_id();
 
       if( !empty( $next_tier_id ) ) {
-        $next_tier = new Membership_Tier( $next_tier_id );
         $membership_data['next_tier'] = $next_tier->tier_data;  
-        if( !empty( $membership_json_data['membership_subscription_id'] ) 
-            && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
+        //if we have a subcription_id and renewing into the same tier we pass the subscription to the renewal callout
+        if( !empty( $membership_json_data['membership_subscription_id'] ) && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
           $membership_data['next_tier']['next_subscription_id'] = $membership_json_data['membership_subscription_id'];
         }
+        //if it is *NOT* renewing into the same tier then account center will SHOW A DIRECT add_to_cart FOR EACH PRODUCT assigned to the next tier
       } else {
         $page_id = $Membership_Tier->get_next_tier_form_page_id();
         $membership_data['form_page'] = [
