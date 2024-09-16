@@ -66,25 +66,25 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
           }
           $options = get_option( 'wicket_membership_plugin_options' );
           if($options['bypass_wicket']) {
-            $_ENV['BYPASS_WICKET']=true;          
+            $_ENV['BYPASS_WICKET']=true;
           }
           if($options['wicket_membership_debug_mode']) {
-            $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE']=true;          
+            $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE']=true;
           }
           if($options['bypass_status_change_lockout']) {
-            $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT']=true;          
+            $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT']=true;
           }
           if($options['wicket_show_order_debug_data']) {
-            $_ENV['WICKET_SHOW_ORDER_DEBUG_DATA']=true;          
+            $_ENV['WICKET_SHOW_ORDER_DEBUG_DATA']=true;
           }
           if($options['allow_local_imports']) {
-            $_ENV['ALLOW_LOCAL_IMPORTS']=true;          
+            $_ENV['ALLOW_LOCAL_IMPORTS']=true;
           }
           if($options['wicket_memberships_debug_cart_ids']) {
-            $_ENV['WICKET_MEMBERSHIPS_DEBUG_CART_IDS']=true;          
+            $_ENV['WICKET_MEMBERSHIPS_DEBUG_CART_IDS']=true;
           }
           if($options['wicket_memberships_debug_renew']) {
-            $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW']=true;          
+            $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW']=true;
           }
         }
 
@@ -120,7 +120,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //Order wicket-membership subscription hooks
       //Hooks fired twice included in class contructor
       add_action( 'init', [$this, 'wicket_membership_init_session'] );
-      //catch the order status change to processing 
+      //catch the order status change to processing
       add_action( 'woocommerce_order_status_processing', array ( __NAMESPACE__.'\\Membership_Controller' , 'catch_order_completed' ), 10, 1);
       //create the membership record
       add_action( 'wicket_member_create_record', array( __NAMESPACE__.'\\Membership_Controller', 'create_membership_record'), 10, 3 );
@@ -129,7 +129,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'add_membership_early_renew_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_early_renew_at' ), 10, 2 );
       add_action( 'add_membership_ends_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_ends_at' ), 10, 2 );
       add_action( 'add_membership_expires_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_expires_at' ), 10, 2 );
-    
+
       //expire current membership when new one starts
       add_action( 'expire_old_membership_on_new_starts_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_expire_current_membership' ), 10, 2 );
 
@@ -170,7 +170,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
     }
 
     public function wicket_membership_init_session() {
-      if ( ! session_id() ) {
+      if ( ! session_id() && ! headers_sent()) {
           session_start();
       }
     }
