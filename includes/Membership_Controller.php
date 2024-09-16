@@ -188,6 +188,7 @@ function add_order_item_meta ( $item_id, $values ) {
                 'membership_tier_name' => $membership_tier->tier_data['mdp_tier_name'],
                 'membership_tier_uuid' => $membership_tier->tier_data['mdp_tier_uuid'],
                 'membership_next_tier_id' => $membership_tier->get_next_tier_id(),
+                'membership_next_tier_form_page_id' => $membership_tier->get_next_tier_form_page_id(),
                 'membership_type' => $membership_tier->tier_data['type'],
                 'membership_starts_at' => $dates['start_date'],
                 'membership_ends_at' =>  $dates['end_date'],
@@ -666,7 +667,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $status = Wicket_Memberships::STATUS_ACTIVE;
     }
 
-    if( !($skip_approval) && (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
+    if( ! $this->processing_renewal && ! $skip_approval && (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
       $status = Wicket_Memberships::STATUS_PENDING;
     } else if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
       $status = Wicket_Memberships::STATUS_DELAYED;
@@ -682,7 +683,9 @@ function add_order_item_meta ( $item_id, $values ) {
       'membership_early_renew_at' => !empty($membership['membership_early_renew_at']) ? $membership['membership_early_renew_at'] : $membership['membership_ends_at'],
       'membership_tier_uuid' => $membership['membership_tier_uuid'],
       'membership_tier_name' => $membership['membership_tier_name'],
+      'membership_tier_post_id' => $membership['membership_tier_post_id'],
       'membership_next_tier_id' => $membership['membership_next_tier_id'],
+      'membership_next_tier_form_page_id' => $membership['membership_next_tier_form_page_id'],
       'membership_wicket_uuid' => $membership_wicket_uuid,
       'user_name' => $membership['membership_wp_user_display_name'],
       'user_email' => $membership['membership_wp_user_email'],
@@ -980,25 +983,28 @@ function add_order_item_meta ( $item_id, $values ) {
       $config_id = $Membership_Tier->get_config_id();
       $Membership_Config = new Membership_Config( $config_id );
 
+      //TODO: WE NEED OPTION TO SET OVERRIDE TO FORM PAGE ID ON MEMBERSHIP EDIT PAGE
+      //TODO: WE NEED TO USE THAT VALUE HERE INSTEAD OF LOOKING AT NEXT TIER!!! THIS IS FLAWED
       //always check the membership record ($membership_json_data) for next tier / never look at tier data values
-      $next_tier = new Membership_Tier( $membership_json_data['membership_next_tier_id'] );
-      $next_tier_id = $next_tier->get_next_tier_id();
-
-      if( !empty( $next_tier_id ) ) {
-        $membership_data['next_tier'] = $next_tier->tier_data;  
+      $next_tier_id = $membership_json_data['membership_next_tier_id'];
+      $next_tier_form_page_id = $membership_json_data['membership_next_tier_form_page_id'];
+      if( !empty($next_tier_form_page_id) ) {
+        $membership_data['form_page'] = [
+          'title' => get_the_title( $next_tier_form_page_id ),
+          'permalink' => get_permalink( $next_tier_form_page_id ),
+          'page_id'=> $next_tier_form_page_id,
+        ];
+      } else {
+        //If we are not going to a page we can fallback to use all products as links
+        $next_tier = new Membership_Tier( $next_tier_id );
+        $membership_data['next_tier'] = $next_tier->tier_data;          
+        $membership_data['next_tier']['next_product_id'] = $membership_json_data['membership_product_id'];
         //if we have a subcription_id and renewing into the same tier we pass the subscription to the renewal callout
         if( !empty( $membership_json_data['membership_subscription_id'] ) && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
           $membership_data['next_tier']['next_subscription_id'] = $membership_json_data['membership_subscription_id'];
         }
         //if it is *NOT* renewing into the same tier then account center will SHOW A DIRECT add_to_cart FOR EACH PRODUCT assigned to the next tier
-      } else {
-        $page_id = $Membership_Tier->get_next_tier_form_page_id();
-        $membership_data['form_page'] = [
-          'title' => get_the_title( $page_id ),
-          'permalink' => get_permalink( $page_id ),
-          'page_id'=> $page_id,
-        ];
-      }
+      } 
 
       if( $current_time >= $membership_early_renew_at && $current_time < $membership_ends_at ) {
         $callout['type'] = 'early_renewal';
