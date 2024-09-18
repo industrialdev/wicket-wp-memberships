@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket - Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.31
+ * Version: 1.0.32
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
