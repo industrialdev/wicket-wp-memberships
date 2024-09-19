@@ -61,11 +61,20 @@ const ManageTierProducts = ({
 		// Fetch WooCommerce products
 		getAllWcProducts();
 
+    let uniqueProductIds = [];
+
     // Load variations for the selected product id
     products.forEach((product) => {
       if (product.variation_id) {
-        getProductVariations(product.product_id);
+        uniqueProductIds.push(product.product_id);
       }
+    });
+
+    // Get unique product ids to prevent duplicated requests
+    uniqueProductIds = [...new Set(uniqueProductIds)];
+
+    uniqueProductIds.forEach((productId) => {
+      getProductVariations(productId);
     });
 
   }, []);
@@ -306,7 +315,7 @@ const ManageTierProducts = ({
                 {products.map((product, index) => (
                   <tr key={index} className={index % 2 === 0 ? 'alternate' : ''}>
                     <td className="column-columnname">
-                      {wcProductOptions.find(option => option.value === product.product_id).label}
+                      { ( wcProductOptions.find(option => option.value === product.product_id) === undefined ) ? '-' : wcProductOptions.find(option => option.value === product.product_id).label }
                     </td>
                     {maxRangeEnabled && (
                       <td className="column-columnname">

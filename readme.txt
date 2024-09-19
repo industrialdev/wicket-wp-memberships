@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.34 =
+* Date Sep 19 2024
+* Prevent frontend app crashing when product in a Tier has draft status
+
 = 1.0.33 =
 * Date Sep 18 2024
 * Cleanup composer packages
