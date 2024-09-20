@@ -159,7 +159,7 @@ function add_order_item_meta ( $item_id, $values ) {
     $memberships = [];
     $order_id = $order->get_id();
     
-    $subscriptions = wcs_get_subscriptions( ['order_type' => 'parent', 'order_id' => $order_id] );
+    $subscriptions = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
     //$subscriptions_ids = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
     foreach( $subscriptions as $subscription_id => $subscription ) {
         $subscription_products = $subscription->get_items();
@@ -177,7 +177,6 @@ function add_order_item_meta ( $item_id, $values ) {
                 $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
                 $this->processing_renewal = true;
               }
-              //TODO: do renewal memberships start on current date or end date of previous membership - current is end_date last membersrship
               $dates = $config->get_membership_dates( $membership_current );
               $user_object = get_user_by( 'id', $order->get_user_id() );
               $membership = [
@@ -344,7 +343,7 @@ function add_order_item_meta ( $item_id, $values ) {
 
     //connect product memberships and create subscriptions
     foreach ($memberships as $membership) {
-      do_action( 'wicket_member_create_record' , $membership );
+      do_action( 'wicket_member_create_record' , $membership, $self->processing_renewal );
     }
   }
 
@@ -420,9 +419,13 @@ function add_order_item_meta ( $item_id, $values ) {
   /**
    * Create the membership records
    */
-  public static function create_membership_record( $membership ) {
+  public static function create_membership_record( $membership, $processing_renewal = false ) {
     $membership_wicket_uuid = '';
     $self = new self();
+
+    if(!empty($processing_renewal)) {
+      $self->processing_renewal = true;
+    }
 
     if($self->bypass_wicket) {
       //Don't create the wicket connection when testing
@@ -440,7 +443,7 @@ function add_order_item_meta ( $item_id, $values ) {
     $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $membership_wicket_uuid );
 
     //we are pending approval so change some statuses and send email
-    if( $tier->is_approval_required() ) {
+    if( $tier->is_approval_required() && ! $self->processing_renewal ) {
       $self->update_subscription_status( $membership['membership_subscription_id'], 'on-hold', 'Subscription pending approval.');
       //update membership status to pending approval
       $self->update_membership_status( $membership['membership_post_id'], Wicket_Memberships::STATUS_PENDING);
@@ -570,6 +573,9 @@ function add_order_item_meta ( $item_id, $values ) {
         $grace_period_days
       );  
     } else {
+    if( $max_assignments < 1) {
+      $max_assignments = null;
+    }
       $response = wicket_update_organization_membership_dates(
         $membership['membership_wicket_uuid'], 
         $starts_at,
@@ -603,6 +609,9 @@ function add_order_item_meta ( $item_id, $values ) {
         if(empty($membership['organization_uuid'])) {
           $membership['organization_uuid'] = $membership['org_uuid'] ;
         }
+        if( $membership['membership_seats'] < 1) {
+          $membership['membership_seats'] = null;
+        }    
         $response = wicket_assign_organization_membership( 
           $membership['person_uuid'],
           $membership['organization_uuid'],
