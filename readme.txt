@@ -28,8 +28,12 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.36 =
+* Date Sep 23 2024
+* Composer update
+
 = 1.0.35 =
-* Date Sep 19 2024
+* Date Sep 23 2024
 * Subscription renewal order bugs fixed
 
 = 1.0.34 =
