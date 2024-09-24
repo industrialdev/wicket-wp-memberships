@@ -86,6 +86,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
           if($options['wicket_memberships_debug_renew']) {
             $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW']=true;
           }
+          if($options['wicket_memberships_debug_acc']) {
+            $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC']=true;
+          }
         }
 
 	/**

@@ -908,7 +908,9 @@ function add_order_item_meta ( $item_id, $values ) {
   /**
    * Get Memberships in Renewal Periods
    */
-   public function get_membership_callouts( $user_id = null ) {
+  public function get_membership_callouts( $user_id = null ) {
+    $debug_comment_hide = "!";
+    $debug_comment_eol = "\n";
     $early_renewal = [];
     $grace_period = [];
     $pending_approval = [];
@@ -946,12 +948,19 @@ function add_order_item_meta ( $item_id, $values ) {
             'key'     => 'membership_status',
             'value'   => Wicket_Memberships::STATUS_PENDING,
             'compare' => '='
+          ),          
+          array(
+            'key'     => 'membership_status',
+            'value'   => Wicket_Memberships::STATUS_DELAYED,
+            'compare' => '='
           ),
+
         )
       )
     );
     $memberships = get_posts( $args );
     foreach( $memberships as &$membership) {
+      $membership_is_renewal = false;
       $membership_data['ID'] = $membership->ID;
 
       $meta_data = get_post_meta( $membership->ID );
@@ -960,6 +969,11 @@ function add_order_item_meta ( $item_id, $values ) {
           return $item[0];
         }
       }, $meta_data);
+
+      $order_membership_meta = $this->get_membership_array_from_order_and_product_id( $membership_data['meta']['membership_parent_order_id'], $membership_data['meta']['membership_product_id']);
+      if($order_membership_meta['previous_membership_post_id']) {
+        $membership_is_renewal = true;
+      }
 
       $membership_json_data = $this->get_membership_array_from_user_meta_by_post_id( $membership->ID, $user_id );
       $Membership_Tier = new Membership_Tier( $membership_json_data['membership_tier_post_id'] );
@@ -997,13 +1011,44 @@ function add_order_item_meta ( $item_id, $values ) {
       //always check the membership record ($membership_json_data) for next tier / never look at tier data values
       $next_tier_id = $membership_json_data['membership_next_tier_id'];
       $next_tier_form_page_id = $membership_json_data['membership_next_tier_form_page_id'];
+      if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC'] ) ) {
+        $debug_comment_hide = '';
+        $debug_comment_eol = '<br>';
+      }
+
+      /* This is a renewal of a previous membership so assign a var with both type and next id it so it can be compared to other mships found */
+      /* We are also calculating the end date of the previous membership that we want to match against to remove from the callout response */
+      if(!empty( $membership_is_renewal )) {
+        $ends_at_date = date( "Y-m-d", strtotime( $membership_data['meta']['membership_starts_at'] . "-1 days"));
+        $renewal_index_id = !empty($next_tier_id) ? 'nt_'.$next_tier_id : 'nf_'.$next_tier_form_page_id;
+        $membership_renewal_exists[ $renewal_index_id ][ $ends_at_date ] = true;
+        echo "<$debug_comment_hide--";
+        echo 'FOUND a renewal membership:'."membership_renewal_exists[ $renewal_index_id ][ $ends_at_date ]";
+        echo "//-->$debug_comment_eol";
+        continue;
+      }
+
       if( !empty($next_tier_form_page_id) ) {
+        /* we found a renewal that has a subsequent membership already purchased, so do not return it */
+        if(!empty($membership_renewal_exists[ 'nf_'.$next_tier_form_page_id ][ date("Y-m-d", strtotime($membership_data['meta']['membership_ends_at'])) ])) {
+          echo "<$debug_comment_hide--";
+          echo 'SKIPPING in form page link:'."membership_renewal_exists[ 'nf_'.$next_tier_form_page_id ][ date(\"Y-m-d\", strtotime({$membership_data['meta']['membership_ends_at']})) ]";
+          echo "//-->$debug_comment_eol";
+          continue;
+        }
         $membership_data['form_page'] = [
           'title' => get_the_title( $next_tier_form_page_id ),
           'permalink' => get_permalink( $next_tier_form_page_id ),
           'page_id'=> $next_tier_form_page_id,
         ];
       } else {
+        /* we found a renewal that has a subsequent membership already purchased, so do not return it */
+        if(!empty($membership_renewal_exists[ 'nt_'.$next_tier_id ][ date("Y-m-d", strtotime($membership_data['meta']['membership_ends_at'])) ])) {
+          echo "<$debug_comment_hide--";
+          echo 'SKIPPING in tier id link:'."membership_renewal_exists[ 'nt_'.$next_tier_id ][ date(\"Y-m-d\", strtotime({$membership_data['meta']['membership_ends_at']})) ]";
+          echo "//-->$debug_comment_eol";
+          continue;
+        }
         //If we are not going to a page we can fallback to use all products as links
         $next_tier = new Membership_Tier( $next_tier_id );
         $membership_data['next_tier'] = $next_tier->tier_data;          
@@ -1034,7 +1079,7 @@ function add_order_item_meta ( $item_id, $values ) {
           'callout' => $callout,
           'late_fee_product_id' => $Membership_Config->get_late_fee_window_product_id()
         ];
-      } else if( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) {
+      } else if( $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC'] ) {
         $debug[] = [
           'membership' => $membership_data,
         ];
