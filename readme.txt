@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.37 =
+* Date Sep 24 2024
+* Fix renewal crashed on do_action hook
+
 = 1.0.36 =
 * Date Sep 23 2024
 * Composer update
