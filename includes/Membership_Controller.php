@@ -468,7 +468,7 @@ function add_order_item_meta ( $item_id, $values ) {
           $date_flags_array[] = 'next_payment_date';
       }
       $self->update_membership_subscription( $membership, $date_flags_array );
-      $membership_post_data = Helper::get_post_meta( $$membership['membership_post_id'] );
+      $membership_post_data = Helper::get_post_meta( $membership['membership_post_id'] );
       do_action('wicket_membership_created_mdp', $membership_post_data);
     }
     return $membership;
