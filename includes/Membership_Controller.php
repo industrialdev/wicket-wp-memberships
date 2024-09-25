@@ -999,7 +999,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $membership_expires_at = strtotime( $membership->membership_expires_at );
       $current_time =  current_time( 'timestamp' );
       $membership_data['ends_in_days'] = ( ( $membership_ends_at - $current_time ) / 86400 );
-      if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) && !empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
+      if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && !empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
         $current_time =  strtotime ( date( "Y-m-d") . '+' . $_REQUEST['wicket_wp_membership_debug_days'] . ' days');
       }
 
@@ -1032,7 +1032,7 @@ function add_order_item_meta ( $item_id, $values ) {
         /* we found a renewal that has a subsequent membership already purchased, so do not return it */
         if(!empty($membership_renewal_exists[ 'nf_'.$next_tier_form_page_id ][ date("Y-m-d", strtotime($membership_data['meta']['membership_ends_at'])) ])) {
           echo "<$debug_comment_hide--";
-          echo 'SKIPPING in form page link:'."membership_renewal_exists[ 'nf_'.$next_tier_form_page_id ][ date(\"Y-m-d\", strtotime({$membership_data['meta']['membership_ends_at']})) ]";
+          echo 'SKIPPING in form page link:'."membership_renewal_exists[ nf_$next_tier_form_page_id ][ ".date("Y-m-d", strtotime($membership_data['meta']['membership_ends_at']))." ]";
           echo "//-->$debug_comment_eol";
           continue;
         }
@@ -1045,7 +1045,7 @@ function add_order_item_meta ( $item_id, $values ) {
         /* we found a renewal that has a subsequent membership already purchased, so do not return it */
         if(!empty($membership_renewal_exists[ 'nt_'.$next_tier_id ][ date("Y-m-d", strtotime($membership_data['meta']['membership_ends_at'])) ])) {
           echo "<$debug_comment_hide--";
-          echo 'SKIPPING in tier id link:'."membership_renewal_exists[ 'nt_'.$next_tier_id ][ date(\"Y-m-d\", strtotime({$membership_data['meta']['membership_ends_at']})) ]";
+          echo 'SKIPPING in tier id link: '."membership_renewal_exists[ nt_$next_tier_id ][ ".date("Y-m-d", strtotime($membership_data['meta']['membership_ends_at']))." ]";
           echo "//-->$debug_comment_eol";
           continue;
         }
