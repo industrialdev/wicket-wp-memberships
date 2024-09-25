@@ -62,34 +62,55 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
         if (is_file(WICKET_MEMBERSHIP_PLUGIN_DIR . 'vendor/autoload.php')) {
           require_once WICKET_MEMBERSHIP_PLUGIN_DIR . 'vendor/autoload.php';
           if (!class_exists('\Wicket\Client')) {
-	    require_once( WP_PLUGIN_DIR . '/wicket-wp-base-plugin/vendor/autoload.php' );
+            if(is_file(WP_PLUGIN_DIR . '/wicket-wp-base-plugin/vendor/autoload.php')) {
+              require_once( WP_PLUGIN_DIR . '/wicket-wp-base-plugin/vendor/autoload.php' );
+            }
+  
             // Including alternate plugin name in case of manual .zip installs
-            require_once( WP_PLUGIN_DIR . '/wicket-wordpressplugin-php-master/vendor/autoload.php' );
+            if(is_file(WP_PLUGIN_DIR . '/wicket-wordpressplugin-php-master/vendor/autoload.php')) {
+              require_once( WP_PLUGIN_DIR . '/wicket-wordpressplugin-php-master/vendor/autoload.php' );
+            }
           }
           $options = get_option( 'wicket_membership_plugin_options' );
-          if($options['bypass_wicket']) {
-            $_ENV['BYPASS_WICKET']=true;
+          if(isset($options['bypass_wicket'])) {
+            if($options['bypass_wicket']) {
+              $_ENV['BYPASS_WICKET']=true;
+            }
           }
-          if($options['wicket_membership_debug_mode']) {
-            $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE']=true;
+          if(isset($options['wicket_membership_debug_mode'])) {
+            if($options['wicket_membership_debug_mode']) {
+              $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE']=true;
+            }
           }
-          if($options['bypass_status_change_lockout']) {
-            $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT']=true;
+          if(isset($options['bypass_status_change_lockout'])) {
+            if($options['bypass_status_change_lockout']) {
+              $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT']=true;
+            }
           }
-          if($options['wicket_show_order_debug_data']) {
-            $_ENV['WICKET_SHOW_ORDER_DEBUG_DATA']=true;
+          if(isset($options['wicket_show_order_debug_data'])) {
+            if($options['wicket_show_order_debug_data']) {
+              $_ENV['WICKET_SHOW_ORDER_DEBUG_DATA']=true;
+            }
           }
-          if($options['allow_local_imports']) {
-            $_ENV['ALLOW_LOCAL_IMPORTS']=true;
+          if(isset($options['allow_local_imports'])) {
+            if($options['allow_local_imports']) {
+              $_ENV['ALLOW_LOCAL_IMPORTS']=true;
+            }
           }
-          if($options['wicket_memberships_debug_cart_ids']) {
-            $_ENV['WICKET_MEMBERSHIPS_DEBUG_CART_IDS']=true;
+          if(isset($options['wicket_memberships_debug_cart_ids'])) {
+            if($options['wicket_memberships_debug_cart_ids']) {
+              $_ENV['WICKET_MEMBERSHIPS_DEBUG_CART_IDS']=true;
+            }
           }
-          if($options['wicket_memberships_debug_renew']) {
-            $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW']=true;
+          if(isset($options['wicket_memberships_debug_renew'])) {
+            if($options['wicket_memberships_debug_renew']) {
+              $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW']=true;
+            }
           }
-          if($options['wicket_memberships_debug_acc']) {
-            $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC']=true;
+          if(isset($options['wicket_memberships_debug_acc'])) {
+            if($options['wicket_memberships_debug_acc']) {
+              $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC']=true;
+            }
           }
         }
 
