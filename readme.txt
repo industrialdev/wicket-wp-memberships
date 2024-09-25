@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.40 =
+* Date Sep 25 2024
+* debug settings
+
 = 1.0.39 =
 * Date Sep 24 2024
 * hide renewal callout, acc debug setting
