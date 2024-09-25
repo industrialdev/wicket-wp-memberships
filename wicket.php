@@ -62,6 +62,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
         if (is_file(WICKET_MEMBERSHIP_PLUGIN_DIR . 'vendor/autoload.php')) {
           require_once WICKET_MEMBERSHIP_PLUGIN_DIR . 'vendor/autoload.php';
           if (!class_exists('\Wicket\Client')) {
+	    require_once( WP_PLUGIN_DIR . '/wicket-wp-base-plugin/vendor/autoload.php' );
+            // Including alternate plugin name in case of manual .zip installs
             require_once( WP_PLUGIN_DIR . '/wicket-wordpressplugin-php-master/vendor/autoload.php' );
           }
           $options = get_option( 'wicket_membership_plugin_options' );
