@@ -200,6 +200,7 @@ function add_order_item_meta ( $item_id, $values ) {
                 'membership_wp_user_id' => $user_object->ID,
                 'membership_wp_user_display_name' => $user_object->display_name,
                 'membership_wp_user_email' => $user_object->user_email,
+                'membership_user_uuid' => $user_object->user_login,
                 'membership_grace_period_days' => $config->get_late_fee_window_days()
               ];
               if(!empty($this->processing_renewal) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) ) {
@@ -698,14 +699,20 @@ function add_order_item_meta ( $item_id, $values ) {
       'membership_wicket_uuid' => $membership_wicket_uuid,
       'user_name' => $membership['membership_wp_user_display_name'],
       'user_email' => $membership['membership_wp_user_email'],
+      'membership_user_uuid' => $membership['membership_user_uuid'],
       'membership_parent_order_id' => $membership['membership_parent_order_id'],
       'membership_product_id' => $membership['membership_product_id'],
       'membership_subscription_id' => $membership['membership_subscription_id'],
     ];
     if( $membership['membership_type'] == 'organization') {
       $org_data = Helper::get_org_data( $membership['organization_uuid'] );
-      $meta['org_location'] = $org_data['location'];
-      $meta['org_name'] = $org_data['name'];
+      $meta['org_location'] = 'N/A';
+      $meta['org_name'] = 'N/A';
+      if( !empty($membership['organization_uuid'])) {
+        $org_data = Helper::get_org_data( $membership['organization_uuid'] );
+        $meta['org_location'] = $org_data['location'];
+        $meta['org_name'] = $org_data['name'];
+      }
       $meta['org_uuid'] = $membership['organization_uuid'];
       $meta['org_seats'] = $membership['membership_seats'];
       $wicket_membership_type = 'organization_memberships';
