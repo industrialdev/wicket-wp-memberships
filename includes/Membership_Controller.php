@@ -555,8 +555,8 @@ function add_order_item_meta ( $item_id, $values ) {
       $ends_at = $meta_data['membership_ends_at'];
     }
 
-    if( $meta_data['grace_period_days'] == '0' || ! empty( $meta_data['grace_period_days'] ) ) {
-      $grace_period_days = $meta_data['grace_period_days'];
+    if( $meta_data['membership_grace_period_days'] == '0' || ! empty( $meta_data['membership_grace_period_days'] ) ) {
+      $grace_period_days = $meta_data['membership_grace_period_days'];
     }
 
     if( $meta_data['max_assignments'] == '0' || ! empty( $meta_data['max_assignments'] ) ) {

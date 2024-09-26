@@ -159,7 +159,7 @@ class Admin_Controller {
           'membership_starts_at' => $yesterday_iso_date,
           'membership_ends_at' =>  $now_iso_date,
           'membership_expires_at' => $now_iso_date,
-          'grace_period_days' => 0
+          'membership_grace_period_days' => 0
         ];
       }
       else if( $current_post_status == Wicket_Memberships::STATUS_GRACE) {
@@ -168,7 +168,7 @@ class Admin_Controller {
           'membership_status' => $new_post_status,
           //'membership_ends_at' => $membership_current['membership_ends_at'],
           'membership_expires_at' => $now_iso_date,
-          'grace_period_days' => 0
+          'membership_grace_period_days' => 0
         ];
       }
       else {
@@ -176,7 +176,7 @@ class Admin_Controller {
           'membership_status' => $new_post_status,
           'membership_ends_at' => $tomorrow_iso_date,
           'membership_expires_at' => $tomorrow_iso_date,
-          'grace_period_days' => 0
+          'membership_grace_period_days' => 0
         ];
       }
       // cancel the associated subscription
@@ -193,7 +193,7 @@ class Admin_Controller {
       $meta_data = [
         'membership_status' => $new_post_status,
         'membership_expires_at' => $now_iso_date,
-        'grace_period_days' => 0
+        'membership_grace_period_days' => 0
       ];
     }
     $meta_data['membership_type'] = $membership_new['membership_type'];
@@ -385,7 +385,7 @@ class Admin_Controller {
       $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_starts_at' ] )), wp_timezone() ))->format('c');
       $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", $membership_ends_at_seconds ), wp_timezone() ))->format('c');
       $data[ 'membership_expires_at' ]  = (new \DateTime( date("Y-m-d", $membership_expires_at_seconds ), wp_timezone() ))->format('c');
-      $data[ 'grace_period_days' ] = $grace_period_days;
+      $data[ 'membership_grace_period_days' ] = $grace_period_days;
     }
 
     if ( Helper::is_valid_membership_post( $membership_post_id ) ) {
