@@ -24,6 +24,195 @@ class Membership_Post_Types {
     // Register the fields to the REST API and validate the data
     add_action('rest_api_init', [ $this, 'register_membership_config_cpt_fields' ]);
     add_action('rest_api_init', [ $this, 'register_membership_tier_cpt_fields' ]);
+
+    // Tools for updating post data
+    add_action( 'add_meta_boxes', [$this, 'wicket_post_meta_boxes'],10,2);
+    add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
+    add_action( 'add_meta_boxes', [$this, 'action_buttons_add_meta_boxes'] );
+    add_action( 'admin_menu', function() {
+        remove_meta_box( 'extra_info_data', $this->membership_cpt_slug, 'normal' );
+    } );
+    add_action( 'save_post',[$this, 'update_any_post_meta_that_changed'], 10, 2);
+  }
+
+
+function wicket_post_meta_boxes($post_type, $post){
+  if($post_type == "wicket_membership"){
+    add_meta_box( 'membership-early-renew-at', 'membership early renew at', [$this, 'membership_early_renew_at_field'], null, 'side' );
+    add_meta_box( 'membership-starts-at', 'membership starts at', [$this, 'membership_starts_at_field'], null, 'side' );
+    add_meta_box( 'membership-ends-at', 'membership ends at', [$this, 'membership_ends_at_field'], null, 'side' );
+    add_meta_box( 'membership-expires-at', 'membership expires at', [$this, 'membership_expires_at_field'], null, 'side' );
+    add_meta_box( 'membership-next-tier-id', 'membership next tier id', [$this, 'membership_next_tier_id_field'], null, 'side' );
+    add_meta_box( 'membership-next-tier-form-page-id', 'membership next tier form page id', [$this, 'membership_next_tier_form_page_id_field'], null, 'side' );
+    add_action('admin_notices', [$this, 'wicket_membership_debug_admin_notice']);
+  }
+}
+
+function update_any_post_meta_that_changed( $post_id, $post_obj ) {
+  if($post_obj->post_type == 'wicket_membership' 
+      && !empty($_REQUEST['post_type']) && $_REQUEST['post_type'] == 'wicket_membership' 
+      && !empty($_REQUEST['save']) && $_REQUEST['save'] == 'Update') {
+    update_post_meta( $post_id, 'membership_early_renew_at', $_REQUEST['membership_early_renew_at']);
+    update_post_meta( $post_id, 'membership_starts_at', $_REQUEST['membership_starts_at']);
+    update_post_meta( $post_id, 'membership_ends_at', $_REQUEST['membership_ends_at']);
+    update_post_meta( $post_id, 'membership_expires_at', $_REQUEST['membership_expires_at']);
+    update_post_meta( $post_id, 'membership_next_tier_id', $_REQUEST['membership_next_tier_id']);
+    update_post_meta( $post_id, 'membership_next_tier_form_page_id', $_REQUEST['membership_next_tier_form_page_id']);
+  }
+}
+  
+function wicket_membership_debug_admin_notice(){
+  global $pagenow;
+  if ( $pagenow == 'post.php' ) {
+    echo '<div class="notice notice-error is-dismissible">
+      <h2><strong><span style="color:red">WARNING</span> : YOU ARE VIEWING MEMBERSHIP PLUGIN RAW DATA</strong></h2>
+      <p><span style="color:red">For debugging only.</span> Changes made on this page will not sync to the Wicket MDP and can break the plugin operations and data connection. Best used for inpecting plugin data.
+      <br />Changes on the <code><a href="admin.php?page=individual_member_list">Edit Membership</a></code> and <code><a href="admin.php?page=org_member_list">Organizational Memberships</a></code> pages will update the records in the Wicket MDP and are the correct way to modify your member data.</p>
+    </div>';
+  }
+}
+
+function membership_next_tier_form_page_id_field( $post ){
+  $membership_next_tier_form_page_id = get_post_meta($post->ID,'membership_next_tier_form_page_id',true);
+  echo '<label for="membership_next_tier_form_page_id">membership_next_tier_form_page_id:</label>';
+  woocommerce_form_field('membership_next_tier_form_page_id', array(
+     'type'        => 'text',
+     'class'       => array( 'chzn-text' ),
+     'default'     => empty($membership_next_tier_form_page_id) ? '' : $membership_next_tier_form_page_id,
+     'value'       => $membership_next_tier_form_page_id
+  )
+ );
+}
+
+function membership_next_tier_id_field( $post ){
+  $membership_next_tier_id = get_post_meta($post->ID,'membership_next_tier_id',true);
+  echo '<label for="membership_next_tier_id">membership_next_tier_id:</label>';
+  woocommerce_form_field('membership_next_tier_id', array(
+     'type'        => 'text',
+     'class'       => array( 'chzn-text' ),
+     'default'     => empty($membership_next_tier_id) ? '' : $membership_next_tier_id,
+     'value'       => $membership_next_tier_id
+  )
+ );
+}
+
+function membership_early_renew_at_field( $post ){
+  $membership_early_renew_at = get_post_meta($post->ID,'membership_early_renew_at',true);
+  echo '<label for="membership_early_renew_at">membership_early_renew_at:</label>';
+  woocommerce_form_field('membership_early_renew_at', array(
+    'type'        => 'date',
+    'class'       => array( 'chzn-date' ),
+    'input_class' => array('hasDatepicker'),
+    'default' => empty($membership_early_renew_at) ? date("Y-m-d") : date("Y-m-d", strtotime($membership_early_renew_at)),
+    'value' => date("Y-m-d", strtotime($membership_early_renew_at))
+  )
+ );
+}
+
+function membership_starts_at_field( $post ){
+  $membership_starts_at = get_post_meta($post->ID,'membership_starts_at',true);
+  echo '<label for="membership_starts_at">membership_starts_at:</label>';
+  woocommerce_form_field('membership_starts_at', array(
+     'type'        => 'date',
+     'class'       => array( 'chzn-date' ),
+     'input_class' => array('hasDatepicker'),
+     'default' => empty($membership_starts_at) ? date("Y-m-d") : date("Y-m-d", strtotime($membership_starts_at)),
+     'value' => date("Y-m-d", strtotime($membership_starts_at))
+  )
+ );
+}
+
+function membership_ends_at_field( $post ){
+  $membership_ends_at = get_post_meta($post->ID,'membership_ends_at',true);
+  echo '<label for="membership_ends_at">membership_ends_at:</label>';
+  woocommerce_form_field('membership_ends_at', array(
+     'type'        => 'date',
+     'class'       => array( 'chzn-date' ),
+     'input_class' => array('hasDatepicker'),
+     'default' => empty($membership_ends_at) ? date("Y-m-d") : date("Y-m-d", strtotime($membership_ends_at)),
+     'value' => date("Y-m-d", strtotime($membership_ends_at))
+  )
+ );
+}
+
+function membership_expires_at_field( $post ){
+   $membership_expires_at = get_post_meta($post->ID,'membership_expires_at',true);
+   echo '<label for="membership_expires_at">membership_expires_at:</label>';
+   woocommerce_form_field('membership_expires_at', array(
+      'type'        => 'date',
+      'class'       => array( 'chzn-date' ),
+      'input_class' => array('hasDatepicker'),
+      'default' => empty($membership_expires_at) ? date("Y-m-d") : date("Y-m-d", strtotime($membership_expires_at)),
+      'value' => date("Y-m-d", strtotime($membership_expires_at))
+   )
+  );
+}
+
+  // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
+  function action_buttons_add_meta_boxes() {
+    global $post;
+    add_meta_box( 'action_buttons_add_meta_boxes', __('Sync Meta Data','your_text_domain'), [$this, 'display_action_buttons'], $this->membership_cpt_slug, 'side', 'core' );
+  }
+
+  function display_action_buttons() {
+    global $post;
+    $user_id = get_post_meta( $post->ID, 'user_id', true );
+    $order_id = get_post_meta( $post->ID, 'membership_parent_order_id', true );
+    $product_id = get_post_meta( $post->ID, 'membership_product_id', true );
+    ?>
+      <input class="button" type="submit" name="wicket_do_action_early_renew_at" value="Early Renew"><br>
+      <input class="button" type="submit" name="wicket_do_action_ends_at" value="Ends At"><br>
+      <input class="button" type="submit" name="wicket_do_action_expires_at" value="Grace Period"><br>
+      membership_parent_order_id<br>
+      <input type="text" name="wicket_order_id" value="<?php echo $order_id; ?>"><br>
+      membership_product_id<br>
+      <input type="text" name="wicket_product_id" value="<?php echo $product_id; ?>">
+      membership_user_id<br>
+      <input type="text" name="wicket_user_id" value="<?php echo $user_id; ?>">
+      membership_post_id<br>
+      <input type="text" name="wicket_post_id" value="<?php echo $post->ID; ?>">
+      <input class="button" type="submit" name="wicket_update_order_meta_from_mship_post" value="Update JSON from Post Meta">
+    <?php
+  }
+
+  function extra_info_add_meta_boxes()
+  {
+    global $post;
+    add_meta_box( 'extra_info_data_content', __('Extra Info','your_text_domain'), [$this, 'extra_info_data_contents'], $this->membership_cpt_slug, 'normal', 'core' );
+  }
+
+  // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
+  function extra_info_data_contents()
+  {
+    global $post;
+    $post_meta = get_post_meta( $post->ID );
+    $new_meta = [];
+    array_walk(
+      $post_meta,
+      function(&$val, $key) use ( &$new_meta )
+      {
+        if( str_starts_with( $key, '_' ) ) {
+          return;
+        }
+        $new_meta[$key] = $val[0];
+      }
+    );
+    
+    $mship_product_id = get_post_meta( $post->ID, 'membership_product_id', true );
+    $membership_user_uuid = !empty($new_meta['person_uuid']) ? $new_meta['person_uuid'] : $new_meta['membership_user_uuid'];
+    if(!empty($membership_user_uuid)) {
+      echo "<a href='admin.php?page=wicket_individual_member_edit&id=$membership_user_uuid&membership_uuid={$new_meta['membership_wicket_uuid']}'>Click Here to Edit this Membership.</a>";
+    }
+    echo '<table><tr><td valign="top"><h3>Post Data</h3><pre>';
+    var_dump( $new_meta );
+    echo '</pre></td>';
+    echo '<td valign="top"><h3>Customer Data</h3>( _wicket_membership_';echo $post->ID.' )<br><pre>';
+    $customer_meta = Membership_Controller::get_membership_array_from_user_meta_by_post_id( $post->ID, $new_meta['user_id'] );
+    var_dump( $customer_meta );
+    echo '</pre></td>"';
+    echo '<td valign="top"><h3>Order Data</h3>( _wicket_membership_';echo $mship_product_id.' )<br><pre>';
+    var_dump( Membership_Controller::get_membership_array_from_post_id( $post->ID ) );
+    echo '</pre></td></tr></table>"';
   }
 
   /**

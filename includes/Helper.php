@@ -14,14 +14,11 @@ class Helper {
     }
     if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
       // INJECT MEMBERSHIP META DATA into membership pages
-      add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
-      //add_action( 'add_meta_boxes', [$this, 'action_buttons_add_meta_boxes'] );
-      add_action( 'admin_menu', function() {
-          remove_meta_box( 'extra_info_data', self::get_membership_cpt_slug(), 'normal' );
-      } );
+      add_action( 'init', [ $this, 'update_user_meta_from_post_data'] );
     }
   }
 
+  
 
   function wps_select_checkout_field_display_admin_order_meta( $post ) {
     $post_meta = get_post_meta( $post->get_id() );
@@ -30,62 +27,6 @@ class Helper {
         echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';var_dump( json_decode( maybe_unserialize( $val[0] ), true) ); echo '</pre>';
       }
     }
-  }
-
-  // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
-  function action_buttons_add_meta_boxes() {
-    global $post;
-    add_meta_box( 'action_buttons_add_meta_boxes', __('[do_action] Buttons','your_text_domain'), [$this, 'display_action_buttons'], self::get_membership_cpt_slug(), 'side', 'core' );
-  }
-
-  function display_action_buttons() {
-    global $post;
-    $order_id = get_post_meta( $post->ID, 'membership_parent_order_id', true );
-    $product_id = get_post_meta( $post->ID, 'membership_product_id', true );
-    ?>
-      <input type="submit" name="wicket_do_action_early_renew_at" value="Early Renew"><br>
-      <input type="submit" name="wicket_do_action_ends_at" value="Ends At"><br>
-      <input type="submit" name="wicket_do_action_expires_at" value="Grace Period"><br>
-      membership_parent_order_id<br>
-      <input type="text" name="wicket_order_id" value="<?php echo $order_id; ?>"><br>
-      membership_product_id<br>
-      <input type="text" name="wicket_product_id" value="<?php echo $product_id; ?>">
-    <?php
-  }
-
-  function extra_info_add_meta_boxes()
-  {
-    global $post;
-    add_meta_box( 'extra_info_data_content', __('Extra Info','your_text_domain'), [$this, 'extra_info_data_contents'], self::get_membership_cpt_slug(), 'normal', 'core' );
-  }
-
-  // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
-  function extra_info_data_contents()
-  {
-    global $post;
-    $post_meta = get_post_meta( $post->ID );
-    $new_meta = [];
-    array_walk(
-      $post_meta,
-      function(&$val, $key) use ( &$new_meta )
-      {
-        if( str_starts_with( $key, '_' ) ) {
-          return;
-        }
-        $new_meta[$key] = $val[0];
-      }
-    );
-    $mship_product_id = get_post_meta( $post->ID, 'membership_product_id', true );
-    echo '<table><tr><td valign="top"><h3>Post Data</h3><pre>';
-    var_dump( $new_meta );
-    echo '</pre></td>';
-    echo '<td valign="top"><h3>Customer Data</h3>( _wicket_membership_';echo $post->ID.' )<br><pre>';
-    $customer_meta = Membership_Controller::get_membership_array_from_user_meta_by_post_id( $post->ID, $new_meta['user_id'] );
-    var_dump( $customer_meta );
-    echo '</pre></td>"';
-    echo '<td valign="top"><h3>Order Data</h3>( _wicket_membership_';echo $mship_product_id.' )<br><pre>';
-    var_dump( Membership_Controller::get_membership_array_from_post_id( $post->ID ) );
-    echo '</pre></td></tr></table>"';
   }
 
   public static function get_wp_languages_iso() {
@@ -276,6 +217,62 @@ class Helper {
     }
   }
 
+  public function update_user_meta_from_post_data( $post_id ) {
+    if(! $_REQUEST['wicket_update_order_meta_from_mship_post']) {
+      return;
+    }
+    $post_meta = get_post_meta( $_REQUEST['wicket_post_id'] );
+    $new_meta = [];
+    array_walk(
+      $post_meta,
+      function(&$val, $key) use ( &$new_meta )
+      {
+        if( str_starts_with( $key, '_' ) ) {
+          return;
+        }
+        if( str_ends_with( $key, '_at' ) ) {
+          return $new_meta[$key] = (new \DateTime( $val[0], wp_timezone() ))->format('c'); //= date( "Y-m-d", strtotime( $val[0] ));
+        }
+        return $new_meta[$key] = $val[0];
+      }
+    );
+    $new_meta['membership_post_id'] = $_REQUEST['wicket_post_id'];
+
+    $mapping_keys = [
+      'membership_wp_user_display_name' => 'user_name',
+      'user_name' => 'membership_wp_user_display_name',
+      'membership_wp_user_email' => 'user_email',
+      'user_email' => 'membership_wp_user_email',
+      'organization_name' => 'org_name',
+      'org_name' => 'organization_name',
+      'organization_location' => 'org_location',
+      'org_location' => 'organization_location',
+      'organization_uuid' => 'org_uuid',
+      'org_uuid' => 'organization_uuid',
+      'membership_seats' => 'org_seats',
+      'org_seats' => 'membership_seats',
+   ];
+
+   $membership_post_data = [];
+   array_walk(
+     $new_meta,
+     function(&$val, $key) use (&$membership_post_data, $mapping_keys)
+     {
+       $new_key = $mapping_keys[$key];
+       if( empty($new_key) ) {
+         $membership_post_data[$key] = $val;
+       } else {
+         $membership_post_data[$new_key] = $val;
+       }
+     }
+   );
+
+    //echo '<pre>'; var_dump($membership_post_data);exit;
+    update_user_meta($new_meta['user_id'], '_wicket_membership_'.$new_meta['membership_post_id'], json_encode( $new_meta) );
+    update_post_meta($new_meta['membership_parent_order_id'], '_wicket_membership_'.$new_meta['membership_product_id'], json_encode( $membership_post_data) );
+    //update_post_meta($new_meta['membership_subscription_id'], '_wicket_membership_'.$new_meta['membership_product_id'], json_encode( $membership_post_data) );
+  }
+
   public static function get_org_data( $org_uuid, $bypass_lookup = false, $force_lookup = false ) {
     $org_data = json_decode( get_option( 'org_data_'. $org_uuid ), true);
     if(empty( $org_data ) && $bypass_lookup ) {
@@ -324,5 +321,163 @@ class Helper {
       }
     );
     return $new_meta;
+  }
+
+  public static function force_renewal_for_subscription($subscription_id) {
+    if (!class_exists('WC_Subscriptions')) {
+        return false; // WooCommerce Subscriptions plugin is not active
+    }
+
+    // Get the subscription object
+    $subscription = wcs_get_subscription($subscription_id);
+    if (!$subscription) {
+        return false; // Subscription not found
+    }
+
+    // Force renewal
+    $order = wcs_create_renewal_order($subscription_id);
+
+    if ($order) {
+        // Optional: Update the order status if needed
+        $order->update_status('pending'); // or 'processing', 'completed', etc.
+
+        // Optional: You can add custom data to the order if needed
+        // Example: Add a note
+        $order->add_order_note('This renewal order was created programmatically.');
+
+        // Save the order
+        $order->save();
+
+        echo 'Renewal order created successfully.';
+    } else {
+        echo 'Failed to create renewal order.';
+    }
+}
+
+  public static function wicket_duplicate_order( $original_order_id ) {
+
+    // Load Original Order
+    $original_order = wc_get_order( $original_order_id );
+    $user_id = $original_order->get_user_id();
+  
+    // Setup Cart
+    WC()->frontend_includes();
+    WC()->session = new WC_Session_Handler();
+    WC()->session->init();
+    WC()->customer = new WC_Customer( $user_id, true );
+    WC()->cart = new WC_Cart();
+  
+    // Setup New Order
+    $checkout = WC()->checkout();
+    WC()->cart->calculate_totals();
+    $order_id = $checkout->create_order( [ ] );
+    $order = wc_get_order( $order_id );
+    $order->update_meta_data( '_customer_user', $original_order->get_meta( '_order_shipping' ) );
+  
+    // Header
+    $order->update_meta_data( '_order_shipping', $original_order->get_meta( '_order_shipping' ) );
+    $order->update_meta_data( '_order_discount', $original_order->get_meta( '_order_discount' ) );
+    $order->update_meta_data( '_cart_discount', $original_order->get_meta( '_cart_discount' ) );
+    $order->update_meta_data( '_order_tax', $original_order->get_meta( '_order_tax' ) );
+    $order->update_meta_data( '_order_shipping_tax', $original_order->get_meta( '_order_shipping_tax' ) );
+    $order->update_meta_data( '_order_total', $original_order->get_meta( '_order_total' ) );
+    $order->update_meta_data( '_order_key', 'wc_' . apply_filters( 'woocommerce_generate_order_key', uniqid( 'order_' ) ) );
+    $order->update_meta_data( '_customer_user', $original_order->get_meta( '_customer_user' ) );
+    $order->update_meta_data( '_order_currency', $original_order->get_meta( '_order_currency' ) );
+    $order->update_meta_data( '_prices_include_tax', $original_order->get_meta( '_prices_include_tax' ) );
+    $order->update_meta_data( '_customer_ip_address', $original_order->get_meta( '_customer_ip_address' ) );
+    $order->update_meta_data( '_customer_user_agent', $original_order->get_meta( '_customer_user_agent' ) );
+  
+    // Billing
+    $order->update_meta_data( '_billing_city', $original_order->get_meta( '_billing_city' ) );
+    $order->update_meta_data( '_billing_state', $original_order->get_meta( '_billing_state' ) );
+    $order->update_meta_data( '_billing_postcode', $original_order->get_meta( '_billing_postcode' ) );
+    $order->update_meta_data( '_billing_email', $original_order->get_meta( '_billing_email' ) );
+    $order->update_meta_data( '_billing_phone', $original_order->get_meta( '_billing_phone' ) );
+    $order->update_meta_data( '_billing_address_1', $original_order->get_meta( '_billing_address_1' ) );
+    $order->update_meta_data( '_billing_address_2', $original_order->get_meta( '_billing_address_2' ) );
+    $order->update_meta_data( '_billing_country', $original_order->get_meta( '_billing_country' ) );
+    $order->update_meta_data( '_billing_first_name', $original_order->get_meta( '_billing_first_name' ) );
+    $order->update_meta_data( '_billing_last_name', $original_order->get_meta( '_billing_last_name' ) );
+    $order->update_meta_data( '_billing_company', $original_order->get_meta( '_billing_company' ) );
+  
+    // Shipping
+    $order->update_meta_data( '_shipping_country', $original_order->get_meta( '_shipping_country' ) );
+    $order->update_meta_data( '_shipping_first_name', $original_order->get_meta( '_shipping_first_name' ) );
+    $order->update_meta_data( '_shipping_last_name', $original_order->get_meta( '_shipping_last_name' ) );
+    $order->update_meta_data( '_shipping_company', $original_order->get_meta( '_shipping_company' ) );
+    $order->update_meta_data( '_shipping_address_1', $original_order->get_meta( '_shipping_address_1' ) );
+    $order->update_meta_data( '_shipping_address_2', $original_order->get_meta( '_shipping_address_2' ) );
+    $order->update_meta_data( '_shipping_city', $original_order->get_meta( '_shipping_city' ) );
+    $order->update_meta_data( '_shipping_state', $original_order->get_meta( '_shipping_state' ) );
+    $order->update_meta_data( '_shipping_postcode', $original_order->get_meta( '_shipping_postcode' ) );
+  
+    // Shipping Items
+    $original_order_shipping_items = $original_order->get_items( 'shipping' );
+    foreach( $original_order_shipping_items as $original_order_shipping_item ) {
+      $item_id = wc_add_order_item( $order_id, array(
+        'order_item_name' => $original_order_shipping_item['name'],
+        'order_item_type' => 'shipping'
+      ) );
+      if( $item_id ) {
+        wc_add_order_item_meta( $item_id, 'method_id', $original_order_shipping_item['method_id'] );
+        wc_add_order_item_meta( $item_id, 'cost', wc_format_decimal( $original_order_shipping_item['cost'] ) );
+      }
+    }
+  
+    // Coupons
+    $original_order_coupons = $original_order->get_items( 'coupon' );
+    foreach( $original_order_coupons as $original_order_coupon ) {
+      $item_id = wc_add_order_item( $order_id, array(
+        'order_item_name' => $original_order_coupon['name'],
+        'order_item_type' => 'coupon'
+      ) );
+      if ( $item_id ) {
+        wc_add_order_item_meta( $item_id, 'discount_amount', $original_order_coupon['discount_amount'] );
+      }
+    }
+  
+    // Payment
+    $order->update_meta_data( '_payment_method', $original_order->get_meta( '_payment_method' ) );
+    $order->update_meta_data( '_payment_method_title', $original_order->get_meta( '_payment_method_title' ) );
+    $order->update_meta_data( 'Transaction ID', $original_order->get_meta( 'Transaction ID' ) );
+  
+    // Line Items
+    foreach( $original_order->get_items() as $originalOrderItem ) {
+      $itemName = $originalOrderItem['name'];
+      $qty = $originalOrderItem['qty'];
+      $lineTotal = $originalOrderItem['line_total'];
+      $lineTax = $originalOrderItem['line_tax'];
+      $productID = $originalOrderItem['product_id'];
+      $item_id = wc_add_order_item( $order_id, [
+          'order_item_name' => $itemName,
+          'order_item_type' => 'line_item'
+      ] );
+      wc_add_order_item_meta( $item_id, '_qty', $qty );
+      wc_add_order_item_meta( $item_id, '_tax_class', $originalOrderItem['tax_class'] );
+      wc_add_order_item_meta( $item_id, '_product_id', $productID );
+      wc_add_order_item_meta( $item_id, '_variation_id', $originalOrderItem['variation_id'] );
+      wc_add_order_item_meta( $item_id, '_line_subtotal', wc_format_decimal( $lineTotal ) );
+      wc_add_order_item_meta( $item_id, '_line_total', wc_format_decimal( $lineTotal ) );
+      wc_add_order_item_meta( $item_id, '_line_tax', wc_format_decimal( $lineTax ) );
+      wc_add_order_item_meta( $item_id, '_line_subtotal_tax', wc_format_decimal( $originalOrderItem['line_subtotal_tax'] ) );
+    }
+  
+    // Close New Order
+    $order->save();
+    $order->calculate_totals();
+    //$order->payment_complete();
+    //$order->update_status( 'processing' );
+  
+    // Note
+    $message = sprintf(
+      'This order was duplicated from order %d.',
+      $original_order_id
+    );
+    $order->add_order_note( $message );
+  
+    // Return
+    return $order_id;
+  
   }
 }
