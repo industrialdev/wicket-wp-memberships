@@ -164,7 +164,7 @@ function wicket_sub_org_select_callback( $subscription ) {
   function handle_suborg_search() {
     check_ajax_referer('suborg_nonce', 'nonce');
     $search_term = isset($_POST['term']) ? sanitize_text_field($_POST['term']) : '';
-    $search_json = json_encode(['searchTerm' => $search_term]);  
+    $search_json = json_encode(['searchTerm' => $search_term, 'autocomplete' => true]);  
     $request = new \WP_REST_Request('POST');
     $request->set_headers(['Content-Type' => 'application/json']);
     $request->set_body($search_json); // Set the body as the JSON string
