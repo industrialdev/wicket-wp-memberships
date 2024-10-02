@@ -55,6 +55,7 @@ use Wicket_Memberships\Membership_WP_REST_Controller;
 use Wicket_Memberships\Membership_Subscription_Controller;
 use Wicket_Memberships\Import_Controller;
 use Wicket_Memberships\Settings;
+use Wicket_Memberships\Utilities;
 
 if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
@@ -139,6 +140,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       new Membership_Subscription_Controller;
       new Helper;
       new Settings;
+      new Utilities;
 
 			register_activation_hook( WICKET_MEMBERSHIP_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
 			add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );

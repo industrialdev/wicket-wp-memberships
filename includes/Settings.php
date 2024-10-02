@@ -31,6 +31,9 @@ class Settings {
   public static function wicket_membership_register_settings() {
     register_setting( 'wicket_membership_plugin_options', 'wicket_membership_plugin_options', [__NAMESPACE__.'\\Settings', 'wicket_membership_plugin_options_validate'] );
     //add_settings_section( 'functional_settings', 'Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_functional_text'], 'wicket_membership_plugin' );
+    //options
+    add_settings_field( 'wicket_show_mship_order_org_search', '<p>Set the Organization on Subscription Membership in Admin</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_mship_order_org_search'], 'wicket_membership_plugin', 'debug_settings' );
+    //debug
     add_settings_section( 'debug_settings', 'Debug Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_debug_text'], 'wicket_membership_plugin' );
     add_settings_field( 'wicket_membership_debug_mode', '<p>WICKET_MEMBERSHIPS_DEBUG_MODE</p>', [__NAMESPACE__.'\\Settings', 'wicket_membership_debug_mode'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'wicket_memberships_debug_acc', '<p>WICKET_MEMBERSHIPS_DEBUG_ACC</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_acc'], 'wicket_membership_plugin', 'debug_settings' );
@@ -41,6 +44,29 @@ class Settings {
     add_settings_field( 'wicket_memberships_debug_cart_ids', '<p>WICKET_MEMBERSHIPS_DEBUG_CART_IDS</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_cart_ids'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'bypass_wicket', '<p>BYPASS_WICKET</p>', [__NAMESPACE__.'\\Settings', 'bypass_wicket'], 'wicket_membership_plugin', 'debug_settings' );
   }
+
+  public static function wicket_show_mship_order_org_search() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo 'Option to [Search & Select Organization] for the membership on WC Subscription Order admin page for products in the selected categories. Useful for manually creating subscription memberships.';
+    ?><br /><select class="" multiple="multiple" name="wicket_membership_plugin_options[wicket_show_mship_order_org_search][categorychoice][]"><?
+    $option = $options['wicket_show_mship_order_org_search'];
+    $categories_selected = $options['wicket_show_mship_order_org_search'];
+          $product_categories = get_terms(array(
+            'taxonomy'   => 'product_cat',
+            'hide_empty' => true,
+        ));        
+          foreach ($product_categories as $category) {
+            $selected = '';
+            if(!empty($categories_selected['categorychoice']) && is_array($categories_selected['categorychoice'])) {
+              $selected = in_array( $category->term_id, $categories_selected['categorychoice'] ) ? ' selected="selected" ' : ''; 
+            }
+            ?>
+              <option value="<?php echo $category->term_id; ?>" <?php echo $selected; ?> >
+                <?php echo $category->name; ?>
+              </option>
+          <?php } ?>
+      </select><?php
+      }
 
   public static function bypass_wicket() {
     $options = get_option( 'wicket_membership_plugin_options' );
@@ -99,6 +125,7 @@ class Settings {
     $newinput['wicket_memberships_debug_cart_ids'] = trim($input['wicket_memberships_debug_cart_ids']);
     $newinput['wicket_memberships_debug_renew'] = trim($input['wicket_memberships_debug_renew']);
     $newinput['bypass_wicket'] = trim($input['bypass_wicket']);
+    $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
     return $newinput;
   }
 
