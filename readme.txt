@@ -28,7 +28,7 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
-= 1.0.43 =
+= 1.0.44 =
 * Date Oct 02 2024
 * Set org meta on subscription box
 

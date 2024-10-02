@@ -48,7 +48,7 @@ class Settings {
   public static function wicket_show_mship_order_org_search() {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo 'Option to [Search & Select Organization] for the membership on WC Subscription Order admin page for products in the selected categories. Useful for manually creating subscription memberships.';
-    ?><br /><select class="" multiple="multiple" name="wicket_membership_plugin_options[wicket_show_mship_order_org_search][categorychoice][]"><?
+    ?><br /><select class="" multiple="multiple" name="wicket_membership_plugin_options[wicket_show_mship_order_org_search][categorychoice][]"><?php
     $option = $options['wicket_show_mship_order_org_search'];
     $categories_selected = $options['wicket_show_mship_order_org_search'];
           $product_categories = get_terms(array(
