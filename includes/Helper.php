@@ -287,6 +287,10 @@ class Helper {
       $org_data = self::store_an_organizations_data_in_options_table($org_uuid, $force_lookup);
     }
 
+    if(!is_array($org_data)) {
+      $org_data = json_decode($org_data, true);
+    }
+
     if( ! empty( $org_data['included'][0]['attributes']['city'] ) ) {
       $data['location'] = $org_data['included'][0]['attributes']['city'] . ', ';
       $data['location'] .= $org_data['included'][0]['attributes']['state_name'] . ', ';
@@ -294,7 +298,12 @@ class Helper {
     } else {
       $data['location'] = '';
     }
-    $data['name'] = $org_data['data']['attributes']['alternate_name'];
+
+    if(! is_array($org_data) || empty($org_data['data']['attributes']['alternate_name']) ) {
+      $data['name'] = '';
+    } else {
+      $data['name'] = $org_data['data']['attributes']['alternate_name'];
+    }
     return $data;
   }
 

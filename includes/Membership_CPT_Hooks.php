@@ -174,9 +174,10 @@ class Membership_CPT_Hooks {
   public function wicket_membership_table_head( $columns ) {
     add_filter('the_title', [ $this, 'replace_title' ],10, 2);
     $columns['title'] = __( 'Wicket UUID', 'wicket-memberships' );
+    $columns['membership_parent_order_id']  = __( 'Order ID', 'wicket-memberships' );
+    $columns['user_email']  = __( 'Email', 'wicket-memberships' );
     $columns['membership_type']  = __( 'Type', 'wicket-memberships' );
     $columns['membership_tier_uuid']  = __( 'Membership Tier ID', 'wicket-memberships' );
-    $columns['user_id']  = __( 'User ID', 'wicket-memberships' );
     $columns['membership_status']  = __( 'Status', 'wicket-memberships' );
     $columns['membership_starts_at']  = __( 'Start Date', 'wicket-memberships' );
     $columns['membership_early_renew_at']  = __( 'Early Renew Date', 'wicket-memberships' );
