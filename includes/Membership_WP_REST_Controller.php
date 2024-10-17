@@ -31,7 +31,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'get_tiers_mdp' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
     /**
@@ -43,7 +43,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'get_orgs_mdp' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
     /**
@@ -56,7 +56,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'get_tier_info' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
 
@@ -70,7 +70,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'get_org_info' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
     /**
@@ -82,7 +82,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'get_product_tiers' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
     /**
@@ -94,7 +94,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'get_membership_entity' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
     /**
@@ -106,7 +106,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'update_membership_entity' ),
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
   /**
@@ -125,7 +125,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
           ),
         ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
     /**
@@ -168,7 +168,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
           ),
         )
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
     /**
@@ -180,7 +180,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'get_membership_dates' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     ) );
     /**
      * Get memberships early renewal and grace periods by user_id
@@ -192,7 +192,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'get_membership_callouts' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     ) );
 
     // change status on membership
@@ -202,7 +202,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'admin_manage_status' ),
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     ) );
 
     // available status options for change status drop-down
@@ -212,7 +212,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'get_admin_status_options' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     ) );
 
     // available status options for change status drop-down
@@ -222,7 +222,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'get_edit_page_info' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     ) );
 
     // test endpoint
@@ -232,7 +232,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'modify_subscription' ),
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     ) );
     //DEBUG
     register_rest_route( $this->namespace, '/org_data', array(
@@ -241,7 +241,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'get_org_data' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
     //DEBUG
@@ -251,7 +251,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'import_person_memberships' ),
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
     //DEBUG
@@ -261,7 +261,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'callback'  => array( $this, 'import_membership_organizations' ),
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
-      'schema' => array( $this, '' ),
+      //'schema' => array( $this, '' ),
     )
     );
   }
