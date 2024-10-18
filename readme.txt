@@ -28,7 +28,7 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
-= 1.0.47 =
+= 1.0.48 =
 * Date Oct 18 2024
 * Date offsets when missing timezone
 * External ID fix on Pending Approval
