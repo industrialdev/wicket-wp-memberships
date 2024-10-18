@@ -919,7 +919,7 @@ function add_order_item_meta ( $item_id, $values ) {
    * Get Memberships in Renewal Periods
    */
   public function get_membership_callouts( $user_id = null ) {
-    $membership_exists = false;
+    $membership_exists = [];
     $debug_comment_hide = "!";
     $debug_comment_eol = "\n";
     $early_renewal = [];
@@ -982,12 +982,12 @@ function add_order_item_meta ( $item_id, $values ) {
       }, $meta_data);
 
       $order_membership_meta = $this->get_membership_array_from_order_and_product_id( $membership_data['meta']['membership_parent_order_id'], $membership_data['meta']['membership_product_id']);
-      if($order_membership_meta['previous_membership_post_id']) {
+      if(!empty($order_membership_meta['previous_membership_post_id'])) {
         $membership_is_renewal = true;
       }
       
       if ( $membership->membership_status == 'active' || $membership->membership_status == 'delayed') { 
-        $membership_exists = true;
+        $membership_exists[] = str_replace( [' ','-',','], '', strToLower($membership->membership_tier_name));
       }
 
       $membership_json_data = $this->get_membership_array_from_user_meta_by_post_id( $membership->ID, $user_id );
@@ -1024,8 +1024,8 @@ function add_order_item_meta ( $item_id, $values ) {
       //TODO: WE NEED OPTION TO SET OVERRIDE TO FORM PAGE ID ON MEMBERSHIP EDIT PAGE
       //TODO: WE NEED TO USE THAT VALUE HERE INSTEAD OF LOOKING AT NEXT TIER!!! THIS IS FLAWED
       //always check the membership record ($membership_json_data) for next tier / never look at tier data values
-      $next_tier_id = $membership_json_data['membership_next_tier_id'];
-      $next_tier_form_page_id = $membership_json_data['membership_next_tier_form_page_id'];
+      $next_tier_id = !empty($membership_json_data['membership_next_tier_id']) ? $membership_json_data['membership_next_tier_id'] : '';
+      $next_tier_form_page_id = !empty($membership_json_data['membership_next_tier_form_page_id']) ? $membership_json_data['membership_next_tier_form_page_id'] : '';
       if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC'] ) ) {
         $debug_comment_hide = '';
         $debug_comment_eol = '<br>';
@@ -1094,7 +1094,7 @@ function add_order_item_meta ( $item_id, $values ) {
           'callout' => $callout,
           'late_fee_product_id' => $Membership_Config->get_late_fee_window_product_id()
         ];
-      } else if( $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC'] ) {
+      } else if( !empty($_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC']) ) {
         $debug[] = [
           'membership' => $membership_data,
         ];
