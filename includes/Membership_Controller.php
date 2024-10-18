@@ -513,6 +513,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $end_date     = $membership['membership_ends_at'];
       $expire_date  = $membership['membership_expires_at'];
       $timezone_string = get_option('timezone_string');
+
       if( in_array ( 'start_date', $fields ) ) {
         $date = new \DateTime(substr($start_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
         $date->setTimezone(new \DateTimeZone('UTC'));
@@ -916,6 +917,7 @@ function add_order_item_meta ( $item_id, $values ) {
    * Get Memberships in Renewal Periods
    */
   public function get_membership_callouts( $user_id = null ) {
+    $membership_exists = false;
     $debug_comment_hide = "!";
     $debug_comment_eol = "\n";
     $early_renewal = [];
@@ -980,6 +982,10 @@ function add_order_item_meta ( $item_id, $values ) {
       $order_membership_meta = $this->get_membership_array_from_order_and_product_id( $membership_data['meta']['membership_parent_order_id'], $membership_data['meta']['membership_product_id']);
       if($order_membership_meta['previous_membership_post_id']) {
         $membership_is_renewal = true;
+      }
+      
+      if ( $membership->membership_status == 'active' || $membership->membership_status == 'delayed') { 
+        $membership_exists = true;
       }
 
       $membership_json_data = $this->get_membership_array_from_user_meta_by_post_id( $membership->ID, $user_id );
@@ -1094,7 +1100,7 @@ function add_order_item_meta ( $item_id, $values ) {
       }
     }
 
-    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'debug' => $debug];
+    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'debug' => $debug, 'membership_exists' => $membership_exists ];
   }
 
   public function get_members_list_group_by_filter($groupby){
