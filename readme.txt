@@ -28,6 +28,12 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.47 =
+* Date Oct 18 2024
+* Date offsets when missing timezone
+* External ID fix on Pending Approval
+* New callouts w/ existing membership
+
 = 1.0.45 =
 * Date Oct 11 2024
 * Get and set org data
