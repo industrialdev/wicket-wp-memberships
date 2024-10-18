@@ -513,7 +513,9 @@ function add_order_item_meta ( $item_id, $values ) {
       $end_date     = $membership['membership_ends_at'];
       $expire_date  = $membership['membership_expires_at'];
       $timezone_string = get_option('timezone_string');
-
+      if( empty($timezone_string) ) {
+        $timezone_string = 'UTC';
+      }
       if( in_array ( 'start_date', $fields ) ) {
         $date = new \DateTime(substr($start_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
         $date->setTimezone(new \DateTimeZone('UTC'));
