@@ -28,6 +28,11 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.49 =
+* Date Oct 21 2024
+* Prevent mship date change when cancelled
+* Prevent mship update after status change
+
 = 1.0.48 =
 * Date Oct 18 2024
 * Date offsets when missing timezone
