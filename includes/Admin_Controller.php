@@ -376,6 +376,15 @@ class Admin_Controller {
   public static function update_membership_entity_record( $data ) {
     $Membership_Controller = new Membership_Controller();
     $membership_post_id = $data['membership_post_id'];
+    $membership_post = get_post_meta( $membership_post_id );
+
+    if( $membership_post['membership_status'][0] == 'cancelled') {
+      $response_array['error'] = 'Cannot update a cancelled membership record. Membership update failed.';
+      $response_array['response'] = [];
+      $response_code = 400;
+      return new \WP_REST_Response($response_array, $response_code);
+    }
+
     if(
         ! array_key_exists( 'membership_starts_at', $data )
         || ! array_key_exists( 'membership_ends_at', $data )
@@ -397,7 +406,6 @@ class Admin_Controller {
     }
 
     if ( Helper::is_valid_membership_post( $membership_post_id ) ) {
-      $membership_post = get_post_meta( $membership_post_id );
       $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
     }
 
