@@ -137,6 +137,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             memberships.map((m) => {
               if (m.ID == manageStatusFormData.postId) {
                 m.data.membership_status = manageStatusFormData.newStatus;
+                m.updatedNow = true;
               }
               return m;
             })
@@ -820,7 +821,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                   <Button
                                     variant='primary'
                                     type='submit'
-                                    disabled={membership.updatingNow}
+                                    disabled={membership.updatingNow || membership.updatedNow || membership.data.membership_status.toLowerCase() == 'cancelled'}
                                     isBusy={membership.updatingNow}
                                   >
                                     {__('Update Membership', 'wicket-memberships')}
