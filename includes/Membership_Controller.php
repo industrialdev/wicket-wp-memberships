@@ -546,7 +546,18 @@ function add_order_item_meta ( $item_id, $values ) {
       }
       $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
       if( !empty( $sub )) {
-        $sub->update_dates($dates_to_update);
+        try {
+          $clear_dates_to_update['next_payment'] = '';
+          $sub->update_dates($clear_dates_to_update);
+          $sub->update_dates($dates_to_update);
+        } catch (\Exception $e) {
+          $order_note = 'Membership ' .$membership['membership_post_id'].' attempted to change these subscription dates. '.$e->getMessage();
+          $order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
+          $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
+          $sub->add_order_note($order_note);
+          return 'ERROR on Subscription Update: '. $e->getMessage();
+        }
       }
     }
   }

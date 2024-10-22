@@ -431,14 +431,15 @@ class Admin_Controller {
       $membership_dates_update['membership_starts_at'] = $membership_post['membership_starts_at'][0];
       $membership_dates_update['membership_ends_at'] = $membership_post['membership_ends_at'][0];
       $membership_dates_update['membership_expires_at'] = $membership_post['membership_expires_at'][0];
+      $membership_dates_update['membership_post_id'] = $membership_post['membership_post_id'][0];
 
       if( $membership_post['membership_tier_post_id'][0] == $membership_post['membership_next_tier_id'][0]) {
         $date_flags_array[] = 'next_payment_date';
       }
-      $Membership_Controller->update_membership_subscription( $membership_dates_update, $date_flags_array );
+      $date_update_response = $Membership_Controller->update_membership_subscription( $membership_dates_update, $date_flags_array );
 
       $Membership_Controller->amend_membership_json( $membership_post_id, $data );
-      $response_array['success'] = 'Membership was updated successfully.';
+      $response_array['success'] = 'Membership was updated successfully. '.$date_update_response;
       $response_array['response'] = Helper::get_post_meta( $membership_post_id );
       $response_code = 200;
     }
