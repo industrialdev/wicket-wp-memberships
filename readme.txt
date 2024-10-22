@@ -28,6 +28,11 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.50 =
+* Date Oct 22 2024
+* BETA Subscription based renewals
+* Subscription date change error note
+
 = 1.0.49 =
 * Date Oct 21 2024
 * Prevent mship date change when cancelled
