@@ -356,6 +356,7 @@ function add_order_item_meta ( $item_id, $values ) {
     $membership_early_renew_at = strtotime( $membership['membership_early_renew_at'] );
     $membership_ends_at = strtotime( $membership['membership_ends_at'] );
     $membership_expires_at = strtotime( $membership['membership_expires_at'] );
+    $order_note = 'New membership ID #'.$membership['membership_post_id'].' created from '.date('Y-m-d', $membership_starts_at).' to '.date('Y-m-d', $membership_ends_at);
 
     $args = [
       'membership_parent_order_id' => $membership['membership_parent_order_id'],
@@ -364,15 +365,19 @@ function add_order_item_meta ( $item_id, $values ) {
 
     if ( function_exists('as_schedule_single_action') ) {
       //as_schedule_single_action( $timestamp, $hook, $args, $group, $unique, $priority );
-      as_schedule_single_action( $membership_early_renew_at, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin', true );
-      as_schedule_single_action( $membership_ends_at, 'add_membership_ends_at', $args, 'wicket-membership-plugin', true );
-      as_schedule_single_action( $membership_expires_at, 'add_membership_expires_at', $args, 'wicket-membership-plugin', true );
+      as_schedule_single_action( $membership_early_renew_at, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin', false );
+      as_schedule_single_action( $membership_ends_at, 'add_membership_ends_at', $args, 'wicket-membership-plugin', false );
+      as_schedule_single_action( $membership_expires_at, 'add_membership_expires_at', $args, 'wicket-membership-plugin', false );
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
         if( current_time( 'timestamp' ) >= $membership_starts_at ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.date('Y-m-d', $membership_starts_at);
         } else {
-          as_schedule_single_action( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ], 'wicket-membership-plugin', true );
+          as_schedule_single_action( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ], 'wicket-membership-plugin', false );
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.date('Y-m-d', $membership_starts_at);
         }
       }
     } else {
@@ -383,10 +388,18 @@ function add_order_item_meta ( $item_id, $values ) {
       if( !empty( $membership['previous_membership_post_id'] ) ) {
         if( current_time( 'timestamp' ) >= $membership_starts_at ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.date('Y-m-d', $membership_starts_at);
         } else {
           wp_schedule_single_event( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ] );
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.date('Y-m-d', $membership_starts_at);
         }
       }
+    }
+    $order = wc_get_order($membership['membership_parent_order_id']);
+    if(!empty($order) && !empty($order_note)) {
+      $order->add_order_note( $order_note );
     }
   }
 
