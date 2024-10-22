@@ -1026,6 +1026,9 @@ function add_order_item_meta ( $item_id, $values ) {
       //always check the membership record ($membership_json_data) for next tier / never look at tier data values
       $next_tier_id = !empty($membership_json_data['membership_next_tier_id']) ? $membership_json_data['membership_next_tier_id'] : '';
       $next_tier_form_page_id = !empty($membership_json_data['membership_next_tier_form_page_id']) ? $membership_json_data['membership_next_tier_form_page_id'] : '';
+      $next_tier_subscription_renewal = 
+        ( !empty($membership_json_data['membership_next_tier_subscription_renewal']) || !empty($_ENV['WICKET_MSHIP_SUBSCRIPTION_RENEW'])) 
+          ? true : false;
       if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC'] ) ) {
         $debug_comment_hide = '';
         $debug_comment_eol = '<br>';
@@ -1043,7 +1046,42 @@ function add_order_item_meta ( $item_id, $values ) {
         continue;
       }
 
-      if( !empty($next_tier_form_page_id) ) {
+      if(!empty($next_tier_subscription_renewal)) {
+        $current_subscription = wcs_get_subscription( $membership_json_data['membership_subscription_id'] );
+        $renewal_orders = $current_subscription->get_related_orders('renewal');
+        foreach ($renewal_orders as $order_id) {
+          $the_order = wc_get_order($order_id);
+          $status = $the_order->get_status();
+          if($status == 'pending') {
+            $renewal_link_url = $the_order->get_checkout_payment_url();
+            break;
+          }
+        }
+        if( empty($renewal_link_url) ) {
+          //you cannot checkout a renewal order when the current subscription/order is active and pre-next-payment-date
+          $the_order->update_status('on-hold', __('Order status changed generating a pending renewal order.'));
+          $current_subscription->update_status('on-hold', __('Subscription status changed generating a pending renewal order.'));          
+          wcs_create_renewal_order($current_subscription);
+          $renewal_orders = $current_subscription->get_related_orders('renewal');
+          foreach ($renewal_orders as $order_id) {
+            $the_order = wc_get_order($order_id);
+            break;
+          }
+          $renewal_link_url = $the_order->get_checkout_payment_url();
+        }
+        $current_items = $current_subscription->get_items();
+        foreach($current_items as $current_item) {
+          $item_id = $current_item->get_id();
+          wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_json_data['membership_post_id'] );
+          break;
+        }
+        //$renewal_link_url .= '&membership_post_id_renew=' . $membership_json_data['membership_post_id'];
+        $membership_data['form_page'] = [
+          'title' => __("Renewal Invoice", 'wicket'),
+          'permalink' => $renewal_link_url,
+          'order_id'=> $order_id,
+        ];
+      } else if( !empty($next_tier_form_page_id) ) {
         /* we found a renewal that has a subsequent membership already purchased, so do not return it */
         if(!empty($membership_renewal_exists[ 'nf_'.$next_tier_form_page_id ][ date("Y-m-d", strtotime($membership_data['meta']['membership_ends_at'])) ])) {
           echo "<$debug_comment_hide--";

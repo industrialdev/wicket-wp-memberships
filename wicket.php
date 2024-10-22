@@ -73,6 +73,12 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
             }
           }
           $options = get_option( 'wicket_membership_plugin_options' );
+          
+          if(isset($options['wicket_mship_subscription_renew'])) {
+            if($options['wicket_mship_subscription_renew']) {
+              $_ENV['WICKET_MSHIP_SUBSCRIPTION_RENEW']=true;
+            }
+          }
           if(isset($options['bypass_wicket'])) {
             if($options['bypass_wicket']) {
               $_ENV['BYPASS_WICKET']=true;
