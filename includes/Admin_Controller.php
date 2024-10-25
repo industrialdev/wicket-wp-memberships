@@ -395,11 +395,20 @@ class Admin_Controller {
       $response_code = 400;
       return new \WP_REST_Response($response_array, $response_code);
     } else {
+      //calculate early renewal date based on config renewal_window days setting attached to membership tier
+      $membership_tier_id = Membership_Tier::get_tier_id_by_wicket_uuid( $membership_post['membership_tier_uuid'][0] );
+      $membership_tier = new Membership_Tier( $membership_tier_id );
+      $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
+      $renewal_window_days = $config->get_renewal_window_days();
+      $membership_early_renew_at_seconds = strtotime("-$renewal_window_days days", strtotime($data[ 'membership_ends_at' ]));
+
+      $membership_starts_at_seconds = strtotime( $data[ 'membership_starts_at' ] );
       $membership_ends_at_seconds = strtotime( $data[ 'membership_ends_at' ] );
       $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
       $grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
 
-      $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", strtotime( $data[ 'membership_starts_at' ] )), wp_timezone() ))->format('c');
+      $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", $membership_starts_at_seconds), wp_timezone() ))->format('c');
+      $data[ 'membership_early_renew_at' ]  = (new \DateTime( date("Y-m-d", $membership_early_renew_at_seconds ), wp_timezone() ))->format('c');
       $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", $membership_ends_at_seconds ), wp_timezone() ))->format('c');
       $data[ 'membership_expires_at' ]  = (new \DateTime( date("Y-m-d", $membership_expires_at_seconds ), wp_timezone() ))->format('c');
       $data[ 'membership_grace_period_days' ] = $grace_period_days;
