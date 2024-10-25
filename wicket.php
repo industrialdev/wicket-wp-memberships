@@ -50,6 +50,7 @@ use Wicket_Memberships\Membership_Controller;
 use Wicket_Memberships\Membership_CPT_Hooks;
 use Wicket_Memberships\Membership_Post_Types;
 use Wicket_Memberships\Membership_Config_CPT_Hooks;
+use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Tier_CPT_Hooks;
 use Wicket_Memberships\Membership_WP_REST_Controller;
 use Wicket_Memberships\Membership_Subscription_Controller;
@@ -168,7 +169,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'expire_old_membership_on_new_starts_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_expire_current_membership' ), 10, 2 );
 
       //check items in cart for valid renewal dates or return error
-      add_action( 'woocommerce_checkout_create_order_line_item', [  __NAMESPACE__.'\\Membership_Controller', 'validate_renewal_order_items'], 10, 4 );
+      //add_action( 'woocommerce_checkout_create_order_line_item', [  __NAMESPACE__.'\\Membership_Controller', 'validate_renewal_order_items'], 10, 4 );
+      
       //
       add_action( 'template_redirect', [ $this, 'set_onboarding_posted_data_to_wc_session' ]);
 
@@ -183,9 +185,93 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
         }
         unset( $_SESSION['wicket_membership_error'] );
       });
+      
+      //check order items before and at checkout process
+      
+      //add_action( 'woocommerce_cart_contents', array( $this, 'memberships_verify_cart' ) );
+      //add_action( 'woocommerce_add_to_cart', array( $this, 'memberships_verify_cart' ) );
+      add_action( 'woocommerce_checkout_process', array( $this, 'memberships_verify_cart' ) );
+      add_action( 'woocommerce_before_checkout_form', array( $this, 'memberships_verify_cart' ) );
+
       add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_end_date' ), 10, 1 );
       add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_grace_period' ), 10, 1 );
       add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_renew_early' ), 10, 1 );
+    }
+
+    public function memberships_verify_cart( $checkout_order ) {
+      if( !empty( $_ENV['check_renewals_orders_in_cart'] )) {
+        $error_message = '';
+        $user = wp_get_current_user();
+        //get all the users subscription renewal orders pending a payment
+        $orders  = get_posts( array(
+          'meta_query' => [
+            [
+              'key'    => '_customer_user',
+              'value'  => $user->ID,    
+            ],
+            [
+              'key'    => '_subscription_renewal',
+              'compare' => 'EXISTS'   
+            ],
+          ],
+        'post_type'   => 'shop_order',
+        'post_status' => 'wc-pending',
+        'numberposts' => -1
+        ));
+
+        if(count($orders) > 0) {
+          $error_message .= __('You have subscription renewal order(s) currently pending payment.', 'wicket-memberships');
+          foreach($orders as $order) {
+            $the_order = wc_get_order($order->ID);
+            $subscriptions = wcs_get_subscriptions_for_order( $order->ID, ['order_type' => 'any'] );
+            //check if the subscription(s) in a renewable state in case the order exists in error
+            foreach($subscriptions as $subscription) {
+              if( $subscription->has_status( array( 'on-hold', 'pending', 'pending-cancel' ) ) ) {
+                $cannot_process[] = $order->ID;
+              }  
+            }
+            //get the checkout url for the order by ID
+            $url[$order->ID] = $the_order->get_checkout_payment_url(); 
+          }
+          if( !empty($url)) {
+            foreach($url as $key => $val) {
+              //if the subscription each order is in a renewable status provide a link to checkout with it
+              if( !in_array($key, $cannot_process )) {
+                $error_message_links[] = ' <a href="'.$val.'">'.sprintf(__("Click Here to checkout with Order ID# %s",'wicket-memberships'), $key).'</a> ';
+              }    
+            }
+            //combine multiple checkout order links if they exist and error with links in notice
+            if(!empty($error_message_links)) {
+              wc_add_notice($error_message . '<br />'.implode("<br />", $error_message_links), 'error');
+              return;  
+            }
+          }  
+        }
+      }
+
+      //error check any membership products or renewals in the cart
+      foreach( WC()->cart->get_cart() as $cart_item ) {
+        $product_id = $cart_item['product_id'];
+        $membership_tier_obj = Membership_Tier::get_tier_by_product_id( $product_id );
+        //check we have org_uuid set for org memberships products or error on checkout
+        if(!empty($membership_tier_obj) && $membership_tier_obj->tier_data['type'] == 'organization' && empty($cart_item['org_uuid']) && empty($cart_item['membership_post_id_renew'])) {
+          wc_add_notice('<strong>'.__('Please contact support.', 'wicket-memberships').'</strong> '.__('Membership product missing important information.', 'wicket-memberships').' [org_uuid]', 'error');
+          return;
+        }
+
+        if( !empty( $cart_item['membership_post_id_renew'] ) ) {
+          $membership_current = (new Membership_Controller)->get_membership_array_from_user_meta_by_post_id( $cart_item['membership_post_id_renew'] );
+          if( !empty($membership_current) ) {
+            $config = new Membership_Config( $membership_tier_obj->tier_data['config_id'] );
+            $early_renewal_date = $config->is_valid_renewal_date( $membership_current );
+            //if we are trying to renew a membership check that we are in the renewal period
+            if( !empty( $early_renewal_date ) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] )) {
+              wc_add_notice(sprintf(__("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date))), 'error');
+              return;
+            }
+          }
+        }
+      }
     }
 
     public function set_onboarding_posted_data_to_wc_session() {
@@ -193,6 +279,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
             if ( isset($_REQUEST['org_uuid']) ) {
                 if ( isset($_REQUEST['org_uuid']) && ! empty($_REQUEST['org_uuid']) ) {
                     $values['org_uuid'] = sanitize_text_field($_REQUEST['org_uuid']);
+                }
+                if ( isset($_REQUEST['membership_post_id_renew']) && ! empty($_REQUEST['membership_post_id_renew']) ) {
+                  $values['membership_post_id_renew'] = sanitize_text_field($_REQUEST['membership_post_id_renew']);
                 }
                 if ( ! empty($values)) {
                   foreach( $values as $key => $val ) {

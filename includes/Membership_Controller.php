@@ -652,7 +652,7 @@ function add_order_item_meta ( $item_id, $values ) {
       }
       if( is_wp_error( $response ) ) {
         $this->error_message = $response->get_error_message( 'wicket_api_error' );
-        $this->surface_error();
+        //$this->surface_error();
         $membership_wicket_uuid = '';
       } else {
         $membership_wicket_uuid = $response['data']['id'];
