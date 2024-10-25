@@ -28,6 +28,12 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.51 =
+* Date Oct 22 2024
+* Add Membership data checkout errors
+* User created in import
+* Fix update dates early renewal at
+
 = 1.0.50 =
 * Date Oct 22 2024
 * BETA Subscription based renewals
