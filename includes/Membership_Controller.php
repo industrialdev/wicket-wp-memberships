@@ -1317,9 +1317,9 @@ function add_order_item_meta ( $item_id, $values ) {
       $acc[$item['id']] = $item;
       return $acc;
     }, []);
-    if(! is_array( $tier_uuids ) ) {
+    //if(! is_array( $tier_uuids ) ) {
       $tier_uuids = array_keys($all_tiers);
-    }
+    //}
     if( in_array( 'count', $properties ) ) {
       $args = array(
         'post_type' => $self->membership_cpt_slug,
