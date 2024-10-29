@@ -12,7 +12,8 @@ class Membership_Tier {
     }
 
     if ( get_post_type( $post_id ) !== Helper::get_membership_tier_cpt_slug() ) {
-      throw new \Exception( 'Invalid post type' );
+      return;
+      //throw new \Exception( 'Invalid post type' );
     }
 
     $this->post_id = $post_id;
