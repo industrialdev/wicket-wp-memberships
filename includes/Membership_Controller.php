@@ -1048,8 +1048,12 @@ function add_order_item_meta ( $item_id, $values ) {
       //TODO: WE NEED OPTION TO SET OVERRIDE TO FORM PAGE ID ON MEMBERSHIP EDIT PAGE
       //TODO: WE NEED TO USE THAT VALUE HERE INSTEAD OF LOOKING AT NEXT TIER!!! THIS IS FLAWED
       //always check the membership record ($membership_json_data) for next tier / never look at tier data values
-      $next_tier_id = !empty($membership_json_data['membership_next_tier_id']) ? $membership_json_data['membership_next_tier_id'] : '';
-      $next_tier_form_page_id = !empty($membership_json_data['membership_next_tier_form_page_id']) ? $membership_json_data['membership_next_tier_form_page_id'] : '';
+#      $next_tier_id = !empty($membership_json_data['membership_next_tier_id']) ? $membership_json_data['membership_next_tier_id'] : '';
+#      $next_tier_form_page_id = !empty($membership_json_data['membership_next_tier_form_page_id']) ? $membership_json_data['membership_next_tier_form_page_id'] : '';
+
+      $next_tier_id = get_post_meta($membership->ID, 'membership_next_tier_id', true);
+      $next_tier_form_page_id = get_post_meta($membership->ID, 'membership_next_tier_form_page_id', true);
+
       $next_tier_subscription_renewal = 
         ( !empty($membership_json_data['membership_next_tier_subscription_renewal']) || !empty($_ENV['WICKET_MSHIP_SUBSCRIPTION_RENEW'])) 
           ? true : false;
