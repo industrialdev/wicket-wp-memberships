@@ -14,6 +14,59 @@ if( empty( $_ENV['ALLOW_LOCAL_IMPORTS'] )) {
   die("Disabled");
 }
 
+if(!empty($_REQUEST['mship_tier_resync'])) {
+  wicket_sync_membership_renewal_data_with_tier();
+}
+
+function wicket_sync_membership_renewal_data_with_tier() {
+  $args = array(
+    'post_type' => 'wicket_membership',
+    'post_status' => 'publish',
+    'meta_key' => 'user_id',
+    'posts_per_page' => -1,
+    
+    'meta_query'     => array(
+      array(
+        'key'     => 'membership_type',
+        'value'   => 'organization',
+        'compare' => '='
+      ),
+      array(
+        'key'     => 'membership_status',
+        'value'   => 'active',
+        'compare' => '='
+      )
+    )
+  );
+  # These will group the memberships by $query_args[ 'meta_key' => 'user_id' ]
+  #add_filter('posts_groupby', 'wicket_get_members_list_group_by_filter' );
+  $posts = new \WP_Query( $args );
+  # These will group the memberships by $query_args[ 'meta_key' => 'user_id' ]
+  #remove_filter('posts_groupby', 'wicket_get_members_list_group_by_filter' );
+  $cnt=0;
+  foreach($posts->posts as $post) {
+    $cnt++;
+    $membership_next_tier_form_page_id = get_post_meta( $post->ID, 'membership_next_tier_form_page_id', true );
+    $membership_next_tier_id = get_post_meta( $post->ID, 'membership_next_tier_id', true );
+    echo '<br>scanning: '.$post->ID.'  - '. $membership_next_tier_id .'-'.$membership_next_tier_form_page_id. '<br>';
+    if(empty($membership_next_tier_form_page_id)) {
+      $tier_post_id = get_post_meta( $post->ID, 'membership_tier_post_id', true );
+      $Tier = new Membership_Tier($tier_post_id);
+      echo $Tier->get_mdp_tier_name().'<br>';
+      $next_tier_form_id = $Tier->get_next_tier_form_page_id();
+      echo '<pre>';
+      var_dump(['updated', $post->ID, $next_tier_form_id]);
+      echo '</pre>';
+      //update_post_meta($post->ID, 'membership_next_tier_form_page_id', $next_tier_form_id);
+    } else {
+      echo '<pre>';
+      var_dump(['found', $post->ID, $membership_next_tier_form_page_id]);
+      echo '</pre>';
+    }
+  }
+  die('terminated');
+}
+
 include WP_PLUGIN_DIR . '/wicket-wp-memberships/includes/Import_Controller.php';
 
 $uploaddir = wp_upload_dir();
