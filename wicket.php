@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket - Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.51
+ * Version: 1.0.52
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
@@ -120,6 +120,11 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC']=true;
             }
           }
+          if(isset($options['wicket_show_mship_order_org_search'])) {
+            if($options['wicket_show_mship_order_org_search']) {
+              $_ENV['WICKET_SHOW_MSHIP_ORDER_ORG_SEARCH']=true;
+            }
+          }
         }
 
 	/**
@@ -169,6 +174,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'expire_old_membership_on_new_starts_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_expire_current_membership' ), 10, 2 );
 
       //check items in cart for valid renewal dates or return error
+      //TODO: currently disabled need validate and remove, replaced with 'memberships_verify_cart' on checkout hooks
       //add_action( 'woocommerce_checkout_create_order_line_item', [  __NAMESPACE__.'\\Membership_Controller', 'validate_renewal_order_items'], 10, 4 );
       
       //

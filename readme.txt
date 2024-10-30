@@ -28,6 +28,11 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.52 =
+* Date Oct 29 2024
+* Fix missing tier post
+* Sync Membership to Tier
+
 = 1.0.51 =
 * Date Oct 22 2024
 * Add Membership data checkout errors
