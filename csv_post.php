@@ -1,4 +1,8 @@
 <?php
+
+use Wicket_Memberships\Membership_Tier;
+use Wicket_Memberships\Membership_Config;
+
 ini_set('display_errors', '0');
 ini_set('max_execution_time', '0');
 
@@ -12,6 +16,73 @@ if(file_exists('../../../wp/wp-load.php')) {
 
 if( empty( $_ENV['ALLOW_LOCAL_IMPORTS'] )) {
   die("Disabled");
+}
+
+if(!empty($_REQUEST['mship_config_resync'])) {
+  wicket_sync_membership_renewal_data_with_config();
+}
+
+function wicket_sync_membership_renewal_data_with_config() {
+  $args = array(
+    'post_type' => 'wicket_membership',
+    'post_status' => 'publish',
+    'meta_key' => 'user_id',
+    'posts_per_page' => -1,
+    
+    'meta_query'     => array(
+      array(
+        'key'     => 'membership_type',
+        'value'   => 'organization',
+        'compare' => '='
+      ),
+      array(
+        'key'     => 'membership_status',
+        'value'   => 'active',
+        'compare' => '='
+      )
+    )
+  );
+  # These will group the memberships by $query_args[ 'meta_key' => 'user_id' ]
+  #add_filter('posts_groupby', 'wicket_get_members_list_group_by_filter' );
+  $posts = new \WP_Query( $args );
+  # These will group the memberships by $query_args[ 'meta_key' => 'user_id' ]
+  #remove_filter('posts_groupby', 'wicket_get_members_list_group_by_filter' );
+  $cnt=0;
+  foreach($posts->posts as $post) {
+    $cnt++;
+
+    $membership_tier_post_id = get_post_meta( $post->ID, 'membership_tier_post_id', true );
+    $membership_ends_at = get_post_meta( $post->ID, 'membership_ends_at', true );
+    $membership_early_renew_at = get_post_meta( $post->ID, 'membership_early_renew_at', true );
+    $Membership_Tier = new Membership_Tier( $membership_tier_post_id );
+    $config_id = $Membership_Tier->get_config_id();
+    if(!empty($_REQUEST['early_renew_days'])) {
+      $early_renew_days = $_REQUEST['early_renew_days'];
+    } else {
+      $Membership_Config = new Membership_Config( $config_id );
+      $early_renew_days = $Membership_Config->get_renewal_window_days();  
+    }
+    $ends_at_date_format =  date("Y-m-d H:i:s", strtotime( $membership_ends_at ));
+    $early_renew_date_seconds = strtotime("- $early_renew_days days", strtotime( $ends_at_date_format ));
+    $early_renew_date_tz  = (new \DateTime( date("Y-m-d H:i:s", $early_renew_date_seconds ), wp_timezone() ))->format('Y-m-d\TH:i:s\Z');
+
+    echo '<br>scanning: '.$post->ID.'  - '. $config_id  .'-'. $membership_early_renew_at.' | '. $membership_ends_at. ' minus '. $early_renew_days . ' days = '.$early_renew_date_tz . '<br>';    
+
+    if(!empty($early_renew_date_tz) && ($membership_early_renew_at != $early_renew_date_tz)) {
+      echo '<pre>';
+      var_dump(['updated', $post->ID, $early_renew_date_tz]);
+      echo '</pre>';
+      if(!empty($_REQUEST['no_debug'])) {
+        update_post_meta($post->ID, 'membership_early_renew_at', $early_renew_date_tz);
+        echo '<br>..updated..<br>';
+      }
+    } else {
+      echo '<pre>';
+      var_dump(['found', $post->ID, $early_renew_date_tz]);
+      echo '</pre>';
+    }
+  }
+  die('terminated');
 }
 
 if(!empty($_REQUEST['mship_tier_resync'])) {
@@ -57,7 +128,10 @@ function wicket_sync_membership_renewal_data_with_tier() {
       echo '<pre>';
       var_dump(['updated', $post->ID, $next_tier_form_id]);
       echo '</pre>';
-      //update_post_meta($post->ID, 'membership_next_tier_form_page_id', $next_tier_form_id);
+      if(!empty($_REQUEST['no_debug'])) {
+        update_post_meta($post->ID, 'membership_next_tier_form_page_id', $next_tier_form_id);
+        echo '<br>..updated..<br>';
+      }
     } else {
       echo '<pre>';
       var_dump(['found', $post->ID, $membership_next_tier_form_page_id]);
