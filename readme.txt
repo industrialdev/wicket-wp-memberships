@@ -28,6 +28,11 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.54 =
+* Date Nov 10 2024
+* Disable renewal callouts
+* Update subscription start-date fix
+
 = 1.0.53 =
 * Date Oct 29 2024
 * Fix missing tier post
