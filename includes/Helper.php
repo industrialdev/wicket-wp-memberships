@@ -13,6 +13,10 @@ class Helper {
       add_action( 'wcs_subscription_details_table_before_dates', [$this, 'wps_select_checkout_field_display_admin_order_meta'], 10, 1 );
     }
     if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
+      //SEARCH THE MEMBERSHIPS POSTS DEBUG LIST
+      add_action( 'pre_get_posts', [$this, 'wicket_memberships_alter_query'] );
+      add_action( 'restrict_manage_posts', [$this, 'wicket_memberships_admin_search_box'] );
+
       // INJECT MEMBERSHIP META DATA into membership pages
       add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
       //add_action( 'add_meta_boxes', [$this, 'action_buttons_add_meta_boxes'] );
@@ -333,5 +337,53 @@ class Helper {
       }
     );
     return $new_meta;
+  }
+
+  public function wicket_memberships_alter_query( $query ) {
+      if ( !is_admin() || 'wicket_membership' != $query->query['post_type'] ) {
+        return;
+      }
+
+      if ( $_REQUEST['wicket_membership_search'] ) {
+        $s = sanitize_text_field($_REQUEST['wicket_membership_search']);
+
+        $meta_query = array(
+        'relation' => 'OR',
+        array(
+            'key'     => 'user_email',
+            'value'   => $s,
+            'compare' => 'LIKE',
+        ),
+        array(
+            'key'     => 'org_name',
+            'value'   => $s,
+            'compare' => 'LIKE',
+        ),
+        array(
+            'key'     => 'membership_uuid',
+            'value'   => $s,
+            'compare' => 'LIKE',
+        ),
+        array(
+          'key'     => 'membership_subscription_id',
+          'value'   => $s,
+          'compare' => 'LIKE',
+        ),
+      );
+      $query->set( 'meta_query', $meta_query );
+    }
+    return $query;
+  }
+
+  public function wicket_memberships_admin_search_box() {
+      global $typenow;
+      if ( $typenow == 'wicket_membership' ) {
+          ?>
+          <div style="float:right;">
+            <input type="text" name="wicket_membership_search" id="wicket_membership_search" placeholder="Membership Posts Search..." value="<?php echo isset( $_GET['wicket_membership_search'] ) ? esc_attr( $_GET['wicket_membership_search'] ) : ''; ?>" />
+           <input type="submit" class="button" value="Search Memberships" />
+          </div>
+          <?php
+      }
   }
 }
