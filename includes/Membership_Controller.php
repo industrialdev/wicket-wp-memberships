@@ -522,18 +522,20 @@ function add_order_item_meta ( $item_id, $values ) {
    */
   public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ] ) {
     if( function_exists( 'wcs_get_subscription' )) {
-      $start_date   = $membership['membership_starts_at'];
+      //$start_date   = $membership['membership_starts_at'];
       $end_date     = $membership['membership_ends_at'];
       $expire_date  = $membership['membership_expires_at'];
       $timezone_string = get_option('timezone_string');
       if( empty($timezone_string) ) {
         $timezone_string = 'UTC';
       }
+      /*
       if( in_array ( 'start_date', $fields ) ) {
         $date = new \DateTime(substr($start_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
         $date->setTimezone(new \DateTimeZone('UTC'));
         $dates_to_update['start_date']    = $date->format('Y-m-d H:i:s');
       }
+      */
       if( in_array ( 'end_date', $fields ) ) {
         $date = new \DateTime(substr($expire_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
         $date->setTimezone(new \DateTimeZone('UTC'));
@@ -550,9 +552,14 @@ function add_order_item_meta ( $item_id, $values ) {
           $clear_dates_to_update['next_payment'] = '';
           $sub->update_dates($clear_dates_to_update);
           $sub->update_dates($dates_to_update);
+          $order_note = 'Membership ' .$membership['membership_post_id'].' changed these subscription dates. ';
+          //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
+          $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
+          $sub->add_order_note($order_note);
         } catch (\Exception $e) {
           $order_note = 'Membership ' .$membership['membership_post_id'].' attempted to change these subscription dates. '.$e->getMessage();
-          $order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
+          //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
           $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
           $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
           $sub->add_order_note($order_note);
