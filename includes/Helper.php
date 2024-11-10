@@ -27,7 +27,10 @@ class Helper {
   }
 
 
-  function wps_select_checkout_field_display_admin_order_meta( $post ) {
+  function wps_select_checkout_field_display_admin_order_meta( $post ) {    
+    if ( ! is_admin() ) {
+      return $post;
+    }
     $post_meta = get_post_meta( $post->get_id() );
     foreach($post_meta as $key => $val) {
     if( str_starts_with( $key, '_wicket_membership_')) {
