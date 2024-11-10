@@ -1175,6 +1175,9 @@ function add_order_item_meta ( $item_id, $values ) {
       }
     }
 
+    if(!empty($_ENV['WICKET_MSHIP_DISABLE_RENEWALS'])) {
+      return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
+    }
     return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'debug' => $debug, 'membership_exists' => $membership_exists ];
   }
 
