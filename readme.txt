@@ -28,10 +28,11 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
-= 1.0.54 =
+= 1.0.55 =
 * Date Nov 10 2024
 * Disable renewal callouts
 * Update subscription start-date fix
+* Search memberships debug
 
 = 1.0.53 =
 * Date Oct 29 2024
