@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket - Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.55
+ * Version: 1.0.56
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
@@ -201,8 +201,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       
       //add_action( 'woocommerce_cart_contents', array( $this, 'memberships_verify_cart' ) );
       //add_action( 'woocommerce_add_to_cart', array( $this, 'memberships_verify_cart' ) );
-      add_action( 'woocommerce_checkout_process', array( $this, 'memberships_verify_cart' ) );
-      add_action( 'woocommerce_before_checkout_form', array( $this, 'memberships_verify_cart' ) );
+      //add_action( 'woocommerce_checkout_process', array( $this, 'memberships_verify_cart' ) );
+      //add_action( 'woocommerce_before_checkout_form', array( $this, 'memberships_verify_cart' ) );
 
       add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_end_date' ), 10, 1 );
       add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_grace_period' ), 10, 1 );
