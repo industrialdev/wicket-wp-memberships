@@ -199,6 +199,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       
       //check order items before and at checkout process
       
+      //TODO: Confirm where date could gte miscalculated
       //add_action( 'woocommerce_cart_contents', array( $this, 'memberships_verify_cart' ) );
       //add_action( 'woocommerce_add_to_cart', array( $this, 'memberships_verify_cart' ) );
       //add_action( 'woocommerce_checkout_process', array( $this, 'memberships_verify_cart' ) );

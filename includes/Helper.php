@@ -347,7 +347,7 @@ class Helper {
         return;
       }
 
-      if ( $_REQUEST['wicket_membership_search'] ) {
+      if ( !empty($_REQUEST['wicket_membership_search']) ) {
         $s = sanitize_text_field($_REQUEST['wicket_membership_search']);
 
         $meta_query = array(

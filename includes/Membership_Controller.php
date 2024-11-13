@@ -205,8 +205,9 @@ function add_order_item_meta ( $item_id, $values ) {
               ];
               if(!empty($this->processing_renewal) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) ) {
                 if( $config->is_valid_renewal_date( $membership_current ) ) {
-                  $order->update_status('on-hold', __('Attempted to renew outside of valid renewal period. Membership not created.'));
-                  return;
+                  //TODO: Confirm where date could gte miscalculated
+                  //$order->update_status('on-hold', __('Attempted to renew outside of valid renewal period. Membership not created.'));
+                  //return;
                 }
               }
               if( $membership_tier->tier_data['type'] == 'organization' ) {
