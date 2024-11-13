@@ -73,7 +73,7 @@ class Membership_Tier {
 
       if ( $products_data ) {
         foreach ( $products_data as $product_data ) {
-          if ( $product_data['variation_id'] == $product_id ) {
+          if ( !empty($product_data['variation_id']) && $product_data['variation_id'] == $product_id ) {
             $tier_obj->tier_data['product_data'] = $product_data;
             return $tier_obj;
           }
