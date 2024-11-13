@@ -421,7 +421,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
    */
   public function permissions_check_read( $request ) {
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
-      return new WP_Error( 'rest_forbidden', esc_html__( 'Permission Error.' ), array( 'status' => $this->authorization_error_status_code() ) );
+      return new \WP_Error( 'rest_forbidden', esc_html__( 'Permission Error.' ), array( 'status_code' => 403 ) );
     }
     return true;
   }
@@ -431,7 +431,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
    */
   public function permissions_check_write( $request ) {
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
-      return new WP_Error( 'rest_forbidden', esc_html__( 'Permission Error.' ), array( 'status' => $this->authorization_error_status_code() ) );
+      return new \WP_Error( 'rest_forbidden', esc_html__( 'Permission Error.' ), array( 'status_code' => 403 ) );
     }
     return true;
   }
