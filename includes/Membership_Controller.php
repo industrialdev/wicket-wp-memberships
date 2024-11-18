@@ -225,6 +225,10 @@ function add_order_item_meta ( $item_id, $values ) {
               }
               if( !empty( $membership_post_id_renew )) {
                 $membership['previous_membership_post_id'] = $membership_post_id_renew;
+                //remove old membership data json from renewal subscription
+                $old_product_id = get_post_meta( $membership_post_id_renew, 'membership_product_id', true);
+                $old_post_meta = '_wicket_membership_'.$old_product_id;
+                delete_post_meta( $order_id, $old_post_meta );
               }
               delete_post_meta( $order_id, '_wicket_membership_'.$product_id );
               $order_meta_id = add_post_meta( $order_id, '_wicket_membership_'.$product_id,  json_encode( $membership ), 1 );
@@ -786,6 +790,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $subscription_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
       update_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );  
       $customer_meta_array['membership_subscription_id'] = $membership['membership_subscription_id'];
+      $this->wicket_update_subscription_meta_membership_post_id( $membership_post, $membership );
     }
 
     $customer_meta = get_user_meta( $membership['user_id'], '_wicket_membership_'.$membership['membership_post_id'] );
@@ -801,6 +806,55 @@ function add_order_item_meta ( $item_id, $values ) {
     $customer_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
     update_user_meta( $membership['user_id'], '_wicket_membership_'.$membership_post, json_encode( $customer_meta_array) );
     return $membership_post;
+  }
+
+    /**
+   * Always assign the membership post id created back to the membership subscription item(s)
+   * If the item already has a post id then update it to the newly created membership post id
+   * Add an order note with a link to the membership edit page
+   * 
+   * @param mixed $membership_subscription_id
+   * @param mixed $membership_post_id
+   * @return void
+   */
+  public function wicket_update_subscription_meta_membership_post_id( $membership_post_id, $membership ) {
+    $sub = wcs_get_subscription($membership['membership_subscription_id']);
+    if(empty($sub)) {
+      return;
+    }
+    $items = $sub->get_items();
+    foreach($items as $item) {
+      $item_id = $item->get_id();
+      $product = $item->get_product();
+      $product_id = $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
+      if ( ! has_term( 'Membership', 'product_cat', $product_id) ) {
+        continue;
+      }
+      //add or update membership renewal post id meta on item
+      $renew_post_id = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true );
+      if(empty($renew_post_id )) {
+        wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id, true);
+        $renew_order_flag = 'Added';
+      } else if ( $renew_post_id != $membership_post_id) {
+        wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id );
+        $renew_order_flag = "Updated from membership post id $renew_post_id to";
+      }
+    }
+    if(!empty( $renew_order_flag )) {
+      $membership_type = $membership['membership_type'];
+      if( $membership['membership_type'] != 'individual' ) {
+        $membership_type = 'org';
+      }
+      if(empty( $membership['membership_user_uuid'] )) {
+        $user = get_user_by( 'id', $membership['user_id'] );
+        $membership['membership_user_uuid'] = $user->data->user_login;
+        $membership['membership_wp_user_email'] = $user->data->user_email;
+        update_post_meta( $membership_post_id, 'membership_user_uuid', $membership['membership_user_uuid']);
+        update_post_meta( $membership_post_id, 'membership_wp_user_email', $membership['membership_wp_user_email']);
+      }
+      $membership_link = "<a target='_blank' href='?page=wicket_".$membership_type."_member_edit&id=".$membership['membership_user_uuid']."'>".$membership['membership_wp_user_email']."</a>";
+      $sub->add_order_note("$renew_order_flag membership post id ".$membership_post_id." for ". $membership_link ." on membership product line item.");  
+    }
   }
 
   /**
@@ -1083,41 +1137,53 @@ function add_order_item_meta ( $item_id, $values ) {
       }
 
       if(!empty($next_tier_subscription_renewal)) {
+        //We are using subscription renewals to maintain the membership
         $current_subscription = wcs_get_subscription( $membership_json_data['membership_subscription_id'] );
         $renewal_orders = $current_subscription->get_related_orders('renewal');
         foreach ($renewal_orders as $order_id) {
           $the_order = wc_get_order($order_id);
-          $status = $the_order->get_status();
-          if($status == 'pending') {
+          $order_status = $the_order->get_status();
+          $subscription_status = $current_subscription->get_status();
+          if($order_status == 'pending' && $subscription_status == 'on-hold') {
             $renewal_link_url = $the_order->get_checkout_payment_url();
             break;
           }
         }
-        if( empty($renewal_link_url) ) {
+
+        if( empty($renewal_link_url) && strtotime($current_subscription->get_date( 'next_payment' )) > time() ) {
+          $renewal_link_url = wcs_get_early_renewal_url( $current_subscription );
+        }
+
+        if( empty($renewal_link_url) && !empty( $the_order) ) {
           //you cannot checkout a renewal order when the current subscription/order is active and pre-next-payment-date
-          $the_order->update_status('on-hold', __('Order status changed generating a pending renewal order.'));
+          //$the_order->update_status('on-hold', __('Order status changed generating a pending renewal order.'));
           $current_subscription->update_status('on-hold', __('Subscription status changed generating a pending renewal order.'));          
           wcs_create_renewal_order($current_subscription);
           $renewal_orders = $current_subscription->get_related_orders('renewal');
           foreach ($renewal_orders as $order_id) {
             $the_order = wc_get_order($order_id);
+            $parent_order = wc_get_order($membership_data['meta']['membership_parent_order_id']);
+            if(!empty($parent_order)) {
+              $parent_order->add_order_note("Subscription renewal order ID#".$order_id->get_id()." generated by Membership Plugin.");
+            }
             break;
           }
           $renewal_link_url = $the_order->get_checkout_payment_url();
+        } else {
+          $renewal_link_url = wcs_get_early_renewal_url( $current_subscription );//
         }
-        $current_items = $current_subscription->get_items();
-        foreach($current_items as $current_item) {
-          $item_id = $current_item->get_id();
-          wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_json_data['membership_post_id'] );
-          break;
-        }
-        //$renewal_link_url .= '&membership_post_id_renew=' . $membership_json_data['membership_post_id'];
-        $membership_data['form_page'] = [
+
+        //we need to keep the subscription renewal meta entry in sync with the current membership post id for renewal.
+        //it is possible the subscription membership item will be missing the renewal meta so we will add it
+        //if we are reusing the same subscription we need to change it from the last post id from the last renewal to the current one
+        $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
+
+        $membership_data['subscription_renewal'] = [
           'title' => __("Renewal Invoice", 'wicket'),
           'permalink' => $renewal_link_url,
-          'order_id'=> $order_id,
         ];
       } else if( !empty($next_tier_form_page_id) ) {
+        //we are using a form page flow to renew the membership
         /* we found a renewal that has a subsequent membership already purchased, so do not return it */
         if(!empty($membership_renewal_exists[ 'nf_'.$next_tier_form_page_id ][ date("Y-m-d", strtotime($membership_data['meta']['membership_ends_at'])) ])) {
           echo "<$debug_comment_hide--";
@@ -1131,6 +1197,7 @@ function add_order_item_meta ( $item_id, $values ) {
           'page_id'=> $next_tier_form_page_id,
         ];
       } else {
+        //we are simply presenting an add to cart button to renew the membership
         /* we found a renewal that has a subsequent membership already purchased, so do not return it */
         if(!empty($membership_renewal_exists[ 'nt_'.$next_tier_id ][ date("Y-m-d", strtotime($membership_data['meta']['membership_ends_at'])) ])) {
           echo "<$debug_comment_hide--";

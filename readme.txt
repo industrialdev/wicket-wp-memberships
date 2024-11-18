@@ -28,6 +28,12 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.58 =
+* Date Nov 18 2024
+* Update mship_id on subscription
+* CPT API security update
+* REST API Error responses
+
 = 1.0.55 =
 * Date Nov 10 2024
 * Disable renewal callouts
