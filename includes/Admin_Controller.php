@@ -335,6 +335,9 @@ class Admin_Controller {
         $membership_item['active_assignments_count'] = $org_memberships[ $meta['membership_wicket_uuid'] ]['membership']['attributes']['active_assignments_count'];
       }
       $membership_data = Membership_Controller::get_membership_array_from_user_meta_by_post_id( $membership->ID, $meta['user_id'] );
+      if(empty($membership_data)) {
+        $membership_data = Membership_Controller::get_membership_array_from_post( $membership_item['ID'] );
+      }
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
         $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['name'];
@@ -344,6 +347,9 @@ class Admin_Controller {
         $membership_item['data']['membership_early_renew_at'] = date( "m/d/Y", strtotime( $meta['membership_early_renew_at'] ) );
       } else {
         $membership_item['data'] = [];
+      }
+      if(!empty($membership->user_name)) {
+        $membership_item['data']['user_name'] = $membership->user_name;
       }
       $membership_item['order'] = [];
       $membership_item['subscription'] = [];

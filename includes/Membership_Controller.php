@@ -258,6 +258,21 @@ function add_order_item_meta ( $item_id, $values ) {
     return json_decode( $customer_meta, true ); 
   }
 
+    /**
+   * Get the membership meta data on order using membership post_id
+   *
+   * @param integer $membership_post_id
+   * @return array
+   */
+  public static function get_membership_array_from_post( $membership_post_id ) {
+    $self = new self();
+    $mship_order_id = get_post_meta( $membership_post_id, 'membership_parent_order_id', true );
+    $mship_product_id = get_post_meta( $membership_post_id, 'membership_product_id', true );
+    $membership_current = get_post_meta( $membership_post_id );
+    return $membership_current; 
+  }
+
+
   /**
    * Get the membership json data on order using membership post_id
    *
@@ -1078,6 +1093,9 @@ function add_order_item_meta ( $item_id, $values ) {
 
       $membership_json_data = $this->get_membership_array_from_user_meta_by_post_id( $membership->ID, $user_id );
       $Membership_Tier = new Membership_Tier( $membership_json_data['membership_tier_post_id'] );
+      if( empty($Membership_Tier->get_mdp_tier_name()) ) {
+        $Membership_Tier = new Membership_Tier( $membership->membership_tier_post_id );
+      }
       $membership_data['next_tier'] = false;
       $membership_data['form_page'] = false;
 
