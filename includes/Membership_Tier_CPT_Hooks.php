@@ -37,6 +37,9 @@ class Membership_Tier_CPT_Hooks {
 
     // Prevent moving post to trash if it has associated memberships
     add_filter( 'pre_trash_post', [ $this, 'prevent_trash' ], 10, 2 );
+
+    //post row actions link for changing tier uuid
+    add_filter('post_row_actions', [$this, 'tier_id_post_link'], 10, 2);
   }
 
   function prevent_trash( $trash, $post ) {
@@ -282,6 +285,29 @@ class Membership_Tier_CPT_Hooks {
       print_r($tier_data);
       echo '</pre>';
     }
+  }
+  
+  public function tier_id_post_link($actions, $post)
+  {
+      if ($post->post_type == $this->membership_tier_cpt_slug && ! empty( $_ENV['ALLOW_LOCAL_IMPORTS'] ))
+      {
+        $tier_uuid = get_post_meta($post->ID);
+        $tier_uuid = unserialize($tier_uuid['tier_data'][0])['mdp_tier_uuid'];
+        $individual_memberships = get_individual_memberships();
+        foreach($individual_memberships['data'] as $tier) {
+          $selected = $tier_uuid == $tier['id'] ? 'selected' : '';
+          $options[] = '<option '.$selected.' value="'.$tier['id'].'">'.$tier['attributes']['name_en'].'</option>';
+        }
+        $select = '<select style="width:175px;" id="tier_post_'.$post->ID.'" name="tier_uuid_changed">'.implode("\n",$options).'</select>';
+        $nonce = wp_create_nonce('tier_uuid_update_nonce');
+        $actions['tier_uuid_change'] = '
+          <a href="javascript:void(0)" class="show_change_tier_uuid" wicket-tier-id="'.$post->ID.'">Update UUID</a>
+          <div id="tier_div_'.$post->ID.'" class="" style="display:none">'.$select.'
+            <button id="tier_button_'.$post->ID.'" class="wicket_update_tier_uuid button" wicket-tier-post-id="'.$post->ID.'" data-nonce="'.$nonce.'">Set</button>
+          </div>
+        ';
+      }
+      return $actions;
   }
 
 }

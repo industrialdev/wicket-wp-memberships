@@ -28,8 +28,9 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
-= 1.0.59 =
+= 1.0.60 =
 * Date Nov 18 2024
+* Update tier UUID per env
 * Modified mship owner data lookup
 * Update mship_id on subscription
 * CPT API security update

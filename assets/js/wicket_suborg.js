@@ -1,4 +1,46 @@
 jQuery(document).ready(function($) {
+  var shown;
+  $('a.show_change_tier_uuid').on('click', function() {
+    var postID = $(this).attr('wicket-tier-id');
+    var div = 'tier_div_'+postID;
+      if(shown === true) {
+        document.getElementById(div).style.display="none";
+      } else {
+        document.getElementById(div).style.display="block";
+      }
+      shown = !shown;
+  });
+
+  $('.wicket_update_tier_uuid').on('click', function(event) {
+        event.preventDefault();
+        var tierNonce = $(this).attr('data-nonce')
+        var postID = $(this).attr('wicket-tier-post-id')
+        tierUUID = $('#tier_post_'+postID).val();
+        //console.log([tierUUID, postID]);
+        $.ajax({
+          url: ajax_object.ajax_url,
+          method: 'POST',
+          data: {
+              action: 'wicket_tier_uuid_update',
+              postID: postID,
+              tierUUID: tierUUID,
+              nonce: tierNonce,
+          },
+          success: function(data) {
+            //console.log('tier_button_'+postID);
+            var button = $('#tier_button_'+postID);
+            button.css('background-color', 'green');
+            button.css('color', 'white');
+          },
+          error: function(data) {
+            //console.log('tier_button_'+postID);
+            var button = $('#tier_button_'+postID);
+            button.css('background-color', 'red');
+            button.css('color', 'white');
+          },
+        });
+  });
+
   $('#suborg-search').on('keyup', function() {
       var searchTerm = $(this).val();
 

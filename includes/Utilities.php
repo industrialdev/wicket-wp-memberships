@@ -14,6 +14,11 @@ class Utilities {
       add_action('wp_ajax_suborg_search', [$this, 'handle_suborg_search'] );
       add_action('save_post', [$this, 'set_subscription_postmeta_suborg_uuid']);
     }
+    if(isset($_ENV['ALLOW_LOCAL_IMPORTS']) && $_ENV['ALLOW_LOCAL_IMPORTS']) {
+      add_action('admin_enqueue_scripts', [$this, 'enqueue_suborg_scripts'] );
+      //post_row_action tier uuid update
+      add_action('wp_ajax_wicket_tier_uuid_update', [$this, 'handle_wicket_tier_uuid_update'] );
+    }
   }
 
   function is_wicket_show_mship_order_org_search() {
@@ -171,5 +176,24 @@ function wicket_sub_org_select_callback( $subscription ) {
     $results = wicket_internal_endpoint_search_orgs( $request);
     wp_reset_postdata();
     wp_send_json($results);
+  }
+
+    /**
+   * Ipdate the tier uuid using Wicket Tier Page [post_row_action], necessary for migrating a tier data from staging to production
+   * @return json
+   */
+  function handle_wicket_tier_uuid_update() {
+    check_ajax_referer('tier_uuid_update_nonce', 'nonce');
+    $new_tier_uuid = isset($_POST['tierUUID']) ? sanitize_text_field($_POST['tierUUID']) : '';
+    $tier_post_id = isset($_POST['postID']) ? sanitize_text_field($_POST['postID']) : '';
+    $tier_data = get_post_meta($tier_post_id, 'tier_data');
+    $tier_data[0]['mdp_tier_uuid'] = $new_tier_uuid;
+    try {
+      update_post_meta(($tier_post_id), 'tier_data', $tier_data[0]);
+      wp_send_json_success($tier_data[0]);
+    } catch (\Exception $e) {
+      wp_send_json_error($tier_data[0]);
+    }
+    wp_reset_postdata();
   }
 }
