@@ -380,15 +380,33 @@ class Admin_Controller {
   }
 
   public static function update_membership_entity_record( $data ) {
+    $date_update_response = '';
+    $ownership_change_response = '';
+
     $Membership_Controller = new Membership_Controller();
     $membership_post_id = $data['membership_post_id'];
     $membership_post = get_post_meta( $membership_post_id );
 
     if( $membership_post['membership_status'][0] == 'cancelled') {
       $response_array['error'] = 'Cannot update a cancelled membership record. Membership update failed.';
-      $response_array['response'] = [];
-      $response_code = 400;
+      $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      $response_code = 200;
       return new \WP_REST_Response($response_array, $response_code);
+    }
+
+    if(!empty($data['new_owner_uuid'])) {
+      $user = get_user_by('login', $data['new_owner_uuid']);
+      //var_dump([$user->ID, $membership_post['user_id'][0]]);exit;
+      if( empty($user) || $membership_post['user_id'][0] != $user->ID) {
+        $response = self::update_membership_change_ownership( $data );
+        $response_body = $response->get_data();
+        $response_code = $response->get_status();
+        if($response_code == 200) {
+          $ownership_change_response = 'Ownership changed successfully. ';
+        } else {
+          $ownership_change_response = 'Failed to change ownership. '.$response_body;
+        }
+      }
     }
 
     if(
@@ -396,13 +414,19 @@ class Admin_Controller {
         || ! array_key_exists( 'membership_ends_at', $data )
         || ! array_key_exists( 'membership_expires_at', $data )
       ) {
-      $response_array['error'] = 'Membership update failed. All dates required.';
-      $response_array['response'] = [];
-      $response_code = 400;
+      $response_array['error'] = 'Error: '.$ownership_change_response.'Membership update failed. All dates required. ';
+      $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      $response_code = 200;
       return new \WP_REST_Response($response_array, $response_code);
     } else {
       //calculate early renewal date based on config renewal_window days setting attached to membership tier
       $membership_tier_id = Membership_Tier::get_tier_id_by_wicket_uuid( $membership_post['membership_tier_uuid'][0] );
+      if(empty($membership_tier_id)) {
+        $response_array['error'] = 'Error: '.$ownership_change_response.'Membership tier not found. ';
+        $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+        $response_code = 200;  
+        return new \WP_REST_Response($response_array, $response_code);  
+      }
       $membership_tier = new Membership_Tier( $membership_tier_id );
       $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
       $renewal_window_days = $config->get_renewal_window_days();
@@ -425,9 +449,9 @@ class Admin_Controller {
     }
 
     if( empty( $local_response ) || is_wp_error( $local_response ) ) {
-      $response_array['error'] = 'Membership update failed.';
-      $response_array['response'] = [];
-      $response_code = 400;
+      $response_array['error'] = 'Error: '.$ownership_change_response.'Membership update failed. ';
+      $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      $response_code = 200;
       return new \WP_REST_Response($response_array, $response_code);
     }
     $membership['membership_type'] = $membership_post['membership_type'][0];
@@ -436,25 +460,25 @@ class Admin_Controller {
 
     if( is_wp_error( $wicket_response ) ) {
       $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post );
-      $response_array['error'] = 'Membership dates update failed. '.$wicket_response->get_error_message( 'wicket_api_error' );
-      $response_array['response'] = [];
-      $response_code = 400;
+      $response_array['error'] = 'Error: '.$ownership_change_response.'Membership dates update failed. '.$wicket_response->get_error_message( 'wicket_api_error' );
+      $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      $response_code = 200;
     } else {
       //update subscription (only add end as next_payment_date if not using next_form_id) and set expiry date as end date
       $date_flags_array = [ 'start_date', 'end_date' ];
       $membership_dates_update['membership_subscription_id'] = $membership_post['membership_subscription_id'][0];
-      $membership_dates_update['membership_starts_at'] = $membership_post['membership_starts_at'][0];
-      $membership_dates_update['membership_ends_at'] = $membership_post['membership_ends_at'][0];
-      $membership_dates_update['membership_expires_at'] = $membership_post['membership_expires_at'][0];
-      $membership_dates_update['membership_post_id'] = $membership_post['membership_post_id'][0];
+      $membership_dates_update['membership_starts_at'] = $data['membership_starts_at'];
+      $membership_dates_update['membership_ends_at'] = $data['membership_ends_at'];
+      $membership_dates_update['membership_expires_at'] = $data['membership_expires_at'];
+      $membership_dates_update['membership_post_id'] = $data['membership_post_id'];
 
-      if( $membership_post['membership_tier_post_id'][0] == $membership_post['membership_next_tier_id'][0]) {
+      //if( $membership_post['membership_tier_post_id'][0] == $membership_post['membership_next_tier_id'][0]) {
         $date_flags_array[] = 'next_payment_date';
-      }
+      //}
       $date_update_response = $Membership_Controller->update_membership_subscription( $membership_dates_update, $date_flags_array );
 
       $Membership_Controller->amend_membership_json( $membership_post_id, $data );
-      $response_array['success'] = 'Membership was updated successfully. '.$date_update_response;
+      $response_array['success'] = $ownership_change_response.'Membership was updated successfully. '.$date_update_response;
       $response_array['response'] = Helper::get_post_meta( $membership_post_id );
       $response_code = 200;
     }
@@ -462,4 +486,55 @@ class Admin_Controller {
     return new \WP_REST_Response($response_array, $response_code);
   }
 
+  public static function update_membership_change_ownership( $request ) {
+    $membership_post_id = $request['membership_post_id'];
+    $membership = Helper::get_post_meta( $membership_post_id );
+    $new_owner_uuid = $request['new_owner_uuid'];
+
+    $user = get_user_by('login', $new_owner_uuid);
+    if(!empty($user->ID) && $user->ID == $membership['user_id']) {
+      $response_array['error'] = 'Please select a new user.';
+      $response_code = 400;
+      return new \WP_REST_Response($response_array, $response_code);
+    }
+    if(empty($user)) {
+      $user_id = wicket_create_wp_user_if_not_exist( $new_owner_uuid );
+      $user = get_user_by('id', $user_id);
+    }
+
+    $wicket_response = change_organization_membership_owner( $membership['membership_wicket_uuid'], $new_owner_uuid );
+    //var_dump([ $wicket_response, $membership]);exit;
+    if(is_wp_error($wicket_response)) {
+      $response_array['error'] = $wicket_response->get_error_message( 'wicket_api_error' );
+      $response_code = 400;
+      return new \WP_REST_Response($response_array, $response_code);
+    }   
+
+    $customer_meta = get_user_meta( $membership['user_id'], '_wicket_membership_'.$membership_post_id, true );
+    $customer_meta_array = json_decode( $customer_meta, true );
+
+    $customer_meta_array["user_name"] = $user->display_name;
+    $customer_meta_array["user_email"] = $user->user_email;
+    $customer_meta_array["user_id"] = $user->ID;
+    $customer_meta_array["membership_user_uuid"] = $new_owner_uuid;
+
+    $user_meta_updated = update_user_meta( $user->ID, '_wicket_membership_'.$membership_post_id, json_encode( $customer_meta_array) );
+    $user_meta_removed = delete_user_meta( $membership['user_id'], '_wicket_membership_'.$membership_post_id );
+
+    update_post_meta( $membership_post_id, 'user_name', $user->display_name );
+    update_post_meta( $membership_post_id, 'user_email', $user->user_email );
+    update_post_meta( $membership_post_id, 'user_id', $user->ID );
+    update_post_meta( $membership_post_id, 'membership_user_uuid', $new_owner_uuid );
+
+    $new_customer_meta = get_user_meta( $user->ID, '_wicket_membership_'.$membership_post_id, true );
+    $old_customer_meta = get_user_meta( $membership['user_id'], '_wicket_membership_'.$membership_post_id, true );
+
+    $response_array['response'] = [
+      'new_user_meta_updated' => (boolean) $user_meta_updated, 
+      'old_user_meta_cleared' => $user_meta_removed
+    ];
+    $response_array['success'] = "Membership ownership updated successfully.";
+    $response_code = 200;
+    return new \WP_REST_Response($response_array, $response_code);
+  }
 }

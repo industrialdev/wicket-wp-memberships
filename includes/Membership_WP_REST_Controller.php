@@ -109,6 +109,15 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
+        // available status options for change status drop-down
+        register_rest_route( $this->namespace, '/membership/(?P<membership_post_id>\d+)/change_owner', array(
+          array(
+            'methods'  => \WP_REST_Server::CREATABLE,
+            'callback'  => array( $this, 'update_membership_change_ownership' ),
+            'permission_callback' => array( $this, 'permissions_check_write' ),
+          ),
+          //'schema' => array( $this, '' ),
+        ) );    
   /**
    * Get membership filters by Membership Type
    */
@@ -264,6 +273,12 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
+  }
+
+  public function update_membership_change_ownership( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = (new Admin_Controller() )->update_membership_change_ownership( $params );
+    return rest_ensure_response( $response );
   }
 
   public function import_membership_organizations( \WP_REST_Request $request ) {
