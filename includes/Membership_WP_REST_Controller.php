@@ -273,6 +273,23 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
+
+    //lookahead person name search
+    register_rest_route( $this->namespace, '/mdp_person/search', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'mdp_person_lookup' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      //'schema' => array( $this, '' ),
+    )
+    );
+  }
+
+  public function mdp_person_lookup( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = wicket_search_person($params['term']);
+    return rest_ensure_response( $response );
   }
 
   public function update_membership_change_ownership( \WP_REST_Request $request ) {
