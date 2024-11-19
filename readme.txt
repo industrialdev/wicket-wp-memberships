@@ -28,6 +28,11 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.61 =
+* Date Nov 19 2024
+* Change org membership owner
+* Person search look-ahead
+
 = 1.0.60 =
 * Date Nov 18 2024
 * Update tier UUID per env
