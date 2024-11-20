@@ -2,11 +2,11 @@ import { __ } from '@wordpress/i18n';
 import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
 import { DEFAULT_DATE_FORMAT } from '../constants';
-import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap } from '../styled_elements';
+import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled } from '../styled_elements';
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
-import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo } from '../services/api';
+import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo, fetchMdpPersons } from '../services/api';
 import he from 'he';
 import moment from 'moment';
 
@@ -83,6 +83,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const [memberInfo, setMemberInfo] = useState(null);
   const [memberships, setMemberships] = useState([]);
   const [tiers, setTiers] = useState([]);
+  const [membershipOwnerOptions, setMembershipOwnerOptions] = useState([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
   const [manageStatusErrors, setManageStatusErrors] = useState([]);
   const [manageStatusFormData, setManageStatusFormData] = useState({
@@ -91,6 +92,25 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     newStatus: '',
     availableStatuses: []
   });
+
+  const loadMembershipOwnerOptions = (inputValue, callback) => {
+    if (  inputValue.length < 3 ) { return; }
+
+    fetchMdpPersons({ term: inputValue })
+      .then((response) => {
+        const options = response.map((person) => {
+          return {
+            label: person.full_name,
+            value: person.id
+          };
+        });
+
+        callback(options);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  };
 
   const openManageStatusModalOpen = (membershipIndex) => {
     setManageStatusFormData({
@@ -160,6 +180,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       .then((response) => {
         console.log(response);
 
+        let tempMembershipOwnerOptions = [];
+
         // add addtional properties to each membership
         response.forEach((membership) => {
           membership.showRow = false;
@@ -171,8 +193,15 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
           membership.updatingNow = false;
           membership.updateResult = '';
+
+          // Set initial membership owner options
+          tempMembershipOwnerOptions.push({
+            label: membership.data.user_name,
+            value: membership.data.membership_user_uuid
+          });
         });
 
+        setMembershipOwnerOptions(tempMembershipOwnerOptions);
         setMemberships(response);
         setIsLoading(false);
       }).catch((error) => {
@@ -794,10 +823,28 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         <div><Icon icon='info' /></div>
                                       </Tooltip>
                                     </LabelWpStyled>
-                                    <TextControl
-                                      disabled={true}
-                                      value={membership.data.user_name}
+                                    <AsyncSelectWpStyled
+                                      id="membership_owner_id"
+                                      classNamePrefix="select"
+                                      name="new_owner_uuid"
+                                      value={membershipOwnerOptions.find(option => option.value === membership.data.membership_user_uuid)}
+                                      defaultOptions={membershipOwnerOptions}
+                                      loadOptions={loadMembershipOwnerOptions}
+                                      isClearable={false}
+                                      isSearchable={true}
+                                      // isLoading={wcProductOptions.length === 0}
+                                      onChange={selected => {
+                                        setMemberships(
+                                          memberships.map((m) => {
+                                            if (m.ID == membership.ID) {
+                                              m.data['membership_user_uuid'] = selected.value;
+                                            }
+                                            return m;
+                                          })
+                                        );
+                                      }}
                                     />
+
                                     <div style={{ marginTop: '10px' }} >
                                       <Button variant='link'>
                                         {__('View in MDP', 'wicket-memberships')}

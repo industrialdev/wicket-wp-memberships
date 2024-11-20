@@ -1,6 +1,7 @@
 import styled from 'styled-components';
 import { Flex, Disabled, Modal } from '@wordpress/components';
 import Select from 'react-select';
+import AsyncSelect from 'react-select/async';
 import ReactDatePickerCss from "!!raw-loader!react-datepicker/dist/react-datepicker.css";
 
 export const AppWrap = styled.div`
@@ -58,6 +59,36 @@ export const BorderedBox = styled.div`
 `;
 
 export const SelectWpStyled = styled(Select)`
+	.select__input-container {
+		margin: 0;
+		padding: 0;
+	}
+
+	.select__dropdown-indicator {
+		padding: 0 4px;
+	}
+
+	.select__control {
+		border: 1px solid #949494;
+    border-radius: 2px;
+		min-height: 28px;
+	}
+
+	.select__input {
+		min-height: 28px;
+		box-shadow: none !important;
+	}
+
+	.select__value-container {
+		padding: 0 8px;
+	}
+
+	.select__value-container--is-multi {
+		padding: 6px 8px;
+	}
+`;
+
+export const AsyncSelectWpStyled = styled(AsyncSelect)`
 	.select__input-container {
 		margin: 0;
 		padding: 0;
