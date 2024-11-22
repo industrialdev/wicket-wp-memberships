@@ -338,6 +338,10 @@ class Admin_Controller {
       if(empty($membership_data)) {
         $membership_data = Membership_Controller::get_membership_array_from_post( $membership_item['ID'] );
       }
+      if(empty($membership_data['membership_user_uuid'])) {
+        $membership_data['membership_user_uuid'] = get_post_meta( $membership->ID, 'membership_user_uuid', true);
+      }
+      $membership_item['mdp_person_link'] = $wicket_settings['wicket_admin'] . '/people/' . $membership_data['membership_user_uuid'];
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
         $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['name'];
@@ -408,7 +412,6 @@ class Admin_Controller {
 
     if(!empty($data['new_owner_uuid'])) {
       $user = get_user_by('login', $data['new_owner_uuid']);
-      //var_dump([$user->ID, $membership_post['user_id'][0]]);exit;
       if( empty($user) || $membership_post['user_id'][0] != $user->ID) {
         $response = self::update_membership_change_ownership( $data );
         $response_body = $response->get_data();
@@ -419,6 +422,7 @@ class Admin_Controller {
           $ownership_change_response = 'Failed to change ownership. '.$response_body;
         }
       }
+      unset($data['new_owner_uuid']);
     }
 
     if(
