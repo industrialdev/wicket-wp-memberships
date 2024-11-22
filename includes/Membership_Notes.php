@@ -12,14 +12,18 @@ class Membership_Notes {
   private $membership_config_cpt_slug = '';
   private $membership_tier_cpt_slug = '';
   private $membership_notes_cpt_slug = '';
+  private static $hooks_added;
 
   public function __construct() {
+    if (!self::$hooks_added) {
       add_action( 'save_post', array( $this, 'add_mship_note_on_post_save' ), 10, 3 );
       add_action( 'add_meta_boxes', array( $this, 'add_membership_notes_meta_box') );
       add_action( 'save_post', array( $this, 'save_membership_note') );
-      add_action( 'admin_footer', array( $this, 'add_membership_notes_ajax_script') );
+      add_action( 'admin_footer', array( $this, 'add_membership_notes_ajax_script'), 10, 1 );
       add_action( 'wp_ajax_add_membership_note_ajax', array( $this, 'handle_add_membership_note_ajax') );
       add_action( 'wp_ajax_delete_membership_note_ajax', array( $this, 'handle_delete_membership_note_ajax' ) );
+      self::$hooks_added = true;
+    }
 
       $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
       $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
@@ -45,7 +49,7 @@ class Membership_Notes {
         echo '<h3>Membership Notes</h3>';
         echo '<ul>';
         foreach ( $notes as $note ) {
-          echo '<li><em>' . esc_html( $note['note_content'] ) . '</em><br />';
+          echo '<li id="note_entry_'.$note['note_id'].'" data-note-id="'.$note['note_id'].'"><em>' . esc_html( $note['note_content'] ) . '</em><br />';
           echo $note['note_attribute'] . '<br />';
           echo ' <span style="color:red">' . $note['delete_link'] . '</span></small></li>';
         }
@@ -93,7 +97,6 @@ class Membership_Notes {
                     },
                     function(response) {
                         if ( response.success ) {
-                            alert('Note added successfully!');
                             location.reload();
                         } else {
                             alert('Failed to add note.');
@@ -103,26 +106,27 @@ class Membership_Notes {
             });
             $('.delete-note-link').on('click', function(e) {
                 e.preventDefault();
-
-                var noteId = $(this).data('note-id');
-                $.ajax({
-                    url: '<?php echo admin_url( 'admin-ajax.php' ); ?>',
-                    type: 'POST',
-                    data: {
-                        action: 'delete_membership_note_ajax',
-                        note_id: noteId,
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            $('a[data-note-id="' + noteId + '"]').closest('.note').fadeOut();
-                        } else {
-                            alert(response.data.message);
-                        }
-                    },
-                    error: function() {
-                        alert('An error occurred while trying to delete the note.');
-                    }
-                });
+                if(confirm('Delete note. Are you sure?')) {
+                  var noteId = $(this).data('note-id');
+                  $.ajax({
+                      url: '<?php echo admin_url( 'admin-ajax.php' ); ?>',
+                      type: 'POST',
+                      data: {
+                          action: 'delete_membership_note_ajax',
+                          note_id: noteId,
+                      },
+                      success: function(response) {
+                          if (response.success) {
+                              $('#note_entry_' + noteId).fadeOut();
+                          } else {
+                              alert(response.data.message);
+                          }
+                      },
+                      error: function() {
+                          alert('An error occurred while trying to delete the note.');
+                      }
+                  });
+                }
             });
         });
     </script>
@@ -233,6 +237,7 @@ class Membership_Notes {
           $author = get_the_author_meta( 'display_name', $note_post->post_author );
           $timestamp = get_post_meta( $note_id, '_note_timestamp', true );
           $notes[] = array(
+              'note_id' => $note_id,
               'note_content' => $note_content,
               'note_attribute' => $author . " on " . $timestamp,
               'author'       => $author,
