@@ -614,10 +614,10 @@ function add_order_item_meta ( $item_id, $values ) {
       $grace_period_days = $meta_data['membership_grace_period_days'];
     }
 
-    if( $meta_data['max_assignments'] == '0' || ! empty( $meta_data['max_assignments'] ) ) {
-      $max_assignments = $meta_data['max_assignments'];
-    } else  if( $meta_data['membership_seats'] == '0' || ! empty( $meta_data['membership_seats'] ) ) {
-      $max_assignments = $meta_data['membership_seats'];
+    if( ! empty( $meta_data['max_assignments'] ) ) {
+      $max_assignments = ! empty( $meta_data['max_assignments'] ) ? $meta_data['max_assignments'] : 0;
+    } else  if( ! empty( $meta_data['membership_seats'] ) ) {
+      $max_assignments =  $meta_data['membership_seats'] == '0'  ? $meta_data['membership_seats'] : 0;
     }
 
     if( $membership['membership_type'] == 'individual' ) {
