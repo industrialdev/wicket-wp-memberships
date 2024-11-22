@@ -385,6 +385,18 @@ class Admin_Controller {
 
     $Membership_Controller = new Membership_Controller();
     $membership_post_id = $data['membership_post_id'];
+
+    if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
+      $response_array['error'] = 'Error: '.$ownership_change_response.'Membership update failed. Record not found. ';
+      $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      $response_code = 200;
+      return new \WP_REST_Response($response_array, $response_code);
+    }
+    
+    foreach($data as $key => $value) {
+      $data[ $key ] = sanitize_text_field( $value );
+    }
+
     $membership_post = get_post_meta( $membership_post_id );
 
     if( $membership_post['membership_status'][0] == 'cancelled') {
@@ -444,12 +456,10 @@ class Admin_Controller {
       $data[ 'membership_grace_period_days' ] = $grace_period_days;
     }
 
-    if ( Helper::is_valid_membership_post( $membership_post_id ) ) {
-      $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
-    }
+    $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
 
     if( empty( $local_response ) || is_wp_error( $local_response ) ) {
-      $response_array['error'] = 'Error: '.$ownership_change_response.'Membership update failed. ';
+      $response_array['error'] = 'Error: '.$ownership_change_response.'Membership update failed. Record not updated. ';
       $response_array['response'] = Helper::get_post_meta( $membership_post_id );
       $response_code = 200;
       return new \WP_REST_Response($response_array, $response_code);
