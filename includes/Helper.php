@@ -19,9 +19,9 @@ class Helper {
 
       // INJECT MEMBERSHIP META DATA into membership pages
       add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
-      //add_action( 'add_meta_boxes', [$this, 'action_buttons_add_meta_boxes'] );
+      add_action( 'add_meta_boxes', [$this, 'action_buttons_add_meta_boxes'] );
       add_action( 'admin_menu', function() {
-          remove_meta_box( 'extra_info_data', self::get_membership_cpt_slug(), 'normal' );
+          //remove_meta_box( 'extra_info_data', self::get_membership_cpt_slug(), 'normal' );
       } );
     }
   }
@@ -42,7 +42,13 @@ class Helper {
   // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
   function action_buttons_add_meta_boxes() {
     global $post;
-    add_meta_box( 'action_buttons_add_meta_boxes', __('[do_action] Buttons','your_text_domain'), [$this, 'display_action_buttons'], self::get_membership_cpt_slug(), 'side', 'core' );
+    add_meta_box( 
+      'action_buttons_add_meta_boxes', 
+      __('[do_action] Buttons','your_text_domain'), 
+      [$this, 'display_action_buttons'], 
+      self::get_membership_cpt_slug(), 
+      'side' 
+    );
   }
 
   function display_action_buttons() {
@@ -63,7 +69,14 @@ class Helper {
   function extra_info_add_meta_boxes()
   {
     global $post;
-    add_meta_box( 'extra_info_data_content', __('Extra Info','your_text_domain'), [$this, 'extra_info_data_contents'], self::get_membership_cpt_slug(), 'normal', 'core' );
+    add_meta_box( 
+      'extra_info_data_content', 
+      __('Extra Info','your_text_domain'), 
+      [$this, 'extra_info_data_contents'], 
+      self::get_membership_cpt_slug(), 
+      'normal', 
+      'core' 
+    );
   }
 
   // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
@@ -123,6 +136,10 @@ class Helper {
 
   public static function get_membership_tier_cpt_slug() {
     return 'wicket_mship_tier';
+  }
+
+  public static function get_membership_notes_cpt_slug() {
+    return 'wicket_mship_notes';
   }
 
   public static function is_valid_membership_post( $membership_post_id ) {
