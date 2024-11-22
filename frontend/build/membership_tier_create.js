@@ -33,7 +33,7 @@
 	}
 `,mi=Yt.div`
 	padding: 10px 0;
-	margin-left: -15px;
+	// margin-left: -15px;
 `,hi=Yt.div`
 	border: 1px solid #c3c4c7;
 	padding: 15px;

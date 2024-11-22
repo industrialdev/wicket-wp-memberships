@@ -49,7 +49,7 @@ export const FormFlex = styled(Flex)`
 
 export const ErrorsRow = styled.div`
 	padding: 10px 0;
-	margin-left: -15px;
+	// margin-left: -15px;
 `;
 
 export const BorderedBox = styled.div`

@@ -138,18 +138,39 @@ class Membership_Post_Types {
               $errors = new WP_Error();
 
               if ( ! is_array( $value ) ) {
-                $errors->add( 'rest_invalid_param', __( 'The late fee window data must be an object.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                $errors->add( 'rest_invalid_param', __( 'The grace period window data must be an object.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
               if ( ! isset( $value['days_count'] ) || intval( $value['days_count'] ) < 0 ) {
-                $errors->add( 'rest_invalid_param_days_count', __( 'The late fee window days count must be equal or greater than 0.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                $errors->add( 'rest_invalid_param_days_count', __( 'The grace period window days count must be equal or greater than 0.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
               if ( isset( $value['product_id'] ) && intval( $value['product_id'] ) > 0 ) {
                 $wc_product = new \WC_Product( $value['product_id'] );
                 if ( $wc_product->exists() === false ) {
-                  $errors->add( 'rest_invalid_param_product_id', __( 'The late fee window product must be a valid product.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  $errors->add( 'rest_invalid_param_product_id', __( 'The grace period window product must be a valid product.', 'wicket-memberships' ), array( 'status' => 400 ) );
                 }
+              }
+
+              // Validate locales to be not empty
+              $language_codes = Helper::get_wp_languages_iso();
+              $locales_valid = true;
+              foreach ( $language_codes as $language_code ) {
+                if ( empty( $value['locales'][ $language_code ]['callout_header'] ) ) {
+                  $locales_valid = false;
+                }
+
+                if ( empty( $value['locales'][ $language_code ]['callout_content'] ) ) {
+                  $locales_valid = false;
+                }
+
+                if ( empty( $value['locales'][ $language_code ]['callout_button_label'] ) ) {
+                  $locales_valid = false;
+                }
+              }
+
+              if ( $locales_valid === false ) {
+                $errors->add( 'rest_invalid_param_locales', __( 'The grace period window callout data must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
               if ( $errors->has_errors() ) {
