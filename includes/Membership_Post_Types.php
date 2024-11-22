@@ -634,6 +634,10 @@ class Membership_Post_Types {
               'type'        => 'integer',
               'description' => 'Membership Config Post ID',
             ),
+            'renewal_type' => array(
+              'type'        => 'string',
+              'description' => 'Renewal Type',
+            ),
             'type' => array(
               'type'        => 'string',
               'description' => 'Tier Type',

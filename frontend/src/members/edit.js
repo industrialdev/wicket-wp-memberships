@@ -2,7 +2,7 @@ import { __ } from '@wordpress/i18n';
 import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
 import { DEFAULT_DATE_FORMAT } from '../constants';
-import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled } from '../styled_elements';
+import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../styled_elements';
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
@@ -77,6 +77,12 @@ const RecordTopInfo = styled.div`
 `;
 
 const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
+
+	const renewalTypeOptions = [
+		{ label: __('Inherited from Tier', 'wicket-memberships'), value: 'inherited' },
+		{ label: __('Sequential Logic', 'wicket-memberships'), value: 'sequential_logic' },
+		{ label: __('Renewal Form Flow', 'wicket-memberships'), value: 'form_flow' }
+	];
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -707,7 +713,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                 ]}
                               >
                                 <FlexBlock>
-                                  <LabelWpStyled htmlFor="mdp_tier">
+                                  <LabelWpStyled htmlFor="membership_starts_at">
                                     {__('Start Date', 'wicket-memberships')}
                                   </LabelWpStyled>
                                   <ReactDatePickerStyledWrap>
@@ -727,7 +733,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                   </ReactDatePickerStyledWrap>
                                 </FlexBlock>
                                 <FlexBlock>
-                                  <LabelWpStyled htmlFor="mdp_tier">
+                                  <LabelWpStyled htmlFor="membership_ends_at">
                                     {__('End Date', 'wicket-memberships')}
                                   </LabelWpStyled>
                                   <ReactDatePickerStyledWrap>
@@ -746,9 +752,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                   </ReactDatePickerStyledWrap>
                                 </FlexBlock>
                                 <FlexBlock>
-
-
-                                <LabelWpStyled htmlFor="mdp_tier">
+                                  <LabelWpStyled htmlFor="membership_expires_at">
                                     {__('Expiration Date', 'wicket-memberships')}
                                   </LabelWpStyled>
                                   <ReactDatePickerStyledWrap>
@@ -765,6 +769,30 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       }}
                                     />
                                   </ReactDatePickerStyledWrap>
+                                </FlexBlock>
+                              </MarginedFlex>
+                              <MarginedFlex>
+                                <FlexBlock>
+                                  <LabelWpStyled htmlFor="renewal_type">
+                                    {__('Renewal Type', 'wicket-memberships')}
+                                  </LabelWpStyled>
+                                  <SelectWpStyled
+                                    id="renewal_type"
+                                    classNamePrefix="select"
+                                    // value={renewalTypeOptions.find(option => option.value === form.renewal_type)}
+                                    // isSearchable={true}
+                                    options={renewalTypeOptions}
+                                    onChange={(selected) => {
+                                      // const selectedValue = selected.value;
+
+                                      // setForm({
+                                      //   ...form,
+                                      //   next_tier_id: '',
+                                      //   next_tier_form_page_id: '',
+                                      //   renewal_type: selectedValue
+                                      // });
+                                    }}
+                                  />
                                 </FlexBlock>
                               </MarginedFlex>
 
