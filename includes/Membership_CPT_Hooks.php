@@ -16,10 +16,13 @@ class Membership_CPT_Hooks {
   const EDIT_ORG_MEMBER_PAGE_SLUG = 'wicket_org_member_edit';
 
   private $status_names;
+  private $membership_tier_cpt_slug = '';
 
   public function __construct() {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     $this->status_names = Helper::get_all_status_names();
+    $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
+    
     add_filter('manage_'.$this->membership_cpt_slug.'_posts_columns', [ $this, $this->membership_cpt_slug.'_table_head']);
     add_action('manage_'.$this->membership_cpt_slug.'_posts_custom_column', [ $this, $this->membership_cpt_slug.'_table_content'], 10, 2 );
 
@@ -65,6 +68,7 @@ class Membership_CPT_Hooks {
     echo <<<HTML
       <div
         id="edit_member"
+        data-tier-cpt-slug="{$this->membership_tier_cpt_slug}"
         data-record-id="{$local_user_id}"
         data-membership-uuid="{$membership_uuid}"
         data-member-type="individual"></div>
@@ -78,6 +82,7 @@ class Membership_CPT_Hooks {
     echo <<<HTML
       <div
         id="edit_member"
+        data-tier-cpt-slug="{$this->membership_tier_cpt_slug}"
         data-record-id="{$record_id}"
         data-membership-uuid="{$membership_uuid}"
         data-member-type="organization"></div>
