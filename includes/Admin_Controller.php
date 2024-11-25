@@ -453,6 +453,16 @@ class Admin_Controller {
       $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
       $grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
 
+      if(!empty($data['next_tier_form_page_id'])) {
+        $data['membership_next_tier_id'] = "";
+        $data['membership_next_tier_form_page_id'] = $data['next_tier_form_page_id'];
+        unset($data['next_tier_form_page_id']);
+      } else if(!empty($data['next_tier_id'])) {
+        $data['membership_next_tier_id'] = $data['next_tier_id'];
+        $data['membership_next_tier_form_page_id'] = "";
+        unset($data['next_tier_id']);
+      }
+
       $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", $membership_starts_at_seconds), wp_timezone() ))->format('c');
       $data[ 'membership_early_renew_at' ]  = (new \DateTime( date("Y-m-d", $membership_early_renew_at_seconds ), wp_timezone() ))->format('c');
       $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", $membership_ends_at_seconds ), wp_timezone() ))->format('c');
