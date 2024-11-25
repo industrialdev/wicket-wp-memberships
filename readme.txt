@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.65 =
+* Date Nov 25 2024
+* Set next-tier page on memberships
+
 = 1.0.61 =
 * Date Nov 19 2024
 * Change org membership owner
