@@ -702,12 +702,18 @@ function add_order_item_meta ( $item_id, $values ) {
   }
 
   public function update_local_membership_record( $membership_post_id, $meta_data ) {
-    return wp_update_post([
+    $return = wp_update_post([
       'ID' => $membership_post_id,
       'post_type' => $this->membership_cpt_slug,
       'post_status' => 'publish',
       'meta_input'  => $meta_data
     ]);
+    $customer_meta = get_user_meta( $meta_data['user_id'], '_wicket_membership_'.$membership_post_id );
+    if( empty( $customer_meta ) || empty( $customer_meta[0]['membership_post_id']) ) {
+      $customer_meta_array = Helper::get_post_meta( $membership_post_id );
+      update_user_meta( $meta_data['user_id'], '_wicket_membership_'.$membership_post_id, json_encode( $customer_meta_array) );
+    }
+    return $return;
   }
 
   public function get_person_uuid( $user_id ) {

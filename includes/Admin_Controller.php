@@ -336,11 +336,19 @@ class Admin_Controller {
       }
       $membership_data = Membership_Controller::get_membership_array_from_user_meta_by_post_id( $membership->ID, $meta['user_id'] );
       if(empty($membership_data)) {
-        $membership_data = Membership_Controller::get_membership_array_from_post( $membership_item['ID'] );
+        $membership_data = Helper::get_post_meta( $membership_item['ID'] );
       }
       if(empty($membership_data['membership_user_uuid'])) {
         $membership_data['membership_user_uuid'] = get_post_meta( $membership->ID, 'membership_user_uuid', true);
       }
+      if(empty($membership_data['membership_next_tier_id'])) {
+        $membership_data['membership_next_tier_id'] = get_post_meta( $membership->ID, 'membership_next_tier_id', true);
+      }
+      if(empty($membership_data['membership_next_tier_form_page_id'])) {
+        $membership_data['membership_next_tier_form_page_id'] = get_post_meta( $membership->ID, 'membership_next_tier_form_page_id', true);
+      }
+      $membership_data['membership_next_tier_id'] = (int) $membership_data['membership_next_tier_id'];
+      $membership_data['membership_next_tier_form_page_id'] = (int) $membership_data['membership_next_tier_form_page_id'];
       $membership_item['mdp_person_link'] = $wicket_settings['wicket_admin'] . '/people/' . $membership_data['membership_user_uuid'];
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
@@ -424,7 +432,7 @@ class Admin_Controller {
       }
       unset($data['new_owner_uuid']);
     }
-
+    $data['user_id'] = get_post_meta( $membership_post_id, 'user_id', true );
     if(
         ! array_key_exists( 'membership_starts_at', $data )
         || ! array_key_exists( 'membership_ends_at', $data )
