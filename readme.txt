@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.66 =
+* Date Nov 26 2024
+* Bugfixes
+
 = 1.0.65 =
 * Date Nov 25 2024
 * Set next-tier page on memberships
