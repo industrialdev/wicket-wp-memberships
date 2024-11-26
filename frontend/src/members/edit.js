@@ -78,7 +78,7 @@ const RecordTopInfo = styled.div`
   font-size: 14px;
 `;
 
-const MemberEdit = ({ memberType, tierCptSlug, recordId, membershipUuid }) => {
+const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
 	const renewalTypeOptions = [
 		{ label: __('Inherited from Tier', 'wicket-memberships'), value: 'inherited' },
@@ -92,7 +92,6 @@ const MemberEdit = ({ memberType, tierCptSlug, recordId, membershipUuid }) => {
   const [wpTierOptions, setWpTierOptions] = useState([]); // { id, name }
   const [memberInfo, setMemberInfo] = useState(null);
   const [memberships, setMemberships] = useState([]);
-  const [tiers, setTiers] = useState([]);
   const [membershipOwnerOptions, setMembershipOwnerOptions] = useState([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
   const [manageStatusErrors, setManageStatusErrors] = useState([]);
@@ -232,16 +231,6 @@ const MemberEdit = ({ memberType, tierCptSlug, recordId, membershipUuid }) => {
       });
   }
 
-  const getTiers = () => {
-    fetchTiers()
-      .then((response) => {
-        setTiers(response);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-  }
-
   const getMembershipStatuses = (membershipIndex) => {
 
     const membership = memberships[membershipIndex];
@@ -265,12 +254,12 @@ const MemberEdit = ({ memberType, tierCptSlug, recordId, membershipUuid }) => {
 		apiFetch({ path: addQueryArgs(`${API_URL}/pages`, {
 			status: 'publish',
 			per_page: -1
-		}) }).then((tiers) => {
-			let options = tiers.map((tier) => {
-				const decodedTitle = he.decode(tier.title.rendered);
+		}) }).then((posts) => {
+			let options = posts.map((post) => {
+				const decodedTitle = he.decode(post.title.rendered);
 				return {
-					label: `${decodedTitle} | ID: ${tier.id}`,
-					value: tier.id
+					label: `${decodedTitle} | ID: ${post.id}`,
+					value: post.id
 				}
 			});
 
@@ -280,26 +269,27 @@ const MemberEdit = ({ memberType, tierCptSlug, recordId, membershipUuid }) => {
 
 	// Fetch Local Membership Tiers Posts
   const getWpTierOptions = () => {
-		apiFetch({ path: addQueryArgs(`${API_URL}/${tierCptSlug}`, {
-      status: 'publish',
-      per_page: -1
-    }) }).then((tiers) => {
-			let options = tiers.map((tier) => {
-				const decodedTitle = he.decode(tier.title.rendered);
-				return {
-					label: `${decodedTitle} | ID: ${tier.id}`,
-					value: tier.id
-				}
-			});
 
-			setWpTierOptions(options);
-		});
+    fetchTiers()
+      .then((tiers) => {
+        let options = tiers.map((tier) => {
+          const decodedTitle = he.decode(tier.title.rendered);
+          return {
+            label: `${decodedTitle} | ID: ${tier.id}`,
+            value: tier.id
+          }
+        });
+  
+        setWpTierOptions(options);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
   }
 
   useEffect(() => {
     getMemberInfo();
     getMemberships();
-    getTiers();
     getLocalWpPages();
     getWpTierOptions();
   }, []);
@@ -431,7 +421,6 @@ const MemberEdit = ({ memberType, tierCptSlug, recordId, membershipUuid }) => {
     }
   }
 
-  console.log('TIERS', tiers);
   console.log('manageStatusFormData', manageStatusFormData);
 
   console.log('MEMBERSHIPS', memberships);
@@ -732,34 +721,6 @@ const MemberEdit = ({ memberType, tierCptSlug, recordId, membershipUuid }) => {
                               data-membership-id={membership.ID}
                               onSubmit={handleUpdateMembership}
                             >
-                              <MarginedFlex
-                                align='end'
-                                justify='start'
-                                gap={6}
-                                direction={[
-                                  'column',
-                                  'row'
-                                ]}
-                              >
-                                <FlexBlock>
-                                  <SelectControl
-                                    label={__('Renew as', 'wicket-memberships')}
-                                    name='membership_next_tier_id'
-                                    value={membership.data.membership_next_tier_id}
-                                    disabled={tiers.length === 0}
-                                    onChange={(value) => {
-                                      handleMembershipFieldChange(membership.ID, 'membership_next_tier_id', value);
-                                    }}
-                                    options={tiers.map((tier) => {
-                                      return {
-                                        label: he.decode(tier.title.rendered),
-                                        value: tier.id
-                                      };
-                                    })}
-                                  />
-                                </FlexBlock>
-                              </MarginedFlex>
-
                               <MarginedFlex
                                 align='end'
                                 justify='start'
