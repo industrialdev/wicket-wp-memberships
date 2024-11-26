@@ -209,11 +209,11 @@ const MemberEdit = ({ memberType, tierCptSlug, recordId, membershipUuid }) => {
           // set renewal type
           membership.data.renewalType = 'inherited';
 
-          if (membership.data.membership_next_tier_form_page_id !== false) {
+          if ( [0, false].indexOf(membership.data.membership_next_tier_form_page_id) === -1 ) {
             membership.data.renewalType = 'form_flow';
           }
 
-          if (membership.data.membership_next_tier_id !== false) {
+          if ( [0, false].indexOf(membership.data.membership_next_tier_id) === -1 ) {
             membership.data.renewalType = 'sequential_logic';
           }
 
