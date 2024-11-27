@@ -57,8 +57,8 @@ class Membership_Notes {
             $style_color = '';  
           }
           echo '<li '.$style_color.' id="note_entry_'.$note['note_id'].'" data-note-id="'.$note['note_id'].'"><em>' . $tag. ' ' . esc_html( $note['note_content'] ) . '</em><br />';
-          echo $note['note_attribute_date'] . '<br />Added by: '. $note['note_attribute_author'] . '<br/>';
-          echo ' <span style="color:red">' . $note['delete_link'] . '</span></small></li>';
+          echo $note['note_date'] . '<br />Added by: '. $note['author'] . '<br/>';
+          echo ' <span style="color:red"><a href="#" class="delete-note-link" data-note-id="' . $note['note_id'] . '">Delete</a></span></small></li>';
         }
         echo '</ul>';
     } else {
@@ -148,17 +148,30 @@ class Membership_Notes {
         wp_send_json_error( array( 'message' => 'You do not have permission to delete this note.' ) );
     }
     if ( isset( $_POST['note_id'] ) && is_numeric( $_POST['note_id'] ) ) {
-        $note_id = (int) $_POST['note_id'];
-        $note_post = get_post( $note_id );
-
-        if ( $note_post && $note_post->post_type === $this->membership_notes_cpt_slug ) {
-            wp_delete_post( $note_id, true ); // true to force deletion, skip trash
+      $note_id = (int) $_POST['note_id'];
+      $note_post = get_post( $note_id );
+      $membership_post_id = get_post_meta( $note_id, '_associated_post_id', true );
+      if ( $note_post && $note_post->post_type === $this->membership_notes_cpt_slug ) {
+        $response = $this->delete_membership_note( $membership_post_id, $note_id );
+        if(strstr($response['message'], $note_id) !== false) {
             wp_send_json_success( array( 'message' => 'Note deleted successfully.' ) );
         } else {
-            wp_send_json_error( array( 'message' => 'Note not found or invalid.' ) );
+            wp_send_json_error( $response );
         }
+      }
     } else {
         wp_send_json_error( array( 'message' => 'Invalid note ID.' ) );
+    }
+  }
+
+  public static function delete_membership_note( $membership_post_id, $membership_note_id ) {
+    $response =  wp_delete_post( $membership_note_id, true );
+    if(is_null($response)) {
+      return ['message' => "Membership note not found"];
+    } else if(is_wp_error( $response )) {
+      return ['message' => $response->get_error_message()];
+    } else {
+      return ['message' => "Deleted note ID $membership_note_id successfully" ];
     }
   }
 
@@ -213,7 +226,7 @@ class Membership_Notes {
               '_private_note'     => !empty($private_note) ? 1 : 0
           ),
       );
-      wp_insert_post( $note_data );
+      return wp_insert_post( $note_data );
   }
 
   /**
@@ -261,12 +274,10 @@ class Membership_Notes {
           $notes[] = array(
               'note_id' => $note_id,
               'note_content' => $note_content,
-              'note_attribute_date' => date("M jS, Y - h:i:s A", strtotime($timestamp)),
-              'note_attribute_author' => $author,
+              'note_date' => date("M jS, Y - h:i:s A", strtotime($timestamp)),
               'author'       => $author,
               'timestamp'    => $timestamp,
-              'private_note'     => $private_note,
-              'delete_link'  => '<a href="#" class="delete-note-link" data-note-id="' . $note_id . '">Delete</a>'
+              'private_note'     => !empty($private_note) ? true : false
           );
         }
       }
@@ -297,13 +308,13 @@ class Membership_Notes {
 
 /** Add Note for Membership by Post ID : true/false = make private
 
-$membership_notes_manager = new Membership_Notes();
-$membership_notes_manager->add_mship_note( 123, 'This is a note related to Membership 123.', true/false (default) );
+Membership_Notes::add_mship_note( 123, 'This is a note related to Membership 123.', true/false (default) );
 
 **/
 
 /** Get Notes for Membership by Post ID " true/false = show private
 
+$membership_notes_manager = new Membership_Notes();
 $notes = $membership_notes_manager->get_notes_for_post( 123, true/false (default) );
 foreach ( $notes as $note ) {
     echo '<p>' . esc_html( $note['note_content'] ) . '</p>';
