@@ -175,7 +175,14 @@ function add_order_item_meta ( $item_id, $values ) {
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
                 $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
-                $this->processing_renewal = true;
+                if($membership_current['membership_parent_order_id'] == $order_id) {
+                  //this is just an order having their status cycled so we should not create a renewal order on it BUT because
+                  //we are storing the current renewal id on the current subscription item we need to prevent it processing a renewal
+                  unset($membership_post_id_renew);
+                  $membership_current = null;
+                } else {
+                  $this->processing_renewal = true;
+                }
               }
               $dates = $config->get_membership_dates( $membership_current );
               $user_object = get_user_by( 'id', $order->get_user_id() );
