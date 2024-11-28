@@ -20,9 +20,6 @@ class Helper {
       // INJECT MEMBERSHIP META DATA into membership pages
       add_action( 'add_meta_boxes', [$this, 'extra_info_add_meta_boxes'] );
       //add_action( 'add_meta_boxes', [$this, 'action_buttons_add_meta_boxes'] );
-      add_action( 'admin_menu', function() {
-          remove_meta_box( 'extra_info_data', self::get_membership_cpt_slug(), 'normal' );
-      } );
     }
   }
 
@@ -42,28 +39,51 @@ class Helper {
   // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
   function action_buttons_add_meta_boxes() {
     global $post;
-    add_meta_box( 'action_buttons_add_meta_boxes', __('[do_action] Buttons','your_text_domain'), [$this, 'display_action_buttons'], self::get_membership_cpt_slug(), 'side', 'core' );
+    add_meta_box( 
+      'action_buttons_add_meta_boxes', 
+      __('[do_action] Buttons','your_text_domain'), 
+      [$this, 'display_action_buttons'], 
+      self::get_membership_cpt_slug(), 
+      'side' 
+    );
   }
 
   function display_action_buttons() {
     global $post;
-    $order_id = get_post_meta( $post->ID, 'membership_parent_order_id', true );
-    $product_id = get_post_meta( $post->ID, 'membership_product_id', true );
+    $membership_meta = get_post_meta( $post->ID );
+    $order_id = $membership_meta['membership_parent_order_id'][0];
+    $product_id = $membership_meta['membership_product_id'][0];
+    $subscription_id = $membership_meta['membership_subscription_id'][0];
+    $membership_user_uuid = $membership_meta['membership_user_uuid'][0];
+    $membership_wicket_uuid = $membership_meta['membership_wicket_uuid'][0];
     ?>
-      <input type="submit" name="wicket_do_action_early_renew_at" value="Early Renew"><br>
-      <input type="submit" name="wicket_do_action_ends_at" value="Ends At"><br>
-      <input type="submit" name="wicket_do_action_expires_at" value="Grace Period"><br>
+      membership_wicket_uuid<br>
+      <input type="text" name="membership_wicket_uuid" value="<?php echo $membership_wicket_uuid; ?>"><br>
+      membership_user_uuid<br>
+      <input type="text" name="wicket_user_uuid" value="<?php echo $membership_user_uuid; ?>"><br>
       membership_parent_order_id<br>
       <input type="text" name="wicket_order_id" value="<?php echo $order_id; ?>"><br>
+      membership_subscription_id<br>
+      <input type="text" name="wicket_subscription_id" value="<?php echo $subscription_id; ?>"><br>
       membership_product_id<br>
-      <input type="text" name="wicket_product_id" value="<?php echo $product_id; ?>">
+      <input type="text" name="wicket_product_id" value="<?php echo $product_id; ?>"><br><br>
+      <input type="submit" onclick="return confirm('Are you sure?');" name="wicket_do_action_early_renew_at" value="Early Renew">
+      <input type="submit" onclick="return confirm('Are you sure?');" name="wicket_do_action_ends_at" value="Ends At">
+      <input type="submit" onclick="return confirm('Are you sure?');" name="wicket_do_action_expires_at" value="Grace">
     <?php
   }
 
   function extra_info_add_meta_boxes()
   {
     global $post;
-    add_meta_box( 'extra_info_data_content', __('Extra Info','your_text_domain'), [$this, 'extra_info_data_contents'], self::get_membership_cpt_slug(), 'normal', 'core' );
+    add_meta_box( 
+      'extra_info_data_content', 
+      __('Extra Info','your_text_domain'), 
+      [$this, 'extra_info_data_contents'], 
+      self::get_membership_cpt_slug(), 
+      'normal', 
+      'core' 
+    );
   }
 
   // TEMPORARILY INJECT MEMBERSHIP META DATA into membership pages
@@ -123,6 +143,10 @@ class Helper {
 
   public static function get_membership_tier_cpt_slug() {
     return 'wicket_mship_tier';
+  }
+
+  public static function get_membership_notes_cpt_slug() {
+    return 'wicket_mship_notes';
   }
 
   public static function is_valid_membership_post( $membership_post_id ) {
