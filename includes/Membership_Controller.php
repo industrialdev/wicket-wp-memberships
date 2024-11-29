@@ -1138,8 +1138,6 @@ function add_order_item_meta ( $item_id, $values ) {
       $config_id = $Membership_Tier->get_config_id();
       $Membership_Config = new Membership_Config( $config_id );
 
-      //TODO: WE NEED OPTION TO SET OVERRIDE TO FORM PAGE ID ON MEMBERSHIP EDIT PAGE
-      //TODO: WE NEED TO USE THAT VALUE HERE INSTEAD OF LOOKING AT NEXT TIER!!! THIS IS FLAWED
       //always check the membership record ($membership_json_data) for next tier / never look at tier data values
 #      $next_tier_id = !empty($membership_json_data['membership_next_tier_id']) ? $membership_json_data['membership_next_tier_id'] : '';
 #      $next_tier_form_page_id = !empty($membership_json_data['membership_next_tier_form_page_id']) ? $membership_json_data['membership_next_tier_form_page_id'] : '';
@@ -1155,16 +1153,21 @@ function add_order_item_meta ( $item_id, $values ) {
         $debug_comment_eol = '<br>';
       }
 
-      /* This is a renewal of a previous membership so assign a var with both type and next id it so it can be compared to other mships found */
-      /* We are also calculating the end date of the previous membership that we want to match against to remove from the callout response */
+      //TODO: validate that we can remove this method of checking for already renewed memberships, replaced by the NEW method using $renewal_post_id array below.
+      /* PREV: This is a renewal of a previous membership so assign a var with both type and next id it so it can be compared to other mships found */
+      /* PREV: We are also calculating the end date of the previous membership that we want to match against to remove from the callout response */
       if(!empty( $membership_is_renewal )) {
         $ends_at_date = date( "Y-m-d", strtotime( $membership_data['meta']['membership_starts_at'] . "-1 days"));
         $renewal_index_id = !empty($next_tier_id) ? 'nt_'.$next_tier_id : 'nf_'.$next_tier_form_page_id;
+        $renewal_post_id[] = $order_membership_meta['previous_membership_post_id'];
         $membership_renewal_exists[ $renewal_index_id ][ $ends_at_date ] = true;
-        echo "<$debug_comment_hide--";
-        echo 'FOUND a renewal membership:'."membership_renewal_exists[ $renewal_index_id ][ $ends_at_date ]";
-        echo "//-->$debug_comment_eol";
-        continue;
+        //this shortcut to the next iteration was hiding some legitimate renewals, a better method detail above is now being used
+        //original method is still being used but we are letting it flow through (commented lines below) to get caught later if necessary
+        //the new method should be catching all the memberships caught by the old method and all those that have switched tiers.
+#        echo "<$debug_comment_hide--";
+#        echo 'FOUND a renewal membership:'."membership_renewal_exists[ $renewal_index_id ][ $ends_at_date ]";
+#        echo "//-->$debug_comment_eol";
+#        continue;
       }
 
       if(!empty($next_tier_subscription_renewal)) {
@@ -1247,6 +1250,16 @@ function add_order_item_meta ( $item_id, $values ) {
         //if it is *NOT* renewing into the same tier then account center will SHOW A DIRECT add_to_cart FOR EACH PRODUCT assigned to the next tier
       } 
 
+      //this checks the current membership's order meta for the previous_membership_post_id having been set
+      //this was necessary if they change dthe membership tier the previous method misses the renewal because it is using different data
+      if(!empty($renewal_post_id) && in_array( $membership->ID, $renewal_post_id)) {
+        echo "<$debug_comment_hide--";
+        echo 'skipping renew callout for already renewed membership: '.$membership->ID;
+        echo '['.implode(',',$renewal_post_id).']';
+        echo "//-->$debug_comment_eol";
+        continue;
+      }
+       
       if( $current_time >= $membership_early_renew_at && $current_time < $membership_ends_at ) {
         $callout['type'] = 'early_renewal';
         $callout['header'] = $Membership_Config->get_renewal_window_callout_header( $iso_code );
