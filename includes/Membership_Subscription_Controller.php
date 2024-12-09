@@ -58,7 +58,6 @@ class Membership_Subscription_Controller {
           ));
 
         if( is_wp_error( $sub ) ){      
-          $_SESSION['wicket_membership_error'] = $sub->get_error_message();  
           wc_add_notice( $sub->get_error_message(), 'error' );
           $order->update_status( 'failed', $sub->get_error_message() );  
           return;

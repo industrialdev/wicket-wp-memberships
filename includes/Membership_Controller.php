@@ -146,7 +146,6 @@ function add_order_item_meta ( $item_id, $values ) {
     }
     if( !empty( $early_renewal_date ) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] )) {
       $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date)));
-      $_SESSION['wicket_membership_error'] = $error_text;
       throw new \Exception( $error_text );
     }
   }

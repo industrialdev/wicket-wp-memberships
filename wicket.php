@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket - Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.69
+ * Version: 1.0.70
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
@@ -164,7 +164,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
       //Order wicket-membership subscription hooks
       //Hooks fired twice included in class contructor
-      add_action( 'init', [$this, 'wicket_membership_init_session'] );
+
       //catch the order status change to processing
       add_action( 'woocommerce_order_status_processing', array ( __NAMESPACE__.'\\Membership_Controller' , 'catch_order_completed' ), 10, 1);
       //create the membership record
@@ -188,14 +188,6 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //plugin option settings & page including debug
       add_action( 'admin_menu', array ( __NAMESPACE__.'\\Settings' , 'wicket_membership_add_settings_page' ));
       add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'wicket_membership_register_settings' ));
-
-      //temporary admin notice response
-      add_action( 'admin_notices', function() {
-        if( !empty( $_SESSION['wicket_membership_error'] ) ) {
-          echo '<div class="notice error is-dismissible" ><p><strong>Wicket Membership Error:</strong> '. $_SESSION['wicket_membership_error'] .'</p></div>';
-        }
-        unset( $_SESSION['wicket_membership_error'] );
-      });
       
       //check order items before and at checkout process
       
@@ -302,12 +294,6 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
                 }
             }
         }
-    }
-
-    public function wicket_membership_init_session() {
-      if ( ! session_id() && ! headers_sent()) {
-          session_start();
-      }
     }
 
     public static function init_wicket_mship_end_date( $triggers ) {
