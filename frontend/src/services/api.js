@@ -104,6 +104,15 @@ export const fetchMembershipTiers = (queryParams = {}) => {
 };
 
 /**
+ * Fetch MDP Persons
+ */
+export const fetchMdpPersons = (queryParams = {}) => {
+  // ?term=
+  const url = addQueryArgs(`${PLUGIN_API_URL}/mdp_person/search`, queryParams);
+  return apiFetch({ path: url, method: 'POST' });
+};
+
+/**
  * Fetch Membership Filters
  */
 export const fetchMembershipFilters = (memberType = null) => {

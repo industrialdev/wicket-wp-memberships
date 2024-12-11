@@ -1,12 +1,14 @@
 import { __ } from '@wordpress/i18n';
 import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
-import { DEFAULT_DATE_FORMAT } from '../constants';
-import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap } from '../styled_elements';
+import apiFetch from '@wordpress/api-fetch';
+import { addQueryArgs } from '@wordpress/url';
+import { DEFAULT_DATE_FORMAT, API_URL } from '../constants';
+import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../styled_elements';
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
-import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo } from '../services/api';
+import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo, fetchMdpPersons } from '../services/api';
 import he from 'he';
 import moment from 'moment';
 
@@ -78,11 +80,19 @@ const RecordTopInfo = styled.div`
 
 const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
+	const renewalTypeOptions = [
+		{ label: __('Inherited from Tier', 'wicket-memberships'), value: 'inherited' },
+		{ label: __('Sequential Logic', 'wicket-memberships'), value: 'sequential_logic' },
+		{ label: __('Renewal Form Flow', 'wicket-memberships'), value: 'form_flow' }
+	];
+
   const [isLoading, setIsLoading] = useState(true);
 
+  const [wpPagesOptions, setWpPagesOptions] = useState([]); // { id, name }
+  const [wpTierOptions, setWpTierOptions] = useState([]); // { id, name }
   const [memberInfo, setMemberInfo] = useState(null);
   const [memberships, setMemberships] = useState([]);
-  const [tiers, setTiers] = useState([]);
+  const [membershipOwnerOptions, setMembershipOwnerOptions] = useState([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
   const [manageStatusErrors, setManageStatusErrors] = useState([]);
   const [manageStatusFormData, setManageStatusFormData] = useState({
@@ -91,6 +101,25 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     newStatus: '',
     availableStatuses: []
   });
+
+  const loadMembershipOwnerOptions = (inputValue, callback) => {
+    if (  inputValue.length < 3 ) { return; }
+
+    fetchMdpPersons({ term: inputValue })
+      .then((response) => {
+        const options = response.map((person) => {
+          return {
+            label: person.full_name,
+            value: person.id
+          };
+        });
+
+        callback(options);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  };
 
   const openManageStatusModalOpen = (membershipIndex) => {
     setManageStatusFormData({
@@ -137,6 +166,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             memberships.map((m) => {
               if (m.ID == manageStatusFormData.postId) {
                 m.data.membership_status = manageStatusFormData.newStatus;
+                m.data.membership_ends_at = moment(response.membership_ends_at).format('YYYY-MM-DD');
+                m.data.membership_expires_at = moment(response.membership_expires_at).format('YYYY-MM-DD');
                 m.updatedNow = true;
               }
               return m;
@@ -160,6 +191,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       .then((response) => {
         console.log(response);
 
+        let tempMembershipOwnerOptions = [];
+
         // add addtional properties to each membership
         response.forEach((membership) => {
           membership.showRow = false;
@@ -171,21 +204,29 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
           membership.updatingNow = false;
           membership.updateResult = '';
+
+          // set renewal type
+          membership.data.renewalType = 'inherited';
+
+          if ( [0, false].indexOf(membership.data.membership_next_tier_form_page_id) === -1 ) {
+            membership.data.renewalType = 'form_flow';
+          }
+
+          if ( [0, false].indexOf(membership.data.membership_next_tier_id) === -1 ) {
+            membership.data.renewalType = 'sequential_logic';
+          }
+
+          // Set initial membership owner options
+          tempMembershipOwnerOptions.push({
+            label: membership.data.user_name,
+            value: membership.data.membership_user_uuid
+          });
         });
 
+        setMembershipOwnerOptions(tempMembershipOwnerOptions);
         setMemberships(response);
         setIsLoading(false);
       }).catch((error) => {
-        console.error(error);
-      });
-  }
-
-  const getTiers = () => {
-    fetchTiers()
-      .then((response) => {
-        setTiers(response);
-      })
-      .catch((error) => {
         console.error(error);
       });
   }
@@ -208,10 +249,49 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       });
   }
 
+  // Fetch Local WP Pages
+  const getLocalWpPages = () => {
+		apiFetch({ path: addQueryArgs(`${API_URL}/pages`, {
+			status: 'publish',
+			per_page: -1
+		}) }).then((posts) => {
+			let options = posts.map((post) => {
+				const decodedTitle = he.decode(post.title.rendered);
+				return {
+					label: `${decodedTitle} | ID: ${post.id}`,
+					value: post.id
+				}
+			});
+
+			setWpPagesOptions(options);
+		});
+  }
+
+	// Fetch Local Membership Tiers Posts
+  const getWpTierOptions = () => {
+
+    fetchTiers()
+      .then((tiers) => {
+        let options = tiers.map((tier) => {
+          const decodedTitle = he.decode(tier.title.rendered);
+          return {
+            label: `${decodedTitle} | ID: ${tier.id}`,
+            value: tier.id
+          }
+        });
+  
+        setWpTierOptions(options);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }
+
   useEffect(() => {
     getMemberInfo();
     getMemberships();
-    getTiers();
+    getLocalWpPages();
+    getWpTierOptions();
   }, []);
 
 
@@ -278,6 +358,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
   // on membership field change
   const handleMembershipFieldChange = (membershipId, field, value) => {
+    console.log('handleMembershipFieldChange');
+    console.log(membershipId, field, value);
     setMemberships(
       memberships.map((m) => {
         if (m.ID == membershipId) {
@@ -324,7 +406,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     }
 
     // check if the max_assignments and active_assignments_count are numbers
-    if (isNaN(membership.max_assignments) || isNaN(membership.active_assignments_count)) {
+    if (isNaN(parseInt(membership.max_assignments)) || isNaN(parseInt(membership.active_assignments_count))) {
       return 0;
     }
 
@@ -339,8 +421,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     }
   }
 
-  console.log('TIERS', tiers);
   console.log('manageStatusFormData', manageStatusFormData);
+
+  console.log('MEMBERSHIPS', memberships);
 
 	return (
 		<AppWrap>
@@ -648,35 +731,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                 ]}
                               >
                                 <FlexBlock>
-                                  <SelectControl
-                                    label={__('Renew as', 'wicket-memberships')}
-                                    name='membership_next_tier_id'
-                                    value={membership.data.membership_next_tier_id}
-                                    disabled={tiers.length === 0}
-                                    onChange={(value) => {
-                                      handleMembershipFieldChange(membership.ID, 'membership_next_tier_id', value);
-                                    }}
-                                    options={tiers.map((tier) => {
-                                      return {
-                                        label: he.decode(tier.title.rendered),
-                                        value: tier.id
-                                      };
-                                    })}
-                                  />
-                                </FlexBlock>
-                              </MarginedFlex>
-
-                              <MarginedFlex
-                                align='end'
-                                justify='start'
-                                gap={6}
-                                direction={[
-                                  'column',
-                                  'row'
-                                ]}
-                              >
-                                <FlexBlock>
-                                  <LabelWpStyled htmlFor="mdp_tier">
+                                  <LabelWpStyled htmlFor="membership_starts_at">
                                     {__('Start Date', 'wicket-memberships')}
                                   </LabelWpStyled>
                                   <ReactDatePickerStyledWrap>
@@ -696,7 +751,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                   </ReactDatePickerStyledWrap>
                                 </FlexBlock>
                                 <FlexBlock>
-                                  <LabelWpStyled htmlFor="mdp_tier">
+                                  <LabelWpStyled htmlFor="membership_ends_at">
                                     {__('End Date', 'wicket-memberships')}
                                   </LabelWpStyled>
                                   <ReactDatePickerStyledWrap>
@@ -715,9 +770,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                   </ReactDatePickerStyledWrap>
                                 </FlexBlock>
                                 <FlexBlock>
-
-
-                                <LabelWpStyled htmlFor="mdp_tier">
+                                  <LabelWpStyled htmlFor="membership_expires_at">
                                     {__('Expiration Date', 'wicket-memberships')}
                                   </LabelWpStyled>
                                   <ReactDatePickerStyledWrap>
@@ -736,6 +789,71 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                   </ReactDatePickerStyledWrap>
                                 </FlexBlock>
                               </MarginedFlex>
+                              <MarginedFlex>
+                                <FlexBlock>
+                                  <LabelWpStyled htmlFor="renewal_type">
+                                    {__('Renewal Type', 'wicket-memberships')}
+                                  </LabelWpStyled>
+                                  <SelectWpStyled
+                                    id="renewal_type"
+                                    classNamePrefix="select"
+                                    name='renewal_type'
+                                    value={(() => {
+                                      return renewalTypeOptions.find(option => option.value == membership.data.renewalType);
+                                    })()}
+                                    options={renewalTypeOptions}
+                                    onChange={(selected) => {
+                                      handleMembershipFieldChange(membership.ID, 'renewalType', selected.value);
+                                    }}
+                                  />
+                                </FlexBlock>
+                              </MarginedFlex>
+
+                              {/* Sequential Logic - Form Flow */}
+                              {membership.data.renewalType === 'form_flow' &&
+                                <MarginedFlex>
+                                  <FlexBlock>
+                                    <LabelWpStyled htmlFor="next_tier_form_page_id">
+                                      {__('Form Page', 'wicket-memberships')}
+                                    </LabelWpStyled>
+                                    <SelectWpStyled
+                                      id="next_tier_form_page_id"
+                                      name="next_tier_form_page_id"
+                                      classNamePrefix="select"
+                                      value={wpPagesOptions.find(option => option.value == membership.data.membership_next_tier_form_page_id)}
+                                      isClearable={false}
+                                      isSearchable={true}
+                                      options={wpPagesOptions}
+                                      onChange={(selected) => {
+                                        handleMembershipFieldChange(membership.ID, 'membership_next_tier_form_page_id', selected.value);
+                                      }}
+                                    />
+                                  </FlexBlock>
+                                </MarginedFlex>
+                              }
+
+                              {/* Sequential Logic - Tier ID */}
+                              {membership.data.renewalType === 'sequential_logic' &&
+                                <MarginedFlex>
+                                  <FlexBlock>
+                                    <LabelWpStyled htmlFor="next_tier_id">
+                                      {__('Sequential Tier', 'wicket-memberships')}
+                                    </LabelWpStyled>
+                                    <SelectWpStyled
+                                      id="next_tier_id"
+                                      name="next_tier_id"
+                                      classNamePrefix="select"
+                                      value={wpTierOptions.find(option => option.value == membership.data.membership_next_tier_id)}
+                                      isClearable={false}
+                                      isSearchable={true}
+                                      options={wpTierOptions}
+                                      onChange={(selected) => {
+                                        handleMembershipFieldChange(membership.ID, 'membership_next_tier_id', selected.value);
+                                      }}
+                                    />
+                                  </FlexBlock>
+                                </MarginedFlex>
+                              }
 
                               {memberType === 'organization' && (
                                 <MarginedFlex
@@ -794,10 +912,21 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         <div><Icon icon='info' /></div>
                                       </Tooltip>
                                     </LabelWpStyled>
-                                    <TextControl
-                                      disabled={true}
-                                      value={membership.data.user_name}
+                                    <AsyncSelectWpStyled
+                                      id="membership_owner_id"
+                                      classNamePrefix="select"
+                                      name="new_owner_uuid"
+                                      value={membershipOwnerOptions.find(option => option.value === membership.data.membership_user_uuid)}
+                                      defaultOptions={membershipOwnerOptions}
+                                      loadOptions={loadMembershipOwnerOptions}
+                                      isClearable={false}
+                                      isSearchable={true}
+                                      // isLoading={wcProductOptions.length === 0}
+                                      onChange={selected => {
+                                        handleMembershipFieldChange(membership.ID, 'membership_user_uuid', selected.value);
+                                      }}
                                     />
+
                                     <div style={{ marginTop: '10px' }} >
                                       <Button variant='link'>
                                         {__('View in MDP', 'wicket-memberships')}

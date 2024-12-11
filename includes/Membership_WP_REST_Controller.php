@@ -479,7 +479,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
         if( !empty( $filters['id'] ) && ! in_array( $value['id'], $filters['id'] ) ) {
           continue;
         }
-      $has_category = false;
+        $has_category = true;
         $membership_uuid = $value['id'];
 				$membership_slug = ($value['attributes']['slug']) ?? $value['attributes']['slug'];
 

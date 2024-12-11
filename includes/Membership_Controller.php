@@ -146,7 +146,6 @@ function add_order_item_meta ( $item_id, $values ) {
     }
     if( !empty( $early_renewal_date ) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] )) {
       $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date)));
-      $_SESSION['wicket_membership_error'] = $error_text;
       throw new \Exception( $error_text );
     }
   }
@@ -175,7 +174,14 @@ function add_order_item_meta ( $item_id, $values ) {
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
                 $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
-                $this->processing_renewal = true;
+                if($membership_current['membership_parent_order_id'] == $order_id) {
+                  //this is just an order having their status cycled so we should not create a renewal order on it BUT because
+                  //we are storing the current renewal id on the current subscription item we need to prevent it processing a renewal
+                  unset($membership_post_id_renew);
+                  $membership_current = null;
+                } else {
+                  $this->processing_renewal = true;
+                }
               }
               $dates = $config->get_membership_dates( $membership_current );
               $user_object = get_user_by( 'id', $order->get_user_id() );
@@ -614,10 +620,10 @@ function add_order_item_meta ( $item_id, $values ) {
       $grace_period_days = $meta_data['membership_grace_period_days'];
     }
 
-    if( $meta_data['max_assignments'] == '0' || ! empty( $meta_data['max_assignments'] ) ) {
-      $max_assignments = $meta_data['max_assignments'];
-    } else  if( $meta_data['membership_seats'] == '0' || ! empty( $meta_data['membership_seats'] ) ) {
-      $max_assignments = $meta_data['membership_seats'];
+    if( ! empty( $meta_data['max_assignments'] ) ) {
+      $max_assignments = ! empty( $meta_data['max_assignments'] ) ? $meta_data['max_assignments'] : 0;
+    } else  if( ! empty( $meta_data['membership_seats'] ) ) {
+      $max_assignments =  $meta_data['membership_seats'] == '0'  ? $meta_data['membership_seats'] : 0;
     }
 
     if( $membership['membership_type'] == 'individual' ) {
@@ -702,12 +708,18 @@ function add_order_item_meta ( $item_id, $values ) {
   }
 
   public function update_local_membership_record( $membership_post_id, $meta_data ) {
-    return wp_update_post([
+    $return = wp_update_post([
       'ID' => $membership_post_id,
       'post_type' => $this->membership_cpt_slug,
       'post_status' => 'publish',
       'meta_input'  => $meta_data
     ]);
+    $customer_meta = get_user_meta( $meta_data['user_id'], '_wicket_membership_'.$membership_post_id );
+    if( empty( $customer_meta ) || empty( $customer_meta[0]['membership_post_id']) ) {
+      $customer_meta_array = Helper::get_post_meta( $membership_post_id );
+      update_user_meta( $meta_data['user_id'], '_wicket_membership_'.$membership_post_id, json_encode( $customer_meta_array) );
+    }
+    return $return;
   }
 
   public function get_person_uuid( $user_id ) {
@@ -1125,8 +1137,6 @@ function add_order_item_meta ( $item_id, $values ) {
       $config_id = $Membership_Tier->get_config_id();
       $Membership_Config = new Membership_Config( $config_id );
 
-      //TODO: WE NEED OPTION TO SET OVERRIDE TO FORM PAGE ID ON MEMBERSHIP EDIT PAGE
-      //TODO: WE NEED TO USE THAT VALUE HERE INSTEAD OF LOOKING AT NEXT TIER!!! THIS IS FLAWED
       //always check the membership record ($membership_json_data) for next tier / never look at tier data values
 #      $next_tier_id = !empty($membership_json_data['membership_next_tier_id']) ? $membership_json_data['membership_next_tier_id'] : '';
 #      $next_tier_form_page_id = !empty($membership_json_data['membership_next_tier_form_page_id']) ? $membership_json_data['membership_next_tier_form_page_id'] : '';
@@ -1142,16 +1152,21 @@ function add_order_item_meta ( $item_id, $values ) {
         $debug_comment_eol = '<br>';
       }
 
-      /* This is a renewal of a previous membership so assign a var with both type and next id it so it can be compared to other mships found */
-      /* We are also calculating the end date of the previous membership that we want to match against to remove from the callout response */
+      //TODO: validate that we can remove this method of checking for already renewed memberships, replaced by the NEW method using $renewal_post_id array below.
+      /* PREV: This is a renewal of a previous membership so assign a var with both type and next id it so it can be compared to other mships found */
+      /* PREV: We are also calculating the end date of the previous membership that we want to match against to remove from the callout response */
       if(!empty( $membership_is_renewal )) {
         $ends_at_date = date( "Y-m-d", strtotime( $membership_data['meta']['membership_starts_at'] . "-1 days"));
         $renewal_index_id = !empty($next_tier_id) ? 'nt_'.$next_tier_id : 'nf_'.$next_tier_form_page_id;
+        $renewal_post_id[] = $order_membership_meta['previous_membership_post_id'];
         $membership_renewal_exists[ $renewal_index_id ][ $ends_at_date ] = true;
-        echo "<$debug_comment_hide--";
-        echo 'FOUND a renewal membership:'."membership_renewal_exists[ $renewal_index_id ][ $ends_at_date ]";
-        echo "//-->$debug_comment_eol";
-        continue;
+        //this shortcut to the next iteration was hiding some legitimate renewals, a better method detail above is now being used
+        //original method is still being used but we are letting it flow through (commented lines below) to get caught later if necessary
+        //the new method should be catching all the memberships caught by the old method and all those that have switched tiers.
+#        echo "<$debug_comment_hide--";
+#        echo 'FOUND a renewal membership:'."membership_renewal_exists[ $renewal_index_id ][ $ends_at_date ]";
+#        echo "//-->$debug_comment_eol";
+#        continue;
       }
 
       if(!empty($next_tier_subscription_renewal)) {
@@ -1234,6 +1249,16 @@ function add_order_item_meta ( $item_id, $values ) {
         //if it is *NOT* renewing into the same tier then account center will SHOW A DIRECT add_to_cart FOR EACH PRODUCT assigned to the next tier
       } 
 
+      //this checks the current membership's order meta for the previous_membership_post_id having been set
+      //this was necessary if they change dthe membership tier the previous method misses the renewal because it is using different data
+      if(!empty($renewal_post_id) && in_array( $membership->ID, $renewal_post_id)) {
+        echo "<$debug_comment_hide--";
+        echo 'skipping renew callout for already renewed membership: '.$membership->ID;
+        echo '['.implode(',',$renewal_post_id).']';
+        echo "//-->$debug_comment_eol";
+        continue;
+      }
+       
       if( $current_time >= $membership_early_renew_at && $current_time < $membership_ends_at ) {
         $callout['type'] = 'early_renewal';
         $callout['header'] = $Membership_Config->get_renewal_window_callout_header( $iso_code );

@@ -43,8 +43,9 @@ class Import_Controller {
           } else {
             $membership_post_mapping['membership_wp_user_display_name'] = $user->display_name;
           }
-          $membership_post_mapping['membership_wp_user_display_name'] = $user->display_name;
+          $membership_post_mapping['user_name'] = $membership_post_mapping['membership_wp_user_display_name'];
     	    $membership_post_mapping['membership_wp_user_email'] = $user->user_email;
+          $membership_post_mapping['user_email'] = $membership_post_mapping['membership_wp_user_email'];
           
           $membership_post_mapping['pin'] = $record['Person_Identifying_Number'];
         	$membership_post_mapping['membership_tier_name'] = $record['Membership_Tier'];
@@ -100,8 +101,10 @@ class Import_Controller {
           } else {
             $membership_post_mapping['membership_wp_user_display_name'] = $user->display_name;
           }
-          $membership_post_mapping['membership_wp_user_display_name'] = $user->display_name;
+          $membership_post_mapping['user_name'] = $membership_post_mapping['membership_wp_user_display_name'];
     	    $membership_post_mapping['membership_wp_user_email'] = $user->user_email;
+          $membership_post_mapping['user_email'] = $membership_post_mapping['membership_wp_user_email'];
+
           $membership_post_mapping['pin'] = $record['Organization_Identifying_Number'];
         	
           $membership_post_mapping['membership_tier_name'] = $record['Membership_Tier'];

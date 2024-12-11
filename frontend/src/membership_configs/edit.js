@@ -95,7 +95,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 	}
 
 	/**
-	 * Reinitialize the late fee window callout form with the current form data
+	 * Reinitialize the Grace Period window callout form with the current form data
 	 */
 	const reInitLateFeeWindowCallout = () => {
 		setTempForm(form)
@@ -156,7 +156,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 	}
 
 	const saveLateFeeWindowCallout = () => {
-		console.log('Saving late fee window callout');
+		console.log('Saving Grace Period window callout');
 
 		setForm({
 			...form,
@@ -307,21 +307,18 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 			});
 		}
 
-		// Fetch WooCommerce products
-		WC_PRODUCT_TYPES.forEach((type) => {
-			fetchWcProducts({
-				status: 'publish',
-				per_page: 100,
-				type: type
-			}).then((products) => {
-				const options = products.map((product) => {
-					return {
-						label: `${product.name} | ID: ${product.id}`,
-						value: product.id
-					}
-				});
-				setWcProductOptions((prevOptions) => [...prevOptions, ...options]);
+		// Fetch all WooCommerce products
+		fetchWcProducts({
+			status: 'publish',
+			per_page: 100
+		}).then((products) => {
+			const options = products.map((product) => {
+				return {
+					label: `${product.name} | ID: ${product.id}`,
+					value: product.id
+				}
 			});
+			setWcProductOptions((prevOptions) => [...prevOptions, ...options]);
 		});
 
 	}, []);
@@ -410,7 +407,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 							</Flex>
 						</BorderedBox>
 
-						{/* Late Fee Window */}
+						{/* Grace Period Window */}
 						<BorderedBox>
 							<Flex
 								align='end'
@@ -422,7 +419,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 							>
 								<FlexBlock>
 									<TextControl
-										label={__('Late Fee Window (Days)', 'wicket-memberships')}
+										label={__('Grace Period Window (Days)', 'wicket-memberships')}
 										type="number"
 										min="0"
 										onChange={value => {
@@ -856,10 +853,10 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 					</Modal>
 				)}
 
-				{/* Late Fee Window Callout Modal */}
+				{/* Grace Period Window Callout Modal */}
 				{isLateFeeWindowCalloutModalOpen && (
 					<Modal
-						title={__('Late Fee Window - Callout Configuration', 'wicket-memberships')}
+						title={__('Grace Period Window - Callout Configuration', 'wicket-memberships')}
 						onRequestClose={closeLateFeeWindowCalloutModal}
 						style={
 							{

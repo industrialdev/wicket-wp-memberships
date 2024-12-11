@@ -336,8 +336,20 @@ class Admin_Controller {
       }
       $membership_data = Membership_Controller::get_membership_array_from_user_meta_by_post_id( $membership->ID, $meta['user_id'] );
       if(empty($membership_data)) {
-        $membership_data = Membership_Controller::get_membership_array_from_post( $membership_item['ID'] );
+        $membership_data = Helper::get_post_meta( $membership_item['ID'] );
       }
+      if(empty($membership_data['membership_user_uuid'])) {
+        $membership_data['membership_user_uuid'] = get_post_meta( $membership->ID, 'membership_user_uuid', true);
+      }
+      if(empty($membership_data['membership_next_tier_id'])) {
+        $membership_data['membership_next_tier_id'] = get_post_meta( $membership->ID, 'membership_next_tier_id', true);
+      }
+      if(empty($membership_data['membership_next_tier_form_page_id'])) {
+        $membership_data['membership_next_tier_form_page_id'] = get_post_meta( $membership->ID, 'membership_next_tier_form_page_id', true);
+      }
+      $membership_data['membership_next_tier_id'] = (int) $membership_data['membership_next_tier_id'];
+      $membership_data['membership_next_tier_form_page_id'] = (int) $membership_data['membership_next_tier_form_page_id'];
+      $membership_item['mdp_person_link'] = $wicket_settings['wicket_admin'] . '/people/' . $membership_data['membership_user_uuid'];
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
         $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['name'];
@@ -385,6 +397,18 @@ class Admin_Controller {
 
     $Membership_Controller = new Membership_Controller();
     $membership_post_id = $data['membership_post_id'];
+
+    if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
+      $response_array['error'] = 'Error: '.$ownership_change_response.'Membership update failed. Record not found. ';
+      $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      $response_code = 200;
+      return new \WP_REST_Response($response_array, $response_code);
+    }
+    
+    foreach($data as $key => $value) {
+      $data[ $key ] = sanitize_text_field( $value );
+    }
+
     $membership_post = get_post_meta( $membership_post_id );
 
     if( $membership_post['membership_status'][0] == 'cancelled') {
@@ -396,7 +420,6 @@ class Admin_Controller {
 
     if(!empty($data['new_owner_uuid'])) {
       $user = get_user_by('login', $data['new_owner_uuid']);
-      //var_dump([$user->ID, $membership_post['user_id'][0]]);exit;
       if( empty($user) || $membership_post['user_id'][0] != $user->ID) {
         $response = self::update_membership_change_ownership( $data );
         $response_body = $response->get_data();
@@ -407,8 +430,9 @@ class Admin_Controller {
           $ownership_change_response = 'Failed to change ownership. '.$response_body;
         }
       }
+      unset($data['new_owner_uuid']);
     }
-
+    $data['user_id'] = get_post_meta( $membership_post_id, 'user_id', true );
     if(
         ! array_key_exists( 'membership_starts_at', $data )
         || ! array_key_exists( 'membership_ends_at', $data )
@@ -437,6 +461,16 @@ class Admin_Controller {
       $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
       $grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
 
+      if(!empty($data['next_tier_form_page_id'])) {
+        $data['membership_next_tier_id'] = "";
+        $data['membership_next_tier_form_page_id'] = $data['next_tier_form_page_id'];
+        unset($data['next_tier_form_page_id']);
+      } else if(!empty($data['next_tier_id'])) {
+        $data['membership_next_tier_id'] = $data['next_tier_id'];
+        $data['membership_next_tier_form_page_id'] = "";
+        unset($data['next_tier_id']);
+      }
+
       $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", $membership_starts_at_seconds), wp_timezone() ))->format('c');
       $data[ 'membership_early_renew_at' ]  = (new \DateTime( date("Y-m-d", $membership_early_renew_at_seconds ), wp_timezone() ))->format('c');
       $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", $membership_ends_at_seconds ), wp_timezone() ))->format('c');
@@ -444,12 +478,10 @@ class Admin_Controller {
       $data[ 'membership_grace_period_days' ] = $grace_period_days;
     }
 
-    if ( Helper::is_valid_membership_post( $membership_post_id ) ) {
-      $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
-    }
+    $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
 
     if( empty( $local_response ) || is_wp_error( $local_response ) ) {
-      $response_array['error'] = 'Error: '.$ownership_change_response.'Membership update failed. ';
+      $response_array['error'] = 'Error: '.$ownership_change_response.'Membership update failed. Record not updated. ';
       $response_array['response'] = Helper::get_post_meta( $membership_post_id );
       $response_code = 200;
       return new \WP_REST_Response($response_array, $response_code);
