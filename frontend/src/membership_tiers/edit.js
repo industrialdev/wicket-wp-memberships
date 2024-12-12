@@ -15,9 +15,10 @@ const MarginedFlex = styled(Flex)`
 	margin-top: 15px;
 `;
 
-const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId, productsInUse, individualListUrl, orgListUrl, languageCodes }) => {
+const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId, productsInUse, productVariationsInUse, individualListUrl, orgListUrl, languageCodes }) => {
 
 	const languageCodesArray = languageCodes.split(',');
+	const productVariationsInUseArray = productVariationsInUse.split(',');
 
 	const [currentApprovalCalloutLocale, setCurrentApprovalCalloutLocale] = useState(languageCodesArray[0]);
 
@@ -618,8 +619,8 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 												products={form.product_data}
 												limit={99}
 												productsInUse={productsInUse}
-												productListLabel={'Granted Via'}
-
+												productVariationsInUse={productVariationsInUseArray}
+												productListLabel={__('Granted Via', 'wicket-memberships')}
 											/>
 										</>
 									)}
@@ -654,6 +655,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 															limit={1}
 															products={form.product_data}
 															productsInUse={productsInUse}
+															productVariationsInUse={productVariationsInUseArray}
 														/>
 													</>
 												)}
@@ -665,6 +667,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 															maxRangeEnabled={true}
 															products={form.product_data}
 															productsInUse={productsInUse}
+															productVariationsInUse={productVariationsInUseArray}
 															productListLabel={'Seats Data'}
 														/>
 													</>

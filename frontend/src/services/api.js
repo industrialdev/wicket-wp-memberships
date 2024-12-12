@@ -133,11 +133,8 @@ export const fetchWcProducts = (queryParams = {}) => {
 /**
  * Fetch WooCommerce Product Variations
  */
-export const fetchProductVariations = (productId) => {
+export const fetchProductVariations = (productId, queryParams = {}) => {
   return apiFetch({ path:
-    addQueryArgs(`${WC_API_V3_URL}/products/${productId}/variations`, {
-      per_page: 100,
-      status: 'publish'
-    })
+    addQueryArgs(`${WC_API_V3_URL}/products/${productId}/variations`, queryParams)
   });
 }
