@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.71 =
+* Date Dec 12 2024
+* Do not exclude the "variable products" from the Tier product list if some of them are already in use by other Tiers
+
 = 1.0.70 =
 * Date Dec 9 2024
 * Bugfixes

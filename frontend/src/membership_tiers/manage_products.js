@@ -15,7 +15,8 @@ const ManageTierProducts = ({
     maxRangeEnabled = false,
     products = [],
     limit = -1,
-    productsInUse = [],
+    productsInUse = '',
+    productVariationsInUse = [],
     productListLabel = ''
   }) => {
 
@@ -36,19 +37,19 @@ const ManageTierProducts = ({
   const getAllWcProducts = async () => {
     const promises = WC_PRODUCT_TYPES.map((type) =>
       fetchWcProducts({
-          status: 'publish',
-          per_page: 100,
-          exclude: productsInUse,
-          type: type
+        status: 'publish',
+        per_page: 100,
+        exclude: productsInUse,
+        type: type
       })
     );
 
     try {
       const results = await Promise.all(promises);
       const options = results.flat().map((product) => ({
-          label: `${product.name} | ID: ${product.id}`,
-          value: product.id,
-          type: product.type
+        label: `${product.name} | ID: ${product.id}`,
+        value: product.id,
+        type: product.type
       }));
 
       setWcProductOptions(options);
@@ -111,7 +112,13 @@ const ManageTierProducts = ({
 		// check if we already have variations for this product
 		if (productId === null || productVariations[productId]) { return; }
 
-		fetchProductVariations(productId).then((variations) => {
+		fetchProductVariations(
+      productId, 
+      {
+        per_page: 100,
+        status: 'publish',
+        exclude: productVariationsInUse
+      }).then((variations) => {
 			setProductVariations({
 				...productVariations,
 				[productId]: variations
@@ -130,7 +137,6 @@ const ManageTierProducts = ({
 			newErrors.push(__('Product is required', 'wicket-memberships'));
 			isValid = false;
 		} else {
-
       // check if the selected product is a variable subscription
       const product = wcProductOptions.find(option => option.value === tempProduct.product_id);
 
@@ -144,7 +150,6 @@ const ManageTierProducts = ({
 			newErrors.push(__('Range maximum value cannot be less than 0', 'wicket-memberships'));
 			isValid = false;
 		}
-
 
 		if (parseInt(tempProduct.max_seats) === NaN) {
 			newErrors.push(__('Range maximum value must be a number', 'wicket-memberships'));
