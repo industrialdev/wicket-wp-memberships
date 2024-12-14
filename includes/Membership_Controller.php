@@ -183,6 +183,15 @@ function add_order_item_meta ( $item_id, $values ) {
                   $this->processing_renewal = true;
                 }
               }
+              switch(  $membership_tier->get_tier_renewal_type() ) {
+                case 'subscription':
+                  $membership_next_tier_id = 0;
+                  $membership_next_tier_form_page_id = 0;
+                  break;
+                default:
+                  $membership_next_tier_id = $membership_tier->get_next_tier_id();
+                  $membership_next_tier_form_page_id = $membership_tier->get_next_tier_form_page_id();
+              }
               $dates = $config->get_membership_dates( $membership_current );
               $user_object = get_user_by( 'id', $order->get_user_id() );
               $membership = [
@@ -192,8 +201,9 @@ function add_order_item_meta ( $item_id, $values ) {
                 'membership_tier_post_id' => $membership_tier->get_membership_tier_post_id(),
                 'membership_tier_name' => $membership_tier->tier_data['mdp_tier_name'],
                 'membership_tier_uuid' => $membership_tier->tier_data['mdp_tier_uuid'],
-                'membership_next_tier_id' => $membership_tier->get_next_tier_id(),
-                'membership_next_tier_form_page_id' => $membership_tier->get_next_tier_form_page_id(),
+                'membership_next_tier_id' => $membership_next_tier_id,
+                'membership_next_tier_form_page_id' => $membership_next_tier_form_page_id,
+                'membership_next_tier_subscription_renewal' => $membership_tier->is_renewal_subscription(),
                 'membership_type' => $membership_tier->tier_data['type'],
                 'membership_starts_at' => $dates['start_date'],
                 'membership_ends_at' =>  $dates['end_date'],
@@ -770,6 +780,7 @@ function add_order_item_meta ( $item_id, $values ) {
       'membership_tier_post_id' => $membership['membership_tier_post_id'],
       'membership_next_tier_id' => $membership['membership_next_tier_id'],
       'membership_next_tier_form_page_id' => $membership['membership_next_tier_form_page_id'],
+      'membership_next_tier_subscription_renewal' => $membership['membership_next_tier_subscription_renewal'],
       'membership_wicket_uuid' => $membership_wicket_uuid,
       'user_name' => $membership['membership_wp_user_display_name'],
       'user_email' => $membership['membership_wp_user_email'],
@@ -1319,6 +1330,29 @@ function add_order_item_meta ( $item_id, $values ) {
       return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
     }
     return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'debug' => $debug, 'membership_exists' => $membership_exists ];
+  }
+
+  public function add_late_fee_product_to_subscription_renewal_order($subscription_id) {
+    if (!empty($subscription_id)) {
+      $sub = wcs_get_subscription( $subscription_id );
+      $membership_tier_post_id = get_post_meta($subscription_id, '_membership_tier_post_id', true);
+      $Membership_Tier = new Membership_Tier( $membership_tier_post_id );
+      $config_id = $Membership_Tier->get_config_id();
+      $Membership_Config = new Membership_Config( $config_id );
+      $late_fee_product_id = $Membership_Config->get_late_fee_window_product_id();
+      $product_exists = false;
+      foreach ($sub->get_items() as $item_id => $item) {
+          if ($item->get_product_id() == $late_fee_product_id) {
+              $product_exists = true;
+              break;
+          }
+      }
+      if (empty($product_exists)) {
+          $sub->add_product(wc_get_product($late_fee_product_id), 1);
+          $sub->calculate_totals();
+          $sub->save();
+      }
+    }
   }
 
   public function get_members_list_group_by_filter($groupby){
