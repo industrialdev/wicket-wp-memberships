@@ -83,7 +83,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 	const renewalTypeOptions = [
 		{ label: __('Inherited from Tier', 'wicket-memberships'), value: 'inherited' },
 		{ label: __('Sequential Logic', 'wicket-memberships'), value: 'sequential_logic' },
-		{ label: __('Renewal Form Flow', 'wicket-memberships'), value: 'form_flow' }
+		{ label: __('Renewal Form Flow', 'wicket-memberships'), value: 'form_flow' },
+		{ label: __('Subscription Renewal', 'wicket-memberships'), value: 'subscription' }
 	];
 
   const [isLoading, setIsLoading] = useState(true);
@@ -214,6 +215,10 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
           if ( [0, false].indexOf(membership.data.membership_next_tier_id) === -1 ) {
             membership.data.renewalType = 'sequential_logic';
+          }
+
+          if ( membership.data.membership_next_tier_subscription_renewal == 1 ) {
+            membership.data.renewalType = 'subscription';
           }
 
           // Set initial membership owner options
