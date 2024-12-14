@@ -25,7 +25,8 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	const renewalTypeOptions = [
 		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' },
 		{ label: __('Sequential Logic', 'wicket-memberships'), value: 'sequential_logic' },
-		{ label: __('Renewal Form Flow', 'wicket-memberships'), value: 'form_flow' }
+		{ label: __('Renewal Form Flow', 'wicket-memberships'), value: 'form_flow' },
+		{ label: __('Subscription', 'wicket-memberships'), value: 'subscription' }
 	];
 
 	const [isApprovalCalloutModalOpen, setApprovalCalloutModalOpen] = useState(false);
@@ -65,7 +66,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		next_tier_id: '',
 		next_tier_form_page_id: '',
 		config_id: '',
-		renewal_type: 'current_tier', // current_tier, sequential_logic, form_flow
+		renewal_type: 'current_tier', // current_tier, sequential_logic, form_flow, subscription
 		type: '', // orgranization, individual
 		seat_type: 'per_seat', // per_seat, per_range_of_seats
 		product_data: [], // { product_id:, max_seats:, variation_id: }
@@ -107,10 +108,12 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		});
 
 		// next_tier_id should be empty if current_tier is selected
+    // all next tier ids should be cleared if subscription selected
 		const newForm = {
 			...form,
 			product_data: productData,
-			next_tier_id: form.renewal_type === 'current_tier' ? '' : form.next_tier_id,
+			next_tier_id: form.renewal_type === 'current_tier' || form.renewal_type === 'subscription' ? '' : form.next_tier_id,
+			next_tier_form_page_id: form.renewal_type === 'sequential_logic' || form.renewal_type === 'subscription' ? '' : form.next_tier_form_page_id,
 		};
 
 		apiFetch({
@@ -319,7 +322,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 				let initialRenewalType = 'sequential_logic';
 
-				if ( nextTierFormPageId !== 0 ) {
+				if ( post.tier_data.renewal_type === 'subscription') {
+					initialRenewalType = 'subscription';
+				} else if ( nextTierFormPageId !== 0 ) {
 					initialRenewalType = 'form_flow';
 				} else if ( nextTierId === parseInt(postId) ) {
 					initialRenewalType = 'current_tier';
