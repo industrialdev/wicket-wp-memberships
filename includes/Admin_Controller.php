@@ -379,10 +379,12 @@ class Admin_Controller {
           }
           if( function_exists( 'wcs_get_subscription' )) {
             $sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
+            if(!empty( $sub )) {
             $membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
             $membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
             $membership_item['subscription']['status'] = $sub->get_status();
             $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub->get_time('next_payment')), wp_timezone() ))->format('Y-m-d');
+            }
           }  
         }
       }
@@ -563,6 +565,47 @@ class Admin_Controller {
     update_post_meta( $membership_post_id, 'user_email', $user->user_email );
     update_post_meta( $membership_post_id, 'user_id', $user->ID );
     update_post_meta( $membership_post_id, 'membership_user_uuid', $new_owner_uuid );
+    wp_update_post(['ID'=>$membership_post_id,'post_author' => $user->ID]);
+
+    //Here we are changing ownership of order/subscription because memberships will 'assign the order owner to the membership' if regenerated
+
+    if( $order_id = get_post_meta( $membership_post_id, 'membership_parent_order_id', true)) {
+      if(!empty($order_id)) {
+        $order = wc_get_order( $order_id );
+        if(!empty($order)) {
+          $order_meta = get_post_meta( $order_id, '_wicket_membership_'.$membership['membership_product_id'] );
+          $order_meta_array = json_decode( $order_meta[0], true);
+          $order_meta_array['membership_wp_user_id'] = $user->ID;
+          $order_meta_array['membership_wp_user_display_name'] = $user->display_name;
+          $order_meta_array['membership_wp_user_email'] = $user->user_email;
+          $order_meta_array['membership_user_uuid'] = $new_owner_uuid;
+          update_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $order_meta_array) );
+
+          $order->set_customer_id($user->ID);
+          $order->save();
+          $order->add_order_note( "Reassigning customer to {$user->user_email} on membership ownership change.");
+        }
+      }
+    }
+
+    if( $subscription_id = get_post_meta( $membership_post_id, 'membership_subscription_id', true)) {
+      if(!empty($subscription_id)) {
+        $sub = wcs_get_subscription( $subscription_id );
+        if( !empty( $sub )) {
+          $subscription_meta = get_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] );
+          $subscription_meta_array = json_decode( $subscription_meta[0], true);
+          $subscription_meta_array['user_id'] = $user->ID;
+          $subscription_meta_array['user_name'] = $user->display_name;
+          $subscription_meta_array['user_email'] = $user->user_email;
+          $subscription_meta_array['membership_user_uuid'] = $new_owner_uuid;
+          update_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );  
+    
+          $sub->set_customer_id($user->ID);
+          $sub->save();
+          $sub->add_order_note( "Reassigning customer to {$user->user_email} on membership ownership change.");
+        }  
+      }
+    }
 
     $new_customer_meta = get_user_meta( $user->ID, '_wicket_membership_'.$membership_post_id, true );
     $old_customer_meta = get_user_meta( $membership['user_id'], '_wicket_membership_'.$membership_post_id, true );
