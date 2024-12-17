@@ -27,6 +27,21 @@ class Utilities {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
   }
 
+  static function wicket_logger( $message, $data = [], $format = 'json', $logFile = "mship_error.log"){
+    if(0 && 'development' == wp_get_environment_type()) {
+      $date = new \DateTime();
+      $date = $date->format("Y-m-d H:i:s") . ' ';
+      if(!is_array($data)) {
+        $data = [$data];
+      }
+      $formatted_data = $format == 'json' ? json_encode($data) : print_r($data, true);
+      $message = $date.'MSHIP: '.$message.' : '.$formatted_data;
+      $message .= PHP_EOL;
+      $path = defined('WP_PLUGIN_DIR') ? WP_PLUGIN_DIR.'/../../' : getcwd();
+      file_put_contents($path.'/'.$logFile, $message, FILE_APPEND);
+    }
+  }
+
   function handle_wp_delete_user( $user_id, $reassign = false, $user = false) {
     $args = array(
       'post_type' => $this->membership_cpt_slug,
