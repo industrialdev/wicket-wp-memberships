@@ -3,6 +3,7 @@
 namespace Wicket_Memberships;
 
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Config;
 
@@ -160,6 +161,7 @@ function add_order_item_meta ( $item_id, $values ) {
     
     $subscriptions = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
     //$subscriptions_ids = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
+    Utilities::wicket_logger( '^get_memberships_data_from_subscription_products orderID', [$order_id]);
     foreach( $subscriptions as $subscription_id => $subscription ) {
         $subscription_products = $subscription->get_items();
         foreach( $subscription_products as $item ) {
@@ -174,6 +176,12 @@ function add_order_item_meta ( $item_id, $values ) {
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
                 $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
+                if(! Helper::has_next_payment_date($membership_current)) {
+                  Utilities::wicket_logger( '--monthly-- skip renew for membership postID', $membership_post_id_renew);
+                  continue;
+                } else {
+                  Utilities::wicket_logger( 'processing renewal for membership postID', $membership_post_id_renew);
+                }
                 if($membership_current['membership_parent_order_id'] == $order_id) {
                   //this is just an order having their status cycled so we should not create a renewal order on it BUT because
                   //we are storing the current renewal id on the current subscription item we need to prevent it processing a renewal
@@ -519,12 +527,12 @@ function add_order_item_meta ( $item_id, $values ) {
     } else {
       //set the scheduled tasks
       $self->scheduler_dates_for_expiry( $membership );
-      //update subscription dates (only use next_payment_date on self renewals)
       $date_flags_array = [ 'start_date', 'end_date' ];
-      if( !empty($membership['membership_tier_post_id']) && !empty($membership['membership_next_tier_id']) 
-        && $membership['membership_tier_post_id'] == $membership['membership_next_tier_id']) {
-          $date_flags_array[] = 'next_payment_date';
+      
+      if( $has_next_payment_date = Helper::has_next_payment_date( $membership )) {
+        $date_flags_array['next_payment_date'] = $has_next_payment_date;
       }
+
       $self->update_membership_subscription( $membership, $date_flags_array );
       $membership_post_data = Helper::get_post_meta( $membership['membership_post_id'] );
       do_action('wicket_membership_created_mdp', $membership_post_data);
@@ -566,6 +574,8 @@ function add_order_item_meta ( $item_id, $values ) {
    */
   public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ] ) {
     if( function_exists( 'wcs_get_subscription' )) {
+      Utilities::wicket_logger( 'update_membership_subscription', $fields);
+
       //$start_date   = $membership['membership_starts_at'];
       $end_date     = $membership['membership_ends_at'];
       $expire_date  = $membership['membership_expires_at'];
@@ -593,18 +603,27 @@ function add_order_item_meta ( $item_id, $values ) {
       $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
       if( !empty( $sub )) {
         try {
-          $clear_dates_to_update['next_payment'] = '';
-          $sub->update_dates($clear_dates_to_update);
+//          We previously did this value being cleared before updating because it prevented changing end date
+//          NOW we need to keep it in the case it is monthly renewal for an annual membership        
+          if(!empty($fields['next_payment_date']) && ($fields['next_payment_date'] == 'clear')) {
+            $clear_dates_to_update['next_payment'] = '';
+            $sub->update_dates($clear_dates_to_update);
+            unset($dates_to_update['next_payment']);
+          }
           $sub->update_dates($dates_to_update);
           $order_note = 'Membership ' .$membership['membership_post_id'].' changed these subscription dates. ';
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
-          $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+          if(!empty($dates_to_update['next_payment'])) {
+            $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+          }
           $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
           $sub->add_order_note($order_note);
         } catch (\Exception $e) {
           $order_note = 'Membership ' .$membership['membership_post_id'].' attempted to change these subscription dates. '.$e->getMessage();
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
-          $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+          if(!empty($dates_to_update['next_payment'])) {
+            $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+          }
           $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
           $sub->add_order_note($order_note);
           return 'ERROR on Subscription Update: '. $e->getMessage();
@@ -1321,9 +1340,9 @@ function add_order_item_meta ( $item_id, $values ) {
 
       }
       $timing_debug = ( ( strtotime($membership_data['meta']['membership_ends_at']) - $current_time ) / 86400 ) > 0 ? ' in ' : ' was ';
-      echo "<$debug_comment_hide--";
-      echo "Renewal start" . $timing_debug . (int) ( ( strtotime($membership_data['meta']['membership_ends_at']) - $current_time ) / 86400 ) . ' days';
-      echo "//-->$debug_comment_eol";
+      #echo "<$debug_comment_hide--";
+      #echo "Renewal start" . $timing_debug . (int) ( ( strtotime($membership_data['meta']['membership_ends_at']) - $current_time ) / 86400 ) . ' days';
+      #echo "//-->$debug_comment_eol";
     }
 
     if(!empty($_ENV['WICKET_MSHIP_DISABLE_RENEWALS'])) {
