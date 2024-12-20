@@ -28,7 +28,7 @@ class Utilities {
   }
 
   static function wicket_logger( $message, $data = [], $format = 'json', $logFile = "mship_error.log"){
-    if(0 && 'development' == wp_get_environment_type()) {
+    if('development' == wp_get_environment_type()) {
       $date = new \DateTime();
       $date = $date->format("Y-m-d H:i:s") . ' ';
       if(!is_array($data)) {
