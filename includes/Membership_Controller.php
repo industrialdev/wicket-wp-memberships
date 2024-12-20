@@ -176,19 +176,21 @@ function add_order_item_meta ( $item_id, $values ) {
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
                 $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
-                if(! Helper::has_next_payment_date($membership_current)) {
-                  Utilities::wicket_logger( '--monthly-- skip renew for membership postID', $membership_post_id_renew);
-                  continue;
-                } else {
-                  Utilities::wicket_logger( 'processing renewal for membership postID', $membership_post_id_renew);
-                }
-                if($membership_current['membership_parent_order_id'] == $order_id) {
+                Utilities::wicket_logger( 'processing order - membership_current object from user meta ', [$membership_current]);
+                if(empty($membership_current['membership_parent_order_id']) || $membership_current['membership_parent_order_id'] == $order_id) {
                   //this is just an order having their status cycled so we should not create a renewal order on it BUT because
                   //we are storing the current renewal id on the current subscription item we need to prevent it processing a renewal
                   unset($membership_post_id_renew);
                   $membership_current = null;
                 } else {
                   $this->processing_renewal = true;
+                  if(! Helper::has_next_payment_date($membership_current)) {
+                    $order->add_order_note( 'Monthly payment order against membership ID: '. $membership_post_id_renew);
+                    Utilities::wicket_logger( '--monthly-- skip renew for membership postID', $membership_post_id_renew);
+                    continue;
+                  } else {
+                    Utilities::wicket_logger( 'processing renewal for membership postID', $membership_post_id_renew);
+                  }  
                 }
               }
               switch(  $membership_tier->get_tier_renewal_type() ) {
@@ -262,6 +264,7 @@ function add_order_item_meta ( $item_id, $values ) {
               $membership['order_meta_id'] = $order_meta_id;
               $membership['subscription_meta_id'] = $subscription_meta_id;
               $memberships[] = $membership;
+              Utilities::wicket_logger( 'processing order - membership created', [$membership_post_id_renew, $membership]);
           }
         }
       }
@@ -507,6 +510,7 @@ function add_order_item_meta ( $item_id, $values ) {
     
     //always create the local membership record to get post_id
     $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $membership_wicket_uuid );
+    Utilities::wicket_logger( 'create local membership - postID', $membership['membership_post_id']);
 
     //we are pending approval so change some statuses and send email
     if( $tier->is_approval_required() && ! $self->processing_renewal ) {
@@ -961,6 +965,11 @@ function add_order_item_meta ( $item_id, $values ) {
       'post_status' => 'publish',
       'posts_per_page' => -1,
       'meta_query'     => array(
+        array(
+          'key'     => 'membership_parent_order_id',
+          'value'   => $membership['membership_parent_order_id'],
+          'compare' => '='
+        ),
         array(
           'key'     => 'user_id',
           'value'   => $membership['user_id'],
