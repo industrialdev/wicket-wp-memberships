@@ -301,20 +301,21 @@ class Membership_Config {
     $cycle_data = $this->get_cycle_data();
     if( $cycle_data['cycle_type'] == 'anniversary' ) {
       $dates['start_date'] = $this->get_anniversary_start_date( $membership );
+      $period_count  = ! empty( $cycle_data['anniversary_data']["period_count"] ) && is_numeric ($cycle_data['anniversary_data']["period_count"]) ? $cycle_data['anniversary_data']["period_count"] : 1; 
       $period_type  = !in_array( $cycle_data['anniversary_data']["period_type"], ['year','month','day'] )
                         ? 'year' : $cycle_data['anniversary_data']["period_type"];
-      $the_end_date = date("Y-m-d", strtotime($dates['start_date'] . "+1 ".$period_type));
+      $the_end_date = date("Y-m-d", strtotime($dates['start_date'] . "+".$period_count . " " . $period_type));
       if( in_array( $period_type, ['year', 'month'])
           && (! empty($cycle_data['anniversary_data']['align_end_dates_enabled']) && $cycle_data['anniversary_data']['align_end_dates_enabled'] !== false ) ) {
         switch( $cycle_data['anniversary_data']["align_end_dates_type"] ) {
           case 'first-day-of-month':
-            $the_end_date = date("Y-m-1", strtotime($dates['start_date'] . "+1 ".$period_type));
+            $the_end_date = date("Y-m-1", strtotime($dates['start_date'] . "+".$period_count . " ".$period_type));
             break;
           case '15th-of-month':
-            $the_end_date = date("Y-m-15", strtotime($dates['start_date'] . "+1 ".$period_type));
+            $the_end_date = date("Y-m-15", strtotime($dates['start_date'] . "+".$period_count . " ".$period_type));
             break;
           case 'last-day-of-month':
-            $the_end_date = date("Y-m-t", strtotime($dates['start_date'] . "+1 ".$period_type));
+            $the_end_date = date("Y-m-t", strtotime($dates['start_date'] . "+".$period_count . " ".$period_type));
             break;
         }
       }
