@@ -28,8 +28,8 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
-= 1.0.73 =
-* Date Dec 30 2024
+= 1.0.74 =
+* Date Dec 31 2024
 * Bugfix
 
 = 1.0.71 =
