@@ -1382,7 +1382,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $tier_meta = get_post_meta( $tier->ID );
       $user_id = $tier_meta['user_id'][0];
       $user = get_userdata( $user_id );
-      if(empty($user)) {
+      if(empty($user) || is_bool($user)) {
         continue;
       }
       $tier_new_meta = [];
