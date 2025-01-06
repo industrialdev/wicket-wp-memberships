@@ -743,9 +743,10 @@ function add_order_item_meta ( $item_id, $values ) {
       $status = Wicket_Memberships::STATUS_ACTIVE;
     }
 
+    $current_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
     if( ! $this->processing_renewal && ! $skip_approval && (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
       $status = Wicket_Memberships::STATUS_PENDING;
-    } else if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
+    } else if( strtotime( $membership['membership_starts_at'] ) > strtotime( $current_date ) ) {
       $status = Wicket_Memberships::STATUS_DELAYED;
     }
 

@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.77 =
+* Date Jan 6 2025
+* Bugfix
+
 = 1.0.76 =
 * Date Jan 5 2025
 * Current-Tier and Inherited-Tier added as Membership Page Edit options
