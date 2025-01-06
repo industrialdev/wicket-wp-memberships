@@ -784,9 +784,10 @@ function add_order_item_meta ( $item_id, $values ) {
       $status = Wicket_Memberships::STATUS_ACTIVE;
     }
 
+    $current_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
     if( ! $this->processing_renewal && ! $skip_approval && (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
       $status = Wicket_Memberships::STATUS_PENDING;
-    } else if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
+    } else if( strtotime( $membership['membership_starts_at'] ) > strtotime( $current_date ) ) {
       $status = Wicket_Memberships::STATUS_DELAYED;
     }
 
@@ -1472,6 +1473,10 @@ function add_order_item_meta ( $item_id, $values ) {
     foreach( $tiers->posts as $tier ) {
       $tier_meta = get_post_meta( $tier->ID );
       $user_id = $tier_meta['user_id'][0];
+      $user = get_userdata( $user_id );
+      if(empty($user) || is_bool($user)) {
+        continue;
+      }
       $tier_new_meta = [];
       array_walk(
         $tier_meta,
@@ -1484,7 +1489,6 @@ function add_order_item_meta ( $item_id, $values ) {
         }
       );  
       $tier->meta = $tier_new_meta;
-        $user = get_userdata( $user_id );
         if( $user->display_name == $user->user_login ) {
           $user->display_name = $user->first_name . ' ' . $user->last_name;
         }
@@ -1518,8 +1522,9 @@ function add_order_item_meta ( $item_id, $values ) {
             $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/organizations/' . $tier->meta['org_uuid'];
           }
         }
+        $members_list[] = $tier;
       }
-    return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => $tiers->found_posts ];
+    return [ 'results' => $members_list, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => $tiers->found_posts ];
   }
 
   public static function get_tier_info( $tier_uuids, $properties = [] ) {

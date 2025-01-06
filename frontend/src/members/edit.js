@@ -84,7 +84,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 		{ label: __('Inherited from Tier', 'wicket-memberships'), value: 'inherited' },
 		{ label: __('Sequential Logic', 'wicket-memberships'), value: 'sequential_logic' },
 		{ label: __('Renewal Form Flow', 'wicket-memberships'), value: 'form_flow' },
-		{ label: __('Subscription Renewal', 'wicket-memberships'), value: 'subscription' }
+		{ label: __('Subscription Renewal', 'wicket-memberships'), value: 'subscription' },
+		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' }
 	];
 
   const [isLoading, setIsLoading] = useState(true);
@@ -207,18 +208,26 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
           membership.updateResult = '';
 
           // set renewal type
-          membership.data.renewalType = 'inherited';
-
-          if ( [0, false].indexOf(membership.data.membership_next_tier_form_page_id) === -1 ) {
+          if ( membership.data.renewal_type === 'form_flow' || ( /*membership.data.renewal_type === undefined &&*/ [0, false].indexOf(membership.data.membership_next_tier_form_page_id) === -1 )) {
             membership.data.renewalType = 'form_flow';
           }
 
-          if ( [0, false].indexOf(membership.data.membership_next_tier_id) === -1 ) {
+          if ( membership.data.renewal_type === 'sequential_logic' || ( /*membership.data.renewal_type === undefined &&*/ [0, false].indexOf(membership.data.membership_next_tier_id) === -1 && membership.data.membership_tier_post_id != membership.data.membership_next_tier_id)) {
             membership.data.renewalType = 'sequential_logic';
           }
-
           if ( membership.data.membership_next_tier_subscription_renewal == 1 ) {
             membership.data.renewalType = 'subscription';
+          }
+
+          if ( membership.data.renewal_type === 'current_tier' || ( /*membership.data.renewal_type === undefined &&*/ [0, false].indexOf(membership.data.membership_next_tier_id) === -1 && membership.data.membership_tier_post_id == membership.data.membership_next_tier_id)) {
+            membership.data.renewalType = 'current_tier';
+          }
+
+          if( membership.data.renewal_type === undefined || membership.data.renewal_type === 'inherited')  {
+            if( membership.data.renewalType !== undefined) {
+              membership.data.tierRenewalType = membership.data.renewalType;
+            }
+            membership.data.renewalType = 'inherited';
           }
 
           // Set initial membership owner options
@@ -811,6 +820,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       handleMembershipFieldChange(membership.ID, 'renewalType', selected.value);
                                     }}
                                   />
+
+                              { (membership.data.renewalType === 'inherited' && membership.data.tierRenewalType !== undefined ) &&
+                                  <FlexItem>
+                                      {__('Inherited Renewal Type: ', 'wicket-memberships')}  <strong>{ (renewalTypeOptions.find(option => option.value == membership.data.tierRenewalType)).label }</strong>
+                                  </FlexItem>
+                              }
+
                                 </FlexBlock>
                               </MarginedFlex>
 

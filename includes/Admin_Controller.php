@@ -490,6 +490,15 @@ class Admin_Controller {
         $data['membership_next_tier_subscription_renewal'] = 0;
         unset($data['next_tier_id']);
       }
+      if($data['renewal_type'] == 'current_tier') {
+        $data['membership_next_tier_id'] = $membership_post['membership_tier_post_id'][0];
+        $data['membership_next_tier_form_page_id'] = "";
+      }
+
+      if($data['renewal_type'] == 'inherited') {
+        $data['membership_next_tier_id'] = $membership_tier->get_next_tier_id();
+        $data['membership_next_tier_form_page_id'] = $membership_tier->get_next_tier_form_page_id();
+      }
 
       $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", $membership_starts_at_seconds), wp_timezone() ))->format('c');
       $data[ 'membership_early_renew_at' ]  = (new \DateTime( date("Y-m-d", $membership_early_renew_at_seconds ), wp_timezone() ))->format('c');
