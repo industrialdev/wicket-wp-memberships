@@ -215,7 +215,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
           if ( membership.data.renewal_type === 'sequential_logic' || ( /*membership.data.renewal_type === undefined &&*/ [0, false].indexOf(membership.data.membership_next_tier_id) === -1 && membership.data.membership_tier_post_id != membership.data.membership_next_tier_id)) {
             membership.data.renewalType = 'sequential_logic';
           }
-          if ( membership.data.membership_next_tier_subscription_renewal == 1 ) {
+          if ( membership.data.renewal_type === 'subscription' ||  [0, false].indexOf(membership.data.membership_next_tier_subscription_renewal) === -1 ) {
             membership.data.renewalType = 'subscription';
           }
 

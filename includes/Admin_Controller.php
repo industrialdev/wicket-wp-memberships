@@ -350,8 +350,8 @@ class Admin_Controller {
       if(empty($membership_data['membership_next_tier_id'])) {
         $membership_data['membership_next_tier_id'] = get_post_meta( $membership->ID, 'membership_next_tier_id', true);
       }
-      if(empty($membership_data['membership_next_tier_form_page_id'])) {
-        $membership_data['membership_next_tier_form_page_id'] = get_post_meta( $membership->ID, 'membership_next_tier_form_page_id', true);
+      if(empty($membership_data['membership_next_tier_subscription_renewal'])) {
+        $membership_data['membership_next_tier_subscription_renewal'] = get_post_meta( $membership->ID, 'membership_next_tier_subscription_renewal', true);
       }
       $membership_data['membership_next_tier_id'] = (int) $membership_data['membership_next_tier_id'];
       $membership_data['membership_next_tier_form_page_id'] = (int) $membership_data['membership_next_tier_form_page_id'];
