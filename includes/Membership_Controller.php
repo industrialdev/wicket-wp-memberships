@@ -429,19 +429,22 @@ function add_order_item_meta ( $item_id, $values ) {
     }
   }
 
-  function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
-    $membership = $this->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
-    $this->membership_early_renew_at_date_reached( $membership );
+  public static function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
+    $self = new self();
+    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    $self->membership_early_renew_at_date_reached( $membership );
   }
 
-  function catch_membership_ends_at( $membership_parent_order_id, $membership_product_id ) {
-    $membership = $this->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
-    $this->membership_ends_at_date_reached( $membership );
+  public static function catch_membership_ends_at( $membership_parent_order_id, $membership_product_id ) {
+    $self = new self();
+    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    $self->membership_ends_at_date_reached( $membership );
   }
 
-  function catch_membership_expires_at( $membership_parent_order_id, $membership_product_id ) {
-    $membership = $this->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
-    $this->membership_expires_at_date_reached( $membership );
+  public static function catch_membership_expires_at( $membership_parent_order_id, $membership_product_id ) {
+    $self = new self();
+    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    $self->membership_expires_at_date_reached( $membership );
   }
 
   public function membership_early_renew_at_date_reached( $membership ) {
@@ -894,12 +897,13 @@ function add_order_item_meta ( $item_id, $values ) {
    * @param integer $new_membership_post_id
    * @return void
    */
-  public function catch_expire_current_membership( $previous_membership_post_id, $new_membership_post_id = 0 ) {
+  public static function catch_expire_current_membership( $previous_membership_post_id, $new_membership_post_id = 0 ) {
+    $self = new self();
     if( ! empty( $previous_membership_post_id ) ) {
-      $this->update_membership_status( $previous_membership_post_id, Wicket_Memberships::STATUS_EXPIRED );
+      $self->update_membership_status( $previous_membership_post_id, Wicket_Memberships::STATUS_EXPIRED );
     }
     if( ! empty( $new_membership_post_id ) ) {
-      $this->update_membership_status( $new_membership_post_id, Wicket_Memberships::STATUS_ACTIVE );
+      $self->update_membership_status( $new_membership_post_id, Wicket_Memberships::STATUS_ACTIVE );
     }
   }
 
