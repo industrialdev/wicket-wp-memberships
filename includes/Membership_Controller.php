@@ -773,6 +773,7 @@ function add_order_item_meta ( $item_id, $values ) {
       'membership_parent_order_id' => $membership['membership_parent_order_id'],
       'membership_product_id' => $membership['membership_product_id'],
       'membership_subscription_id' => $membership['membership_subscription_id'],
+      'previous_membership_post_id' => $membership['previous_membership_post_id'],
     ];
     if( $membership['membership_type'] == 'organization') {
       $org_data = Helper::get_org_data( $membership['organization_uuid'] );
