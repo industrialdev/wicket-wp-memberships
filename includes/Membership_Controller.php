@@ -659,32 +659,63 @@ function add_order_item_meta ( $item_id, $values ) {
    * Create the Membership Record in MDP
    */
   public function create_mdp_record( $membership ) {
+    $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
+    
+    $previous_membership_wicket_uuid = '';
+    if(!empty($membership['previous_membership_post_id'])) {
+      $previous_membership_wicket_uuid = get_post_meta( $membership['previous_membership_post_id'], 'membership_wicket_uuid', true);
+    }
     $membership_wicket_uuid = $this->check_mdp_membership_record_exists( $membership );
+
     if( empty( $membership_wicket_uuid ) ) {
       if( $membership['membership_type'] == 'individual' ) {
-        $response = wicket_assign_individual_membership( 
-          $membership['person_uuid'],
-          $membership['membership_tier_uuid'], 
-          $membership['membership_starts_at'],
-          $membership['membership_ends_at'],
-          $membership['membership_grace_period_days']
-        );  
+        if( $base_version_supports_previous_membership_assignment ) {
+          $response = wicket_assign_individual_membership( 
+            $membership['person_uuid'],
+            $membership['membership_tier_uuid'], 
+            $membership['membership_starts_at'],
+            $membership['membership_ends_at'],
+            $membership['membership_grace_period_days'],
+            $previous_membership_wicket_uuid
+          );    
+        } else {
+          $response = wicket_assign_individual_membership( 
+            $membership['person_uuid'],
+            $membership['membership_tier_uuid'], 
+            $membership['membership_starts_at'],
+            $membership['membership_ends_at'],
+            $membership['membership_grace_period_days']
+          );    
+        }
       } else {
         if(empty($membership['organization_uuid'])) {
           $membership['organization_uuid'] = $membership['org_uuid'] ;
         }
         if( $membership['membership_seats'] < 1) {
           $membership['membership_seats'] = null;
-        }    
-        $response = wicket_assign_organization_membership( 
-          $membership['person_uuid'],
-          $membership['organization_uuid'],
-          $membership['membership_tier_uuid'], 
-          $membership['membership_starts_at'],
-          $membership['membership_ends_at'],
-          $membership['membership_seats'],
-          $membership['membership_grace_period_days']
-        );  
+        }   
+        if( $base_version_supports_previous_membership_assignment ) {
+          $response = wicket_assign_organization_membership( 
+            $membership['person_uuid'],
+            $membership['organization_uuid'],
+            $membership['membership_tier_uuid'], 
+            $membership['membership_starts_at'],
+            $membership['membership_ends_at'],
+            $membership['membership_seats'],
+            $membership['membership_grace_period_days'],
+            $previous_membership_wicket_uuid
+          );    
+        } else {
+          $response = wicket_assign_organization_membership( 
+            $membership['person_uuid'],
+            $membership['organization_uuid'],
+            $membership['membership_tier_uuid'], 
+            $membership['membership_starts_at'],
+            $membership['membership_ends_at'],
+            $membership['membership_seats'],
+            $membership['membership_grace_period_days']
+          );    
+        }
       }
       if( is_wp_error( $response ) ) {
         $this->error_message = $response->get_error_message( 'wicket_api_error' );
