@@ -601,29 +601,33 @@ function add_order_item_meta ( $item_id, $values ) {
         $date = new \DateTime(substr($expire_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
         $date->setTimezone(new \DateTimeZone('UTC'));
         $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
+        Utilities::wicket_logger( 'Setting Subscription END date', $dates_to_update['end']);
       }
       if( in_array ( 'next_payment_date', $fields ) ) {
         $date = new \DateTime(substr($end_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
         $date->setTimezone(new \DateTimeZone('UTC'));
         $dates_to_update['next_payment']  = $date->format('Y-m-d H:i:s');
+        Utilities::wicket_logger( 'Setting Subscription NEXT_PAYMENT date', $dates_to_update['next_payment']);
       }
       $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
       if( !empty( $sub )) {
         try {
 //          We previously did this value being cleared before updating because it prevented changing end date
 //          NOW we need to keep it in the case it is monthly renewal for an annual membership        
-          if(!empty($fields['next_payment_date']) && ($fields['next_payment_date'] == 'clear')) {
+          if(!empty($fields['next_payment_date']) && ( !is_bool($fields['next_payment_date']) && $fields['next_payment_date'] == 'clear')) {
             $clear_dates_to_update['next_payment'] = '';
             $sub->update_dates($clear_dates_to_update);
             unset($dates_to_update['next_payment']);
+            Utilities::wicket_logger( 'CLEARED: NEXT_PAYMENT', $dates_to_update['next_payment']);
           }
           $sub->update_dates($dates_to_update);
+          Utilities::wicket_logger( 'SUBSCRIPTION: dates_to_update', $dates_to_update);
           $order_note = 'Membership ' .$membership['membership_post_id'].' changed these subscription dates. ';
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
           if(!empty($dates_to_update['next_payment'])) {
-            $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+            $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date)).'('.$dates_to_update['next_payment'].')';
           }
-          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
+          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date)).'('.$dates_to_update['end'].')';
           $sub->add_order_note($order_note);
         } catch (\Exception $e) {
           $order_note = 'Membership ' .$membership['membership_post_id'].' attempted to change these subscription dates. '.$e->getMessage();
