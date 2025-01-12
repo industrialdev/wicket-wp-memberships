@@ -108,6 +108,12 @@ class Membership_Tier_CPT_Hooks {
     $post_id = isset( $_GET['post_id'] ) ? $_GET['post_id'] : '';
 
     $all_tier_product_ids = Membership_Tier::get_all_tier_product_ids();
+    $all_tier_product_variation_ids = Membership_Tier::get_all_tier_product_variation_ids();
+
+    // Exclude variable and variable-subscription product IDs from the list
+    $all_tier_product_ids = array_filter( $all_tier_product_ids, function( $product_id ) {
+      return ! wc_get_product( $product_id )->is_type( [ 'variable', 'variable-subscription' ] );
+    });
 
     /**
     * If we are editing a tier,
@@ -119,9 +125,11 @@ class Membership_Tier_CPT_Hooks {
       $tier_product_ids = $tier->get_product_ids();
 
       $all_tier_product_ids = array_diff( $all_tier_product_ids, $tier_product_ids );
+      $all_tier_product_variation_ids = array_diff( $all_tier_product_variation_ids, $tier->get_product_variation_ids() );
     }
 
     $all_tier_product_ids_comma_separated = implode( ',', $all_tier_product_ids );
+    $all_tier_product_variation_ids_comma_separated = implode( ',', $all_tier_product_variation_ids );
 
     $language_codes = Helper::get_wp_languages_iso();
     $language_codes_comma_separated = implode( ',', $language_codes );
@@ -130,6 +138,7 @@ class Membership_Tier_CPT_Hooks {
       <div
         id="create_membership_tier"
         data-products-in-use="{$all_tier_product_ids_comma_separated}"
+        data-product-variations-in-use="{$all_tier_product_variation_ids_comma_separated}"
         data-tier-cpt-slug="{$this->membership_tier_cpt_slug}"
         data-config-cpt-slug="{$this->membership_config_cpt_slug}"
         data-tier-list-url="{$tier_list_page}"

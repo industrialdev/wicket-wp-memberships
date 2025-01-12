@@ -28,6 +28,23 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.77 =
+* Date Jan 6 2025
+* Bugfix
+
+= 1.0.76 =
+* Date Jan 5 2025
+* Current-Tier and Inherited-Tier added as Membership Page Edit options
+* Bugfix when reloading Membership Page Tier Selection after update
+
+= 1.0.75 =
+* Date Jan 2 2025
+* Bugfix
+
+= 1.0.71 =
+* Date Dec 12 2024
+* Do not exclude the "variable products" from the Tier product list if some of them are already in use by other Tiers
+
 = 1.0.70 =
 * Date Dec 9 2024
 * Bugfixes

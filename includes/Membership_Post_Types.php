@@ -583,6 +583,18 @@ class Membership_Post_Types {
                   }
 
                 }
+
+                // Validate if all product variations are unique
+                $product_variations = array_map( function( $product ) {
+                  return $product['variation_id'];
+                }, $value['product_data'] );
+
+                // Remove empty values
+                $product_variations = array_filter( $product_variations );
+
+                if ( count( $product_variations ) !== count( array_unique( $product_variations ) ) ) {
+                  $errors->add( 'rest_invalid_param_product_data', __( 'Variation IDs must be unique for all products.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
               }
 
               // if individual type, then max_seats must be -1 for all products

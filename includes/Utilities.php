@@ -2,9 +2,13 @@
 
 namespace Wicket_Memberships;
 
+use Wicket_Memberships\Helper;
+
 defined( 'ABSPATH' ) || exit;
 
 class Utilities {
+
+  private $membership_cpt_slug = '';
 
   public function __construct() {
     if( $this->is_wicket_show_mship_order_org_search() ) {
@@ -18,6 +22,43 @@ class Utilities {
       add_action('admin_enqueue_scripts', [$this, 'enqueue_suborg_scripts'] );
       //post_row_action tier uuid update
       add_action('wp_ajax_wicket_tier_uuid_update', [$this, 'handle_wicket_tier_uuid_update'] );
+    }
+    add_action('delete_user', [$this, 'handle_wp_delete_user'], 10, 3);
+    $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
+  }
+
+  function handle_wp_delete_user( $user_id, $reassign = false, $user = false) {
+    $args = array(
+      'post_type' => $this->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query' => array(
+        array(
+          'key'     => 'user_id',
+          'value'   => $user_id,
+          'compare' => '='
+        )
+      )
+    );
+    $memberships = new \WP_Query( $args );
+    foreach($memberships->posts as $mship) {
+      if(get_post_meta( $mship->ID, 'user_email', true) == $user->user_email) {
+        //clear the meta on the user for this membership
+        $user_meta_removed = delete_user_meta( $user_id, '_wicket_membership_'.$mship->ID );
+        if( $order_id = get_post_meta( $mship->ID, 'membership_parent_order_id', true)) {
+          if(!empty($order_id)) {
+            //clear the meta on the order for this membership
+            $order_meta_removed = delete_post_meta( $order_id, '_wicket_membership_'.$mship->membership_product_id );
+            $order = wc_get_order( $order_id );
+            if(!empty($order)) {
+              $order->add_order_note( "Membership ID: {$mship->ID} deleted when user deleted.");
+              $order->add_order_note( " Order meta removed: ".$order_id . '_wicket_membership_'.$mship->membership_product_id);
+              $order->add_order_note( " User meta removed: " . $user_id . '_wicket_membership_'.$mship->ID);
+            }
+          }
+        }
+        wp_delete_post($mship->ID);
+      }
     }
   }
 

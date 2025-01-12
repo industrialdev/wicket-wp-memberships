@@ -429,19 +429,22 @@ function add_order_item_meta ( $item_id, $values ) {
     }
   }
 
-  function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
-    $membership = $this->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
-    $this->membership_early_renew_at_date_reached( $membership );
+  public static function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
+    $self = new self();
+    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    $self->membership_early_renew_at_date_reached( $membership );
   }
 
-  function catch_membership_ends_at( $membership_parent_order_id, $membership_product_id ) {
-    $membership = $this->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
-    $this->membership_ends_at_date_reached( $membership );
+  public static function catch_membership_ends_at( $membership_parent_order_id, $membership_product_id ) {
+    $self = new self();
+    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    $self->membership_ends_at_date_reached( $membership );
   }
 
-  function catch_membership_expires_at( $membership_parent_order_id, $membership_product_id ) {
-    $membership = $this->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
-    $this->membership_expires_at_date_reached( $membership );
+  public static function catch_membership_expires_at( $membership_parent_order_id, $membership_product_id ) {
+    $self = new self();
+    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    $self->membership_expires_at_date_reached( $membership );
   }
 
   public function membership_early_renew_at_date_reached( $membership ) {
@@ -656,32 +659,63 @@ function add_order_item_meta ( $item_id, $values ) {
    * Create the Membership Record in MDP
    */
   public function create_mdp_record( $membership ) {
+    $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
+    
+    $previous_membership_wicket_uuid = '';
+    if(!empty($membership['previous_membership_post_id'])) {
+      $previous_membership_wicket_uuid = get_post_meta( $membership['previous_membership_post_id'], 'membership_wicket_uuid', true);
+    }
     $membership_wicket_uuid = $this->check_mdp_membership_record_exists( $membership );
+
     if( empty( $membership_wicket_uuid ) ) {
       if( $membership['membership_type'] == 'individual' ) {
-        $response = wicket_assign_individual_membership( 
-          $membership['person_uuid'],
-          $membership['membership_tier_uuid'], 
-          $membership['membership_starts_at'],
-          $membership['membership_ends_at'],
-          $membership['membership_grace_period_days']
-        );  
+        if( $base_version_supports_previous_membership_assignment ) {
+          $response = wicket_assign_individual_membership( 
+            $membership['person_uuid'],
+            $membership['membership_tier_uuid'], 
+            $membership['membership_starts_at'],
+            $membership['membership_ends_at'],
+            $membership['membership_grace_period_days'],
+            $previous_membership_wicket_uuid
+          );    
+        } else {
+          $response = wicket_assign_individual_membership( 
+            $membership['person_uuid'],
+            $membership['membership_tier_uuid'], 
+            $membership['membership_starts_at'],
+            $membership['membership_ends_at'],
+            $membership['membership_grace_period_days']
+          );    
+        }
       } else {
         if(empty($membership['organization_uuid'])) {
           $membership['organization_uuid'] = $membership['org_uuid'] ;
         }
         if( $membership['membership_seats'] < 1) {
           $membership['membership_seats'] = null;
-        }    
-        $response = wicket_assign_organization_membership( 
-          $membership['person_uuid'],
-          $membership['organization_uuid'],
-          $membership['membership_tier_uuid'], 
-          $membership['membership_starts_at'],
-          $membership['membership_ends_at'],
-          $membership['membership_seats'],
-          $membership['membership_grace_period_days']
-        );  
+        }   
+        if( $base_version_supports_previous_membership_assignment ) {
+          $response = wicket_assign_organization_membership( 
+            $membership['person_uuid'],
+            $membership['organization_uuid'],
+            $membership['membership_tier_uuid'], 
+            $membership['membership_starts_at'],
+            $membership['membership_ends_at'],
+            $membership['membership_seats'],
+            $membership['membership_grace_period_days'],
+            $previous_membership_wicket_uuid
+          );    
+        } else {
+          $response = wicket_assign_organization_membership( 
+            $membership['person_uuid'],
+            $membership['organization_uuid'],
+            $membership['membership_tier_uuid'], 
+            $membership['membership_starts_at'],
+            $membership['membership_ends_at'],
+            $membership['membership_seats'],
+            $membership['membership_grace_period_days']
+          );    
+        }
       }
       if( is_wp_error( $response ) ) {
         $this->error_message = $response->get_error_message( 'wicket_api_error' );
@@ -743,9 +777,10 @@ function add_order_item_meta ( $item_id, $values ) {
       $status = Wicket_Memberships::STATUS_ACTIVE;
     }
 
+    $current_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
     if( ! $this->processing_renewal && ! $skip_approval && (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
       $status = Wicket_Memberships::STATUS_PENDING;
-    } else if( strtotime( $membership['membership_starts_at'] ) > current_time( 'timestamp' ) ) {
+    } else if( strtotime( $membership['membership_starts_at'] ) > strtotime( $current_date ) ) {
       $status = Wicket_Memberships::STATUS_DELAYED;
     }
 
@@ -769,6 +804,7 @@ function add_order_item_meta ( $item_id, $values ) {
       'membership_parent_order_id' => $membership['membership_parent_order_id'],
       'membership_product_id' => $membership['membership_product_id'],
       'membership_subscription_id' => $membership['membership_subscription_id'],
+      'previous_membership_post_id' => $membership['previous_membership_post_id'],
     ];
     if( $membership['membership_type'] == 'organization') {
       $org_data = Helper::get_org_data( $membership['organization_uuid'] );
@@ -893,12 +929,13 @@ function add_order_item_meta ( $item_id, $values ) {
    * @param integer $new_membership_post_id
    * @return void
    */
-  public function catch_expire_current_membership( $previous_membership_post_id, $new_membership_post_id = 0 ) {
+  public static function catch_expire_current_membership( $previous_membership_post_id, $new_membership_post_id = 0 ) {
+    $self = new self();
     if( ! empty( $previous_membership_post_id ) ) {
-      $this->update_membership_status( $previous_membership_post_id, Wicket_Memberships::STATUS_EXPIRED );
+      $self->update_membership_status( $previous_membership_post_id, Wicket_Memberships::STATUS_EXPIRED );
     }
     if( ! empty( $new_membership_post_id ) ) {
-      $this->update_membership_status( $new_membership_post_id, Wicket_Memberships::STATUS_ACTIVE );
+      $self->update_membership_status( $new_membership_post_id, Wicket_Memberships::STATUS_ACTIVE );
     }
   }
 
@@ -1381,6 +1418,10 @@ function add_order_item_meta ( $item_id, $values ) {
     foreach( $tiers->posts as $tier ) {
       $tier_meta = get_post_meta( $tier->ID );
       $user_id = $tier_meta['user_id'][0];
+      $user = get_userdata( $user_id );
+      if(empty($user) || is_bool($user)) {
+        continue;
+      }
       $tier_new_meta = [];
       array_walk(
         $tier_meta,
@@ -1393,7 +1434,6 @@ function add_order_item_meta ( $item_id, $values ) {
         }
       );  
       $tier->meta = $tier_new_meta;
-        $user = get_userdata( $user_id );
         if( $user->display_name == $user->user_login ) {
           $user->display_name = $user->first_name . ' ' . $user->last_name;
         }
@@ -1427,8 +1467,9 @@ function add_order_item_meta ( $item_id, $values ) {
             $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/organizations/' . $tier->meta['org_uuid'];
           }
         }
+        $members_list[] = $tier;
       }
-    return [ 'results' => $tiers->posts, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => $tiers->found_posts ];
+    return [ 'results' => $members_list, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => $tiers->found_posts ];
   }
 
   public static function get_tier_info( $tier_uuids, $properties = [] ) {

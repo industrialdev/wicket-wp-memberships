@@ -504,6 +504,9 @@ public function get_membership_dates( \WP_REST_Request $request ) {
    * Check permissions to read
    */
   public function permissions_check_read( $request ) {
+    if( ! empty( $_ENV['ALLOW_LOCAL_IMPORTS'] )) {
+      return true;
+    }
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
       return new \WP_REST_Response(array('error' => 'Authentication required.'), 401);
     }
@@ -514,6 +517,9 @@ public function get_membership_dates( \WP_REST_Request $request ) {
    * Check permissions to write
    */
   public function permissions_check_write( $request ) {
+    if( ! empty( $_ENV['ALLOW_LOCAL_IMPORTS'] )) {
+      return true;
+    }
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
       return new \WP_REST_Response(array('error' => 'Authentication required.'), 401);
     }

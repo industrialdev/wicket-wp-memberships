@@ -51,6 +51,36 @@ class Membership_Tier {
   }
 
   /**
+   * Get all tier WC Product Variation IDs
+   *
+   * @return array Array of WC Product Post Variation IDs
+   */
+  public static function get_all_tier_product_variation_ids() {
+    $args = array(
+      'post_type' => Helper::get_membership_tier_cpt_slug(),
+      'posts_per_page' => -1,
+    );
+
+    $tiers = get_posts( $args );
+
+    $product_variation_ids = [];
+
+    foreach ( $tiers as $tier ) {
+      $tier_obj = new Membership_Tier( $tier->ID );
+
+      $products_data = $tier_obj->get_products_data();
+
+      if ( $products_data ) {
+        foreach ( $products_data as $product_data ) {
+          $product_variation_ids[] = $product_data['variation_id'];
+        }
+      }
+    }
+
+    return array_unique( $product_variation_ids );
+  }
+
+  /**
    * Get the tier by product ID
    *
    * @param int $product_id
@@ -264,6 +294,24 @@ class Membership_Tier {
     }
 
     return $product_ids;
+  }
+
+  /**
+   * Get product variation IDs attached to the tier
+   *
+   * @return array Array of WC Product Variation Post IDs
+   */
+  public function get_product_variation_ids() {
+    $product_variation_ids = [];
+    $products_data = $this->get_products_data();
+
+    if ( $products_data ) {
+      foreach ( $products_data as $product_data ) {
+        $product_variation_ids[] = $product_data['variation_id'];
+      }
+    }
+
+    return $product_variation_ids;
   }
 
   /**
