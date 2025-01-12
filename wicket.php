@@ -5,14 +5,14 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket - Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.77
+ * Version: 1.0.78
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
  * Domain Path: /languages
  * Requires at least: 6.0
  * Requires PHP: 8.0
- *
+ * Requires Plugins: wicket-wp-base-plugin
  * @package Wicket
  */
 
@@ -73,6 +73,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               require_once( WP_PLUGIN_DIR . '/wicket-wordpressplugin-php-master/vendor/autoload.php' );
             }
           }
+          $plugin_data = get_plugin_data( WP_PLUGIN_DIR . '/wicket-wp-base-plugin/wicket.php' );
+          $_ENV['WICKET_BASE_PLUGIN_VERSION'] = $plugin_data['Version'];
           $options = get_option( 'wicket_membership_plugin_options' );
           
           if(isset($options['wicket_mship_subscription_renew'])) {
@@ -318,7 +320,12 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 		 * Plugin activation config
 		 */
 		public function plugin_activate() {
-			// Default settings for plugin.
+			// Minimum versions for base plugin.
+      $base_version_minimum_not_met = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0', '<' );
+      if ( !empty($base_version_minimum_not_met) ) {
+        deactivate_plugins( plugin_basename( __FILE__ ) );
+        wp_die( 'Wicket Membership plugin requires "Wicket Base" version 2.0 or higher. You have version ' . $_ENV['WICKET_BASE_PLUGIN_VERSION'] . '.' );
+      }
 		}
 
 		public function load_textdomain() {
