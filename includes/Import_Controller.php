@@ -74,8 +74,19 @@ class Import_Controller {
                                                             $membership_post_mapping['membership_starts_at'], 
                                                             $membership_post_mapping['membership_ends_at'], 
                                                             $membership_post_mapping['membership_expires_at'] );
+          if( !empty($record['Previous_External_ID'])) {
+            $delta = true;
+            $membership_post_mapping['previous_membership_post_id'] = $record['Previous_External_ID'];
+          }
 
           $response = (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'], $skip_approval );
+          
+          if( !empty($delta) ) {
+            $membership_post_mapping['membership_post_id'] = $response;
+            (new Membership_Controller)->scheduler_dates_for_expiry( $membership_post_mapping );
+            $response .= ' Delta Membership ID#'.$membership_post_mapping['previous_membership_post_id'];
+          }
+
           return new \WP_REST_Response(['success' => 'Individual Membership created: External_ID#'.$response ]);
         }
 
@@ -136,7 +147,19 @@ class Import_Controller {
                                                             $membership_post_mapping['membership_ends_at'], 
                                                             $membership_post_mapping['membership_expires_at'] );
 
+          if( !empty($record['Previous_External_ID'])) {
+            $delta = true;
+            $membership_post_mapping['previous_membership_post_id'] = $record['Previous_External_ID'];
+          }
+
           $response = (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'], $skip_approval );
+
+          if( !empty($delta) ) {
+            $membership_post_mapping['membership_post_id'] = $response;
+            (new Membership_Controller)->scheduler_dates_for_expiry( $membership_post_mapping );
+            $response .= ' Delta Membership ID#'.$membership_post_mapping['previous_membership_post_id'];
+          }
+
           return new \WP_REST_Response(['success' => 'Organization Membership created: External_ID#'.$response ]);
         }
 
