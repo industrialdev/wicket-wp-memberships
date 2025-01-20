@@ -405,16 +405,20 @@ function add_order_item_meta ( $item_id, $values ) {
     $membership_expires_at = strtotime( $membership['membership_expires_at'] );
     $order_note = 'New membership ID #'.$membership['membership_post_id'].' created from '.date('Y-m-d', $membership_starts_at).' to '.date('Y-m-d', $membership_ends_at);
 
-    $args = [
-      'membership_parent_order_id' => $membership['membership_parent_order_id'],
-      'membership_product_id' => $membership['membership_product_id'],
-    ];
+    if( !empty( $membership['membership_parent_order_id'] ) && !empty( $membership['membership_product_id'] ) ) {
+      $args = [
+        'membership_parent_order_id' => $membership['membership_parent_order_id'],
+        'membership_product_id' => $membership['membership_product_id'],
+      ];  
+    }
 
     if ( function_exists('as_schedule_single_action') ) {
       //as_schedule_single_action( $timestamp, $hook, $args, $group, $unique, $priority );
-      as_schedule_single_action( $membership_early_renew_at, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin', false );
-      as_schedule_single_action( $membership_ends_at, 'add_membership_ends_at', $args, 'wicket-membership-plugin', false );
-      as_schedule_single_action( $membership_expires_at, 'add_membership_expires_at', $args, 'wicket-membership-plugin', false );
+      if(!empty($args)) {
+        as_schedule_single_action( $membership_early_renew_at, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin', false );
+        as_schedule_single_action( $membership_ends_at, 'add_membership_ends_at', $args, 'wicket-membership-plugin', false );
+        as_schedule_single_action( $membership_expires_at, 'add_membership_expires_at', $args, 'wicket-membership-plugin', false );  
+      }
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
         if( current_time( 'timestamp' ) >= $membership_starts_at ) {
@@ -428,9 +432,11 @@ function add_order_item_meta ( $item_id, $values ) {
         }
       }
     } else {
-      wp_schedule_single_event( $membership_early_renew_at, 'add_membership_early_renew_at', $args );
-      wp_schedule_single_event( $membership_ends_at, 'add_membership_ends_at', $args );
-      wp_schedule_single_event( $membership_expires_at, 'add_membership_expires_at', $args );
+      if(!empty($args)) {
+        wp_schedule_single_event( $membership_early_renew_at, 'add_membership_early_renew_at', $args );
+        wp_schedule_single_event( $membership_ends_at, 'add_membership_ends_at', $args );
+        wp_schedule_single_event( $membership_expires_at, 'add_membership_expires_at', $args );
+      }
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
         if( current_time( 'timestamp' ) >= $membership_starts_at ) {
