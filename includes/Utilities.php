@@ -27,12 +27,22 @@ class Utilities {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
 
     add_filter( 'woocommerce_cart_item_quantity', [$this, 'disable_cart_item_quantity'], 10, 3);
-    add_filter( 'woocommerce_cart_item_remove_link', [$this, 'hide_cart_item_remove_link'], 10, 3);
+    //add_filter( 'woocommerce_cart_item_remove_link', [$this, 'hide_cart_item_remove_link'], 10, 3);
     add_action( 'wp_trash_post', [$this, 'delete_wicket_membership_in_mdp' ], 10, 2);
     add_action( 'wp_trash_post', [$this, 'prevent_delete_linked_product' ], 10, 2);
     add_action( 'woocommerce_before_delete_product_variation', [$this, 'prevent_delete_linked_product' ], 10, 2);
     add_action('admin_notices', [$this, 'show_membership_product_delete_error'], 1);
     add_action('admin_notices', [$this, 'show_membership_delete_error'], 1);
+  }
+
+  public static function wc_log_mship_error( $data, $level = 'error' ) {
+    if (class_exists('WC_Logger')) {
+      $logger = new \WC_Logger();
+      if(is_array( $data )) {
+        $data = wc_print_r( $data, true );
+      }
+      $logger->log($level, $data, ['source' => 'wicket-membership-plugin']);
+    }
   }
 
   function delete_wicket_membership_in_mdp( $post_id ) {
