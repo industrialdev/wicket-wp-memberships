@@ -238,7 +238,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	useEffect(() => {
 
 		// Fetch Local WP Pages
-		apiFetch({ path: addQueryArgs(`${API_URL}/pages`, {
+		apiFetch({ path: addQueryArgs(`${API_URL}/pages?_fields=id,title`, {
 			status: 'publish',
 			per_page: -1
 		}) }).then((tiers) => {

@@ -1341,6 +1341,7 @@ function add_order_item_meta ( $item_id, $values ) {
  }
 
   public function get_members_list( $type, $page, $posts_per_page, $status, $search = '', $filter = [], $order_col = null, $order_dir = null ) {
+    $members_list = [];
     if( (! in_array( $type, ['individual', 'organization'] ))) {
       return;
     }
