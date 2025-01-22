@@ -130,6 +130,7 @@ function wicket_sync_membership_renewal_data_with_tier() {
       echo '</pre>';
       if(!empty($_REQUEST['no_debug'])) {
         update_post_meta($post->ID, 'membership_next_tier_form_page_id', $next_tier_form_id);
+        update_post_meta($post->ID, 'membership_next_tier_id', '');
         echo '<br>..updated..<br>';
       }
     } else {
