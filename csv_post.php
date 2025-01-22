@@ -18,6 +18,46 @@ if( empty( $_ENV['ALLOW_LOCAL_IMPORTS'] )) {
   die("Disabled");
 }
 
+if(!empty($_REQUEST['mship_wipe_next_payment_date'])) {
+  wicket_wipe_membership_subscription_next_payment_dates();
+}
+
+function wicket_wipe_membership_subscription_next_payment_dates() {
+  $status = [ 'active','expired','delayed' ];
+
+  $args = array(
+    'post_type' => 'wicket_membership',
+    'post_status' => 'publish',
+    'meta_key' => 'user_id',
+    'posts_per_page' => -1,
+    'meta_query'     => array(
+      array(
+        'key'     => 'membership_status',
+        'value'   => $status,
+        'compare' => 'IN'
+      ),
+      array(
+        'key'     => 'membership_subscription_id',
+        'value'   => '',
+        'compare' => '!='
+      )
+    )
+  );
+  $posts = new \WP_Query( $args );
+  $cnt=0;
+  foreach($posts->posts as $post) {
+    $membership_subscription_id = get_post_meta( $post->ID, 'membership_subscription_id', true );
+    $sub = wcs_get_subscription( $membership_subscription_id );
+    echo 'clearing next_payment on subscription_id '.$membership_subscription_id.' for membership ID:'.$post->ID.'<br>';
+    if(!empty($_REQUEST['no_debug'])) {
+      $clear_dates_to_update['next_payment'] = '';
+      $sub->update_dates($clear_dates_to_update);
+      echo 'cleared<br>';
+    }
+  }
+  die('terminated');
+}
+
 if(!empty($_REQUEST['mship_config_resync'])) {
   wicket_sync_membership_renewal_data_with_config();
 }
@@ -141,6 +181,7 @@ function wicket_sync_membership_renewal_data_with_tier() {
   }
   die('terminated');
 }
+
 
 include WP_PLUGIN_DIR . '/wicket-wp-memberships/includes/Import_Controller.php';
 
