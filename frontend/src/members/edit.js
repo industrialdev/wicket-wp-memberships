@@ -262,6 +262,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   // Fetch Local WP Pages
   const getLocalWpPages = () => {
 		apiFetch({ path: addQueryArgs(`${API_URL}/pages`, {
+      _fields: 'id,title',
 			status: 'publish',
 			per_page: -1
 		}) }).then((posts) => {

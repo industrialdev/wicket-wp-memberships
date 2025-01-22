@@ -25,7 +25,117 @@ class Utilities {
     }
     add_action('delete_user', [$this, 'handle_wp_delete_user'], 10, 3);
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
+
+    add_filter( 'woocommerce_cart_item_quantity', [$this, 'disable_cart_item_quantity'], 10, 3);
+    //add_filter( 'woocommerce_cart_item_remove_link', [$this, 'hide_cart_item_remove_link'], 10, 3);
+    add_action( 'wp_trash_post', [$this, 'delete_wicket_membership_in_mdp' ], 10, 2);
+    add_action( 'wp_trash_post', [$this, 'prevent_delete_linked_product' ], 10, 2);
+    add_action( 'woocommerce_before_delete_product_variation', [$this, 'prevent_delete_linked_product' ], 10, 2);
+    add_action('admin_notices', [$this, 'show_membership_product_delete_error'], 1);
+    add_action('admin_notices', [$this, 'show_membership_delete_error'], 1);
   }
+
+  public static function wc_log_mship_error( $data, $level = 'error' ) {
+    if (class_exists('WC_Logger')) {
+      $logger = new \WC_Logger();
+      if(is_array( $data )) {
+        $data = wc_print_r( $data, true );
+      }
+      $logger->log($level, $data, ['source' => 'wicket-membership-plugin']);
+    }
+  }
+
+  function delete_wicket_membership_in_mdp( $post_id ) {
+    if(function_exists('wicket_delete_person_membership')) {
+      $membership_wicket_uuid = get_post_meta( $post_id, 'membership_wicket_uuid', true);
+      $membership_type = get_post_meta( $post_id, 'membership_type', true);
+      if(!empty($membership_type) && !empty($membership_wicket_uuid)) {
+        if($membership_type == 'individual') {
+          $response = wicket_delete_person_membership( $membership_wicket_uuid );
+        } else {
+          $response = wicket_delete_organization_membership( $membership_wicket_uuid );
+        }
+        if( empty($response) || is_wp_error( $response ) ) {
+          wp_redirect(get_admin_url() . "edit.php?post_type=wicket_membership&all_posts=1&show_membership_delete_error=1");
+        }  
+      }  
+    }
+  }
+
+  function show_membership_delete_error() {
+    if (isset($_GET['show_membership_delete_error'])) {
+        echo '<div class="notice notice-error error is-dismissible" style="border-color: red; background-color: #ff000024;"><p><strong>WICKET MEMBERSHIP ERROR:</strong> THE MEMBERSHIP YOU ATTEMPTED TO DELETE WAS NOT SUCCESSFULLY REMOVED IN WICKET MDP OR MAY NOT EXIST. </p></div>';
+    }
+  }
+
+  function show_membership_product_delete_error() {
+    if (isset($_GET['show_membership_product_delete_error'])) {
+        echo '<div class="notice notice-error error is-dismissible" style="border-color: red; background-color: #ff000024;"><p><strong>WICKET MEMBERSHIP ERROR:</strong> THE PRODUCT YOU ATTEMPTED TO DELETE IS ASSIGNED TO A MEMBERSHIP. It must first be removed from the Membership Tier or Config. You cannot trash or delete a product before removing your membership plugin assignment(s).</p></div>';
+    }
+  }
+
+  function prevent_delete_linked_product($post_id, $post_status){
+    $late_fee_product = false;
+    $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
+    if (get_post_type($post_id) === 'product_variation') {
+      $post_id = wp_get_post_parent_id($post_id);
+    }
+
+    if ( has_term( $membership_categories, 'product_cat', $post_id) ) {
+      $membership_tier = Membership_Tier::get_tier_by_product_id( $post_id );
+      $config_posts = get_posts(['post_type' => Helper::get_membership_config_cpt_slug(), 'numberposts' => -1]);
+      foreach($config_posts as $config) {
+        if( ( new Membership_Config($config->ID) )->get_late_fee_window_product_id() == $post_id) {
+          $late_fee_product = true;
+        }
+      }
+      if( $late_fee_product || !empty($membership_tier)) {
+        wp_redirect(get_admin_url() . "/edit.php?post_type=product&all_posts=1&show_membership_product_delete_error=1");
+        exit;
+      }
+    }
+  }
+
+  /**
+ * Disable remove item on cart page when in Membership category.
+ *
+ * @param string $product_remove The remove html.
+ * @param string $cart_item_key The cart item key.
+ * @param array $cart_item The cart item object.
+ * @return string The modified product quantity html (with hidden input).
+ */
+  function hide_cart_item_remove_link($product_remove, $cart_item_key)
+  {
+    if (is_cart()) {
+      $item = WC()->cart->get_cart_item( $cart_item_key );
+      $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
+      if ( has_term( $membership_categories, 'product_cat', $item['product_id']) ) {
+        $product_remove = '';
+      }
+    }
+    return $product_remove;
+  }
+
+
+  /**
+ * Disable quantity input on cart page when in Membership category.
+ *
+ * @param string $product_quantity The current product quantity html.
+ * @param string $cart_item_key The cart item key.
+ * @param array $cart_item The cart item object.
+ * @return string The modified product quantity html (with hidden input).
+ */
+  function disable_cart_item_quantity($product_quantity, $cart_item_key, $cart_item)
+  {
+    if (is_cart()) {
+      $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
+      if ( has_term( $membership_categories, 'product_cat', $cart_item['product_id']) ) {
+        $product_quantity = sprintf('<strong>%s</strong><input type="hidden" name="cart[%s][qty]" value="%s" />', $cart_item['quantity'], $cart_item_key, $cart_item['quantity']);
+      }
+    }
+    return $product_quantity;
+  }
+
 
   function handle_wp_delete_user( $user_id, $reassign = false, $user = false) {
     $args = array(
