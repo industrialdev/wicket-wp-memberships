@@ -395,6 +395,31 @@ function add_order_item_meta ( $item_id, $values ) {
     }
   }
 
+  public function schedule_wicket_wipe_next_payment_date( $subscription_id ) {
+    if(!empty($subscription_id)) {
+      as_schedule_single_action( time() + 90, 'wicket_wipe_next_payment_date', ['membership_subscription_id' => $subscription_id], 'wicket-membership-plugin', false );        
+    }
+  }
+
+  public static function catch_wicket_wipe_next_payment_date($sub_id) {
+    global $wpdb;
+    $result = $wpdb->update(
+      $wpdb->postmeta,
+      ['meta_value' => 0],
+      [
+          'post_id'  => $sub_id,
+          'meta_key' => '_schedule_next_payment'
+      ],
+      [
+          '%d'
+      ],
+      [
+          '%d',
+          '%s'
+      ]
+    );
+  }
+
   /**
    * Add renewal transition dates to Advanced Scheduler - fallback with wp_cron
    */
@@ -624,7 +649,8 @@ function add_order_item_meta ( $item_id, $values ) {
             $clear_dates_to_update['next_payment'] = '';
             $sub->update_dates($clear_dates_to_update);
             unset($dates_to_update['next_payment']);
-            Utilities::wicket_logger( 'CLEARED: NEXT_PAYMENT', $dates_to_update['next_payment']);
+            $this->schedule_wicket_wipe_next_payment_date( $sub->get_id() );
+            Utilities::wicket_logger( 'CLEARED: NEXT_PAYMENT', [$fields['next_payment_date'],$dates_to_update['next_payment']]);
           }
           $sub->update_dates($dates_to_update);
           Utilities::wicket_logger( 'SUBSCRIPTION: dates_to_update', $dates_to_update);
