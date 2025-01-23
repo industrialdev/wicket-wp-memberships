@@ -35,7 +35,8 @@ class Utilities {
     add_action('admin_notices', [$this, 'show_membership_delete_error'], 1);
   }
 
-  static function wicket_logger( $message, $data = [], $format = 'json', $logFile = "mship_error.log"){
+
+  public static function wicket_logger( $message, $data = [], $format = 'json', $logFile = "mship_error.log"){
     if('development' == wp_get_environment_type()) {
       $date = new \DateTime();
       $date = $date->format("Y-m-d H:i:s") . ' ';
@@ -47,6 +48,16 @@ class Utilities {
       $message .= PHP_EOL;
       $path = defined('WP_PLUGIN_DIR') ? WP_PLUGIN_DIR.'/../../' : getcwd();
       file_put_contents($path.'/'.$logFile, $message, FILE_APPEND);
+    }
+  }
+
+ public static function wc_log_mship_error( $data, $level = 'error' ) {
+    if (class_exists('WC_Logger')) {
+      $logger = new \WC_Logger();
+      if(is_array( $data )) {
+        $data = wc_print_r( $data, true );
+      }
+      $logger->log($level, $data, ['source' => 'wicket-membership-plugin']);
     }
   }
 

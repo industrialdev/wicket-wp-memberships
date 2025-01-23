@@ -28,7 +28,15 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
-= 1.0.77 =
+= 1.0.80 =
+* Date Jan 22 2025
+* Optimize and update sync tooling
+
+= 1.0.79 =
+* Date Jan 21 2025
+* Add WC Logging for plugin errors
+
+= 1.0.78 =
 * Date Jan 6 2025
 * Bugfix
 

@@ -1244,17 +1244,21 @@ function add_order_item_meta ( $item_id, $values ) {
         continue;   
       }
 
-      $membership_early_renew_at = strtotime( $membership->membership_early_renew_at );
+      //We are calculating the early renew date globally from the config assigned to the tier
+      //$membership_early_renew_at = strtotime( $membership->membership_early_renew_at ); //this was old way was set per membership
+      $Membership_Config = $Membership_Tier->get_config();
+      $membership_early_renew_days = $Membership_Config->get_renewal_window_days();
+      $membership_early_renew_at = ( strtotime($membership->membership_ends_at ) - ($membership_early_renew_days * 86400));
+      //set the meta for debug only / below we determine mship is in early_renewal/grace_period and add to response sent to ACC plugin
+      $membership_data['meta']['membership_early_renew_at'] = (new \DateTime( '@' . $membership_early_renew_at))->setTimezone(wp_timezone())->format('Y-m-d\TH:i:sP');
+      
       $membership_ends_at = strtotime( $membership->membership_ends_at );
       $membership_expires_at = strtotime( $membership->membership_expires_at );
       $current_time =  current_time( 'timestamp' );
-      $membership_data['ends_in_days'] = ( ( $membership_ends_at - $current_time ) / 86400 );
+      $membership_data['ends_in_days'] = ceil( ( $membership_ends_at - $current_time ) / 86400 );
       if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && !empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
         $current_time =  strtotime ( date( "Y-m-d") . '+' . $_REQUEST['wicket_wp_membership_debug_days'] . ' days');
       }
-
-      $config_id = $Membership_Tier->get_config_id();
-      $Membership_Config = new Membership_Config( $config_id );
 
       //always check the membership record ($membership_json_data) for next tier / never look at tier data values
 #      $next_tier_id = !empty($membership_json_data['membership_next_tier_id']) ? $membership_json_data['membership_next_tier_id'] : '';
@@ -1358,6 +1362,8 @@ function add_order_item_meta ( $item_id, $values ) {
         $membership_data['next_tier'] = $next_tier->tier_data;          
         $membership_data['next_tier']['next_product_id'] = $membership_json_data['membership_product_id'];
         //if it is *NOT* renewing into the same tier then account center will SHOW A DIRECT add_to_cart FOR EACH PRODUCT assigned to the next tier
+        //TODO: This may be identified as a bug but it is a result of the rules we have been given
+        //Multiple products assign to a tier vs. assigning this tier to be a sequential next tier for callout
       } 
 
       //this checks the current membership's order meta for the previous_membership_post_id having been set
@@ -1370,6 +1376,7 @@ function add_order_item_meta ( $item_id, $values ) {
         continue;
       }
        
+      //adding to early renewal array here
       if( $current_time >= $membership_early_renew_at && $current_time < $membership_ends_at ) {
         $callout['type'] = 'early_renewal';
         $callout['header'] = $Membership_Config->get_renewal_window_callout_header( $iso_code );
@@ -1379,6 +1386,7 @@ function add_order_item_meta ( $item_id, $values ) {
           'membership' => $membership_data,
           'callout' => $callout
         ];
+        //adding to the garce period array here
       } else if ( $current_time >= $membership_ends_at && $current_time <= $membership_expires_at ) {
         $callout['type'] = 'grace_period';
         $callout['header'] = $Membership_Config->get_late_fee_window_callout_header( $iso_code );
@@ -1436,6 +1444,7 @@ function add_order_item_meta ( $item_id, $values ) {
  }
 
   public function get_members_list( $type, $page, $posts_per_page, $status, $search = '', $filter = [], $order_col = null, $order_dir = null ) {
+    $members_list = [];
     if( (! in_array( $type, ['individual', 'organization'] ))) {
       return;
     }

@@ -2,6 +2,8 @@
 
 namespace Wicket_Memberships;
 
+use Wicket_Memberships\Utilities;
+
 /**
  * Class Admin_Controller
  * @package Wicket_Memberships
@@ -162,6 +164,10 @@ class Admin_Controller {
       $response_array['response'] = $membership_post_data;
       $response_code = 200;
 
+      if(!empty($response_array['error'])) {
+        Utilities::wc_log_mship_error($response_array);
+      }
+      
       // ------ WE RETURN EARLY HERE ONLY ------
       // THIS IS A SPECIAL CASE OF STATUS UPDATE
       return new \WP_REST_Response($response_array, $response_code);
@@ -221,7 +227,7 @@ class Admin_Controller {
       //
       if( empty($response_array) ) {
         $response_array['error'] = 'Invalid status transition. Request did not succeed.';
-      }
+        Utilities::wc_log_mship_error($response_array);      }
       return new \WP_REST_Response($response_array, 400);
     } else {
       ( new Membership_Controller() )->update_membership_status( $membership_post_id, $new_post_status);
@@ -229,6 +235,7 @@ class Admin_Controller {
       if( empty($response_array) ) {
         $response_array['success'] = 'BYPASSED STATUS LOCKOUT --- DEBUG ENABLED --- SET AS '. $new_post_status;
       }
+      Utilities::wc_log_mship_error($response_array);
       return new \WP_REST_Response($response_array, 200);
     }
 
@@ -237,6 +244,7 @@ class Admin_Controller {
       $response = $Membership_Controller->update_mdp_record( $membership_new, $meta_data );
       if ( strstr( $response['error'], '404 Not Found') !== false && ! empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
         $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
+        Utilities::wc_log_mship_error(['success' => 'Status Changed. NOTE: No mdp record exists for this membership.']);
         return new \WP_REST_Response(['success' => 'Status Changed. NOTE: No mdp record exists for this membership.'], 200);
       }
       if( empty ( $response['error'] ) ) {
@@ -247,10 +255,12 @@ class Admin_Controller {
       } else {
         $response_array['error'] = $response['error'];
         $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+        Utilities::wc_log_mship_error($response_array);
         $response_code = 400;
       }
       return new \WP_REST_Response($response_array, $response_code);
     } else {
+      Utilities::wc_log_mship_error('Failed status transition. No change was made.');
       return new \WP_REST_Response(['error' => 'Failed status transition. No change was made.'], 400);
     }
   }
@@ -412,6 +422,7 @@ class Admin_Controller {
     if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
       $response_array['error'] = 'Error: '.$ownership_change_response.'Membership update failed. Record not found. ';
       $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      Utilities::wc_log_mship_error($response_array);
       $response_code = 200;
       return new \WP_REST_Response($response_array, $response_code);
     }
@@ -428,6 +439,7 @@ class Admin_Controller {
     if( $membership_post['membership_status'][0] == 'cancelled') {
       $response_array['error'] = 'Cannot update a cancelled membership record. Membership update failed.';
       $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      Utilities::wc_log_mship_error($response_array);
       $response_code = 200;
       return new \WP_REST_Response($response_array, $response_code);
     }
@@ -454,6 +466,7 @@ class Admin_Controller {
       ) {
       $response_array['error'] = 'Error: '.$ownership_change_response.'Membership update failed. All dates required. ';
       $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      Utilities::wc_log_mship_error($response_array);
       $response_code = 200;
       return new \WP_REST_Response($response_array, $response_code);
     } else {
@@ -512,6 +525,7 @@ class Admin_Controller {
     if( empty( $local_response ) || is_wp_error( $local_response ) ) {
       $response_array['error'] = 'Error: '.$ownership_change_response.'Membership update failed. Record not updated. ';
       $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      Utilities::wc_log_mship_error($response_array);
       $response_code = 200;
       return new \WP_REST_Response($response_array, $response_code);
     }
@@ -523,6 +537,7 @@ class Admin_Controller {
       $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post );
       $response_array['error'] = 'Error: '.$ownership_change_response.'Membership dates update failed. '.$wicket_response->get_error_message( 'wicket_api_error' );
       $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      Utilities::wc_log_mship_error($response_array);
       $response_code = 200;
     } else {
       //update subscription (only add end as next_payment_date if not using next_form_id) and set expiry date as end date
@@ -556,6 +571,7 @@ class Admin_Controller {
     $user = get_user_by('login', $new_owner_uuid);
     if(!empty($user->ID) && $user->ID == $membership['user_id']) {
       $response_array['error'] = 'Please select a new user.';
+      Utilities::wc_log_mship_error('Change Ownership: '. $response_array['error']);
       $response_code = 400;
       return new \WP_REST_Response($response_array, $response_code);
     }
@@ -568,6 +584,7 @@ class Admin_Controller {
     //var_dump([ $wicket_response, $membership]);exit;
     if(is_wp_error($wicket_response)) {
       $response_array['error'] = $wicket_response->get_error_message( 'wicket_api_error' );
+      Utilities::wc_log_mship_error('change_organization_membership_owner: '. $response_array['error']);
       $response_code = 400;
       return new \WP_REST_Response($response_array, $response_code);
     }   
