@@ -576,11 +576,11 @@ function add_order_item_meta ( $item_id, $values ) {
         $date->setTimezone(new \DateTimeZone('UTC'));
         $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
       }
-      if( in_array ( 'next_payment_date', $fields ) ) {
-        $date = new \DateTime(substr($end_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
-        $date->setTimezone(new \DateTimeZone('UTC'));
-        $dates_to_update['next_payment']  = $date->format('Y-m-d H:i:s');
-      }
+      //if( in_array ( 'next_payment_date', $fields ) ) {
+      //  $date = new \DateTime(substr($end_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
+      //  $date->setTimezone(new \DateTimeZone('UTC'));
+      //  $dates_to_update['next_payment']  = $date->format('Y-m-d H:i:s');
+      //}
       $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
       if( !empty( $sub )) {
         try {
@@ -589,17 +589,21 @@ function add_order_item_meta ( $item_id, $values ) {
           $sub->update_dates($dates_to_update);
           $order_note = 'Membership ' .$membership['membership_post_id'].' changed these subscription dates. ';
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
-          $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+          //$order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
           $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
           $sub->add_order_note($order_note);
         } catch (\Exception $e) {
           $order_note = 'Membership ' .$membership['membership_post_id'].' attempted to change these subscription dates. '.$e->getMessage();
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
-          $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+          //$order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
           $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
           $sub->add_order_note($order_note);
           return 'ERROR on Subscription Update: '. $e->getMessage();
         }
+        add_action('woocommerce_subscription_status_updated', function( $subscription_id )  {
+          $sub = wcs_get_subscription( $subscription_id );
+          $sub->update_dates(['next_payment' => 0]);
+        }, 10, 2 );        
       }
     }
   }
