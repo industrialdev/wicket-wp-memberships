@@ -571,7 +571,7 @@ function add_order_item_meta ( $item_id, $values ) {
         $date_flags_array['next_payment_date'] = $has_next_payment_date;
       }
 
-      $self->update_membership_subscription( $membership, $date_flags_array );
+      $self->update_membership_subscription( $membership, $date_flags_array, true );
       $membership_post_data = Helper::get_post_meta( $membership['membership_post_id'] );
       do_action('wicket_membership_created_mdp', $membership_post_data);
     }
@@ -608,9 +608,12 @@ function add_order_item_meta ( $item_id, $values ) {
   }
 
   /** 
-   * Update the subscription
+   * Update the subscription dates
+   * NOTE: Woo Subscriptions will ALWAYS set the [next_payment_date] when the subscription STATUS CHANGES to 'active' while the end_date IS SET.
+   * - Set the dates on the 'woocommerce_subscription_status_updated' hook (after the subscription is created) to avoid this behavior
+   * - Necessary because subscription status is changed after this code is run for new subscriptions
    */
-  public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ] ) {
+  public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ], $subcription_created = false ) {
     if( function_exists( 'wcs_get_subscription' )) {
       Utilities::wicket_logger( 'update_membership_subscription', $fields);
 
@@ -652,8 +655,16 @@ function add_order_item_meta ( $item_id, $values ) {
             $this->schedule_wicket_wipe_next_payment_date( $sub->get_id() );
             Utilities::wicket_logger( 'CLEARED: NEXT_PAYMENT', [$fields['next_payment_date'],$dates_to_update['next_payment']]);
           }
-          $sub->update_dates($dates_to_update);
-          Utilities::wicket_logger( 'SUBSCRIPTION: dates_to_update', $dates_to_update);
+          if( $subcription_created ) {
+            add_action('woocommerce_subscription_status_updated', function( $subscription_id ) use ( $dates_to_update ) {
+              $sub = wcs_get_subscription( $subscription_id );
+              $sub->update_dates($dates_to_update);
+              Utilities::wicket_logger( '---woocommerce_subscription_status_updated---', [$sub->get_id(), $dates_to_update ]);
+            }, 10, 2 );        
+          } else {
+            $sub->update_dates($dates_to_update);
+            Utilities::wicket_logger( 'SUBSCRIPTION DATES BEING UPDATED MANUALLY: dates_to_update', $dates_to_update);
+          }
           $order_note = 'Membership ' .$membership['membership_post_id'].' changed these subscription dates. ';
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
           if(!empty($dates_to_update['next_payment'])) {
