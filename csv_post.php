@@ -49,7 +49,7 @@ function wicket_wipe_membership_subscription_next_payment_dates() {
     $membership_subscription_id = get_post_meta( $post->ID, 'membership_subscription_id', true );
     $sub = wcs_get_subscription( $membership_subscription_id );
     echo 'clearing next_payment on subscription_id '.$membership_subscription_id.' for membership ID:'.$post->ID.'<br>';
-    if(!empty($_REQUEST['no_debug'])) {
+    if(!empty($_REQUEST['no_debug']) && !empty($sub) && !is_bool($sub)) {
       $clear_dates_to_update['next_payment'] = '';
       $sub->update_dates($clear_dates_to_update);
       echo 'cleared<br>';
