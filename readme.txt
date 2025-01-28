@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.81 =
+* Date Jan 28 2025
+* Clear next payment date
+
 = 1.0.80 =
 * Date Jan 22 2025
 * Optimize and update sync tooling
