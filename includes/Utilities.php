@@ -13,10 +13,10 @@ class Utilities {
   public function __construct() {
     if( $this->is_wicket_show_mship_order_org_search() ) {
       //org search metabox
-      add_action( 'add_meta_boxes', [$this, 'wicket_sub_org_select_metabox'] );
+      add_action( 'add_meta_boxes', [$this, 'wicket_sub_org_select_metabox'], 10, 2 );
       add_action('admin_enqueue_scripts', [$this, 'enqueue_suborg_scripts'] );
       add_action('wp_ajax_suborg_search', [$this, 'handle_suborg_search'] );
-      add_action('save_post', [$this, 'set_subscription_postmeta_suborg_uuid']);
+      add_action('woocommerce_process_shop_subscription_meta', [$this, 'set_subscription_postmeta_suborg_uuid']);
     }
     if(isset($_ENV['ALLOW_LOCAL_IMPORTS']) && $_ENV['ALLOW_LOCAL_IMPORTS']) {
       add_action('admin_enqueue_scripts', [$this, 'enqueue_suborg_scripts'] );
@@ -188,8 +188,7 @@ class Utilities {
     }  
   }
 
-  function wicket_sub_org_select_metabox() {
-    global $post;
+  function wicket_sub_org_select_metabox( $post_type, $post ) {
     $sub = wcs_get_subscription($post->ID);
     if(empty($sub)) {
       return;
@@ -213,11 +212,14 @@ class Utilities {
     if(empty($org_uuid_missing)) {
       return;
     }
+
+    $screen =  wc_get_container()->get( \Automattic\WooCommerce\Internal\DataStores\Orders\CustomOrdersTableController::class )->custom_orders_table_usage_is_enabled( 'shop_subscription' ) ? 'woocommerce_page_wc-orders--shop_subscription' : 'shop_subscription';
+
         add_meta_box(
             'custom',
             __('Membership Order > SELECT Organization'),
             [$this, 'wicket_sub_org_select_callback'],
-            'shop_subscription',
+            $screen,
             'normal',
             'high'
         );
