@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.82 =
+* Date Jan 30 2025
+* HPOS compatibility
+
 = 1.0.81 =
 * Date Jan 28 2025
 * Clear next payment date
