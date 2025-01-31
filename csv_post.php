@@ -18,6 +18,80 @@ if( empty( $_ENV['ALLOW_LOCAL_IMPORTS'] )) {
   die("Disabled");
 }
 
+if(!empty($_REQUEST['mship_update_global_grace_period_end_date'])) {
+  wicket_update_global_grace_period_end_date();
+}
+
+/**
+ * Summary of wicket_update_global_grace_period_end_date
+ * URL: {domain}/app/plugins/wicket-wp-memberships/csv_post.php?mship_update_global_grace_period_end_date=1&date_to_set=2026-01-18&date_to_find=2026-02-18&no_debug=1
+ * Omit "&no_debug=1" to validate what will get changed and 
+ * Add "&no_debug=1" to commit the change
+ * Validation returned to screen
+ * Committing the change will return .csv confirmation of changes
+ */
+
+function wicket_update_global_grace_period_end_date() {
+  $output = '';
+  $date_to_set = $_REQUEST['date_to_set']; //Date to change to: Y-m-d
+  $date_to_find = $_REQUEST['date_to_find']; //LIKE query on membership_expires_at
+  $status = [ 'active' ];
+
+  if(empty($date_to_set) || empty($date_to_find)) {
+    echo "Missing one or more required dates in query string.";
+    exit();
+  }
+
+  $args = array(
+    'post_type' => 'wicket_membership',
+    'post_status' => 'publish',
+    'meta_key' => 'user_id',
+    'posts_per_page' => -1,
+    'meta_query'     => array(
+      array(
+        'key'     => 'membership_status',
+        'value'   => $status,
+        'compare' => 'IN'
+      ),
+      array(
+        'key'     => 'membership_expires_at',
+        'value'   =>   $date_to_find,
+        'compare' => 'LIKE'
+      ),
+    )
+  );
+  $posts = new \WP_Query( $args );
+  $cnt=0;
+  $membership_expires_at  = (new \DateTime( date("Y-m-d H:i:s", strtotime($date_to_set) ), new DateTimeZone( wp_timezone_string() ) ))->format('c');
+  $output .= "Membership ID, Old Expires At Date, New Expires At Date\n";
+  foreach($posts->posts as $post) {
+    $cnt++;
+    $line = get_post_meta( $post->ID, 'membership_wicket_uuid', true);
+    $current_expires_at_date = get_post_meta( $post->ID, 'membership_expires_at', true);
+    if(!empty($_REQUEST['no_debug'])) {
+      update_post_meta($post->ID, 'membership_expires_at', $membership_expires_at);   
+      $output .= "$line,$current_expires_at_date,$membership_expires_at\n";
+    } else {
+      $terminate = 1;
+      echo "$cnt. $post->ID<br>";
+      echo 'Found '.$line.' | '.$current_expires_at_date.' | '.$membership_expires_at . '<BR>';
+    }
+  }
+
+  if(!empty($terminate)) {
+    die();
+  }
+
+  $datestamp = date('Y-m-d-H-i-s');
+  header($_SERVER["SERVER_PROTOCOL"] . " 200 OK");
+  header("Cache-Control: public");
+  header("Content-Type: application/text");
+  header("Content-Transfer-Encoding: Binary");
+  header("Content-Disposition: attachment; filename=membership_expires_at-sync-".$datestamp.".csv");
+  echo $output;
+  exit();
+}
+
 if(!empty($_REQUEST['mship_wipe_next_payment_date'])) {
   wicket_wipe_membership_subscription_next_payment_dates();
 }
