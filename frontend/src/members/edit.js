@@ -555,6 +555,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                         {__('Membership Tier', 'wicket-memberships')}
                       </th>
                       <th className="manage-column column-columnname" scope="col">
+                        {__('ID', 'wicket-memberships')}
+                      </th>
+                      <th className="manage-column column-columnname" scope="col">
                         {__('Status', 'wicket-memberships')}
                       </th>
                       <th className="manage-column column-columnname" scope="col">
@@ -577,6 +580,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                         >
                           <td className="column-columnname">
                             {membership.data.membership_tier_name}
+                          </td>
+                          <td className="column-columnname">
+                            {membership.ID}
                           </td>
                           <td className="column-columnname">
                             {membership.data.membership_status}
