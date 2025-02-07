@@ -28,6 +28,22 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.83 =
+* Date Jan 31 2025
+* Grace period updates
+
+= 1.0.82 =
+* Date Jan 30 2025
+* HPOS compatibility
+
+= 1.0.81 =
+* Date Jan 28 2025
+* Clear next payment date
+
+= 1.0.80 =
+* Date Jan 22 2025
+* Optimize and update sync tooling
+
 = 1.0.79 =
 * Date Jan 21 2025
 * Add WC Logging for plugin errors
