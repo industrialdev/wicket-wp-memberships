@@ -11,19 +11,38 @@ class Membership_Post_Types {
   private $membership_cpt_slug = '';
   private $membership_config_cpt_slug = '';
   private $membership_tier_cpt_slug = '';
+  private $membership_notes_cpt_slug = '';
 
 
   public function __construct() {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
     $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
+    $this->membership_notes_cpt_slug = Helper::get_membership_notes_cpt_slug();
+
     add_action('init', [ $this, 'register_membership_post_type' ]);
     add_action('init', [ $this, 'register_membership_config_post_type' ]);
     add_action('init', [ $this, 'register_membership_tier_post_type' ]);
+    add_action('init', [ $this, 'register_membership_notes_post_type' ]);
 
     // Register the fields to the REST API and validate the data
     add_action('rest_api_init', [ $this, 'register_membership_config_cpt_fields' ]);
     add_action('rest_api_init', [ $this, 'register_membership_tier_cpt_fields' ]);
+  }
+
+  public function register_membership_notes_post_type() {
+    $args = array(
+        'label'               => 'Membership Notes',
+        'public'              => true, // Hidden from frontend
+        'show_ui'             => false,  // Visible in admin
+        'show_in_menu'        => false,  // Visible in the admin menu
+        'supports'            => array('title', 'editor'), // Title and content for the note
+        'has_archive'         => false, 
+        'rewrite'             => false,
+        'capability_type'     => 'post',
+        'show_in_rest'        => false, // Disable REST API support if not needed
+    );
+    register_post_type( $this->membership_notes_cpt_slug, $args );
   }
 
   /**
@@ -728,8 +747,8 @@ class Membership_Post_Types {
       'supports' => $supports,
       'labels' => $labels,
       'description'        => __( 'Records of the Wicket Memberships', 'wicket-memberships' ),
-      'public'             => false,
-      'publicly_queryable' => false,
+      'public'             => true,
+      'publicly_queryable' => true,
       'show_ui'            => true,
       'show_in_menu'       => $membership_menu_item,
       'query_var'          => true,

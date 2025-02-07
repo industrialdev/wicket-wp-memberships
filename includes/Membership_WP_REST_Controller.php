@@ -284,6 +284,58 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
+
+    //retrieve membership notes for a membership post by id
+    register_rest_route( $this->namespace, '/membership/(?P<membership_post_id>\d+)/notes', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_membership_notes' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      //'schema' => array( $this, '' ),
+    )
+    );
+
+    //store membership note for a membership post by id
+    register_rest_route( $this->namespace, '/membership/(?P<membership_post_id>\d+)/notes', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'add_membership_notes' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+      ),
+      //'schema' => array( $this, '' ),
+    )
+    );
+
+    //delete membership note by note id
+    register_rest_route( $this->namespace, '/membership/(?P<membership_post_id>\d+)/note/(?P<membership_note_id>\d+)', array(
+      array(
+        'methods'  => \WP_REST_Server::DELETABLE,
+        'callback'  => array( $this, 'delete_membership_notes' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+      ),
+      //'schema' => array( $this, '' ),
+    )
+    );
+  }
+
+  public function delete_membership_notes( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Membership_Notes::delete_membership_note( $params['membership_post_id'], $params['membership_note_id'] );
+    return rest_ensure_response( $response );
+  }
+
+  public function add_membership_notes( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Membership_Notes::add_mship_note( $params['membership_post_id'], $params['membership_note'], $params['private_note'] );
+    return rest_ensure_response( $response );
+  }
+
+  public function get_membership_notes( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $membership_notes_manager = new Membership_Notes();
+    $response = $membership_notes_manager->get_notes_for_post( $params['membership_post_id'],  $params['private_notes']);
+    return rest_ensure_response( $response );
   }
 
   public function mdp_person_lookup( \WP_REST_Request $request ) {
