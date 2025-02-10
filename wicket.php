@@ -132,6 +132,11 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_DISABLE_RENEWALS']=true;
             }
           }
+          if(isset($options['wicket_mship_assign_subscription'])) {
+            if($options['wicket_mship_assign_subscription']) {
+              $_ENV['WICKET_MSHIP_ASSIGN_SUBSCRIPTION']=true;
+            }
+          }
         }
 
 	/**

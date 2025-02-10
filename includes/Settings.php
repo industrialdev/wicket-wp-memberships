@@ -34,6 +34,7 @@ class Settings {
     //options
     add_settings_field( 'wicket_show_mship_order_org_search', '<p>Set the Organization on Subscription Membership in Admin</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_mship_order_org_search'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_assign_subscription', '<p>Membership Subscription Assignment</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_assign_subscription'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_subscription_renew', '<p>Use Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_subscription_renew'], 'wicket_membership_plugin', 'functional_settings' );
     
     //debug
@@ -52,6 +53,12 @@ class Settings {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_disable_renewal]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_disable_renewal']), false). " />"
       .'Do not display renewal callouts in ACC.';
+  }
+
+  public static function wicket_mship_assign_subscription() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_assign_subscription]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_assign_subscription']), false). " />"
+      .'Allow assigning membership by ID on Woocommerce Subscription page.';
   }
 
   public static function wicket_show_mship_order_org_search() {
@@ -132,6 +139,7 @@ class Settings {
   }
 
   public static function wicket_membership_plugin_options_validate( $input ) {
+    $newinput['wicket_mship_assign_subscription'] = trim($input['wicket_mship_assign_subscription']);
     $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
     $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
     $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);
