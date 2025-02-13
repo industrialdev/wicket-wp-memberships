@@ -154,8 +154,6 @@ const CreateRenewalOrder = ({ membership }) => {
       if (response.success) {
         setCreateRenewalOrderFormData({
           ...createRenewalOrderFormData,
-          product_id: null,
-          variation_id: null,
           order_link: response.order_url
         });
       }

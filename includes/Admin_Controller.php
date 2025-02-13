@@ -644,13 +644,21 @@ class Admin_Controller {
     $response_array = [];
 
     $membership_post_id = $request['membership_post_id'];
-    $membership = Helper::get_post_meta( $membership_post_id );   
+
+    if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
+      $response_array['error'] = 'Error: Membership not found. Request did not succeed.';
+      return new \WP_REST_Response($response_array, 400);
+    }
+
+    $membership = Helper::get_post_meta( $membership_post_id );
+    $membership_status = $membership['membership_status'];
     $customer_uuid = $membership['membership_user_uuid'];
     $product_id = $request['product_id'];
     $variation_id = $request['variation_id'];
 
-    if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
-      $response_array['error'] = 'Error: Membership not found. Request did not succeed.';
+    // Check if the membership is in an active status
+    if( ! in_array( $membership_status, ['active', 'grace_period', 'delayed'] ) ) {
+      $response_array['error'] = 'Error: Membership not in active status. Request did not succeed.';
       return new \WP_REST_Response($response_array, 400);
     }
 
