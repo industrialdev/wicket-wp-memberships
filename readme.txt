@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.84 =
+* Date Feb 12 2025
+* Added ability to create renewal order for the memberships
+
 = 1.0.83 =
 * Date Jan 31 2025
 * Grace period updates

@@ -284,6 +284,18 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
+
+    /**
+     * Create a renewal order for a membership
+     */
+    register_rest_route( $this->namespace, '/membership/(?P<membership_post_id>\d+)/create_renewal_order', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'create_renewal_order' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+      ),
+      //'schema' => array( $this, '' ),
+    ) );    
   }
 
   public function mdp_person_lookup( \WP_REST_Request $request ) {
@@ -416,6 +428,12 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $tier_info = Membership_Controller::get_tier_info( $params['filter']['tier_uuid'], $params['properties'] );
     return rest_ensure_response( $tier_info );
+  }
+
+  public function create_renewal_order( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Admin_Controller::create_renewal_order( $params );
+    return rest_ensure_response( $response );
   }
 
 	public function get_memberships_table_data($categories = null, $filters = [])

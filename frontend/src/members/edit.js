@@ -11,6 +11,7 @@ import styled from 'styled-components';
 import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo, fetchMdpPersons } from '../services/api';
 import he from 'he';
 import moment from 'moment';
+import CreateRenewalOrder from './create_renewal_order';
 
 export const EditWrap = styled.div`
 	max-width: 1000px;
@@ -133,6 +134,10 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     setIsManageStatusModalOpen(true);
   }
 
+
+  /**
+   * Close the Manage Status Modal
+   */
   const closeManageStatusModalOpen = () => {
     setIsManageStatusModalOpen(false);
   }
@@ -467,7 +472,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                   isDisabled={memberInfo === null}
                 >
                   <Button
-                    variant='primary'
+                    variant='secondary'
                     href={memberInfo === null ? '' : memberInfo.mdp_link}
                     target='_blank'
                   >
@@ -534,7 +539,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 <FlexItem>
                   <CustomDisabled>
                     <Button
-                      variant='primary'
+                      variant='secondary'
                     >
                       <Icon icon='plus' />&nbsp;
                       {__('Add New Membership', 'wicket-memberships')}
@@ -609,7 +614,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                           className='membership_details'
                           style={{ display: membership.showRow ? 'table-row' : 'none' }}
                         >
-                          <td colSpan={6} >
+                          <td colSpan={7} >
                             {membership.subscription.id !== undefined &&
                             <Flex
                               align='end'
@@ -686,8 +691,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                             </table>
                             }
 
-                            <MarginedFlex
-                              align='end'
+                            <Flex
+                              align='normal'
                               justify='start'
                               gap={6}
                               direction={[
@@ -695,293 +700,310 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                 'row'
                               ]}
                             >
-                              <FlexBlock>
-                                <TextControl
-                                  label={__('Membership Status', 'wicket-memberships')}
-                                  disabled={true}
-                                  __nextHasNoMarginBottom={true}
-                                  value={membership.data.membership_status}
-                                />
-                              </FlexBlock>
-                              <FlexBlock>
-                                <Button
-                                  variant='primary'
-                                  onClick={() => {
-                                    openManageStatusModalOpen(index);
-                                  }}
-                                >
-                                  {__('Manage Status', 'wicket-memberships')}
-                                </Button>
-                              </FlexBlock>
-                            </MarginedFlex>
-
-                            {/* Membership update form */}
-                            {membership.updateResult.length > 0 && (
-                              <ErrorsRow>
-                                <Notice
-                                  isDismissible={true}
-                                  onDismiss={() => {
-                                    setMemberships(
-                                      memberships.map((m) => {
-                                        if (m.ID == membership.ID) {
-                                          m.updateResult = '';
-                                        }
-                                        return m;
-                                      })
-                                    );
-                                  }}
-                                  status="info">{membership.updateResult}</Notice>
-                              </ErrorsRow>
-                            )}
-
-                            <form
-                              data-membership-id={membership.ID}
-                              onSubmit={handleUpdateMembership}
-                            >
-                              <MarginedFlex
-                                align='end'
-                                justify='start'
-                                gap={6}
-                                direction={[
-                                  'column',
-                                  'row'
-                                ]}
-                              >
-                                <FlexBlock>
-                                  <LabelWpStyled htmlFor="membership_starts_at">
-                                    {__('Start Date', 'wicket-memberships')}
-                                  </LabelWpStyled>
-                                  <ReactDatePickerStyledWrap>
-                                    <DatePicker
-                                      aria-label={__('Start Date', 'wicket-memberships')}
-                                      name='membership_starts_at'
-                                      dateFormat={DEFAULT_DATE_FORMAT}
-                                      showMonthDropdown
-                                      showYearDropdown
-                                      dropdownMode="select"
-                                      selected={ membership.data.membership_starts_at }
-                                      onChange={(value) => {
-                                        console.log(value);
-                                        handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment.utc(value).format('YYYY-MM-DD'));
-                                      }}
-                                    />
-                                  </ReactDatePickerStyledWrap>
-                                </FlexBlock>
-                                <FlexBlock>
-                                  <LabelWpStyled htmlFor="membership_ends_at">
-                                    {__('End Date', 'wicket-memberships')}
-                                  </LabelWpStyled>
-                                  <ReactDatePickerStyledWrap>
-                                    <DatePicker
-                                      aria-label={__('End Date', 'wicket-memberships')}
-                                      name='membership_ends_at'
-                                      dateFormat={DEFAULT_DATE_FORMAT}
-                                      showMonthDropdown
-                                      showYearDropdown
-                                      dropdownMode="select"
-                                      selected={ membership.data.membership_ends_at }
-                                      onChange={(value) => {
-                                        handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment.utc(value).format('YYYY-MM-DD'));
-                                      }}
-                                    />
-                                  </ReactDatePickerStyledWrap>
-                                </FlexBlock>
-                                <FlexBlock>
-                                  <LabelWpStyled htmlFor="membership_expires_at">
-                                    {__('Expiration Date', 'wicket-memberships')}
-                                  </LabelWpStyled>
-                                  <ReactDatePickerStyledWrap>
-                                    <DatePicker
-                                      aria-label={__('Expiration Date', 'wicket-memberships')}
-                                      name='membership_expires_at'
-                                      dateFormat={DEFAULT_DATE_FORMAT}
-                                      showMonthDropdown
-                                      showYearDropdown
-                                      dropdownMode="select"
-                                      selected={ membership.data.membership_expires_at }
-                                      onChange={(value) => {
-                                        handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment.utc(value).format('YYYY-MM-DD'));
-                                      }}
-                                    />
-                                  </ReactDatePickerStyledWrap>
-                                </FlexBlock>
-                              </MarginedFlex>
-                              <MarginedFlex>
-                                <FlexBlock>
-                                  <LabelWpStyled htmlFor="renewal_type">
-                                    {__('Renewal Type', 'wicket-memberships')}
-                                  </LabelWpStyled>
-                                  <SelectWpStyled
-                                    id="renewal_type"
-                                    classNamePrefix="select"
-                                    name='renewal_type'
-                                    value={(() => {
-                                      return renewalTypeOptions.find(option => option.value == membership.data.renewalType);
-                                    })()}
-                                    options={renewalTypeOptions}
-                                    onChange={(selected) => {
-                                      handleMembershipFieldChange(membership.ID, 'renewalType', selected.value);
-                                    }}
-                                  />
-
-                              { (membership.data.renewalType === 'inherited' && membership.data.tierRenewalType !== undefined ) &&
-                                  <FlexItem>
-                                      {__('Inherited Renewal Type: ', 'wicket-memberships')}  <strong>{ (renewalTypeOptions.find(option => option.value == membership.data.tierRenewalType)).label }</strong>
-                                  </FlexItem>
-                              }
-
-                                </FlexBlock>
-                              </MarginedFlex>
-
-                              {/* Sequential Logic - Form Flow */}
-                              {membership.data.renewalType === 'form_flow' &&
-                                <MarginedFlex>
-                                  <FlexBlock>
-                                    <LabelWpStyled htmlFor="next_tier_form_page_id">
-                                      {__('Form Page', 'wicket-memberships')}
-                                    </LabelWpStyled>
-                                    <SelectWpStyled
-                                      id="next_tier_form_page_id"
-                                      name="next_tier_form_page_id"
-                                      classNamePrefix="select"
-                                      value={wpPagesOptions.find(option => option.value == membership.data.membership_next_tier_form_page_id)}
-                                      isClearable={false}
-                                      isSearchable={true}
-                                      options={wpPagesOptions}
-                                      onChange={(selected) => {
-                                        handleMembershipFieldChange(membership.ID, 'membership_next_tier_form_page_id', selected.value);
-                                      }}
-                                    />
-                                  </FlexBlock>
-                                </MarginedFlex>
-                              }
-
-                              {/* Sequential Logic - Tier ID */}
-                              {membership.data.renewalType === 'sequential_logic' &&
-                                <MarginedFlex>
-                                  <FlexBlock>
-                                    <LabelWpStyled htmlFor="next_tier_id">
-                                      {__('Sequential Tier', 'wicket-memberships')}
-                                    </LabelWpStyled>
-                                    <SelectWpStyled
-                                      id="next_tier_id"
-                                      name="next_tier_id"
-                                      classNamePrefix="select"
-                                      value={wpTierOptions.find(option => option.value == membership.data.membership_next_tier_id)}
-                                      isClearable={false}
-                                      isSearchable={true}
-                                      options={wpTierOptions}
-                                      onChange={(selected) => {
-                                        handleMembershipFieldChange(membership.ID, 'membership_next_tier_id', selected.value);
-                                      }}
-                                    />
-                                  </FlexBlock>
-                                </MarginedFlex>
-                              }
-
-                              {memberType === 'organization' && (
-                                <MarginedFlex
-                                  align='start'
+                              <BorderedBox style={{ flex: '1' }} >
+                                <Flex
+                                  align='end'
                                   justify='start'
                                   gap={6}
                                   direction={[
                                     'column',
                                     'row'
                                   ]}
-                                  style={{
-                                    marginBottom: '30px'
-                                  }}
                                 >
-                                  <FlexBlock
-                                    style={{
-                                      flexGrow: 2
-                                    }}
-                                  >
-                                    <LabelWpStyled
-                                      style={{ height: '20px' }}
+                                  <FlexBlock style={{ flex: '1' }} >
+                                    <TextControl
+                                      label={__('Membership Status', 'wicket-memberships')}
+                                      disabled={true}
+                                      __nextHasNoMarginBottom={true}
+                                      value={membership.data.membership_status}
+                                    />
+                                  </FlexBlock>
+                                  <FlexItem >
+                                    <Button
+                                      variant='secondary'
+                                      onClick={() => {
+                                        openManageStatusModalOpen(index);
+                                      }}
                                     >
-                                      {__('Seats', 'wicket-memberships')}
+                                      {__('Manage Status', 'wicket-memberships')}
+                                    </Button>
+                                  </FlexItem>
+                                </Flex>
+                              </BorderedBox>
+
+                              <CreateRenewalOrder membership={membership} />
+                            </Flex>
+
+                            <BorderedBox>
+                              {/* Membership update form */}
+                              {membership.updateResult.length > 0 && (
+                                <ErrorsRow>
+                                  <Notice
+                                    isDismissible={true}
+                                    onDismiss={() => {
+                                      setMemberships(
+                                        memberships.map((m) => {
+                                          if (m.ID == membership.ID) {
+                                            m.updateResult = '';
+                                          }
+                                          return m;
+                                        })
+                                      );
+                                    }}
+                                    status="info">{membership.updateResult}</Notice>
+                                </ErrorsRow>
+                              )}
+                              <form
+                                data-membership-id={membership.ID}
+                                onSubmit={handleUpdateMembership}
+                              >
+                                <Flex
+                                  align='end'
+                                  justify='start'
+                                  gap={6}
+                                  direction={[
+                                    'column',
+                                    'row'
+                                  ]}
+                                >
+                                  <FlexBlock>
+                                    <LabelWpStyled htmlFor="membership_starts_at">
+                                      {__('Start Date', 'wicket-memberships')}
                                     </LabelWpStyled>
-                                    <SeatsBox>
-                                      <div className='box disabled'>
-                                        {__('Total Seats:', 'wicket-memberships')}
-                                        <strong>{membership.max_assignments}</strong>
-                                      </div>
-                                      <div className='box'>
-                                        {__('Assigned Seats:', 'wicket-memberships')}
-                                        <strong>{membership.active_assignments_count}</strong>
-                                      </div>
-                                      <div className='box'>
-                                        {__('Unassigned:', 'wicket-memberships')}
-                                        <strong>{getUnassignedSeats(membership)}</strong>
-                                      </div>
-                                    </SeatsBox>
-                                    <div style={{ marginTop: '10px' }} >
-                                      <Button
-                                        href={membership.mdp_membership_link}
-                                        target='_blank'
-                                        variant='link'
-                                      >
-                                        {__('Manage Seats in MDP', 'wicket-memberships')}
-                                      </Button>
-                                      &nbsp;<Icon icon='external' style={{ color: 'var(--wp-admin-theme-color)' }} />
-                                    </div>
+                                    <ReactDatePickerStyledWrap>
+                                      <DatePicker
+                                        aria-label={__('Start Date', 'wicket-memberships')}
+                                        name='membership_starts_at'
+                                        dateFormat={DEFAULT_DATE_FORMAT}
+                                        showMonthDropdown
+                                        showYearDropdown
+                                        dropdownMode="select"
+                                        selected={ membership.data.membership_starts_at }
+                                        onChange={(value) => {
+                                          console.log(value);
+                                          handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment.utc(value).format('YYYY-MM-DD'));
+                                        }}
+                                      />
+                                    </ReactDatePickerStyledWrap>
                                   </FlexBlock>
                                   <FlexBlock>
-                                    <LabelWpStyled style={{ height: '20px' }} >
-                                      {__('Membership Owner', 'wicket-memberships')}&nbsp;
-                                      <Tooltip
-                                        text="Represents the Customer responsible for managing and Renewing the Organization Membership."
-                                      >
-                                        <div><Icon icon='info' /></div>
-                                      </Tooltip>
+                                    <LabelWpStyled htmlFor="membership_ends_at">
+                                      {__('End Date', 'wicket-memberships')}
                                     </LabelWpStyled>
-                                    <AsyncSelectWpStyled
-                                      id="membership_owner_id"
+                                    <ReactDatePickerStyledWrap>
+                                      <DatePicker
+                                        aria-label={__('End Date', 'wicket-memberships')}
+                                        name='membership_ends_at'
+                                        dateFormat={DEFAULT_DATE_FORMAT}
+                                        showMonthDropdown
+                                        showYearDropdown
+                                        dropdownMode="select"
+                                        selected={ membership.data.membership_ends_at }
+                                        onChange={(value) => {
+                                          handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment.utc(value).format('YYYY-MM-DD'));
+                                        }}
+                                      />
+                                    </ReactDatePickerStyledWrap>
+                                  </FlexBlock>
+                                  <FlexBlock>
+                                    <LabelWpStyled htmlFor="membership_expires_at">
+                                      {__('Expiration Date', 'wicket-memberships')}
+                                    </LabelWpStyled>
+                                    <ReactDatePickerStyledWrap>
+                                      <DatePicker
+                                        aria-label={__('Expiration Date', 'wicket-memberships')}
+                                        name='membership_expires_at'
+                                        dateFormat={DEFAULT_DATE_FORMAT}
+                                        showMonthDropdown
+                                        showYearDropdown
+                                        dropdownMode="select"
+                                        selected={ membership.data.membership_expires_at }
+                                        onChange={(value) => {
+                                          handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment.utc(value).format('YYYY-MM-DD'));
+                                        }}
+                                      />
+                                    </ReactDatePickerStyledWrap>
+                                  </FlexBlock>
+                                </Flex>
+                                <MarginedFlex>
+                                  <FlexBlock>
+                                    <LabelWpStyled htmlFor="renewal_type">
+                                      {__('Renewal Type', 'wicket-memberships')}
+                                    </LabelWpStyled>
+                                    <SelectWpStyled
+                                      id="renewal_type"
                                       classNamePrefix="select"
-                                      name="new_owner_uuid"
-                                      value={membershipOwnerOptions.find(option => option.value === membership.data.membership_user_uuid)}
-                                      defaultOptions={membershipOwnerOptions}
-                                      loadOptions={loadMembershipOwnerOptions}
-                                      isClearable={false}
-                                      isSearchable={true}
-                                      // isLoading={wcProductOptions.length === 0}
-                                      onChange={selected => {
-                                        handleMembershipFieldChange(membership.ID, 'membership_user_uuid', selected.value);
+                                      name='renewal_type'
+                                      value={(() => {
+                                        return renewalTypeOptions.find(option => option.value == membership.data.renewalType);
+                                      })()}
+                                      options={renewalTypeOptions}
+                                      onChange={(selected) => {
+                                        handleMembershipFieldChange(membership.ID, 'renewalType', selected.value);
                                       }}
                                     />
 
-                                    <div style={{ marginTop: '10px' }} >
-                                      <Button variant='link'>
-                                        {__('View in MDP', 'wicket-memberships')}
-                                      </Button>
-                                      &nbsp;<Icon icon='external' style={{ color: 'var(--wp-admin-theme-color)' }} />
-                                    </div>
+                                { (membership.data.renewalType === 'inherited' && membership.data.tierRenewalType !== undefined ) &&
+                                    <FlexItem  style={{ marginTop: '5px' }} >
+                                      <small>
+                                        {__('Inherited Renewal Type: ', 'wicket-memberships')} <strong>{ (renewalTypeOptions.find(option => option.value == membership.data.tierRenewalType)).label }</strong>
+                                      </small>
+                                    </FlexItem>
+                                }
+
                                   </FlexBlock>
                                 </MarginedFlex>
-                              )}
 
-                              <MarginedFlex
-                                align='end'
-                                justify='start'
-                                gap={6}
-                                direction={[
-                                  'column',
-                                  'row'
-                                ]}
-                              >
-                                <FlexItem>
-                                  <Button
-                                    variant='primary'
-                                    type='submit'
-                                    disabled={membership.updatingNow || membership.updatedNow || membership.data.membership_status.toLowerCase() == 'cancelled'}
-                                    isBusy={membership.updatingNow}
+                                {/* Sequential Logic - Form Flow */}
+                                {membership.data.renewalType === 'form_flow' &&
+                                  <MarginedFlex>
+                                    <FlexBlock>
+                                      <LabelWpStyled htmlFor="next_tier_form_page_id">
+                                        {__('Form Page', 'wicket-memberships')}
+                                      </LabelWpStyled>
+                                      <SelectWpStyled
+                                        id="next_tier_form_page_id"
+                                        name="next_tier_form_page_id"
+                                        classNamePrefix="select"
+                                        value={wpPagesOptions.find(option => option.value == membership.data.membership_next_tier_form_page_id)}
+                                        isClearable={false}
+                                        isSearchable={true}
+                                        options={wpPagesOptions}
+                                        onChange={(selected) => {
+                                          handleMembershipFieldChange(membership.ID, 'membership_next_tier_form_page_id', selected.value);
+                                        }}
+                                      />
+                                    </FlexBlock>
+                                  </MarginedFlex>
+                                }
+
+                                {/* Sequential Logic - Tier ID */}
+                                {membership.data.renewalType === 'sequential_logic' &&
+                                  <MarginedFlex>
+                                    <FlexBlock>
+                                      <LabelWpStyled htmlFor="next_tier_id">
+                                        {__('Sequential Tier', 'wicket-memberships')}
+                                      </LabelWpStyled>
+                                      <SelectWpStyled
+                                        id="next_tier_id"
+                                        name="next_tier_id"
+                                        classNamePrefix="select"
+                                        value={wpTierOptions.find(option => option.value == membership.data.membership_next_tier_id)}
+                                        isClearable={false}
+                                        isSearchable={true}
+                                        options={wpTierOptions}
+                                        onChange={(selected) => {
+                                          handleMembershipFieldChange(membership.ID, 'membership_next_tier_id', selected.value);
+                                        }}
+                                      />
+                                    </FlexBlock>
+                                  </MarginedFlex>
+                                }
+
+                                {memberType === 'organization' && (
+                                  <MarginedFlex
+                                    align='start'
+                                    justify='start'
+                                    gap={6}
+                                    direction={[
+                                      'column',
+                                      'row'
+                                    ]}
+                                    style={{
+                                      marginBottom: '30px'
+                                    }}
                                   >
-                                    {__('Update Membership', 'wicket-memberships')}
-                                  </Button>
-                                </FlexItem>
-                              </MarginedFlex>
-                            </form>
+                                    <FlexBlock
+                                      style={{
+                                        flexGrow: 2
+                                      }}
+                                    >
+                                      <LabelWpStyled
+                                        style={{ height: '20px' }}
+                                      >
+                                        {__('Seats', 'wicket-memberships')}
+                                      </LabelWpStyled>
+                                      <SeatsBox>
+                                        <div className='box disabled'>
+                                          {__('Total Seats:', 'wicket-memberships')}
+                                          <strong>{membership.max_assignments}</strong>
+                                        </div>
+                                        <div className='box'>
+                                          {__('Assigned Seats:', 'wicket-memberships')}
+                                          <strong>{membership.active_assignments_count}</strong>
+                                        </div>
+                                        <div className='box'>
+                                          {__('Unassigned:', 'wicket-memberships')}
+                                          <strong>{getUnassignedSeats(membership)}</strong>
+                                        </div>
+                                      </SeatsBox>
+                                      <div style={{ marginTop: '10px' }} >
+                                        <Button
+                                          href={membership.mdp_membership_link}
+                                          target='_blank'
+                                          variant='link'
+                                        >
+                                          {__('Manage Seats in MDP', 'wicket-memberships')}
+                                        </Button>
+                                        &nbsp;<Icon icon='external' style={{ color: 'var(--wp-admin-theme-color)' }} />
+                                      </div>
+                                    </FlexBlock>
+                                    <FlexBlock>
+                                      <LabelWpStyled style={{ height: '20px' }} >
+                                        {__('Membership Owner', 'wicket-memberships')}&nbsp;
+                                        <Tooltip
+                                          text="Represents the Customer responsible for managing and Renewing the Organization Membership."
+                                        >
+                                          <div><Icon icon='info' /></div>
+                                        </Tooltip>
+                                      </LabelWpStyled>
+                                      <AsyncSelectWpStyled
+                                        id="membership_owner_id"
+                                        classNamePrefix="select"
+                                        name="new_owner_uuid"
+                                        value={membershipOwnerOptions.find(option => option.value === membership.data.membership_user_uuid)}
+                                        defaultOptions={membershipOwnerOptions}
+                                        loadOptions={loadMembershipOwnerOptions}
+                                        isClearable={false}
+                                        isSearchable={true}
+                                        // isLoading={wcProductOptions.length === 0}
+                                        onChange={selected => {
+                                          handleMembershipFieldChange(membership.ID, 'membership_user_uuid', selected.value);
+                                        }}
+                                      />
+
+                                      <div style={{ marginTop: '10px' }} >
+                                        <Button variant='link'>
+                                          {__('View in MDP', 'wicket-memberships')}
+                                        </Button>
+                                        &nbsp;<Icon icon='external' style={{ color: 'var(--wp-admin-theme-color)' }} />
+                                      </div>
+                                    </FlexBlock>
+                                  </MarginedFlex>
+                                )}
+
+                                <MarginedFlex
+                                  align='end'
+                                  justify='start'
+                                  gap={6}
+                                  direction={[
+                                    'column',
+                                    'row'
+                                  ]}
+                                >
+                                  <FlexItem>
+                                    <Button
+                                      variant='primary'
+                                      type='submit'
+                                      disabled={membership.updatingNow || membership.updatedNow || membership.data.membership_status.toLowerCase() == 'cancelled'}
+                                      isBusy={membership.updatingNow}
+                                    >
+                                      {__('Update Membership', 'wicket-memberships')}
+                                    </Button>
+                                  </FlexItem>
+                                </MarginedFlex>
+                              </form>
+                            </BorderedBox>
                           </td>
                         </tr>
                       </React.Fragment>

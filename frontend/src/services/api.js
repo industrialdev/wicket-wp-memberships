@@ -138,3 +138,18 @@ export const fetchProductVariations = (productId, queryParams = {}) => {
     addQueryArgs(`${WC_API_V3_URL}/products/${productId}/variations`, queryParams)
   });
 }
+
+/**
+ * Create Renewal Order
+ */
+export const createRenewalOrder = (membershipId, productId, variationId) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/membership/${membershipId}/create_renewal_order`,
+    method: 'POST',
+    data: {
+      membership_post_id: membershipId,
+      product_id: productId,
+      variation_id: variationId
+    }
+  });
+}
