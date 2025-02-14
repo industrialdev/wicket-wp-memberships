@@ -780,8 +780,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         dropdownMode="select"
                                         selected={ membership.data.membership_starts_at }
                                         onChange={(value) => {
-                                          console.log(value);
-                                          handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment.utc(value).format('YYYY-MM-DD'));
+                                          handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment(value).format('YYYY-MM-DD'));
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>
@@ -800,7 +799,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         dropdownMode="select"
                                         selected={ membership.data.membership_ends_at }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment.utc(value).format('YYYY-MM-DD'));
+                                          handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment(value).format('YYYY-MM-DD'));
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>
@@ -819,7 +818,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         dropdownMode="select"
                                         selected={ membership.data.membership_expires_at }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment.utc(value).format('YYYY-MM-DD'));
+                                          handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment(value).format('YYYY-MM-DD'));
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>
