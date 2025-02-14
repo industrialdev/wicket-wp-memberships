@@ -401,7 +401,17 @@ class Helper {
 
   public static function has_next_payment_date( $membership ) {
     $has_next_payment_date = false;
-    if( !empty( $membership['membership_next_tier_subscription_renewal'] ) ) {
+    if(!empty($membership['membership_subscription_id'])) {
+      $subscription = wcs_get_subscription( $membership['membership_subscription_id'] );
+    }
+
+    if( empty($subscription) ) {
+      return $has_next_payment_date;
+    }
+
+    $is_autopay_enabled = $subscription->get_requires_manual_renewal() ? false : true;
+
+    if( !empty( $membership['membership_next_tier_subscription_renewal'] ) || $is_autopay_enabled ) {
           /**
            * https://app.asana.com/0/1206866539294627/1208600763040824/f
            * 
@@ -411,7 +421,6 @@ class Helper {
            */
       $has_next_payment_date = true;
     } else {
-      if(!empty($membership['membership_subscription_id'])  ) {
         $subscription = wcs_get_subscription( $membership['membership_subscription_id'] );
         $subscription_period = $subscription->get_billing_period(); // Get the billing period (e.g., 'month', 'year')
         $Membership_Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
@@ -440,7 +449,6 @@ class Helper {
            * in `Membership_Controller->get_memberships_data_from_subscription_products()`
            * 
            */
-      }
     }    
     return $has_next_payment_date;
   }
