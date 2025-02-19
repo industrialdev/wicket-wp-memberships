@@ -377,7 +377,7 @@ function wicket_sub_org_select_callback( $subscription ) {
    * @param mixed $subscription
    * @return void
    */
-  function wicket_display_membership_id_input_on_order($subscription)
+  public function wicket_display_membership_id_input_on_order($subscription)
   {
     $subscription = wcs_get_subscription($subscription->get_id());
     if (empty($subscription)) {
@@ -419,13 +419,15 @@ function wicket_sub_org_select_callback( $subscription ) {
    * if the subscription does not yet exist it must be created and assigned the product with the custom price
    * once it is created this method allows you to assign it to a membership and then the renewal order will get generated correctly.
    */
-  function wicket_assign_subscription_to_membership($membership_subscription_id) {
-    if (! class_exists('Wicket_Memberships\Membership_Controller') || !$membership_subscription_id || empty($_REQUEST['wicket_subscription_add_membership_id'])) {
+  public function wicket_assign_subscription_to_membership($membership_subscription_id, $membership_id = null) {
+    if (! class_exists('Wicket_Memberships\Membership_Controller') || !$membership_subscription_id || ( empty($membership_id) && empty($_REQUEST['wicket_subscription_add_membership_id']) )) {
       return;
     }
-    $membership_id = sanitize_text_field($_REQUEST['wicket_subscription_add_membership_id']);
+    if(!empty($_REQUEST['wicket_subscription_add_membership_id']) && empty($membership_id) ) {
+      $membership_id = sanitize_text_field($_REQUEST['wicket_subscription_add_membership_id']);
+    }
     $subscription = wcs_get_subscription($membership_subscription_id);
-    if (0) { //!empty($subscription) && $membership_id == $subscription->get_meta('_membership_id')) {
+    if (!empty($subscription) && $membership_id == $subscription->get_meta('_membership_id')) {
       return;
     } else if (!empty($subscription)) {
       $subscription->update_meta_data('_membership_id', $membership_id);
@@ -474,8 +476,11 @@ function wicket_sub_org_select_callback( $subscription ) {
 
       //just in case - may need to be synced
       $membership_next_tier_form_page_id = get_post_meta($membership_id, 'membership_next_tier_form_page_id', true);
-      update_post_meta($membership_id, 'membership_next_tier_form_page_id', $membership_next_tier_form_page_id);
       $membership_meta['membership_next_tier_form_page_id'] = $membership_next_tier_form_page_id;
+      $membership_next_tier_id = get_post_meta($membership_id, 'membership_next_tier_id', true);
+      $membership_meta['membership_next_tier_id'] = $membership_next_tier_id;
+      $membership_next_tier_subscription_renewal = get_post_meta($membership_id, 'membership_next_tier_subscription_renewal', true);
+      $membership_meta['membership_next_tier_subscription_renewal'] = $membership_next_tier_subscription_renewal;
 
       if (! empty($membership_array)) {
         $updated_membership_array = array_merge($membership_array, $membership_meta);
