@@ -368,6 +368,7 @@ class Admin_Controller {
       $membership_item['mdp_person_link'] = $wicket_settings['wicket_admin'] . '/people/' . $membership_data['membership_user_uuid'];
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
+        $membership_item['data']['membership_status_slug'] = $meta['membership_status'];
         $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['name'];
         $membership_item['data']['membership_starts_at'] = date( "m/d/Y", strtotime( $meta['membership_starts_at'] ) );
         $membership_item['data']['membership_ends_at'] = date( "m/d/Y", strtotime( $meta['membership_ends_at'] ) );
@@ -656,5 +657,80 @@ class Admin_Controller {
     $response_array['success'] = "Membership ownership updated successfully.";
     $response_code = 200;
     return new \WP_REST_Response($response_array, $response_code);
+  }
+
+  public static function create_renewal_order( $request ) {
+    $response_array = [];
+
+    $membership_post_id = $request['membership_post_id'];
+
+    if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
+      $response_array['error'] = 'Error: Membership not found. Request did not succeed.';
+      return new \WP_REST_Response($response_array, 400);
+    }
+
+    $membership = Helper::get_post_meta( $membership_post_id );
+    $membership_status = $membership['membership_status'];
+    $customer_uuid = $membership['membership_user_uuid'];
+    $product_id = $request['product_id'];
+    $variation_id = $request['variation_id'];
+
+    // Check if the membership is in an active status
+    if( ! in_array( $membership_status, ['active', 'grace_period', 'delayed'] ) ) {
+      $response_array['error'] = 'Error: Membership not in active status. Request did not succeed.';
+      return new \WP_REST_Response($response_array, 400);
+    }
+
+    if ( empty( $product_id ) ) {
+      $response_array['error'] = 'Error: Product ID not found. Request did not succeed.';
+      return new \WP_REST_Response($response_array, 400);
+    }
+
+    // If variation_id is set, we need to use it as the product_id
+    if ( ! empty( $variation_id ) ) {
+      $product_id = $variation_id;
+    }
+
+    $wc_product = wc_get_product( $product_id );
+
+    // Ensure they exist in WP, and if not yet create them
+    $customer_wp_id = wicket_create_wp_user_if_not_exist($customer_uuid);
+
+    // Reference: https://rudrastyh.com/woocommerce/create-orders-programmatically.html
+    $order = new \WC_Order();
+    $order->set_created_via( 'admin' );
+    $order->set_customer_id( $customer_wp_id );
+    $order->add_product( $wc_product );
+    $order->calculate_totals(); // Without this order total will be zero
+    $order->set_status( 'checkout-draft' );
+    $order->save();
+
+    // Associate the membership record with the order
+    $order_items = $order->get_items();
+    foreach($order_items as $item) {
+      wc_update_order_item_meta( $item->get_id(), '_membership_post_id_renew', $membership_post_id );
+    }
+
+    $subscription = wcs_create_subscription( array(
+      'order_id' => $order->get_id(),
+      'customer_id' => $customer_wp_id,
+      'billing_period' => 'year',
+      'billing_interval' => 1,
+      'start_date' => current_time( 'mysql' ),
+    ) );
+    $subscription->add_product( $wc_product );
+    $subscription->calculate_totals();
+    $subscription->save();
+
+    // Add the subscription to the order
+    $order->add_order_note( 'Subscription created successfully.' );
+    $order->update_meta_data( '_subscription_id', $subscription->get_id() );
+    $order->save();
+
+    $created_order_url = admin_url( 'admin.php?page=wc-orders&action=edit&id=' . $order->get_id(), 'https' );
+
+    $response_array['order_url'] = $created_order_url;
+    $response_array['success'] = 'Renewal Order created successfully.';
+    return new \WP_REST_Response($response_array, 200);
   }
 }
