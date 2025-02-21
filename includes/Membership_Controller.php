@@ -1125,7 +1125,11 @@ function add_order_item_meta ( $item_id, $values ) {
             'value'   => Wicket_Memberships::STATUS_DELAYED,
             'compare' => '='
           ),
-
+          array(
+            'key'     => 'membership_status',
+            'value'   => Wicket_Memberships::STATUS_GRACE,
+            'compare' => '='
+          ),
         )
       )
     );
