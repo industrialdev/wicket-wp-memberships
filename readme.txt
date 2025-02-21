@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.86 =
+* Date Feb 21 2025
+* Bugfix: Grace period status settings
+
 = 1.0.85 =
 * Date Feb 14 2025
 * Bugfix: Changing membership dates on edit screen is selecting the previous day / wrong date
