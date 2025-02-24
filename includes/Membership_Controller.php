@@ -682,10 +682,10 @@ function add_order_item_meta ( $item_id, $values ) {
           $sub->add_order_note($order_note);
           return 'ERROR on Subscription Update: '. $e->getMessage();
         }
-        add_action('woocommerce_subscription_status_updated', function( $subscription_id )  {
-          $sub = wcs_get_subscription( $subscription_id );
-          $sub->update_dates(['next_payment' => 0]);
-        }, 10, 2 );        
+        //add_action('woocommerce_subscription_status_updated', function( $subscription_id )  {
+        //  $sub = wcs_get_subscription( $subscription_id );
+        //  $sub->update_dates(['next_payment' => 0]);
+        //}, 10, 2 );        
       }
     }
   }
