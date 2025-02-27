@@ -972,7 +972,11 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       />
 
                                       <div style={{ marginTop: '10px' }} >
-                                        <Button variant='link'>
+                                        <Button
+                                          href={membership.mdp_person_link}
+                                          target='_blank'
+                                          variant='link'
+                                        >
                                           {__('View in MDP', 'wicket-memberships')}
                                         </Button>
                                         &nbsp;<Icon icon='external' style={{ color: 'var(--wp-admin-theme-color)' }} />
