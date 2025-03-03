@@ -658,9 +658,19 @@ function add_order_item_meta ( $item_id, $values ) {
         $grace_period_days
       );  
     }
+    if( !empty($membership['membership_subscription_id'])) {
+      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+    }
     if( is_wp_error( $response ) ) {
-      return [ 'error' => $response->get_error_message( 'wicket_api_error' ) ];
+      $error_msg = $response->get_error_message( 'wicket_api_error' );
+      if(! empty($sub)) {
+        $sub->add_order_note( "ERROR: Admin changing membership dates in MDP. ($starts_at - $ends_at)" . $error_msg );
+      }
+      return [ 'error' => $error_msg ];
     } else {
+      if(! empty($sub)) {
+        $sub->add_order_note( "Admin changing membership dates in MDP. ($starts_at - $ends_at)");
+      }
       return $response;
     } 
    }

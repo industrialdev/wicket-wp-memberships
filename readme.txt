@@ -28,6 +28,11 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.89 =
+* Date Mar 3 2025
+  Bugfix: Manual renewal order subscription id
+* Added: Log membership status change
+
 = 1.0.87 =
 * Date Feb 27 2025
 * Added: Membership owner link on edit membership screen
