@@ -703,6 +703,11 @@ class Admin_Controller {
     $subscription->calculate_totals();
     $subscription->save();
 
+    $subscription_items = $subscription->get_items();
+    foreach($subscription_items as $item) {
+      wc_update_order_item_meta( $item->get_id(), '_membership_post_id_renew', $membership_post_id );
+    }
+
     // Add the subscription to the order
     $order->add_order_note( 'Subscription created successfully.' );
     $order->update_meta_data( '_subscription_id', $subscription->get_id() );
