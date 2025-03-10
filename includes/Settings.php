@@ -2,6 +2,9 @@
 
 namespace Wicket_Memberships;
 
+use Wicket_Memberships\Membership_Controller;
+use Wicket_Memberships\Utilities;
+
 /**
  * Class Settings
  * @package Wicket_Memberships
@@ -20,12 +23,30 @@ class Settings {
     ?>
     <h2>Wicket Membership Settings</h2>
     <form action="options.php" method="post">
+      <h2>Plugin Status</h2>
         <?php 
+        $self = new self();
+        $schedule = $self->get_next_scheduled_membership_expiry();
+        if(!empty($schedule)) {          
+          echo "Next <strong>membership expiry</strong> will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook )<BR>";
+          echo "<input type='submit' class='button button-secondary' name='schedule_daily_membership_expiry_hook' value='Run Now'><BR>";
+        }
         settings_fields( 'wicket_membership_plugin_options' );
         do_settings_sections( 'wicket_membership_plugin' ); ?>
         <input name="submit" class="button button-primary" type="submit" value="<?php esc_attr_e( 'Save' ); ?>" />
     </form>
     <?php
+  }
+
+  public function get_next_scheduled_membership_expiry() {
+    $hook = 'schedule_daily_membership_expiry_hook';
+    $action = as_get_scheduled_actions(['hook' => $hook, 'status' => \ActionScheduler_Store::STATUS_PENDING]);
+    if(!empty($action)) {
+      foreach($action as $a) {
+        $scheduled_time_site = (date("Y-m-d H:i", strtotime(json_decode(json_encode($a->get_schedule()->get_date()))->date)));  
+        return $scheduled_time_site;
+      }
+    }
   }
 
   public static function wicket_membership_register_settings() {
@@ -143,6 +164,10 @@ class Settings {
     $newinput['bypass_wicket'] = trim($input['bypass_wicket']);
     $newinput['wicket_mship_subscription_renew'] = trim($input['wicket_mship_subscription_renew']);
     $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
+    if(!empty($_REQUEST['schedule_daily_membership_expiry_hook'])) {
+      $count = Membership_Controller::daily_membership_expiry_hook();
+      Utilities::wc_log_mship_error(['schedule_daily_membership_expiry_hook','Count: '.$count]);
+    }
     return $newinput;
   }
 
