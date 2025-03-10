@@ -28,9 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
-= 1.0.90 =
+= 1.0.91 =
 * Date Mar 10 2025
 * Added: Auto-expire memberships
+* Bugfix: Update mship on org name changed
 
 = 1.0.89 =
 * Date Mar 3 2025

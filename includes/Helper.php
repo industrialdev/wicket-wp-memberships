@@ -290,7 +290,7 @@ class Helper {
     }
 
     //var_dump($org_data);exit;
-    if( empty( $org_data['data']['attributes']['alternate_name'] ) || $force_lookup) {
+    if( empty( $org_data['data']['attributes']['legal_name'] ) || $force_lookup) {
       $org_data = self::store_an_organizations_data_in_options_table($org_uuid, $force_lookup);
     }
 
@@ -306,10 +306,10 @@ class Helper {
       $data['location'] = '';
     }
 
-    if(! is_array($org_data) || empty($org_data['data']['attributes']['alternate_name']) ) {
+    if(! is_array($org_data) || empty($org_data['data']['attributes']['legal_name']) ) {
       $data['name'] = '';
     } else {
-      $data['name'] = $org_data['data']['attributes']['alternate_name'];
+      $data['name'] = $org_data['data']['attributes']['legal_name'];
     }
     return $data;
   }

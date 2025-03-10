@@ -1615,13 +1615,13 @@ function add_order_item_meta ( $item_id, $values ) {
       foreach ($org_uuids as $org_uuid) {
         $org_data[ $org_uuid ] = Helper::get_org_data( $org_uuid, true );
         if( empty( $allorgs )) {
-          $all_orgs[ $org_uuid ]['attributes']['alternate_name'] = $org_data[ $org_uuid ][ 'name' ];
+          $all_orgs[ $org_uuid ]['attributes']['legal_name'] = $org_data[ $org_uuid ][ 'name' ];
         }
       }
     }
 
     foreach( $orgs->posts as $org ) {
-      $mship_org_array[ $org->meta['org_uuid'] ]['name']  = $all_orgs[ $org->meta['org_uuid'] ]['attributes']['alternate_name'];
+      $mship_org_array[ $org->meta['org_uuid'] ]['name']  = $all_orgs[ $org->meta['org_uuid'] ]['attributes']['legal_name'];
       if( in_array( 'count', $properties ) ) {
         if( !isset( $mship_orgs[$org->meta['org_uuid']] )) {
           $mship_orgs[$org->meta['org_uuid']] = 0;
@@ -1635,7 +1635,7 @@ function add_order_item_meta ( $item_id, $values ) {
     }
     foreach( $all_orgs as $key => $org_item ) {
       if( ! array_key_exists( $key, $mship_org_array ) && in_array( $key, $org_uuids )) {
-        $mship_org_array[ $key ]['name'] = $org_item['attributes']['alternate_name'];
+        $mship_org_array[ $key ]['name'] = $org_item['attributes']['legal_name'];
         if( in_array( 'count', $properties ) ) {
           $mship_org_array[ $key ]['count'] = 0;
         }

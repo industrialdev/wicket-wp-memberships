@@ -389,6 +389,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const getMemberInfo = () => {
     fetchMemberInfo(recordId)
       .then((response) => {
+        console.log('memberInfo');
         console.log(response);
         setMemberInfo(response);
       })
@@ -398,6 +399,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   }
 
   // get org name
+  // this is no longer used and can be removed - org name comes from memberInfo now
   const getOrgName = () => {
     if (memberType !== 'organization' || memberships.length === 0 ) {
       return '';
@@ -464,7 +466,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 <Heading
                   level={3}
                 >
-                  {memberType === 'individual' ? getIndividualName() : getOrgName()}
+                  {memberType === 'individual' ? getIndividualName() : memberInfo === null ? '' : memberInfo.org_name}
                 </Heading>
               </FlexBlock>
               <FlexItem>
