@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket - Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.85
+ * Version: 1.0.91
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
@@ -208,6 +208,19 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_end_date' ), 10, 1 );
       add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_grace_period' ), 10, 1 );
       add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_renew_early' ), 10, 1 );
+
+      //these will expire memberships that have not been renewed at end of grace period
+      add_action('wp', array( $this, 'schedule_daily_membership_expiry'), 10, 2);
+      add_action('schedule_daily_membership_expiry_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_expiry_hook'), 10, 2);
+    }
+
+    public static function schedule_daily_membership_expiry() {
+      if (!as_next_scheduled_action('schedule_daily_membership_expiry_hook')) {
+        $timezone = wp_timezone();
+        $next_run_time = new \DateTime('tomorrow 3:00', $timezone);
+        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
+        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_expiry_hook');
+      }
     }
 
     public function memberships_verify_cart( $checkout_order ) {

@@ -265,7 +265,16 @@ class Admin_Controller {
     }
   }
 
+  /**
+   * Summary of get_edit_page_info
+   * This should be streamlined to store and get ID Numbers locally 
+   * Currently for org it is doing the lookup twice for name and ID
+   * 
+   * @param mixed $id
+   * @return array{data: mixed, identifying_number: mixed, mdp_link: string, org_name: string|array{data: string, identifying_number: mixed, mdp_link: string, org_name: mixed}}
+   */
   public static function get_edit_page_info( $id ) {
+    $self = new self();
     $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] );
     if( is_numeric( $id ) ) {
       $user = get_user_by( 'id', $id );
@@ -274,18 +283,54 @@ class Admin_Controller {
       return [
         'identifying_number' => $response->getAttribute('identifying_number'),
         'data' => $user->user_email,
-        'mdp_link' => $wicket_settings['wicket_admin'] . '/people/' . $person_uuid
+        'mdp_link' => $wicket_settings['wicket_admin'] . '/people/' . $person_uuid,
+        'org_name' => '',
       ];
     } else if(preg_match('/^[a-f\d]{8}(-[a-f\d]{4}){4}[a-f\d]{8}$/i', $id)) {
       $response = wicket_get_organization( $id );
-      $org_data = Helper::get_org_data( $id, false, true );
+      $org_data_old = Helper::get_org_data( $id, false, false );
+      $org_data =   Helper::get_org_data( $id, false, true );
+      if(!empty($org_data_old['name']) && !empty($org_data['name']) && $org_data_old['name'] != $org_data['name']) {
+        //the org_name has changed we need to update it in the cache and on org membership records
+        $self->update_org_name_on_memberships($id, $org_data['name']);
+      }
       return [
         'identifying_number' => $response['data']['attributes']['identifying_number'],
         'data' => $org_data['location'],
-        'mdp_link' => $wicket_settings['wicket_admin'] . '/organizations/' . $id
+        'mdp_link' => $wicket_settings['wicket_admin'] . '/organizations/' . $id,
+        'org_name' => $response['data']['attributes']['legal_name'],
       ];
     }
 
+  }
+
+  /**
+   * Summary of update_org_name_on_memberships
+   * @param mixed $org_uuid
+   * @param mixed $org_name
+   * @return void
+   */
+  private function update_org_name_on_memberships($org_uuid, $org_name) {
+    $args = array(
+      'post_type' => $this->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query'     => array(
+        array(
+          'key'     => 'org_uuid',
+          'value'   => $org_uuid,
+          'compare' => '='
+        ),
+      )
+    );
+    $memberships = get_posts( $args );
+    foreach( $memberships as $membership) {
+      update_post_meta( $membership->ID, 'org_name', $org_name);
+      $customer_meta = get_user_meta( $membership->user_id, '_wicket_membership_'.$membership->ID );
+      $customer_meta_array = json_decode( $customer_meta[0], true);
+      $customer_meta_array['org_name'] = $org_name;
+      update_user_meta( $membership->user_id, '_wicket_membership_'.$membership->ID, json_encode( $customer_meta_array) );
+    }
   }
 
   public static function get_membership_entity_records( $id ) {
@@ -721,6 +766,11 @@ class Admin_Controller {
     $subscription->add_product( $wc_product );
     $subscription->calculate_totals();
     $subscription->save();
+
+    $subscription_items = $subscription->get_items();
+    foreach($subscription_items as $item) {
+      wc_update_order_item_meta( $item->get_id(), '_membership_post_id_renew', $membership_post_id );
+    }
 
     // Add the subscription to the order
     $order->add_order_note( 'Subscription created successfully.' );

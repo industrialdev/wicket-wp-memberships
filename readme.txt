@@ -28,6 +28,24 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.91 =
+* Date Mar 10 2025
+* Added: Auto-expire memberships
+* Bugfix: Update mship on org name changed
+
+= 1.0.89 =
+* Date Mar 3 2025
+  Bugfix: Manual renewal order subscription id
+* Added: Log membership status change
+
+= 1.0.87 =
+* Date Feb 27 2025
+* Added: Membership owner link on edit membership screen
+
+= 1.0.86 =
+* Date Feb 21 2025
+* Bugfix: Grace period status settings
+
 = 1.0.85 =
 * Date Feb 14 2025
 * Bugfix: Changing membership dates on edit screen is selecting the previous day / wrong date

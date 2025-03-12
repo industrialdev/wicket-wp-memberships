@@ -740,9 +740,19 @@ function add_order_item_meta ( $item_id, $values ) {
         $grace_period_days
       );  
     }
+    if( !empty($membership['membership_subscription_id'])) {
+      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+    }
     if( is_wp_error( $response ) ) {
-      return [ 'error' => $response->get_error_message( 'wicket_api_error' ) ];
+      $error_msg = $response->get_error_message( 'wicket_api_error' );
+      if(! empty($sub)) {
+        $sub->add_order_note( "ERROR: Admin changing membership dates in MDP. ($starts_at - $ends_at)" . $error_msg );
+      }
+      return [ 'error' => $error_msg ];
     } else {
+      if(! empty($sub)) {
+        $sub->add_order_note( "Admin changing membership dates in MDP. ($starts_at - $ends_at)");
+      }
       return $response;
     } 
    }
@@ -1215,7 +1225,13 @@ function add_order_item_meta ( $item_id, $values ) {
             'value'   => Wicket_Memberships::STATUS_DELAYED,
             'compare' => '='
           );
-      } else if($status == 'pending') {
+        $status_array[] =
+          array(
+            'key'     => 'membership_status',
+            'value'   => Wicket_Memberships::STATUS_GRACE,
+            'compare' => '='
+          );
+        } else if($status == 'pending') {
         $status_array[] =
           array(
             'key'     => 'membership_status',
@@ -1733,13 +1749,13 @@ function add_order_item_meta ( $item_id, $values ) {
       foreach ($org_uuids as $org_uuid) {
         $org_data[ $org_uuid ] = Helper::get_org_data( $org_uuid, true );
         if( empty( $allorgs )) {
-          $all_orgs[ $org_uuid ]['attributes']['alternate_name'] = $org_data[ $org_uuid ][ 'name' ];
+          $all_orgs[ $org_uuid ]['attributes']['legal_name'] = $org_data[ $org_uuid ][ 'name' ];
         }
       }
     }
 
     foreach( $orgs->posts as $org ) {
-      $mship_org_array[ $org->meta['org_uuid'] ]['name']  = $all_orgs[ $org->meta['org_uuid'] ]['attributes']['alternate_name'];
+      $mship_org_array[ $org->meta['org_uuid'] ]['name']  = $all_orgs[ $org->meta['org_uuid'] ]['attributes']['legal_name'];
       if( in_array( 'count', $properties ) ) {
         if( !isset( $mship_orgs[$org->meta['org_uuid']] )) {
           $mship_orgs[$org->meta['org_uuid']] = 0;
@@ -1753,7 +1769,7 @@ function add_order_item_meta ( $item_id, $values ) {
     }
     foreach( $all_orgs as $key => $org_item ) {
       if( ! array_key_exists( $key, $mship_org_array ) && in_array( $key, $org_uuids )) {
-        $mship_org_array[ $key ]['name'] = $org_item['attributes']['alternate_name'];
+        $mship_org_array[ $key ]['name'] = $org_item['attributes']['legal_name'];
         if( in_array( 'count', $properties ) ) {
           $mship_org_array[ $key ]['count'] = 0;
         }
@@ -1807,5 +1823,36 @@ function add_order_item_meta ( $item_id, $values ) {
       // get locations assigned to membership records as filters???
     }
     return $filters;
+  }
+
+  public static function daily_membership_expiry_hook() {
+    $self = new self();
+    $yesterday_timestamp = current_time('timestamp') - 86400;
+    $membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
+    //lookup all memberships expired yesterday
+    $args = array(
+      'post_type' => $self->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query'     => array(
+        array(
+          'key'     => 'membership_status',
+          'value'   => Wicket_Memberships::STATUS_ACTIVE,
+          'compare' => '='
+        ),
+        array(
+          'key'     => 'membership_expires_at',
+          'value'   => $membership_expires_at,
+          'compare' => 'LIKE'
+        ),
+      )
+    );
+
+    //change status to expired
+    $memberships = get_posts( $args );
+    foreach( $memberships as $membership) {
+      update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_EXPIRED);
+    }
+    return count($memberships);
   }
 }

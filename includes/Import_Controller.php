@@ -196,7 +196,7 @@ class Import_Controller {
           if( current_time( 'timestamp' ) >= $membership_starts_at && current_time( 'timestamp' ) < $membership_ends_at ) {
             $status = Wicket_Memberships::STATUS_ACTIVE;
           } else if (current_time( 'timestamp' ) >= $membership_ends_at && current_time( 'timestamp' ) < $membership_expires_at ) {
-            $status = Wicket_Memberships::STATUS_GRACE;
+            $status = Wicket_Memberships::STATUS_ACTIVE;
           } else if( $membership_starts_at > current_time( 'timestamp' ) ) {
             $status = Wicket_Memberships::STATUS_DELAYED;
           } else if ( $membership_ends_at < current_time( 'timestamp' ) ) {
