@@ -446,8 +446,9 @@ class Admin_Controller {
               $membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
               $membership_item['subscription']['status'] = $sub->get_status();
               $sub_next_payment_date = $sub->get_time('next_payment');
-              if( !empty($sub_next_payment_date )) {
+              if( empty($sub_next_payment_date_set ) && !empty($sub_next_payment_date ) && ($meta['membership_status'] == 'delayed' || $meta['membership_status'] == 'active')) {
                 $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub_next_payment_date), wp_timezone() ))->format('Y-m-d');
+                $sub_next_payment_date_set = true;
               } else {
                 $membership_item['subscription']['next_payment_date'] = 'N/A';
               }
