@@ -588,7 +588,7 @@ class Membership_Post_Types {
               }
 
               // if type is organization and seat type is per_seat, max 1 product is allowed
-              if ( $value['type'] === 'organization' && $value['seat_type'] === 'per_seat' && count( $value['product_data'] ) > 1 ) {
+              if ( $value['type'] === 'organization' && $value['seat_type'] === 'per_seat' && count( $value['product_data'] ) > 99 ) {
                 $errors->add( 'rest_invalid_param_product_data', __( 'Only one product is allowed for organization tier types.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 

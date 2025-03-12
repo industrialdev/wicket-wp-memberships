@@ -658,7 +658,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 													<>
 														<ManageTierProducts
 															saveProductChanges={updateProductData}
-															limit={1}
+															limit={99}
 															products={form.product_data}
 															productsInUse={productsInUse}
 															productVariationsInUse={productVariationsInUseArray}
