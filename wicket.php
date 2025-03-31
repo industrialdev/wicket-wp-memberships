@@ -132,6 +132,11 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_DISABLE_RENEWALS']=true;
             }
           }
+          if(isset($options['wicket_mship_autorenew_toggle'])) {
+            if($options['wicket_mship_autorenew_toggle']) {
+              $_ENV['WICKET_MSHIP_AUTORENEW_TOGGLE']=true;
+            }
+          }
         }
 
 	/**
@@ -206,6 +211,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //these will expire memberships that have not been renewed at end of grace period
       add_action('wp', array( $this, 'schedule_daily_membership_expiry'), 10, 2);
       add_action('schedule_daily_membership_expiry_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_expiry_hook'), 10, 2);
+          
+      //checkbox toggle - can be used for view subscriptions
+      add_action('init', [__NAMESPACE__.'\\Utilities', 'autorenew_checkbox_toggle_switch']);
     }
 
     public static function schedule_daily_membership_expiry() {
