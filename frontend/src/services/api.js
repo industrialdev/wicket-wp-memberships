@@ -37,6 +37,20 @@ export const updateMembershipStatus = (membershipId, status) => {
 }
 
 /**
+ * Update Membership Owners
+ */
+export const updateMembershipsOwner = (userId, personUuid) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/admin/update_memberships_owner`,
+    method: 'POST',
+    data: {
+      user_id: userId,
+      person_uuid: personUuid
+    }
+  });
+}
+
+/**
  * Fetch Membership Records
  */
 export const fetchMemberships = (recordId = null) => {

@@ -204,6 +204,16 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     ) );
 
+        // change owner on membership
+        register_rest_route( $this->namespace, '/admin/update_memberships_owner', array(
+          array(
+            'methods'  => \WP_REST_Server::CREATABLE,
+            'callback'  => array( $this, 'admin_update_memberships_owner' ),
+            'permission_callback' => array( $this, 'permissions_check_write' ),
+          ),
+          //'schema' => array( $this, '' ),
+        ) );
+    
     // change status on membership
     register_rest_route( $this->namespace, '/admin/manage_status', array(
       array(
@@ -343,6 +353,12 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
   public function admin_manage_status( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $response = Admin_Controller::admin_manage_status( $params['post_id'], $params['status']);
+    return rest_ensure_response( $response );
+  }
+
+  public function admin_update_memberships_owner( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Admin_Controller::update_memberships_owner( $params['user_id'], $params['person_uuid']);
     return rest_ensure_response( $response );
   }
 
