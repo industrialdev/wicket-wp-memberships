@@ -99,6 +99,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const [isManageMergeModalOpen, setIsManageMergeModalOpen] = useState(false);
   const [membershipMergeData, setMembershipMergeData] = useState(null);
   const [membershipMergeUuid, setMembershipMergeUuid] = useState(null);
+  const [transferMembershipMessage, setTransferMembershipMessage] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [manageMergeErrors, setManageMergeErrors] = useState([]);
   const [manageStatusErrors, setManageStatusErrors] = useState([]);
@@ -140,6 +141,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const openManageMergeModalOpen = (membershipUuid) => {
     if(membershipUuid) {
       setMembershipMergeUuid(membershipUuid);
+      setTransferMembershipMessage(['Single Membership Transfer','Confirm single membership transfer to another person.']);
+    } else {
+      setTransferMembershipMessage(['Bulk Membership Transfer', 'Confirm tranfer of all memberships to another person.']);
     }
     setIsManageMergeModalOpen(true);
   }
@@ -550,6 +554,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                         openManageMergeModalOpen();
                       }}
                       >
+                      <Icon icon='update' />&nbsp;
                       {__('Merge Memberships', 'wicket-memberships')}
                     </Button>
                   </FlexItem>
@@ -1134,7 +1139,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 			{/* "Manage Owner" Modal */}
 			{isManageMergeModalOpen && (
 				<Modal
-					title={__('Change Membership Owner', 'wicket-memberships')}
+					title={transferMembershipMessage[0]}
 					onRequestClose={closeManageMergeModalOpen}
 					style={
 						{
@@ -1211,7 +1216,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             <MarginedFlex>
                                     <FlexItem>
                                       <CheckboxControl
-                                        label={__('Confirm the transfer of all memberships to another user.', 'wicket-memberships')}
+                                        label={transferMembershipMessage[1]}
                                         __nextHasNoMarginBottom={true}
                                         onChange={(value) => setMergeMembershipsConfirmed( value )}
                                       />
