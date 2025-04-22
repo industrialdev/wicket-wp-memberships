@@ -98,6 +98,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
   const [isManageMergeModalOpen, setIsManageMergeModalOpen] = useState(false);
   const [membershipMergeData, setMembershipMergeData] = useState(null);
+  const [membershipMergeUuid, setMembershipMergeUuid] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [manageMergeErrors, setManageMergeErrors] = useState([]);
   const [manageStatusErrors, setManageStatusErrors] = useState([]);
@@ -136,7 +137,10 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   };
 
 
-  const openManageMergeModalOpen = () => {
+  const openManageMergeModalOpen = (membershipUuid) => {
+    if(membershipUuid) {
+      setMembershipMergeUuid(membershipUuid);
+    }
     setIsManageMergeModalOpen(true);
   }
 
@@ -188,6 +192,12 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     console.log('handleMergeModalSubmit');
     console.log([recordId, membershipMergeData]);
 
+    if(membershipMergeUuid !== null) {
+      recordId = membershipMergeUuid;
+      console.log('membershipMergeUuid');
+      console.log([recordId, membershipMergeData]);
+    }
+
     if(typeof membershipMergeData === undefined || membershipMergeData === null) {
       setManageMergeErrors(['Please select a user for memberships merge destination.']);
       return;      
@@ -198,13 +208,14 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       setManageMergeErrors(['Please confirm transfer of memberships.']);
       return;      
     }
+    
     let mergedUserPageLink = 'admin.php?page=wicket_individual_member_edit&id=' + membershipMergeData;
-    setIsSubmitting(true);
-    closeManageMergeModalOpen();
 
     updateMembershipsOwner(recordId, membershipMergeData)
       .then((response) => {
         if (response.success) {
+          setIsSubmitting(true);
+          closeManageMergeModalOpen();
           window.location.href = mergedUserPageLink;
         } else {
           console.log(response);
@@ -808,7 +819,30 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                   </FlexItem>
                                 </Flex>
                               </BorderedBox>
-
+                              <BorderedBox>
+                                <div style={{ textAlign: 'left' }} >
+                                  <div>
+                                    <LabelWpStyled>
+                                      {__('Change Owner', 'wicket-memberships')}
+                                    </LabelWpStyled>
+                                  </div>
+                                  <div>
+                                    <Button
+                                      variant='secondary'
+                                      // Disable the button if the membership is not "Active, Grace Period, or Delayed"
+                                      disabled={ membership.data.membership_type == 'organization'}
+                                      onClick={() => {
+                                        console.log('CHANGE OWNER Wicket UUID');
+                                        console.log(membership.data.membership_wicket_uuid);
+                                        openManageMergeModalOpen(membership.data.membership_wicket_uuid);
+                                      }}
+                                    >
+                                      <Icon icon='update' />&nbsp;
+                                      {__('Transfer Membership', 'wicket-memberships')}
+                                    </Button>
+                                  </div>
+                                </div>
+                              </BorderedBox>
                               <CreateRenewalOrder membership={membership} />
                             </Flex>
 

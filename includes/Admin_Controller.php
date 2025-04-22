@@ -3,6 +3,7 @@
 namespace Wicket_Memberships;
 
 use Wicket_Memberships\Utilities;
+use Wicket_Memberships\Helper;
 
 /**
  * Class Admin_Controller
@@ -317,7 +318,7 @@ class Admin_Controller {
       return new \WP_REST_Response(['error' => 'Merge user should not be the same as current owner.'], 200);      
     }
 
-    $meta_key = is_numeric( $record_id ) ? 'user_id' : 'wicket_membership_id';
+    $meta_key = is_numeric( $record_id ) ? 'user_id' : 'membership_wicket_uuid';
 
     $args = array(
       'post_type' => $self->membership_cpt_slug,
@@ -336,12 +337,18 @@ class Admin_Controller {
     $memberships = get_posts( $args );
 
     foreach( $memberships as $membership) {
+      if( $merged_user->ID == $membership->user_id ) {
+        return new \WP_REST_Response(['error' => 'Merge user should not be the same as current owner.'], 200);      
+      }
+      $orig_user_id = is_numeric( $record_id ) ? $record_id : get_post_meta( $membership->ID, 'user_id', true);
+      $orig_user = get_user_by('id', $orig_user_id);
+
       update_post_meta( $membership->ID, 'user_id', $merged_user->ID);
       update_post_meta( $membership->ID, 'membership_user_uuid', $person_uuid);
       update_post_meta( $membership->ID, 'user_name', $user_name);
       update_post_meta( $membership->ID, 'user_email', $merged_user->user_email);
 
-      $customer_meta = get_user_meta( $record_id, '_wicket_membership_'.$membership->ID );
+      $customer_meta = get_user_meta( $orig_user_id, '_wicket_membership_'.$membership->ID );
       $customer_meta_array = json_decode( $customer_meta[0], true);
 
       if(empty($customer_meta)) {
@@ -360,6 +367,8 @@ class Admin_Controller {
         if(!empty($order)) {
           $order->set_customer_id($merged_user->ID);
           $order->save();
+          $order->add_order_note("Customer updated on Membership Transfer from {$orig_user->first_name} {$orig_user->last_name} Email: {$orig_user->user_email} Membership ID: {$membership->membership_wicket_uuid}");
+          Helper::change_order_address_match_customer($order);
         }
       }
       if(!empty($customer_meta_array['membership_subscription_id'])) {
@@ -368,6 +377,9 @@ class Admin_Controller {
         if(!empty($subscription)) {
           $subscription->set_customer_id($merged_user->ID);
           $subscription->save();
+          $subscription->add_order_note("Customer updated on Membership Transfer from {$orig_user->first_name} {$orig_user->last_name} Email: {$orig_user->user_email} Membership ID: {$membership->membership_wicket_uuid}");
+          Helper::change_order_address_match_customer($subscription);
+          Helper::assign_preferred_payment_method_to_order($subscription);
         }
       }
     }

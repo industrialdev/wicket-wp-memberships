@@ -389,4 +389,81 @@ class Helper {
           <?php
       }
   }
+
+
+  public static function change_order_address_match_customer($order) {
+    $user_id = $order->get_user_id();
+
+    if (!$user_id) {
+        return;
+    }
+
+    $customer = new \WC_Customer($user_id);
+
+    $order->set_billing_first_name($customer->get_billing_first_name());
+    $order->set_billing_last_name($customer->get_billing_last_name());
+    $order->set_billing_company($customer->get_billing_company());
+    $order->set_billing_address_1($customer->get_billing_address_1());
+    $order->set_billing_address_2($customer->get_billing_address_2());
+    $order->set_billing_city($customer->get_billing_city());
+    $order->set_billing_postcode($customer->get_billing_postcode());
+    $order->set_billing_country($customer->get_billing_country());
+    $order->set_billing_state($customer->get_billing_state());
+    $order->set_billing_phone($customer->get_billing_phone());
+    $order->set_billing_email($customer->get_billing_email());
+
+    $order->set_shipping_first_name($customer->get_shipping_first_name());
+    $order->set_shipping_last_name($customer->get_shipping_last_name());
+    $order->set_shipping_company($customer->get_shipping_company());
+    $order->set_shipping_address_1($customer->get_shipping_address_1());
+    $order->set_shipping_address_2($customer->get_shipping_address_2());
+    $order->set_shipping_city($customer->get_shipping_city());
+    $order->set_shipping_postcode($customer->get_shipping_postcode());
+    $order->set_shipping_country($customer->get_shipping_country());
+    $order->set_shipping_state($customer->get_shipping_state());
+
+    $order->save();
+  }
+
+  public static function assign_preferred_payment_method_to_order($order) {
+    $order_id = $order->get_id();
+    $user_id = $order->get_user_id();
+
+    if (!$user_id || !$order_id) return;
+
+    $tokens = \WC_Payment_Tokens::get_customer_tokens($user_id);
+
+    if (!empty($tokens)) {
+        $token = array_values($tokens)[0];
+        $order->set_payment_method($token->get_gateway_id());
+        $order->set_payment_method_title('Stored Token Based Payment');
+        $order->set_payment_token($token->get_id());
+
+        $order->save();
+        return;
+    }
+
+    $customer_orders = wc_get_orders([
+        'customer_id' => $user_id,
+        'limit'       => 1,
+        'orderby'     => 'date',
+        'order'       => 'DESC',
+        'exclude'     => [$order_id],
+    ]);
+
+    if (!empty($customer_orders)) {
+        $last_order = $customer_orders[0];
+        $method_id = $last_order->get_payment_method();
+        $method_title = $last_order->get_payment_method_title();
+
+        $order->set_payment_method($method_id ?: 'cheque');
+        $order->set_payment_method_title($method_title ?: 'Manual Payment');
+        $order->save();
+        return;
+    }
+
+    $order->set_payment_method('cheque');
+    $order->set_payment_method_title('Manual Payment');
+    $order->save();
+  }
 }
