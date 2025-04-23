@@ -197,6 +197,10 @@ class Helper {
           'name' => __('Cancelled', 'wicket-memberships'),
           'slug' => Wicket_Memberships::STATUS_CANCELLED
         ],
+        Wicket_Memberships::STATUS_GRACE => [
+          'name' => __('Grace Period', 'wicket-memberships'),
+          'slug' => Wicket_Memberships::STATUS_GRACE
+        ],
       ];
     } else {
       return new \StdClass();

@@ -26,16 +26,32 @@ class Settings {
       <h2>Plugin Status</h2>
         <?php 
         $self = new self();
+        $schedule = $self->get_next_scheduled_membership_grace_period();
+        if(!empty($schedule)) {          
+          echo "<p>Next <strong>membership grace period</strong> will run at: $schedule ( AS Hook: schedule_daily_membership_grace_period_hook )<BR>";
+          echo "<input type='submit' class='button button-secondary' name='schedule_daily_membership_grace_period_hook' value='Run Now'></p>";
+        }
         $schedule = $self->get_next_scheduled_membership_expiry();
         if(!empty($schedule)) {          
-          echo "Next <strong>membership expiry</strong> will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook )<BR>";
-          echo "<input type='submit' class='button button-secondary' name='schedule_daily_membership_expiry_hook' value='Run Now'><BR>";
+          echo "<p>Next <strong>membership expiry</strong> will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook )<BR>";
+          echo "<input type='submit' class='button button-secondary' name='schedule_daily_membership_expiry_hook' value='Run Now'></p>";
         }
         settings_fields( 'wicket_membership_plugin_options' );
         do_settings_sections( 'wicket_membership_plugin' ); ?>
         <input name="submit" class="button button-primary" type="submit" value="<?php esc_attr_e( 'Save' ); ?>" />
     </form>
     <?php
+  }
+
+  public function get_next_scheduled_membership_grace_period() {
+    $hook = 'schedule_daily_membership_grace_period_hook';
+    $action = as_get_scheduled_actions(['hook' => $hook, 'status' => \ActionScheduler_Store::STATUS_PENDING]);
+    if(!empty($action)) {
+      foreach($action as $a) {
+        $scheduled_time_site = (date("Y-m-d H:i", strtotime(json_decode(json_encode($a->get_schedule()->get_date()))->date)));  
+        return $scheduled_time_site;
+      }
+    }
   }
 
   public function get_next_scheduled_membership_expiry() {
@@ -167,6 +183,10 @@ class Settings {
     if(!empty($_REQUEST['schedule_daily_membership_expiry_hook'])) {
       $count = Membership_Controller::daily_membership_expiry_hook();
       Utilities::wc_log_mship_error(['schedule_daily_membership_expiry_hook','Count: '.$count]);
+    }
+    if(!empty($_REQUEST['schedule_daily_membership_grace_period_hook'])) {
+      $count = Membership_Controller::daily_membership_grace_period_hook();
+      Utilities::wc_log_mship_error(['schedule_daily_membership_grace_period_hook','Count: '.$count]);
     }
     return $newinput;
   }
