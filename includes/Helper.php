@@ -208,38 +208,46 @@ class Helper {
    *
    * @param string|array $membership_json json or array
    * @param boolean $json_encoded is this json encoded or array data
+   * @param string $dir 'post' | 'order' - key mapping 
    * @return array
    */
-  public static function get_membership_post_data_from_membership_json( $membership_json, $json_encoded = true ) {
+  public static function get_membership_post_data_from_membership_json( $membership_json, $json_encoded = true, $dir = 'post' ) {
     $membership_post_data = array();
     if( $json_encoded === true ) {
       $membership_array = json_decode( $membership_json, true);
     } else {
       $membership_array = $membership_json;
     }
-    $mapping_keys = [
-       'membership_wp_user_display_name' => 'user_name',
-       'user_name' => 'membership_wp_user_display_name',
-       'membership_wp_user_email' => 'user_email',
-       'user_email' => 'membership_wp_user_email',
-       'organization_name' => 'org_name',
-       'org_name' => 'organization_name',
-       'organization_location' => 'org_location',
-       'org_location' => 'organization_location',
-       'organization_uuid' => 'org_uuid',
-       'org_uuid' => 'organization_uuid',
-       'membership_seats' => 'org_seats',
-       'org_seats' => 'membership_seats',
-    ];
+    if($dir = 'post') {
+      $mapping_keys = [
+        'membership_wp_user_display_name' => 'user_name',
+        'membership_wp_user_email' => 'user_email',
+        'organization_name' => 'org_name',
+        'organization_location' => 'org_location',
+        'organization_uuid' => 'org_uuid',
+        'membership_seats' => 'org_seats',
+     ]; 
+    } else {
+      $mapping_keys = [
+        'user_name' => 'membership_wp_user_display_name',
+        'user_email' => 'membership_wp_user_email',
+        'org_name' => 'organization_name',
+        'org_location' => 'organization_location',
+        'org_uuid' => 'organization_uuid',
+        'org_seats' => 'membership_seats',
+     ]; 
+    }
     array_walk(
       $membership_array,
       function(&$val, $key) use (&$membership_post_data, $mapping_keys)
       {
         $new_key = $mapping_keys[$key];
-        if( empty($new_key) ) {
-          $membership_post_data[$key] = $val;
-        } else {
-          $membership_post_data[$new_key] = $val;
+        if(empty($val)) {
+          if( empty($new_key) ) {
+            $membership_post_data[$key] = $val;
+          } else {
+            $membership_post_data[$new_key] = $val;
+          }  
         }
       }
     );

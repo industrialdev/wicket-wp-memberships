@@ -128,8 +128,9 @@ class Admin_Controller {
       if( empty( $meta_data['membership_wicket_uuid'] ) ) {
         $meta_data['membership_wicket_uuid'] = $membership['membership_wicket_uuid'];
       }
-      //update the membership post
-      $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( $membership, false);
+      //update the membership post (this is just updating values stored in post meta - does not contain any order json keys )
+      //$membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( $membership, false);
+      $membership_post_meta_data = $membership;
       $response = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post_meta_data );
       $Membership_Controller->amend_membership_json( $membership_post_id, $meta_data );
 
@@ -213,7 +214,9 @@ class Admin_Controller {
     $meta_data['membership_type'] = $membership_new['membership_type'];
     //update the membership post and order json data
     if( ! empty( $meta_data ) ) {
-      $membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( json_encode($meta_data) );
+      //update the membership post (this is just updating values stored in post meta - does not contain any order json keys )
+      //$membership_post_meta_data = Helper::get_membership_post_data_from_membership_json( $meta_data, false);
+      $membership_post_meta_data = $meta_data;
       $updated = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post_meta_data );
       $Membership_Controller->amend_membership_json( $membership_post_id, $meta_data );
     } else if( empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
