@@ -199,17 +199,29 @@ class Admin_Controller {
         $sub = wcs_get_subscription( $membership_new['membership_subscription_id'] );
         if(! empty( $sub )) {
           $sub->update_status( 'cancelled' );
+          $sub->save();
         }
       }
       //return the order id ( FE will redirect user to refund order )
       $response_array['order_id'] = $membership_new['membership_parent_order_id'];
-    } else if( $current_post_status == Wicket_Memberships::STATUS_GRACE && $new_post_status == Wicket_Memberships::STATUS_EXPIRED ) {
+      // This does not seem correct when to expire directly
+    //} else if( $current_post_status == Wicket_Memberships::STATUS_GRACE && $new_post_status == Wicket_Memberships::STATUS_EXPIRED ) {
+    } else if( $new_post_status == Wicket_Memberships::STATUS_EXPIRED ) {
       //apply the rules
       $meta_data = [
         'membership_status' => $new_post_status,
-        'membership_expires_at' => $now_iso_date,
+        'membership_ends_at' => $tomorrow_iso_date,
+        'membership_expires_at' => $tomorrow_iso_date,
         'membership_grace_period_days' => 0
       ];
+      // cancel the associated subscription
+      if( function_exists( 'wcs_get_subscription' )) {
+        $sub = wcs_get_subscription( $membership_new['membership_subscription_id'] );
+        if(! empty( $sub )) {
+          $sub->update_status( 'cancelled' );
+          $sub->save();
+        }
+      }
     }
     $meta_data['membership_type'] = $membership_new['membership_type'];
     //update the membership post and order json data
