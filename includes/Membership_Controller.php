@@ -1691,6 +1691,10 @@ function add_order_item_meta ( $item_id, $values ) {
     return $filters;
   }
 
+  /**
+   * Change status of Membership to Expires
+   * @return int
+   */
   public static function daily_membership_expiry_hook() {
     $self = new self();
     $yesterday_timestamp = current_time('timestamp') - 86400;
@@ -1707,6 +1711,11 @@ function add_order_item_meta ( $item_id, $values ) {
           'compare' => '='
         ),
         array(
+          'key'     => 'membership_status',
+          'value'   => Wicket_Memberships::STATUS_GRACE,
+          'compare' => '='
+        ),
+        array(
           'key'     => 'membership_expires_at',
           'value'   => $membership_expires_at,
           'compare' => 'LIKE'
@@ -1718,6 +1727,42 @@ function add_order_item_meta ( $item_id, $values ) {
     $memberships = get_posts( $args );
     foreach( $memberships as $membership) {
       update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_EXPIRED);
+    }
+    return count($memberships);
+  }
+
+  /**
+   * Change status of Membership to Grace Period
+   * @return int
+   */
+
+  public static function daily_membership_grace_period_hook() {
+    $self = new self();
+    $yesterday_timestamp = current_time('timestamp') - 86400;
+    $membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
+    //lookup all memberships expired yesterday
+    $args = array(
+      'post_type' => $self->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query'     => array(
+        array(
+          'key'     => 'membership_status',
+          'value'   => Wicket_Memberships::STATUS_ACTIVE,
+          'compare' => '='
+        ),
+        array(
+          'key'     => 'membership_ends_at',
+          'value'   => $membership_ends_at,
+          'compare' => 'LIKE'
+        ),
+      )
+    );
+
+    //change status to expired
+    $memberships = get_posts( $args );
+    foreach( $memberships as $membership) {
+      update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_GRACE);
     }
     return count($memberships);
   }
