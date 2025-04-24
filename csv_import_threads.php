@@ -50,6 +50,11 @@ while (($row = fgetcsv($handle)) !== false) {
 fclose($handle);
 
 $headers = array_shift($rows);
+$headers = array_map(function ($h) {
+  $h = trim($h);
+  $h = preg_replace('/[^a-zA-Z0-9_\s]/', '', $h);
+  return $h;
+}, $headers);
 $headers = array_map( function( $item ) {
   if( $item = str_replace(" ", "_", $item) ) {
     return $item;
@@ -72,9 +77,17 @@ if( $api_domain != '' ) {
 echo "\n" . $import_url . "\n";
 
 foreach ($rows as $row) {
+  $row = array_map('mshipSanitizeCSVField', $row);
+  if(empty($row[6])) {
+    continue;
+  }
   $array = array_combine($headers, $row);
 
   if( $entity_type == 'individual' && $array['Membership_Type'] != 'individual' ) {
+    continue;
+  }
+
+  if($array['Status'] != 'Active') {
     continue;
   }
 
@@ -140,4 +153,7 @@ while($cnt < count($full_array)) {
   ob_flush();
 
   sleep(1);
+}
+function mshipSanitizeCSVField($text) {
+  return preg_replace('/[^\x20-\x7E\t]/u', '', trim($text));
 }

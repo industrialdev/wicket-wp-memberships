@@ -28,7 +28,7 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
-= 1.0.92 =
+= 1.0.93 =
 * Date Apr 23 2025
 * Added: Grace period transitions
 * Bugfix: status changemeta updates
