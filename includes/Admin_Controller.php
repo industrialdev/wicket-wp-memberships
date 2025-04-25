@@ -333,14 +333,13 @@ class Admin_Controller {
    * Merge memberships on users
    * NOTE: Currently only moving ALL Memberships / started setup to extend for moving individual memberships
    * 
-   * @param int $record_id person merging records FROM - ( INCOMPLETE - could also accept single wicket_membership_id )
+   * @param int $record_id WP user_id merging records FROM - ( If we receive a UUID we are moving a single membership )
    * @param string $person_uuid person merging records TO
    * @return \WP_REST_Response
    */
   public static function update_memberships_owner( $record_id, $person_uuid ): \WP_REST_Response {
     $self = new self();
 
-    
     $user_id = wicket_create_wp_user_if_not_exist($person_uuid );
     $merged_user = get_user_by('id', $user_id);
     
@@ -372,6 +371,7 @@ class Admin_Controller {
       }
       $orig_user_id = is_numeric( $record_id ) ? $record_id : get_post_meta( $membership->ID, 'user_id', true);
       $orig_user = get_user_by('id', $orig_user_id);
+      $merged[] = $membership->membership_wicket_uuid;
 
       update_post_meta( $membership->ID, 'user_id', $merged_user->ID);
       update_post_meta( $membership->ID, 'membership_user_uuid', $person_uuid);
@@ -413,7 +413,7 @@ class Admin_Controller {
         }
       }
     }
-    return new \WP_REST_Response(['success' => $customer_meta_array], 200);
+    return new \WP_REST_Response(['success' => $merged], 200);
   }
 
   /**

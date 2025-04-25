@@ -308,23 +308,30 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     ) );  
     
     /**
-     * Expose env settings in API for react pages
+     * Bulk Merge webhook consumer from MDP
      */
-    register_rest_route( $this->namespace, '/membership/settings', array(
+    register_rest_route( $this->namespace, '/membership/merge', array(
       array(
-        'methods'  => \WP_REST_Server::READABLE,
-        'callback'  => function( \WP_REST_Request $request ) {
-          $params = $request->get_params();
-          $env_settings = [
-            "WICKET_MSHIP_MERGE_TOOLS" => $_ENV['WICKET_MSHIP_MERGE_TOOLS']
-          ];
-          return rest_ensure_response( $env_settings );      
-        },
-        'permission_callback' => array( $this, 'permissions_check_read' ),
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'memberships_merge_webhook_consumer'),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
       //'schema' => array( $this, '' ),
     ) );  
     
+  }
+
+  public function memberships_merge_webhook_consumer( \WP_REST_Request $request ) {
+    $merge_data = $request->get_params();
+    $merge_to = $merge_data['relationships']['other_person']['data']['id'];
+    $merge_from = $merge_data['attributes']['uuid'];
+    $user = get_user_by('login', $merge_from);
+    if(empty($user)) {
+      $response = ['error' => 'Merge from user not found with uuid'];
+    } else {
+      $response = Admin_Controller::update_memberships_owner( $user->ID, $merge_to);
+    }
+    return rest_ensure_response( $response );      
   }
 
   public function mdp_person_lookup( \WP_REST_Request $request ) {

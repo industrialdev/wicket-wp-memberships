@@ -556,7 +556,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                       }}
                       >
                       <Icon icon='update' />&nbsp;
-                      {__('Merge Memberships', 'wicket-memberships')}
+                      {__('Merge All Memberships', 'wicket-memberships')}
                     </Button>
                   </FlexItem>
                   </>
@@ -825,6 +825,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                   </FlexItem>
                                 </Flex>
                               </BorderedBox>
+                              {memberType === 'individual' && PLUGIN_SETTINGS.WICKET_MSHIP_MERGE_TOOLS &&
                               <BorderedBox>
                                 <div style={{ textAlign: 'left' }} >
                                   <div>
@@ -832,7 +833,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       {__('Change Owner', 'wicket-memberships')}
                                     </LabelWpStyled>
                                   </div>
-                                  {memberType === 'individual' && PLUGIN_SETTINGS.WICKET_MSHIP_MERGE_TOOLS &&
                                   <>
                                   <div>
                                     <Button
@@ -846,13 +846,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       }}
                                     >
                                       <Icon icon='update' />&nbsp;
-                                      {__('Transfer Membership', 'wicket-memberships')}
+                                      {__('Merge Membership', 'wicket-memberships')}
                                     </Button>
                                   </div>
                                   </>
-                                }
                                 </div>
                               </BorderedBox>
+                              }
                               <CreateRenewalOrder membership={membership} />
                             </Flex>
 
