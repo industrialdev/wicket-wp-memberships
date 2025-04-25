@@ -323,8 +323,8 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
 
   public function memberships_merge_webhook_consumer( \WP_REST_Request $request ) {
     $merge_data = $request->get_params();
-    $merge_to = $merge_data['relationships']['other_person']['data']['id'];
-    $merge_from = $merge_data['attributes']['uuid'];
+    $merge_from = $merge_data['relationships']['source_person']['data']['id'];
+    $merge_to = $merge_data['attributes']['uuid'];
     $user = get_user_by('login', $merge_from);
     if(empty($user)) {
       $response = ['error' => 'Merge from user not found with uuid'];
