@@ -167,3 +167,13 @@ export const createRenewalOrder = (membershipId, productId, variationId) => {
     }
   });
 }
+
+/**
+ * Fetch WooCommerce Product Variations
+ */
+export const fetchPluginSettings = (queryParams = {}) => {
+  return apiFetch({ path:
+    addQueryArgs(`${PLUGIN_API_URL}/membership/settings`, queryParams)
+  });
+}
+

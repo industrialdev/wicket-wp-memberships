@@ -305,7 +305,26 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
       //'schema' => array( $this, '' ),
-    ) );    
+    ) );  
+    
+    /**
+     * Expose env settings in API for react pages
+     */
+    register_rest_route( $this->namespace, '/membership/settings', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => function( \WP_REST_Request $request ) {
+          $params = $request->get_params();
+          $env_settings = [
+            "WICKET_MSHIP_MERGE_TOOLS" => $_ENV['WICKET_MSHIP_MERGE_TOOLS']
+          ];
+          return rest_ensure_response( $env_settings );      
+        },
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+      //'schema' => array( $this, '' ),
+    ) );  
+    
   }
 
   public function mdp_person_lookup( \WP_REST_Request $request ) {

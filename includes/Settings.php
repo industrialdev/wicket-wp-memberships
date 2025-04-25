@@ -22,11 +22,13 @@ class Settings {
   public static function wicket_membership_render_plugin_settings_page() {
     ?>
     <h2>Wicket Membership Settings</h2>
+    <form action="options.php" method="post">
     <?php
       settings_fields( 'wicket_membership_plugin_options' );
       do_settings_sections( 'wicket_membership_plugin' ); ?>
     <p><input name="submit" class="button button-primary" type="submit" value="<?php esc_attr_e( 'Save' ); ?>" />
     <a href="edit.php?post_type=wicket_membership" target="_blank"><input class="button button-secondary" type="button" value="View Raw Membership Posts"/></a></p>
+    </form>
     <?php
   }
 
@@ -57,8 +59,9 @@ class Settings {
     add_settings_section( 'functional_settings', 'Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_functional_text'], 'wicket_membership_plugin' );
     //options
     add_settings_field( 'wicket_show_mship_order_org_search', '<p>Set the Organization on Subscription Membership in Admin</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_mship_order_org_search'], 'wicket_membership_plugin', 'functional_settings' );
-    add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Renewal Callouts</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_subscription_renew', '<p>Use Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_subscription_renew'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_membership_merge', '<p>Individual Membership Merge</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_membership_merge'], 'wicket_membership_plugin', 'functional_settings' );
     
     //debug
     add_settings_section( 'debug_settings', 'Debug Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_debug_text'], 'wicket_membership_plugin' );
@@ -76,10 +79,16 @@ class Settings {
   
   }
 
+  public static function wicket_mship_membership_merge() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_membership_merge]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_membership_merge']), false). " />"
+      .'Show tools and allow merging of memberships on the Wicket Memberships > Individual Members edit page in admin.';
+  }
+
   public static function wicket_mship_disable_renewal() {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_disable_renewal]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_disable_renewal']), false). " />"
-      .'Do not display renewal callouts in ACC.';
+      .'Do not display renewal callouts to Members shown in the Account Center.';
   }
 
   public static function wicket_show_mship_order_org_search() {
@@ -160,6 +169,7 @@ class Settings {
   }
 
   public static function wicket_membership_plugin_options_validate( $input ) {
+    $newinput['wicket_mship_membership_merge'] = trim($input['wicket_mship_membership_merge']);
     $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
     $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
     $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);

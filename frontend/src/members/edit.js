@@ -8,7 +8,7 @@ import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyl
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
-import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, updateMembershipsOwner,fetchMemberInfo, fetchMdpPersons } from '../services/api';
+import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, updateMembershipsOwner,fetchMemberInfo, fetchMdpPersons, fetchPluginSettings } from '../services/api';
 import he from 'he';
 import moment from 'moment';
 import CreateRenewalOrder from './create_renewal_order';
@@ -109,8 +109,23 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     newStatus: '',
     availableStatuses: []
   });
+  const [settings, setSettings] = useState({});
 
   let mergeMembershipsConfirmed = false;
+
+  const getPluginSettings = () => {
+    fetchPluginSettings()
+      .then((response) => {
+        Object.entries(response).forEach(([key, value]) => {
+          if (value) {
+            setSettings((prev) => ({ ...prev, [key]: value }));
+          }
+        });      
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }
 
   const setMergeMembershipsConfirmed = (value) => {
     if (value === true) {
@@ -380,6 +395,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   useEffect(() => {
     getMemberInfo();
     getMemberships();
+    getPluginSettings();
     getLocalWpPages();
     getWpTierOptions();
   }, []);
@@ -545,7 +561,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                   {memberType === 'individual' ? getIndividualName() : memberInfo === null ? '' : memberInfo.org_name}
                 </Heading>
               </FlexBlock>
-              {memberType === 'individual' &&
+              {memberType === 'individual' && settings.WICKET_MSHIP_MERGE_TOOLS &&
                   <>
                   <FlexItem>
                     <Button
@@ -831,6 +847,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       {__('Change Owner', 'wicket-memberships')}
                                     </LabelWpStyled>
                                   </div>
+                                  {memberType === 'individual' && settings.WICKET_MSHIP_MERGE_TOOLS &&
+                                  <>
                                   <div>
                                     <Button
                                       variant='secondary'
@@ -846,6 +864,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       {__('Transfer Membership', 'wicket-memberships')}
                                     </Button>
                                   </div>
+                                  </>
+                                }
                                 </div>
                               </BorderedBox>
                               <CreateRenewalOrder membership={membership} />
