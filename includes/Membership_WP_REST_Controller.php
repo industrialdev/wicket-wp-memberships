@@ -314,7 +314,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       array(
         'methods'  => \WP_REST_Server::CREATABLE,
         'callback'  => array( $this, 'memberships_merge_webhook_consumer'),
-        'permission_callback' => array( $this, 'permissions_check_write' ),
+        'permission_callback' => '__return_true',
       ),
       //'schema' => array( $this, '' ),
     ) );  
@@ -322,15 +322,35 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
   }
 
   public function memberships_merge_webhook_consumer( \WP_REST_Request $request ) {
-    $merge_data = $request->get_params();
-    $merge_from = $merge_data['relationships']['source_person']['data']['id'];
-    $merge_to = $merge_data['attributes']['uuid'];
-    $user = get_user_by('login', $merge_from);
-    if(empty($user)) {
-      $response = ['error' => 'Merge from user not found with uuid'];
-    } else {
-      $response = Admin_Controller::update_memberships_owner( $user->ID, $merge_to);
+    $header = 'X-WicketEvents-Signature';
+    $signature = $request->get_header( $header );
+    $response = new WP_REST_Response(['error' => 'Authentication error.'], 401);
+    if(!empty($signature)) { 
+      $mship_options = get_option( 'wicket_membership_plugin_options' );
+      $key = $mship_options['wicket_mship_membership_merge_key'];
+      $payload = file_get_contents('php://input');
+      $error = 'Authentication error: '.$signature;
+      if(wicket_get_option('wicket_admin_settings_environment') != 'prod') {
+        $error .= ' | '. hash_hmac('sha256', $payload, $key);
+        $error .= ' | '. $payload;
+      }
+      $response = new WP_REST_Response( ['error' => $error], 401);
+      if( !empty($payload) && $signature == hash_hmac('sha256', $payload, $key) ) {
+        $merge_data = $request->get_params();
+        $merge_from = $merge_data['relationships']['source_person']['data']['id'];
+        if(empty($merge_from)) {
+          $merge_from = $merge_data['relationships']['other_person']['data']['id'];
+        }
+        $merge_to = $merge_data['attributes']['uuid'];
+        $user = get_user_by('login', $merge_from);
+        if(empty($user)) {
+          $response = new WP_REST_Response(['error' => 'Merge from user not found with uuid'], 400);
+        } else {
+          $response = Admin_Controller::update_memberships_owner( $user->ID, $merge_to);
+        }  
+      }  
     }
+    Utilities::wc_log_mship_error( ['Merge Webhook Run' => $response->get_data()] );
     return rest_ensure_response( $response );      
   }
 
