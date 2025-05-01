@@ -477,6 +477,17 @@ class Membership_Tier {
     return false;
   }
 
+    /**
+   * Check if grant_owner_assignment is required for this tier
+   */
+  public function is_grant_owner_assignment() {
+    if ( isset( $this->tier_data['grant_owner_assignment'] ) && $this->tier_data['grant_owner_assignment'] == 1 ) {
+      return $this->tier_data['grant_owner_assignment'];
+    }
+
+    return false;
+  }
+
   /**
    * Get the approval email
    *
