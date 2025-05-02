@@ -366,30 +366,54 @@ class Admin_Controller {
     $memberships = get_posts( $args );
 
     foreach( $memberships as $membership) {
+      $membership_post_id = $membership->ID;
       if( $merged_user->ID == $membership->user_id ) {
         return new \WP_REST_Response(['error' => 'Merge user should not be the same as current owner.'], 200);      
       }
-      $orig_user_id = is_numeric( $record_id ) ? $record_id : get_post_meta( $membership->ID, 'user_id', true);
+
+      if($meta_key != 'user_id') {
+        $date1 = new \DateTime($membership->membership_ends_at);
+        $date2 = new \DateTime($membership->membership_expires_at);
+        $interval = $date1->diff($date2);
+        $grace_period_days = !empty($interval->days) ? $interval->days : 0;
+          $response1 = wicket_assign_individual_membership(
+            $person_uuid,
+            $membership->membership_tier_uuid,
+            $membership->membership_start_at,
+            $membership->membership_ends_at,
+            $grace_period_days,
+          );
+          Utilities::wc_log_mship_error(["CREATED mship single merge in MDP", $response1]);
+
+          $response2 = wicket_delete_person_membership($record_id);
+          Utilities::wc_log_mship_error(["DELETED mship single merge in MDP", $response2]);
+
+          $single_merged_wicket_membership_uuid = $response1['data']['id'];
+          update_post_meta( $membership_post_id, 'membership_wicket_uuid', $single_merged_wicket_membership_uuid);
+          wicket_update_membership_external_id( $single_merged_wicket_membership_uuid, 'person_memberships', $membership_post_id );
+      }
+
+      $orig_user_id = is_numeric( $record_id ) ? $record_id : get_post_meta( $membership_post_id, 'user_id', true);
       $orig_user = get_user_by('id', $orig_user_id);
       $merged[] = $membership->membership_wicket_uuid;
 
-      update_post_meta( $membership->ID, 'user_id', $merged_user->ID);
-      update_post_meta( $membership->ID, 'membership_user_uuid', $person_uuid);
-      update_post_meta( $membership->ID, 'user_name', $user_name);
-      update_post_meta( $membership->ID, 'user_email', $merged_user->user_email);
+      update_post_meta( $membership_post_id, 'user_id', $merged_user->ID);
+      update_post_meta( $membership_post_id, 'membership_user_uuid', $person_uuid);
+      update_post_meta( $membership_post_id, 'user_name', $user_name);
+      update_post_meta( $membership_post_id, 'user_email', $merged_user->user_email);
 
-      $customer_meta = get_user_meta( $orig_user_id, '_wicket_membership_'.$membership->ID );
+      $customer_meta = get_user_meta( $orig_user_id, '_wicket_membership_'.$membership_post_id );
       $customer_meta_array = json_decode( $customer_meta[0], true);
 
       if(empty($customer_meta)) {
-        $customer_meta = get_post_meta( $membership->ID );
+        $customer_meta = get_post_meta( $membership_post_id );
       }
 
       $customer_meta_array['user_id'] = $merged_user->ID;
       $customer_meta_array['membership_user_uuid'] = $person_uuid;
       $customer_meta_array['user_name'] = $user_name;
       $customer_meta_array['user_email'] = $merged_user->user_email;
-      update_user_meta( $merged_user->ID, '_wicket_membership_'.$membership->ID, json_encode( $customer_meta_array) );
+      update_user_meta( $merged_user->ID, '_wicket_membership_'.$membership_post_id, json_encode( $customer_meta_array) );
 
       if(!empty($customer_meta_array['membership_parent_order_id'])) {
         update_post_meta( $customer_meta_array['membership_parent_order_id'], '_wicket_membership_'.$customer_meta_array['membership_product_id'], json_encode( $customer_meta_array) );
