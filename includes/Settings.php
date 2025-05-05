@@ -224,10 +224,12 @@ class Settings {
         ];
         try {
           $response = $client->post("/webhook/endpoints", ['json' => $payload]);
+          Utilities::wc_log_mship_error(['Created Webhook for Membership Merge' => $response]);
       } catch (\GuzzleHttp\Exception\ClientException $e) {
         $wicket_api_error = json_decode($e->getResponse()->getBody())->errors;
           $response = new \WP_Error('wicket_api_error', $e->getMessage());
-      }
+          Utilities::wc_log_mship_error(['Created Webhook FAILED for Membership Merge' => $response]);
+        }
       return $response;
   }
 
