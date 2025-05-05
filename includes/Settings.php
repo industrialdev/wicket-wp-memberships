@@ -84,10 +84,10 @@ class Settings {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_membership_merge_key]' type='text' value='".esc_attr( $options['wicket_mship_membership_merge_key']). "' />"
     .' Update the merge webhook signature authentication key value. Unique for this webook <code>'.str_replace("/wp", "", get_site_url()).'/wp-json/wicket_member/v1/membership/merge</code>.<br/><br/>';  
-    if(empty(esc_attr( $options['wicket_mship_membership_merge_key']))) {
-      echo '<input name="wicket_mship_create_merge_webhook" class="button button-primary" type="submit" value="Create Merge Webhook in MDP" />'
-      .'<br/>Click to create the merge webhook in the MDP > Settings > Webhooks now.';    
-    }
+    #if(empty(esc_attr( $options['wicket_mship_membership_merge_key']))) {
+    #  echo '<input name="wicket_mship_create_merge_webhook" class="button button-primary" type="submit" value="Create Merge Webhook in MDP" />'
+    #  .'<br/>Click to create the merge webhook in the MDP > Settings > Webhooks now.';    
+    #}
   } 
 
   public static function wicket_mship_membership_merge() {
@@ -202,7 +202,7 @@ class Settings {
       Utilities::wc_log_mship_error(['schedule_daily_membership_grace_period_hook','Count: '.$count]);
     }
     if(!empty($_REQUEST['wicket_mship_create_merge_webhook'])) {
-      Settings::create_merge_webhook();
+      //Settings::create_merge_webhook();
     }
     return $newinput;
   }
@@ -228,7 +228,7 @@ class Settings {
           $wicket_settings = get_option( 'wicket_membership_plugin_options' );
           $wicket_settings['wicket_mship_membership_merge_key'] = $signature_key;
           $wicket_signature_saved = update_option( 'wicket_membership_plugin_options', $wicket_settings );
-          Utilities::wc_log_mship_error(['Created Webhook for Membership Merge' => [$response, "response['data']['attributes']['signature_key']" => $signature_key, 'saved' => $wicket_signature_saved]]);
+          Utilities::wc_log_mship_error(['Created Webhook for Membership Merge' => [$response, "response['data']['attributes']['signature_key']" => $signature_key, 'saved' => $wicket_signature_saved, $wicket_settings]]);
       } catch (\GuzzleHttp\Exception\ClientException $e) {
         $wicket_api_error = json_decode($e->getResponse()->getBody())->errors;
           $response = new \WP_Error('wicket_api_error', $e->getMessage());
