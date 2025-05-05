@@ -335,7 +335,10 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         $error .= ' | '. $payload;
       }
       $response = new WP_REST_Response( ['error' => $error], 401);
-      if( !empty($payload) && $signature == hash_hmac('sha256', $payload, $key) ) {
+      $test_request = json_decode($payload);
+      if(!empty($test_request->test)) {
+        $response = new WP_REST_Response(['success' => 'Caught a test request'], 200);
+      } else if( !empty($payload) && $signature == hash_hmac('sha256', $payload, $key) ) {
         $merge_data = $request->get_params();
         $merge_from = $merge_data['relationships']['source_person']['data']['id'];
         if(empty($merge_from)) {
