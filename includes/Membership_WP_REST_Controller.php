@@ -331,8 +331,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       $payload = file_get_contents('php://input');
       $error = 'Authentication error: '.$signature;
       if(wicket_get_option('wicket_admin_settings_environment') != 'prod') {
-        $error .= ' | '. hash_hmac('sha256', $payload, $key);
-        $error .= ' | '. $payload;
+        $error .= ' | '. hash_hmac('sha256', $payload, $key).' | '.$payload;
       }
       $response = new WP_REST_Response( ['error' => $error], 401);
       $test_request = json_decode($payload);
@@ -353,7 +352,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         }  
       }  
     }
-    Utilities::wc_log_mship_error( ['Merge Webhook Run' => $response->get_data()] );
+    Utilities::wc_log_mship_error( ['Merge Webhook Run' => ['signature' => $signature, 'payload' => $payload, 'response' => $response->get_data()]] );
     return rest_ensure_response( $response );      
   }
 
