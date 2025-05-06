@@ -331,6 +331,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       $payload = file_get_contents('php://input');
       $error = 'Authentication error: '.$signature;
       if(wicket_get_option('wicket_admin_settings_environment') != 'prod') {
+        $debug = true;
         $error .= ' | '. hash_hmac('sha256', $payload, $key).' | '.$payload;
       }
       $response = new WP_REST_Response( ['error' => $error], 401);
@@ -338,7 +339,8 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       if(!empty($test_request->test)) {
         $response = new WP_REST_Response(['success' => 'Caught a test request'], 200);
       } else if( !empty($payload) && $signature == hash_hmac('sha256', $payload, $key) ) {
-        $merge_data = $request->get_params();
+        $merge_data = json_decode($payload, true);
+        $merge_data = $merge_data['events'][0];
         $merge_from = $merge_data['relationships']['source_person']['data']['id'];
         if(empty($merge_from)) {
           $merge_from = $merge_data['relationships']['other_person']['data']['id'];
@@ -352,7 +354,22 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         }  
       }  
     }
-    Utilities::wc_log_mship_error( ['Merge Webhook Run' => ['signature' => $signature, 'payload' => $payload, 'response' => $response->get_data()]] );
+    if(!empty($debug)) {
+      Utilities::wc_log_mship_error( ['Merge Webhook Run' => [
+        'signature' => $signature, 
+        'payload' => $payload, 
+        'merge_data' => $merge_data, 
+        'merge_from' => $merge_from,
+        'merge_to' => $merge_to,
+        'response' => $response->get_data()]
+      ] );
+    } else {
+      Utilities::wc_log_mship_error( ['Merge Webhook Run' => [
+        'merge_from' => $merge_from,
+        'merge_to' => $merge_to,
+        'response' => $response->get_data()]
+      ] );
+    }
     return rest_ensure_response( $response );      
   }
 
