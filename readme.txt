@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.94 =
+* Date May 07 2025
+* Added: Grant Owner Assignment on Org Membership
+
 = 1.0.93 =
 * Date Apr 23 2025
 * Added: Grace period transitions
