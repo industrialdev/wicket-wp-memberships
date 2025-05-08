@@ -59,6 +59,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	});
 
 	const [form, setForm] = useState({
+		grant_owner_assignment: false,
 		approval_required: false,
 		approval_email_recipient: '',
 		mdp_tier_name: '',
@@ -633,26 +634,33 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 									{getSelectedTierData().type === 'organization' && (
 										<>
 											<BorderedBox>
-												<Flex>
-													<FlexBlock>
-														<SelectControl
-															label={__('Seat Settings', 'wicket-memberships')}
-															value={form.seat_type}
-															options={[
-																{ label: __('Per Seat', 'wicket-memberships'), value: 'per_seat' },
-																{ label: __('Per Range of Seats', 'wicket-memberships'), value: 'per_range_of_seats' }
-															]}
-															onChange={(selected) => {
-																	setForm({
-																		...form,
-																		seat_type: selected,
-																		product_data: [] //reset product data
-																	});
-																}
-															}
-														/>
-													</FlexBlock>
-												</Flex>
+                      <Flex gap={10}>
+                        <FlexItem style={{ flex: 1 }}>
+                          <SelectControl
+                            label={__('Seat Settings', 'wicket-memberships')}
+                            value={form.seat_type}
+                            options={[
+                              { label: __('Per Seat', 'wicket-memberships'), value: 'per_seat' },
+                              { label: __('Per Range of Seats', 'wicket-memberships'), value: 'per_range_of_seats' }
+                            ]}
+                            onChange={(selected) => {
+                              setForm({
+                                ...form,
+                                seat_type: selected,
+                                product_data: [] // reset product data
+                              });
+                            }}
+                          />
+                        </FlexItem>
+                        <FlexItem style={{ flex: 1, marginTop: '16px' }} >
+                          <CheckboxControl
+                            label={__('Automatically Grant Owner Seat', 'wicket-memberships')}
+                            checked={form.grant_owner_assignment}
+                            onChange={(value) => setForm({ ...form, grant_owner_assignment: value })}
+                            __nextHasNoMarginBottom={true}
+                          />
+                        </FlexItem>
+                      </Flex>
 
 												{form.seat_type === 'per_seat' && (
 													<>

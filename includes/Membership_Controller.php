@@ -762,6 +762,7 @@ function add_order_item_meta ( $item_id, $values ) {
    */
   public function create_mdp_record( $membership ) {
     $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
+    $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
     
     $previous_membership_wicket_uuid = '';
     if(!empty($membership['previous_membership_post_id'])) {
@@ -795,8 +796,21 @@ function add_order_item_meta ( $item_id, $values ) {
         }
         if( $membership['membership_seats'] < 1) {
           $membership['membership_seats'] = null;
-        }   
-        if( $base_version_supports_previous_membership_assignment ) {
+        }
+        if( $base_version_supports_grant_owner_assignment ) {
+          $Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
+          $response = wicket_assign_organization_membership( 
+            $membership['person_uuid'],
+            $membership['organization_uuid'],
+            $membership['membership_tier_uuid'], 
+            $membership['membership_starts_at'],
+            $membership['membership_ends_at'],
+            $membership['membership_seats'],
+            $membership['membership_grace_period_days'],
+            $previous_membership_wicket_uuid,
+            $Tier->is_grant_owner_assignment()
+          );    
+        } elseif ( $base_version_supports_previous_membership_assignment ) {
           $response = wicket_assign_organization_membership( 
             $membership['person_uuid'],
             $membership['organization_uuid'],
@@ -1825,6 +1839,10 @@ function add_order_item_meta ( $item_id, $values ) {
     return $filters;
   }
 
+  /**
+   * Change status of Membership to Expires
+   * @return int
+   */
   public static function daily_membership_expiry_hook() {
     $self = new self();
     $yesterday_timestamp = current_time('timestamp') - 86400;
@@ -1841,6 +1859,11 @@ function add_order_item_meta ( $item_id, $values ) {
           'compare' => '='
         ),
         array(
+          'key'     => 'membership_status',
+          'value'   => Wicket_Memberships::STATUS_GRACE,
+          'compare' => '='
+        ),
+        array(
           'key'     => 'membership_expires_at',
           'value'   => $membership_expires_at,
           'compare' => 'LIKE'
@@ -1852,6 +1875,42 @@ function add_order_item_meta ( $item_id, $values ) {
     $memberships = get_posts( $args );
     foreach( $memberships as $membership) {
       update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_EXPIRED);
+    }
+    return count($memberships);
+  }
+
+  /**
+   * Change status of Membership to Grace Period
+   * @return int
+   */
+
+  public static function daily_membership_grace_period_hook() {
+    $self = new self();
+    $yesterday_timestamp = current_time('timestamp') - 86400;
+    $membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
+    //lookup all memberships expired yesterday
+    $args = array(
+      'post_type' => $self->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query'     => array(
+        array(
+          'key'     => 'membership_status',
+          'value'   => Wicket_Memberships::STATUS_ACTIVE,
+          'compare' => '='
+        ),
+        array(
+          'key'     => 'membership_ends_at',
+          'value'   => $membership_ends_at,
+          'compare' => 'LIKE'
+        ),
+      )
+    );
+
+    //change status to expired
+    $memberships = get_posts( $args );
+    foreach( $memberships as $membership) {
+      update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_GRACE);
     }
     return count($memberships);
   }

@@ -22,20 +22,23 @@ class Settings {
   public static function wicket_membership_render_plugin_settings_page() {
     ?>
     <h2>Wicket Membership Settings</h2>
-    <form action="options.php" method="post">
-      <h2>Plugin Status</h2>
-        <?php 
-        $self = new self();
-        $schedule = $self->get_next_scheduled_membership_expiry();
-        if(!empty($schedule)) {          
-          echo "Next <strong>membership expiry</strong> will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook )<BR>";
-          echo "<input type='submit' class='button button-secondary' name='schedule_daily_membership_expiry_hook' value='Run Now'><BR>";
-        }
-        settings_fields( 'wicket_membership_plugin_options' );
-        do_settings_sections( 'wicket_membership_plugin' ); ?>
-        <input name="submit" class="button button-primary" type="submit" value="<?php esc_attr_e( 'Save' ); ?>" />
-    </form>
     <?php
+      settings_fields( 'wicket_membership_plugin_options' );
+      do_settings_sections( 'wicket_membership_plugin' ); ?>
+    <p><input name="submit" class="button button-primary" type="submit" value="<?php esc_attr_e( 'Save' ); ?>" />
+    <a href="edit.php?post_type=wicket_membership" target="_blank"><input class="button button-secondary" type="button" value="View Raw Membership Posts"/></a></p>
+    <?php
+  }
+
+  public function get_next_scheduled_membership_grace_period() {
+    $hook = 'schedule_daily_membership_grace_period_hook';
+    $action = as_get_scheduled_actions(['hook' => $hook, 'status' => \ActionScheduler_Store::STATUS_PENDING]);
+    if(!empty($action)) {
+      foreach($action as $a) {
+        $scheduled_time_site = (date("Y-m-d H:i", strtotime(json_decode(json_encode($a->get_schedule()->get_date()))->date)));  
+        return $scheduled_time_site;
+      }
+    }
   }
 
   public function get_next_scheduled_membership_expiry() {
@@ -68,6 +71,10 @@ class Settings {
     add_settings_field( 'wicket_memberships_debug_renew', '<p>WICKET_MEMBERSHIPS_DEBUG_RENEW</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_renew'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'wicket_memberships_debug_cart_ids', '<p>WICKET_MEMBERSHIPS_DEBUG_CART_IDS</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_cart_ids'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'bypass_wicket', '<p>BYPASS_WICKET</p>', [__NAMESPACE__.'\\Settings', 'bypass_wicket'], 'wicket_membership_plugin', 'debug_settings' );
+  
+    //status change reporting
+    add_settings_section( 'status_settings', 'Membership Status Changes', [__NAMESPACE__.'\\Settings', 'wicket_plugin_status_change_reporting'], 'wicket_membership_plugin' );
+  
   }
 
   public static function wicket_mship_disable_renewal() {
@@ -176,6 +183,10 @@ class Settings {
       $count = Membership_Controller::daily_membership_expiry_hook();
       Utilities::wc_log_mship_error(['schedule_daily_membership_expiry_hook','Count: '.$count]);
     }
+    if(!empty($_REQUEST['schedule_daily_membership_grace_period_hook'])) {
+      $count = Membership_Controller::daily_membership_grace_period_hook();
+      Utilities::wc_log_mship_error(['schedule_daily_membership_grace_period_hook','Count: '.$count]);
+    }
     return $newinput;
   }
 
@@ -185,6 +196,18 @@ class Settings {
 
   public static function wicket_plugin_section_debug_text() {
     echo '<p>These DEBUG values expose functionality and data that can help verify proper operation of different aspects of the plugin.</p><p>These settings should remain disabled in production unless actively debugging an issue.</p><p style="font-style:italic">NOTE: Some settings will expose raw data publicly in the cart and checkout, as well as in the membership admin interface.</p>';
+  }
+
+  public static function wicket_plugin_status_change_reporting() {
+    $self = new self();
+    $schedule = $self->get_next_scheduled_membership_grace_period();
+    if(!empty($schedule)) {          
+      echo "<p>Next <strong>membership grace period</strong> will run at: $schedule ( AS Hook: schedule_daily_membership_grace_period_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_grace_period_hook=1'>Run Now</a></p>";
+    }
+    $schedule = $self->get_next_scheduled_membership_expiry();
+    if(!empty($schedule)) {          
+      echo "<p>Next <strong>membership expiry</strong> will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_expiry_hook=1'>Run Now</a></p>";
+    }
   }
 }
 

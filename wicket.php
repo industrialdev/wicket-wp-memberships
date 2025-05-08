@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket - Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.91
+ * Version: 1.0.94
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
@@ -212,6 +212,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //these will expire memberships that have not been renewed at end of grace period
       add_action('wp', array( $this, 'schedule_daily_membership_expiry'), 10, 2);
       add_action('schedule_daily_membership_expiry_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_expiry_hook'), 10, 2);
+      //these will set to garce_period memberships that have not been renewed at membership_ends_at date
+      add_action('wp', array( $this, 'schedule_daily_membership_grace_period'), 10, 2);
+      add_action('schedule_daily_membership_grace_period_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_grace_period_hook'), 10, 2);
     }
 
     public static function schedule_daily_membership_expiry() {
@@ -220,6 +223,15 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
         $next_run_time = new \DateTime('tomorrow 3:00', $timezone);
         $next_run_time->setTimezone(new \DateTimeZone('UTC'));
         as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_expiry_hook');
+      }
+    }
+
+    public static function schedule_daily_membership_grace_period() {
+      if (!as_next_scheduled_action('schedule_daily_membership_grace_period_hook')) {
+        $timezone = wp_timezone();
+        $next_run_time = new \DateTime('tomorrow 3:30', $timezone);
+        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
+        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_grace_period_hook');
       }
     }
 
