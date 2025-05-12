@@ -1,2 +1,4 @@
 .DS_Store
 /frontend/node_modules
+.phpunit.result.cache
+/vendor/*
