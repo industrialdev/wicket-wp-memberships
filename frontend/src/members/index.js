@@ -219,6 +219,9 @@ const MemberList = ({ memberType, editMemberUrl }) => {
               <th scope="col" className="manage-column">
                 { memberType === 'individual' ? __( 'Individual Member Name', 'wicket-memberships' ) : __( 'Contact', 'wicket-memberships' ) }
               </th>
+              <th scope="col" className="manage-column">
+                { memberType === 'individual' ? __( 'Email', 'wicket-memberships' ) : __( 'Contact Email', 'wicket-memberships' ) }
+              </th>
               <th scope="col" className="manage-column">{ __( 'Status', 'wicket-memberships' ) }</th>
               <th scope="col" className="manage-column">{ __( 'Tier', 'wicket-memberships' ) }</th>
               <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
@@ -289,6 +292,9 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                         {member.user.display_name}
                       </>
                     )}
+                  </td>
+                  <td>
+                    { member.user.user_email }
                   </td>
                   <td>
                     <span style={{

@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket - Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.94
+ * Version: 1.0.95
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
@@ -73,7 +73,12 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               require_once( WP_PLUGIN_DIR . '/wicket-wordpressplugin-php-master/vendor/autoload.php' );
             }
           }
-          $plugin_data = get_plugin_data( WP_PLUGIN_DIR . '/wicket-wp-base-plugin/wicket.php' );
+
+          // https://developer.wordpress.org/reference/functions/get_plugin_data/#comment-content-5864
+          if ( ! function_exists('get_plugin_data') ){
+            require_once( ABSPATH . 'wp-admin/includes/plugin.php' );
+          }
+          $plugin_data = \get_plugin_data( WP_PLUGIN_DIR . '/wicket-wp-base-plugin/wicket.php' );
           $_ENV['WICKET_BASE_PLUGIN_VERSION'] = $plugin_data['Version'];
           $options = get_option( 'wicket_membership_plugin_options' );
           
