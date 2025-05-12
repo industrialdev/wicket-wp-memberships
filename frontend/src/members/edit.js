@@ -3,12 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
 import apiFetch from '@wordpress/api-fetch';
 import { addQueryArgs } from '@wordpress/url';
-import { DEFAULT_DATE_FORMAT, API_URL } from '../constants';
+import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_SETTINGS } from '../constants';
 import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../styled_elements';
-import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
+import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
-import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo, fetchMdpPersons } from '../services/api';
+import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, updateMembershipsOwner,fetchMemberInfo, fetchMdpPersons } from '../services/api';
 import he from 'he';
 import moment from 'moment';
 import CreateRenewalOrder from './create_renewal_order';
@@ -96,6 +96,12 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const [memberships, setMemberships] = useState([]);
   const [membershipOwnerOptions, setMembershipOwnerOptions] = useState([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
+  const [isManageMergeModalOpen, setIsManageMergeModalOpen] = useState(false);
+  const [membershipMergeData, setMembershipMergeData] = useState(null);
+  const [membershipMergeUuid, setMembershipMergeUuid] = useState(null);
+  const [transferMembershipMessage, setTransferMembershipMessage] = useState([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [manageMergeErrors, setManageMergeErrors] = useState([]);
   const [manageStatusErrors, setManageStatusErrors] = useState([]);
   const [manageStatusFormData, setManageStatusFormData] = useState({
     postId: null,
@@ -103,7 +109,16 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     newStatus: '',
     availableStatuses: []
   });
+  const [settings, setSettings] = useState({});
 
+  let mergeMembershipsConfirmed = false;
+
+  const setMergeMembershipsConfirmed = (value) => {
+    if (value === true) {
+      mergeMembershipsConfirmed = true;
+    }
+  }
+  
   const loadMembershipOwnerOptions = (inputValue, callback) => {
     if (  inputValue.length < 3 ) { return; }
 
@@ -122,6 +137,24 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
         console.error(error);
       });
   };
+
+
+  const openManageMergeModalOpen = (membershipUuid) => {
+    if(membershipUuid) {
+      setMembershipMergeUuid(membershipUuid);
+      setTransferMembershipMessage(['Single Membership Transfer','Confirm single membership transfer to another person.']);
+    } else {
+      setTransferMembershipMessage(['Bulk Membership Transfer', 'Confirm tranfer of all memberships to another person.']);
+    }
+    setIsManageMergeModalOpen(true);
+  }
+
+  /**
+   * Close the Manage Owner Modal
+   */
+  const closeManageMergeModalOpen = () => {
+    setIsManageMergeModalOpen(false);
+  }
 
   const openManageStatusModalOpen = (membershipIndex) => {
     setManageStatusFormData({
@@ -157,6 +190,46 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     });
 
     return statuses;
+  }
+
+  const handleMergeModalSubmit = (event) => {
+    event.preventDefault();
+    console.log('handleMergeModalSubmit');
+    console.log([recordId, membershipMergeData]);
+
+    if(membershipMergeUuid !== null) {
+      recordId = membershipMergeUuid;
+      console.log('membershipMergeUuid');
+      console.log([recordId, membershipMergeData]);
+    }
+
+    if(typeof membershipMergeData === undefined || membershipMergeData === null) {
+      setManageMergeErrors(['Please select a user for memberships merge destination.']);
+      return;      
+    }
+
+    console.log(['mergeMembershipsConfirmed', mergeMembershipsConfirmed]);
+    if(mergeMembershipsConfirmed !== true) {
+      setManageMergeErrors(['Please confirm transfer of memberships.']);
+      return;      
+    }
+    
+    let mergedUserPageLink = 'admin.php?page=wicket_individual_member_edit&id=' + membershipMergeData;
+
+    updateMembershipsOwner(recordId, membershipMergeData)
+      .then((response) => {
+        if (response.success) {
+          setIsSubmitting(true);
+          closeManageMergeModalOpen();
+          window.location.href = mergedUserPageLink;
+        } else {
+          console.log(response);
+          setManageMergeErrors([response.error]);
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+      });
   }
 
   const handleManageStatusModalSubmit = (event) => {
@@ -232,10 +305,12 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
           }
           
           // Set initial membership owner options
-          tempMembershipOwnerOptions.push({
-            label: membership.data.user_name,
-            value: membership.data.membership_user_uuid
-          });
+          if( ! tempMembershipOwnerOptions.find(option => option.value === membership.data.membership_user_uuid) ) {
+            tempMembershipOwnerOptions.push({
+              label: membership.data.user_name,
+              value: membership.data.membership_user_uuid
+            });
+          }
         });
 
         setMembershipOwnerOptions(tempMembershipOwnerOptions);
@@ -443,6 +518,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
   console.log('MEMBERSHIPS', memberships);
 
+  console.log('membershipMergeData', membershipMergeData);
+
 	return (
 		<AppWrap>
 			<div className="wrap" >
@@ -469,6 +546,21 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                   {memberType === 'individual' ? getIndividualName() : memberInfo === null ? '' : memberInfo.org_name}
                 </Heading>
               </FlexBlock>
+              {memberType === 'individual' && PLUGIN_SETTINGS.WICKET_MSHIP_MERGE_TOOLS &&
+                  <>
+                  <FlexItem>
+                    <Button
+                      variant='secondary'
+                      onClick={() => {
+                        openManageMergeModalOpen();
+                      }}
+                      >
+                      <Icon icon='update' />&nbsp;
+                      {__('Merge All Memberships', 'wicket-memberships')}
+                    </Button>
+                  </FlexItem>
+                  </>
+              }
               <FlexItem>
                 <CustomDisabled
                   isDisabled={memberInfo === null}
@@ -519,7 +611,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
           </WhiteBorderedBox>
 
           {isLoading && <Spinner />}
-          {!isLoading && (
+          {isSubmitting && <Spinner />}
+          {!isLoading && !isSubmitting && (
             <WhiteBorderedBox>
               <Flex
                 align='end'
@@ -732,7 +825,34 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                   </FlexItem>
                                 </Flex>
                               </BorderedBox>
-
+                              {memberType === 'individual' && PLUGIN_SETTINGS.WICKET_MSHIP_MERGE_TOOLS &&
+                              <BorderedBox>
+                                <div style={{ textAlign: 'left' }} >
+                                  <div>
+                                    <LabelWpStyled>
+                                      {__('Change Owner', 'wicket-memberships')}
+                                    </LabelWpStyled>
+                                  </div>
+                                  <>
+                                  <div>
+                                    <Button
+                                      variant='secondary'
+                                      // Disable the button if the membership is not "Active, Grace Period, or Delayed"
+                                      disabled={ membership.data.membership_type == 'organization'}
+                                      onClick={() => {
+                                        console.log('CHANGE OWNER Wicket UUID');
+                                        console.log(membership.data.membership_wicket_uuid);
+                                        openManageMergeModalOpen(membership.data.membership_wicket_uuid);
+                                      }}
+                                    >
+                                      <Icon icon='update' />&nbsp;
+                                      {__('Merge Membership', 'wicket-memberships')}
+                                    </Button>
+                                  </div>
+                                  </>
+                                </div>
+                              </BorderedBox>
+                              }
                               <CreateRenewalOrder membership={membership} />
                             </Flex>
 
@@ -1021,6 +1141,96 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
         </EditWrap>
 			</div>
 
+			{/* "Manage Owner" Modal */}
+			{isManageMergeModalOpen && (
+				<Modal
+					title={transferMembershipMessage[0]}
+					onRequestClose={closeManageMergeModalOpen}
+					style={
+						{
+							maxWidth: '650px',
+							minHeight: '300px',
+							width: '100%'
+						}
+					}
+				>
+				  <form onSubmit={handleMergeModalSubmit}>
+
+          {manageMergeErrors.length > 0 && (
+							<ErrorsRow>
+								{manageMergeErrors.map((errorMessage, index) => (
+									<Notice isDismissible={false} key={index} status="warning">{errorMessage}</Notice>
+								))}
+							</ErrorsRow>
+						)}
+            <MarginedFlex
+              align='start'
+              justify='start'
+              gap={6}
+              direction={[
+                'column',
+                'row'
+              ]}
+            >
+              <FlexBlock>
+                <LabelWpStyled style={{ height: '20px' }} >
+                  {__('New Membership Owner', 'wicket-memberships')}&nbsp;
+                  <Tooltip
+                    text="Represents the Customer these Membership will be merged."
+                  >
+                    <div><Icon icon='info' /></div>
+                  </Tooltip>
+                </LabelWpStyled>
+                <AsyncSelectWpStyled
+                  id="membership_owner_id"
+                  classNamePrefix="select"
+                  name="new_owner_uuid"
+                  isClearable={false}
+                  isSearchable={true}
+                  // isLoading={wcProductOptions.length === 0}
+                  //value={membershipOwnerOptions.find(option => option.value === membership.data.membership_user_uuid)}
+                  defaultOptions={membershipOwnerOptions}
+                  loadOptions={loadMembershipOwnerOptions}
+                  onChange={selected => {
+                    setMembershipMergeData( selected.value );
+                  }}
+                />
+              </FlexBlock>
+            </MarginedFlex>
+            <MarginedFlex
+              align='end'
+              justify='end'
+              gap={6}
+              direction={[
+                'column',
+                'row'
+              ]}
+            >
+              <FlexItem>
+                <Button
+                  variant='primary'
+                  type='submit'
+                  //disabled={}
+                  //isBusy={}
+                >
+                  {__('Update Membership Owner', 'wicket-memberships')}
+                </Button>
+              </FlexItem>
+            </MarginedFlex>
+
+            <MarginedFlex>
+                                    <FlexItem>
+                                      <CheckboxControl
+                                        label={transferMembershipMessage[1]}
+                                        __nextHasNoMarginBottom={true}
+                                        onChange={(value) => setMergeMembershipsConfirmed( value )}
+                                      />
+                                    </FlexItem>
+              
+            </MarginedFlex>
+          </form>
+	      </Modal>
+			)}
 			{/* "Manage Status" Modal */}
 			{isManageStatusModalOpen && (
 				<Modal

@@ -22,12 +22,14 @@ class Settings {
   public static function wicket_membership_render_plugin_settings_page() {
     ?>
     <h2>Wicket Membership Settings</h2>
+    <form action="options.php" method="post">
     <?php
       settings_fields( 'wicket_membership_plugin_options' );
       do_settings_sections( 'wicket_membership_plugin' ); ?>
     <p><input name="submit" class="button button-primary" type="submit" value="<?php esc_attr_e( 'Save' ); ?>" />
     <a href="edit.php?post_type=wicket_membership" target="_blank"><input class="button button-secondary" type="button" value="View Raw Membership Posts"/></a></p>
-    <?php
+    </form>
+    <?php 
   }
 
   public function get_next_scheduled_membership_grace_period() {
@@ -57,8 +59,10 @@ class Settings {
     add_settings_section( 'functional_settings', 'Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_functional_text'], 'wicket_membership_plugin' );
     //options
     add_settings_field( 'wicket_show_mship_order_org_search', '<p>Set the Organization on Subscription Membership in Admin</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_mship_order_org_search'], 'wicket_membership_plugin', 'functional_settings' );
-    add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Renewal Callouts</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_subscription_renew', '<p>Use Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_subscription_renew'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_membership_merge', '<p>Individual Membership Merge</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_membership_merge'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_membership_merge_key', '<p>Merge Webhook API Key</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_membership_merge_key'], 'wicket_membership_plugin', 'functional_settings' );
     
     //debug
     add_settings_section( 'debug_settings', 'Debug Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_debug_text'], 'wicket_membership_plugin' );
@@ -76,10 +80,26 @@ class Settings {
   
   }
 
+  public static function wicket_mship_membership_merge_key() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_membership_merge_key]' type='text' value='".esc_attr( $options['wicket_mship_membership_merge_key']). "' />"
+    .' Update the merge webhook signature authentication key value. Unique for this webook <code>'.str_replace("/wp", "", get_site_url()).'/wp-json/wicket_member/v1/membership/merge</code>.<br/><br/>';  
+    #if(empty(esc_attr( $options['wicket_mship_membership_merge_key']))) {
+    #  echo '<input name="wicket_mship_create_merge_webhook" class="button button-primary" type="submit" value="Create Merge Webhook in MDP" />'
+    #  .'<br/>Click to create the merge webhook in the MDP > Settings > Webhooks now.';    
+    #}
+  } 
+
+  public static function wicket_mship_membership_merge() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_membership_merge]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_membership_merge']), false). " />"
+      .'Show tools and allow merging of memberships on the Wicket Memberships > Individual Members edit page in admin.';
+  }
+
   public static function wicket_mship_disable_renewal() {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_disable_renewal]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_disable_renewal']), false). " />"
-      .'Do not display renewal callouts in ACC.';
+      .'Do not display renewal callouts to Members shown in the Account Center.';
   }
 
   public static function wicket_show_mship_order_org_search() {
@@ -160,6 +180,8 @@ class Settings {
   }
 
   public static function wicket_membership_plugin_options_validate( $input ) {
+    $newinput['wicket_mship_membership_merge_key'] = trim($input['wicket_mship_membership_merge_key']);
+    $newinput['wicket_mship_membership_merge'] = trim($input['wicket_mship_membership_merge']);
     $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
     $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
     $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);
@@ -179,7 +201,40 @@ class Settings {
       $count = Membership_Controller::daily_membership_grace_period_hook();
       Utilities::wc_log_mship_error(['schedule_daily_membership_grace_period_hook','Count: '.$count]);
     }
+    if(!empty($_REQUEST['wicket_mship_create_merge_webhook'])) {
+      //Settings::create_merge_webhook();
+    }
     return $newinput;
+  }
+
+  public static function create_merge_webhook() {
+    $client = wicket_api_client();
+        $payload = [
+          'data' => [
+            'type' => 'endpoints',
+            'attributes' => [
+              "name" => "Wicket WP Membership Plugin Bulk Merge",
+              "target_url" => str_replace("/wp", "", get_site_url())."/wp-json/wicket_member/v1/membership/merge",
+              "status" => "active",
+              "events" => [
+                "people.merged"
+              ]
+            ],
+          ]
+        ];
+        try {
+          $response = $client->post("/webhook/endpoints", ['json' => $payload]);
+          $signature_key = $response['data']['attributes']['signature_key']; //wicket_mship_membership_merge_key
+          $wicket_settings = get_option( 'wicket_membership_plugin_options' );
+          $wicket_settings['wicket_mship_membership_merge_key'] = $signature_key;
+          $wicket_signature_saved = update_option( 'wicket_membership_plugin_options', $wicket_settings );
+          Utilities::wc_log_mship_error(['Created Webhook for Membership Merge' => [$response, "response['data']['attributes']['signature_key']" => $signature_key, 'saved' => $wicket_signature_saved, $wicket_settings]]);
+      } catch (\GuzzleHttp\Exception\ClientException $e) {
+        $wicket_api_error = json_decode($e->getResponse()->getBody())->errors;
+          $response = new \WP_Error('wicket_api_error', $e->getMessage());
+          Utilities::wc_log_mship_error(['Created Webhook FAILED for Membership Merge' => $response]);
+        }
+      return $response;
   }
 
   public static function wicket_plugin_section_functional_text() {
