@@ -971,6 +971,21 @@ class Membership_Post_Types {
     );
 
     register_post_type( $this->membership_config_cpt_slug, $args );
+
+    add_action('rest_api_init', function () {
+      register_rest_field($this->membership_config_cpt_slug, 'multi_tier_renewal', [
+          'get_callback'    => function ($object) {
+              return get_post_meta($object['id'], 'multi_tier_renewal', true);
+          },
+          'update_callback' => function ($value, $object) {
+              return update_post_meta($object->ID, 'multi_tier_renewal', $value);
+          },
+          'schema' => [
+              'description' => 'Is multi tier renewal',
+              'context'     => ['view', 'edit'],
+          ],
+      ]);
+    });
   }
 
     /**

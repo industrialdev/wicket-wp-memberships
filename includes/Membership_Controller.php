@@ -1183,6 +1183,8 @@ function add_order_item_meta ( $item_id, $values ) {
       if( empty($Membership_Tier->get_mdp_tier_name()) ) {
         $Membership_Tier = new Membership_Tier( $membership->membership_tier_post_id );
       }
+      $Membership_Config = $Membership_Tier->get_config();
+      $membership_data['multi_tier_renewal'] = $Membership_Config->is_multitier_renewal();
       $membership_data['next_tier'] = false;
       $membership_data['form_page'] = false;
 
@@ -1202,7 +1204,6 @@ function add_order_item_meta ( $item_id, $values ) {
 
       //We are calculating the early renew date globally from the config assigned to the tier
       //$membership_early_renew_at = strtotime( $membership->membership_early_renew_at ); //this was old way was set per membership
-      $Membership_Config = $Membership_Tier->get_config();
       $membership_early_renew_days = $Membership_Config->get_renewal_window_days();
       $membership_early_renew_at = ( strtotime($membership->membership_ends_at ) - ($membership_early_renew_days * 86400));
       //set the meta for debug only / below we determine mship is in early_renewal/grace_period and add to response sent to ACC plugin
@@ -1369,10 +1370,48 @@ function add_order_item_meta ( $item_id, $values ) {
       }
     }
 
-    if(!empty($_ENV['WICKET_MSHIP_DISABLE_RENEWALS'])) {
-      return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
+    foreach($grace_period as $grace_period_renewal) {
+      if($grace_period_renewal['membership']['multi_tier_renewal']) {
+        if( !empty($next_tier_id)) {
+          $next_tier_type = 'next_tier';
+        } else if (!empty($next_tier_form_page_id)) {
+          $next_tier_type = 'form_flow';
+        } else if(!empty($next_tier_subscription_renewal)) {
+          $next_tier_type = 'subscription_renewal';
+        }
+        $multi_tier_renewals[] = [
+          'membership_id' => $membership_data['ID'],
+//          'membership_tier' => $membership_data['membership_tier_post_id'],
+//          'next_tier_type' => $next_tier_type,
+          'membership_data' => $grace_period_renewal['membership']
+        ];
+        $grace_period_renewals[] = $grace_period_renewal;
+      }
     }
-    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'debug' => $debug, 'membership_exists' => $membership_exists ];
+
+    foreach($early_renewal as $early_renewal_renewal) {
+      if($early_renewal_renewal['membership']['multi_tier_renewal']) {
+        if( !empty($next_tier_id)) {
+          $next_tier_type = 'next_tier';
+        } else if (!empty($next_tier_form_page_id)) {
+          $next_tier_type = 'form_flow';
+        } else if(!empty($next_tier_subscription_renewal)) {
+          $next_tier_type = 'subscription_renewal';
+        }
+        $multi_tier_renewals[] = [
+          'membership_id' => $membership_data['ID'],
+//          'membership_tier' => $membership_data['membership_tier_post_id'],
+//          'next_tier_type' => $next_tier_type,
+          'membership_data' => $early_renewal_renewal['membership']
+        ];
+        $early_renewal_renewals[] = $early_renewal_renewal;
+      }
+    }
+
+    if(!empty($_ENV['WICKET_MSHIP_DISABLE_RENEWALS'])) {
+      return ['multi_tier_renewal' => [], 'early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
+    }
+    return ['multi_tier' => $multi_tier_renewals, 'early_renewal' => $early_renewal_renewals, 'grace_period' => $grace_period_renewals, 'pending_approval' => $pending_approval, 'debug' => $debug, 'membership_exists' => $membership_exists ];
   }
 
   public function get_members_list_group_by_filter($groupby){

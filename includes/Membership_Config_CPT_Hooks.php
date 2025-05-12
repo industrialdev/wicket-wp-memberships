@@ -195,9 +195,12 @@ class Membership_Config_CPT_Hooks {
       echo '</pre>';
     } else if ( $column_name === 'cycle_data' ) {
       $meta = get_post_meta( $post_id, 'cycle_data', true );
+      $multi_tier_renewal = get_post_meta( $post_id, 'multi_tier_renewal', true );
 
       echo '<pre>';
       print_r($meta);
+      echo "MultiTier:";
+      print_r($multi_tier_renewal);
       echo '</pre>';
     }
 

@@ -56,6 +56,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 
 	const [form, setForm] = useState({
 		name: '',
+    multi_tier_renewal: false,
 		renewal_window_data: {
 			days_count: '1',
 			locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
@@ -267,7 +268,8 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 				status: 'publish',
 				renewal_window_data: form.renewal_window_data,
 				late_fee_window_data: form.late_fee_window_data,
-				cycle_data: form.cycle_data
+				cycle_data: form.cycle_data,
+        multi_tier_renewal: form.multi_tier_renewal,
 			}
 		}).then((response) => {
 			console.log(response);
@@ -302,7 +304,8 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 					name: decodedTitle,
 					renewal_window_data: post.renewal_window_data,
 					late_fee_window_data: post.late_fee_window_data,
-					cycle_data: post.cycle_data
+					cycle_data: post.cycle_data,
+          multi_tier_renewal: post.multi_tier_renewal,
 				});
 			});
 		}
@@ -363,6 +366,15 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 									}}
 									value={form.name}
 								/>
+                <FlexItem>
+									<CheckboxControl
+										label={__('Multi-Tier Renewal', 'wicket-memberships')}
+										checked={form.multi_tier_renewal}
+										onChange={(value) => setForm({ ...form, multi_tier_renewal: value })}
+										__nextHasNoMarginBottom={true}
+									/>
+								</FlexItem>
+
 							</FlexBlock>
 						</Flex>
 
