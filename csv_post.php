@@ -204,6 +204,7 @@ if(!empty($_REQUEST['mship_tier_resync'])) {
 }
 
 function wicket_sync_membership_renewal_data_with_tier() {
+  echo "DOING --FORM-- TIER SEQ UPDATES<BR>";
   $args = array(
     'post_type' => 'wicket_membership',
     'post_status' => 'publish',
@@ -230,7 +231,6 @@ function wicket_sync_membership_renewal_data_with_tier() {
   #remove_filter('posts_groupby', 'wicket_get_members_list_group_by_filter' );
   $cnt=0;
   foreach($posts->posts as $post) {
-    $cnt++;
     $membership_next_tier_form_page_id = get_post_meta( $post->ID, 'membership_next_tier_form_page_id', true );
     $membership_next_tier_id = get_post_meta( $post->ID, 'membership_next_tier_id', true );
     echo '<br>scanning: '.$post->ID.'  - '. $membership_next_tier_id .'-'.$membership_next_tier_form_page_id. '<br>';
@@ -239,6 +239,11 @@ function wicket_sync_membership_renewal_data_with_tier() {
       $Tier = new Membership_Tier($tier_post_id);
       echo $Tier->get_mdp_tier_name().'<br>';
       $next_tier_form_id = $Tier->get_next_tier_form_page_id();
+      if(empty($next_tier_form_id)) {
+        echo "SKIPPING NEXT_TIER SEQ. CONFIG<br>";
+        continue;
+      }
+      $cnt++;
       echo '<pre>';
       var_dump(['updated', $post->ID, $next_tier_form_id]);
       echo '</pre>';
@@ -253,6 +258,7 @@ function wicket_sync_membership_renewal_data_with_tier() {
       echo '</pre>';
     }
   }
+  echo "$cnt<BR>";
   die('terminated');
 }
 
