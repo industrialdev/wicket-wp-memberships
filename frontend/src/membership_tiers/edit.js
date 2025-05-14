@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { TextControl, TextareaControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalText as Text } from '@wordpress/components';
 import styled from 'styled-components';
-import { API_URL, PLUGIN_API_URL } from '../constants';
+import { API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS } from '../constants';
 import he from 'he';
 import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, CustomDisabled } from '../styled_elements';
 import { fetchMembershipTiers } from '../services/api';
@@ -271,9 +271,13 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		// Fetch Membership Configs
 		apiFetch({ path: addQueryArgs(`${API_URL}/${configCptSlug}`, { status: 'publish' }) }).then((configs) => {
 			let options = configs.map((config) => {
+        let multitier = '';
 				const decodedTitle = he.decode(config.title.rendered);
+        if(config.multi_tier_renewal && PLUGIN_SETTINGS.WICKET_MSHIP_MULTI_TIER_RENEWALS) {
+          multitier = '| Multiple Tier Enabled';
+        }
 				return {
-					label: `${decodedTitle} | ID: ${config.id}`,
+					label: `${decodedTitle} | ID: ${config.id} ${multitier}`,
 					value: config.id
 				}
 			});
