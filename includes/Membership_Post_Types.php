@@ -1043,6 +1043,21 @@ class Membership_Post_Types {
     );
 
     register_post_type( $this->membership_tier_cpt_slug, $args );
+
+    add_action('rest_api_init', function () {
+      register_rest_field($this->membership_tier_cpt_slug, 'membership_tier_slug', [
+          'get_callback'    => function ($object) {
+              return get_post_meta($object['id'], 'membership_tier_slug', true);
+          },
+          'update_callback' => function ($value, $object) {
+              return update_post_meta($object->ID, 'membership_tier_slug', $value);
+          },
+          'schema' => [
+              'description' => 'membership_tier_slug',
+              'context'     => ['view', 'edit'],
+          ],
+      ]);
+    });
   }
 
 }

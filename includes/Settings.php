@@ -4,6 +4,7 @@ namespace Wicket_Memberships;
 
 use Wicket_Memberships\Membership_Controller;
 use Wicket_Memberships\Utilities;
+use Wicket_Memberships\Helper;
 
 /**
  * Class Settings
@@ -24,6 +25,7 @@ class Settings {
     <form action="options.php" method="post">
     <h2>Wicket Membership Settings</h2>
     <?php
+      Settings::check_migrate_tier_slugs();
       settings_fields( 'wicket_membership_plugin_options' );
       do_settings_sections( 'wicket_membership_plugin' ); ?>
     <p><input name="submit" class="button button-primary" type="submit" value="<?php esc_attr_e( 'Save' ); ?>" />
@@ -60,6 +62,7 @@ class Settings {
     //options
     add_settings_field( 'wicket_show_mship_order_org_search', '<p>Set the Organization on Subscription Membership in Admin</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_mship_order_org_search'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_multi_tier_renewal', '<p>Use Multi-Tier Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_multi_tier_renewal'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_subscription_renew', '<p>Use Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_subscription_renew'], 'wicket_membership_plugin', 'functional_settings' );
     
     //debug
@@ -76,6 +79,13 @@ class Settings {
     //status change reporting
     add_settings_section( 'status_settings', 'Membership Status Changes', [__NAMESPACE__.'\\Settings', 'wicket_plugin_status_change_reporting'], 'wicket_membership_plugin' );
   
+  }
+
+  public static function wicket_mship_multi_tier_renewal() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_multi_tier_renewal]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_multi_tier_renewal']), false). " />"
+      .'Enables the multi-tier checkbox setting on Membership Configs, multi-tier Account Centre callouts, and the Tier Opt-in Gravity Form Field for Renewals.<br/><strong style="color:red;">IMPORTANT</strong>:
+      Only use this if you undertsand the Multi-Tier Renewal Flow & Rules and follow the instructions to configure everything correctly.';
   }
 
   public static function wicket_mship_disable_renewal() {
@@ -162,6 +172,7 @@ class Settings {
   }
 
   public static function wicket_membership_plugin_options_validate( $input ) {
+    $newinput['wicket_mship_multi_tier_renewal'] = trim($input['wicket_mship_multi_tier_renewal']);
     $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
     $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
     $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);
@@ -201,6 +212,20 @@ class Settings {
     $schedule = $self->get_next_scheduled_membership_expiry();
     if(!empty($schedule)) {          
       echo "<p>Next <strong>membership expiry</strong> will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_expiry_hook=1'>Run Now</a></p>";
+    }
+  }
+
+  public static function check_migrate_tier_slugs() {
+    $args = array(
+      'post_type' => Helper::get_membership_tier_cpt_slug(),
+      'posts_per_page' => -1,
+    );
+    $tiers = get_posts( $args );
+    foreach($tiers as $tier) {
+      $tier_slug = get_post_meta( $tier->ID, 'membership_tier_slug', true);
+      if(empty($tier_slug)) {
+        (new Helper)->add_slug_on_mship_tier_create( $tier->ID, $tier, true);
+      }
     }
   }
 }

@@ -4,7 +4,7 @@ import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon } from '@wordpress/components';
-import { API_URL, DEFAULT_DATE_FORMAT, WC_PRODUCT_TYPES } from '../constants';
+import { API_URL, DEFAULT_DATE_FORMAT, PLUGIN_SETTINGS, WC_PRODUCT_TYPES } from '../constants';
 import he from 'he';
 import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled, ReactDatePickerStyledWrap, AppWrap } from '../styled_elements';
 import DatePicker from 'react-datepicker';
@@ -366,6 +366,8 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 									}}
 									value={form.name}
 								/>
+                {PLUGIN_SETTINGS.WICKET_MSHIP_MULTI_TIER_RENEWALS &&
+                <>
                 <FlexItem>
 									<CheckboxControl
 										label={__('Multi-Tier Renewal', 'wicket-memberships')}
@@ -374,7 +376,8 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 										__nextHasNoMarginBottom={true}
 									/>
 								</FlexItem>
-
+                </>
+                }
 							</FlexBlock>
 						</Flex>
 

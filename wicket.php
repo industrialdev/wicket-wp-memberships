@@ -137,6 +137,16 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_DISABLE_RENEWALS']=true;
             }
           }
+
+          if(isset($options['wicket_mship_multi_tier_renewal'])) {
+            if($options['wicket_mship_multi_tier_renewal']) {
+              $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS']=true;
+              if(!function_exists('wicket_multi_tier_renewal_checkbox_option_field')) {
+                require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/gravity-forms-multi-tier.php' );
+              }    
+            }
+          }
+
         }
 
 	/**

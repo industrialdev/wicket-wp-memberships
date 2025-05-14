@@ -19,6 +19,21 @@ class Admin_Controller {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     add_action( 'admin_menu', array( $this, 'init_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+    add_action( 'admin_footer', array( $this, 'admin_footer_scripts' ) );
+  }
+
+  /**
+   * Add admin footer script
+   */
+  public function admin_footer_scripts() {
+    ?>
+    <script type="text/javascript">
+      var wicketMembershipsSettings = {
+        'WICKET_MSHIP_MERGE_TOOLS': '<?php echo $_ENV['WICKET_MSHIP_MERGE_TOOLS']; ?>',
+        'WICKET_MSHIP_MULTI_TIER_RENEWALS': '<?php echo $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS']; ?>',
+      };
+    </script>
+    <?php
   }
 
 	/**

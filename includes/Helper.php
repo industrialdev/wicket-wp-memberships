@@ -23,9 +23,20 @@ class Helper {
       add_action( 'admin_menu', function() {
           remove_meta_box( 'extra_info_data', self::get_membership_cpt_slug(), 'normal' );
       } );
+      add_action('save_post_wicket_mship_tier', [$this, 'add_slug_on_mship_tier_create'], 10, 3);
     }
   }
 
+
+  function add_slug_on_mship_tier_create($post_ID, $post, $update) {
+      if ($update) return;
+      if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+      if ($post->post_type !== 'wicket_mship_tier') return;
+      $tier_data = get_post_meta( $post_ID, 'tier_data' );
+      $mdp_tier = get_individual_memberships( $tier_data[0]['mdp_tier_uuid'] );
+      $slug = $mdp_tier['data']['attributes']['slug'];
+      update_post_meta($post_ID, 'membership_tier_slug', $slug);
+  }
 
   function wps_select_checkout_field_display_admin_order_meta( $post ) {    
     if ( ! is_admin() ) {
