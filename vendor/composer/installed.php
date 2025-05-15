@@ -1,24 +1,23 @@
-<?php return array (
-  'root' => 
-  array (
-    'pretty_version' => 'dev-main',
-    'version' => 'dev-main',
-    'aliases' => 
-    array (
+<?php return array(
+    'root' => array(
+        'name' => 'industrialdev/wicket-wp-memberships',
+        'pretty_version' => 'dev-main',
+        'version' => 'dev-main',
+        'reference' => 'eaf66e9408c06c208a9a13d415da75dd980666d6',
+        'type' => 'wordpress-plugin',
+        'install_path' => __DIR__ . '/../../',
+        'aliases' => array(),
+        'dev' => false,
     ),
-    'reference' => '6a31181558adc5003b48beec1c973ec331ff60f2',
-    'name' => 'industrialdev/wicket-wp-memberships',
-  ),
-  'versions' => 
-  array (
-    'industrialdev/wicket-wp-memberships' => 
-    array (
-      'pretty_version' => 'dev-main',
-      'version' => 'dev-main',
-      'aliases' => 
-      array (
-      ),
-      'reference' => '6a31181558adc5003b48beec1c973ec331ff60f2',
+    'versions' => array(
+        'industrialdev/wicket-wp-memberships' => array(
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => 'eaf66e9408c06c208a9a13d415da75dd980666d6',
+            'type' => 'wordpress-plugin',
+            'install_path' => __DIR__ . '/../../',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
     ),
-  ),
 );

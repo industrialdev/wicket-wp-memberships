@@ -21,12 +21,14 @@ class Settings {
 
   public static function wicket_membership_render_plugin_settings_page() {
     ?>
+    <form action="options.php" method="post">
     <h2>Wicket Membership Settings</h2>
     <?php
       settings_fields( 'wicket_membership_plugin_options' );
       do_settings_sections( 'wicket_membership_plugin' ); ?>
     <p><input name="submit" class="button button-primary" type="submit" value="<?php esc_attr_e( 'Save' ); ?>" />
     <a href="edit.php?post_type=wicket_membership" target="_blank"><input class="button button-secondary" type="button" value="View Raw Membership Posts"/></a></p>
+    </form>
     <?php
   }
 

@@ -28,6 +28,14 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.97 =
+* Date May 12 2025
+* Bugfix: Settings page form submission
+
+= 1.0.95 =
+* Date May 12 2025
+* Added: Display email address on organization/individual member pages
+
 = 1.0.94 =
 * Date May 07 2025
 * Added: Grant Owner Assignment on Org Membership
