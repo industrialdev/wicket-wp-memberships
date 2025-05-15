@@ -146,7 +146,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               }    
             }
           }
-
+          require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/membership-code-hooks.php' );
         }
 
 	/**
