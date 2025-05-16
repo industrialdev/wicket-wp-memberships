@@ -10,6 +10,8 @@ import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, Cust
 import DatePicker from 'react-datepicker';
 import MembershipConfigTiers from './tiers';
 import { fetchWcProducts } from '../services/api';
+import { Tooltip } from 'react-tooltip'
+//import 'react-tooltip/dist/react-tooltip.css';
 
 const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tierCptSlug, postId, tierMdpUuids, languageCodes }) => {
 
@@ -369,13 +371,47 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
                 {PLUGIN_SETTINGS.WICKET_MSHIP_MULTI_TIER_RENEWALS &&
                 <>
                 <FlexItem>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 									<CheckboxControl
 										label={__('Multi-Tier Renewal', 'wicket-memberships')}
 										checked={form.multi_tier_renewal}
 										onChange={(value) => setForm({ ...form, multi_tier_renewal: value })}
 										__nextHasNoMarginBottom={true}
 									/>
-								</FlexItem>
+                    <span
+                      tabIndex={0}
+                      style={{
+                        display: 'inline-flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        backgroundColor: '#007bff', // Bootstrap blue
+                        color: '#fff',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        lineHeight: 1,                      
+                      }}
+                      aria-label={__('What is Multi-Tier Renewal?', 'wicket-memberships')}
+                      data-tooltip-id="membership-multi-tier-tooltip"
+                      data-tooltip-html={
+                          [
+                            __('All the Membership Tiers attached to this or any other Membership Config set', 'wicket-memberships'),
+                            __('to use Multi-Tier Renewal will be combined into a single callout in the Account Centre.', 'wicket-memberships')
+                          ].join('<br />')
+                    }
+                    >
+                      ?
+                    </span>
+                    <Tooltip
+                      id="membership-multi-tier-tooltip"
+                      place="right"
+                      effect="solid" 
+                      multiline={true} />
+                  </div>
+                </FlexItem> 
                 </>
                 }
 							</FlexBlock>
