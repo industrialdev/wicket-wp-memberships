@@ -281,8 +281,13 @@ class Membership_Tier_CPT_Hooks {
     }
 
     if ( $column_name === 'config_name' ) {
+      echo "<span style='white-space: nowrap;'>";
       $config = $tier->get_config();
       echo $config->get_title();
+      if( $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] && $config->is_multitier_renewal() ) {
+        echo ' (Multi-Tier)';
+      }
+      echo '</span>';
     }
 
     if ( $column_name === 'slug' ) {
