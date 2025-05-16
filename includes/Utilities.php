@@ -27,12 +27,21 @@ class Utilities {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
 
     add_filter( 'woocommerce_cart_item_quantity', [$this, 'disable_cart_item_quantity'], 10, 3);
-    //add_filter( 'woocommerce_cart_item_remove_link', [$this, 'hide_cart_item_remove_link'], 10, 3);
+    add_filter( 'woocommerce_cart_item_remove_link', [$this, 'hide_cart_item_remove_link'], 10, 3);
     add_action( 'wp_trash_post', [$this, 'delete_wicket_membership_in_mdp' ], 10, 2);
     add_action( 'wp_trash_post', [$this, 'prevent_delete_linked_product' ], 10, 2);
     add_action( 'woocommerce_before_delete_product_variation', [$this, 'prevent_delete_linked_product' ], 10, 2);
     add_action('admin_notices', [$this, 'show_membership_product_delete_error'], 1);
     add_action('admin_notices', [$this, 'show_membership_delete_error'], 1);
+    add_action('template_redirect', [$this, 'wicket_membership_clear_the_cart'], 10);
+  }
+
+  function wicket_membership_clear_the_cart() {
+    if (is_cart() && isset($_GET['empty-cart']) && $_GET['empty-cart'] === 'true') {
+        WC()->cart->empty_cart();
+        wp_safe_redirect(wc_get_cart_url());
+        exit;
+    }
   }
 
   public static function wc_log_mship_error( $data, $level = 'error' ) {
@@ -109,8 +118,11 @@ class Utilities {
     if (is_cart()) {
       $item = WC()->cart->get_cart_item( $cart_item_key );
       $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
+      $category = get_term_by( 'slug', 'membership_late_fee', 'product_cat' );
+      $cat_id = $category->term_id;
+      $membership_categories[] = $cat_id;
       if ( has_term( $membership_categories, 'product_cat', $item['product_id']) ) {
-        $product_remove = '';
+        $product_remove = '<a href="'.esc_url( add_query_arg( 'empty-cart', 'true', wc_get_cart_url() ) ).'" class="remove" aria-label="Remove" onclick="event.stopImmediatePropagation(); return confirm(\''.__("This will empty the cart of all items.", 'wicket-memberships').'\');">×</a>';
       }
     }
     return $product_remove;
@@ -129,6 +141,9 @@ class Utilities {
   {
     if (is_cart()) {
       $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
+      $category = get_term_by( 'slug', 'membership_late_fee', 'product_cat' );
+      $cat_id = $category->term_id;
+      $membership_categories[] = $cat_id;
       if ( has_term( $membership_categories, 'product_cat', $cart_item['product_id']) ) {
         $product_quantity = sprintf('<strong>%s</strong><input type="hidden" name="cart[%s][qty]" value="%s" />', $cart_item['quantity'], $cart_item_key, $cart_item['quantity']);
       }

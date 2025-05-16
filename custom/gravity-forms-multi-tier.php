@@ -123,6 +123,10 @@ function wicket_add_multi_tier_renewal_products_to_cart( $entry, $form ) {
         return;
     }
 
+    if(!empty($_GET['late_fee_product_id'])) {
+      $late_fee_product_id = sanitize_text_field( $_GET['late_fee_product_id'] );
+    }
+
     //get all the existing memberships being renewed off the query string
     $multi_tier_renewal = isset($_GET['multi_tier_renewal']) && is_array($_GET['multi_tier_renewal'])
     ? array_map('sanitize_text_field', $_GET['multi_tier_renewal'])
@@ -176,15 +180,39 @@ function wicket_add_multi_tier_renewal_products_to_cart( $entry, $form ) {
           }
 
           //echo '<pre>'; var_dump([$product->get_type(),$parent_product_id, $variation_id]);
-      
-          //add the tier products to the cart
-          WC()->cart->add_to_cart(
-            $parent_product_id, 
-            1, 
-            $variation_id, 
-            [], 
-            $cart_item_data
-          );
+          $found = false;
+          foreach (WC()->cart->get_cart() as $cart_item) {
+              if ($cart_item['product_id'] == $parent_product_id && isset($cart_item['membership_post_id_renew']) && $cart_item['membership_post_id_renew'] == $multi_tier_renewal[  $tier->ID ]) {
+                  $found = true;
+                  break;
+              }
+          }
+          //if we have not found the product in the cart already, add it
+          if (!$found) {    
+            WC()->cart->add_to_cart(
+              $parent_product_id, 
+              1, 
+              $variation_id, 
+              [], 
+              $cart_item_data
+            );
+          }
+    }
+  }
+
+  if( !empty( $late_fee_product_id ) ) {
+    $found = false;
+    foreach (WC()->cart->get_cart() as $cart_item) {
+        if ($cart_item['product_id'] == $late_fee_product_id ) {
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) {    
+      WC()->cart->add_to_cart(
+          $late_fee_product_id,
+        1,
+      );
     }
   }
 }

@@ -630,4 +630,9 @@ class Membership_Tier {
 
     return $memberships;
   }
+
+  public function get_membership_tier_slug() {
+    $membership_tier_slug = get_post_meta( $this->post_id, 'membership_tier_slug', true );
+    return $membership_tier_slug;
+  }
 }

@@ -46,7 +46,7 @@ class Membership_Controller {
     //change to hidden fields and remove 'woocommerce_get_item_data' filter to hide data
     $value = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field( $_REQUEST['org_uuid'] ) : '';
     echo '<div><label>org_uuid</label><p><input type="text" name="org_uuid" value="' . $value . '"></p></div>';
-    $value = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field( $_REQUEST['membership_post_id_renew'] ) : '';
+    $value = isset( $_REQUEST['membership_post_id_renew'] )  && !is_array($_REQUEST['membership_post_id_renew']) ? sanitize_text_field( $_REQUEST['membership_post_id_renew'] ) : '';
     echo '<div><label>membership_post_id_renew</label><p><input type="text" name="membership_post_id_renew" value="' . $value . '"></p></div>';
 }
 
@@ -54,7 +54,7 @@ function add_cart_item_data( $cart_item_meta, $product_id ) {
     if ( isset( $_REQUEST ['org_uuid'] ) ) {
       $cart_item_meta[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
     }
-    if( isset( $_REQUEST['membership_post_id_renew']) ) {
+    if( isset( $_REQUEST['membership_post_id_renew']) && !is_array($_REQUEST['membership_post_id_renew'])) {
       $cart_item_meta[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
     }
     return $cart_item_meta;

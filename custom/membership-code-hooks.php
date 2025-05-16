@@ -11,9 +11,12 @@ if(empty( $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] )) {
 /**
  * Receiving renewal links and any late fee products passed through the gform query string
  * If the query string has no `membership_post_id_renew` key-value do not process this hook 
+ * This works for all regular renewals using a gravity form flow ( BUT NOT multi-tier renewals )
  * @return void
  */
 function wicket_gform_membership_operations() {
+  $added_flag = false;
+
   if(!empty($_GET['membership_post_id_renew'])) {
     $membership_post_id_renew = sanitize_text_field( $_GET['membership_post_id_renew'] );
   } else {
@@ -24,62 +27,163 @@ function wicket_gform_membership_operations() {
     $late_fee_product_id = sanitize_text_field( $_GET['late_fee_product_id'] );
   }
 
+  //if the membership_post_id_renew is an array, we are in the multi-tier renewal flow
   if(!empty($membership_post_id_renew) && !is_array($membership_post_id_renew)) {
     $membership_tier_slug = get_post_meta( $membership_post_id_renew, 'membership_tier_slug', true );
-
-    $products = wc_get_products([
-      'limit' => -1,
-      'status' => 'publish',
-      'type' => ['subscription', 'variable-subscription'],
-      'meta_key' => 'tier_reference',
-      'meta_value' => $membership_tier_slug,
-    ]);
-
-    foreach ($products as $product) {
-      if( $product->get_type() == 'variable-subscription' ) {
-        $variations = $product->get_children(); 
-        foreach ( $variations as $variations_id ) {
-            $tier_reference = get_post_meta( $variations_id, 'tier_reference', true );
-            if($tier_reference == $membership_tier_slug) {
-              break;
-            }
-        }
-        $parent_product_id = $product->get_id();
-        $variation_id = $variations_id;
-      } else {
-        $tier_reference = get_post_meta( $product->get_id(), 'tier_reference', true );
-        if($tier_reference == $membership_tier_slug) {
-          $parent_product_id = $product->get_id();
-          $variation_id = '';
-        }
-      }
-      if(!empty($parent_product_id)) {
-        break;
-      }
-    }
+    [$parent_product_id, $variation_id] = wicket_get_product_by_tier_reference_with_slug($membership_tier_slug);
+    
     if(!empty($parent_product_id)) {
         $cart_item_data = [
         'membership_post_id_renew' =>  $membership_post_id_renew,
       ];
 
-      WC()->cart->add_to_cart(
-        $parent_product_id, 
-        1, 
-        $variation_id, 
-        [], 
-        $cart_item_data
-      );
+    $found = false;
+    foreach (WC()->cart->get_cart() as $cart_item) {
+        if ($cart_item['product_id'] == $parent_product_id && isset($cart_item['membership_post_id_renew']) && $cart_item['membership_post_id_renew'] == $membership_post_id_renew) {
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) {    
+        WC()->cart->add_to_cart(
+          $parent_product_id, 
+          1, 
+          $variation_id, 
+          [], 
+          $cart_item_data
+        );
+      $added_flag = true;
+      }
     }
   }
   
   if( !empty( $late_fee_product_id ) ) {
-    WC()->cart->add_to_cart(
-        $late_fee_product_id,
-      1,
-    );
+        $found = false;
+    foreach (WC()->cart->get_cart() as $cart_item) {
+        if ($cart_item['product_id'] == $late_fee_product_id ) {
+            $found = true;
+            break;
+        }
+    }
+    if (!$found) {    
+      WC()->cart->add_to_cart(
+          $late_fee_product_id,
+        1,
+      );
+    }
+  }
+  if ($added_flag) {
+    wp_safe_redirect(wc_get_cart_url());
+    exit;
   }
 }
   
+/**
+ * Get Product with Tier Reference from Tier Slug 
+ * Currently called from the Account Centre as well when constructing the renewal links
+ * @param string $membership_tier_slug
+ * @return array
+ */
+function wicket_get_product_by_tier_reference_with_slug($membership_tier_slug) {
+
+       $products = wc_get_products([
+        'limit' => -1,
+        'status' => 'publish',
+        'type' => ['subscription', 'variable-subscription'],
+        'meta_key' => 'tier_reference',
+        'meta_value' => $membership_tier_slug,
+      ]);
+
+      foreach ($products as $product) {
+        if( $product->get_type() == 'variable-subscription' ) {
+          $variations = $product->get_children(); 
+          foreach ( $variations as $variations_id ) {
+              $tier_reference = get_post_meta( $variations_id, 'tier_reference', true );
+              if($tier_reference == $membership_tier_slug) {
+                break;
+              }
+          }
+          $parent_product_id = $product->get_id();
+          $variation_id = $variations_id;
+        } else {
+          $tier_reference = get_post_meta( $product->get_id(), 'tier_reference', true );
+          if($tier_reference == $membership_tier_slug) {
+            $parent_product_id = $product->get_id();
+            $variation_id = '';
+          }
+        }
+        if(!empty($parent_product_id)) {
+          break;
+        }
+      }
+      return [$parent_product_id,$variation_id];
+    }
+
+add_action('template_redirect', 'wicket_membership_maybe_add_renewals_to_cart');
+/**
+ * When we land in the cart with a query string containing the membership_post_id_renew as array
+ * This is used for the multi-tier renewal flow and originating in the account center renewal links
+ * This will add the membership products to the cart (keys) with the membership_post_id_renew meta (value) set
+ * @return void
+ */
+function wicket_membership_maybe_add_renewals_to_cart() {
+    if (is_cart() && isset($_GET['membership_post_id_renew']) && is_array($_GET['membership_post_id_renew'])) {
+        $added_flag = false;
+        $variation_id = '';
+
+        if(!empty($_GET['late_fee_product_id'])) {
+          $late_fee_product_id = sanitize_text_field( $_GET['late_fee_product_id'] );
+        }
+
+        foreach ($_GET['membership_post_id_renew'] as $product_id => $meta_value) {
+            $parent_product_id = absint($product_id);
+            $product = wc_get_product($parent_product_id);
+            if ($product->is_type('variation')) {
+                $parent_product_id = $product->get_parent_id();
+                $variation_id = $product_id;
+            }
+            $meta_value = sanitize_text_field($meta_value);
+
+            $found = false;
+            foreach (WC()->cart->get_cart() as $cart_item) {
+                if ($cart_item['product_id'] == $parent_product_id && isset($cart_item['membership_post_id_renew']) && $cart_item['membership_post_id_renew'] == $meta_value) {
+                    $found = true;
+                    break;
+                }
+            }
+
+            if (!$found) {
+              $cart_item_data = [
+                'membership_post_id_renew' =>  $meta_value,
+              ];
+
+              WC()->cart->add_to_cart(
+                $parent_product_id, 
+                1, 
+                $variation_id, 
+                [], 
+                $cart_item_data
+              );
+              $added_flag = true;
+            }
+          }
+          if( !empty( $late_fee_product_id ) ) {
+            WC()->cart->add_to_cart(
+                $late_fee_product_id,
+              1,
+            );
+          }
+
+        if ($added_flag) {
+            wp_safe_redirect(wc_get_cart_url());
+            exit;
+        }
+    }
+}
+
+/******************************************************************
+ * For adding tier_reference meta to the product pages
+ ******************************************************************/
 /**
  * Add the Tier reference tab to the products with category = membership
  */
