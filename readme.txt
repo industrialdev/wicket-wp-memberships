@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.99 =
+* Date May 22 2025
+* Bugfix: Timezone issues when date select picker is used
+
 = 1.0.98 =
 * Date May 22 2025
 * Bugfix: "Create Renewal Order" modal improvements
