@@ -398,8 +398,9 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
                       data-tooltip-id="membership-multi-tier-tooltip"
                       data-tooltip-html={
                           [
-                            __('All the Membership Tiers attached to this or any other Membership Config set', 'wicket-memberships'),
-                            __('to use Multi-Tier Renewal will be combined into a single callout in the Account Centre.', 'wicket-memberships')
+                            __('All the Membership Tiers attached to this or any other Membership Config set to use', 'wicket-memberships'),
+                            __('a Multi-Tier Renewal where they all have similar options selected for Renewal Flow,', 'wicket-memberships'),
+                            __('will be combined into a single callout in the Account Centre.', 'wicket-memberships'),
                           ].join('<br />')
                     }
                     >

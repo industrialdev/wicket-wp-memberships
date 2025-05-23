@@ -101,6 +101,7 @@ add_action('gform_after_submission', 'wicket_add_multi_tier_renewal_products_to_
 
 /**
  * Add multiple tiers selected to cart and configure for renewal and new memberships
+ * This works with the custom checkbox field in the Gravity Forms to manage the renewal tiers
  * @param mixed $entry
  * @param mixed $form
  * @return void
@@ -216,3 +217,67 @@ function wicket_add_multi_tier_renewal_products_to_cart( $entry, $form ) {
     }
   }
 }
+
+
+add_action('template_redirect', 'wicket_membership_maybe_add_renewals_to_cart');
+/**
+ * When we land in the cart with a query string containing the membership_post_id_renew as array
+ * This is used for the multi-tier renewal flow and originating in the account center renewal links
+ * This will add the membership products to the cart (keys) with the membership_post_id_renew meta (value) set
+ * @return void
+ */
+function wicket_membership_maybe_add_renewals_to_cart() {
+    if (is_cart() && isset($_GET['membership_post_id_renew']) && is_array($_GET['membership_post_id_renew'])) {
+        $added_flag = false;
+        $variation_id = '';
+
+        if(!empty($_GET['late_fee_product_id'])) {
+          $late_fee_product_id = sanitize_text_field( $_GET['late_fee_product_id'] );
+        }
+
+        foreach ($_GET['membership_post_id_renew'] as $product_id => $meta_value) {
+            $parent_product_id = absint($product_id);
+            $product = wc_get_product($parent_product_id);
+            if ($product->is_type('variation')) {
+                $parent_product_id = $product->get_parent_id();
+                $variation_id = $product_id;
+            }
+            $meta_value = sanitize_text_field($meta_value);
+
+            $found = false;
+            foreach (WC()->cart->get_cart() as $cart_item) {
+                if ($cart_item['product_id'] == $parent_product_id && isset($cart_item['membership_post_id_renew']) && $cart_item['membership_post_id_renew'] == $meta_value) {
+                    $found = true;
+                    break;
+                }
+            }
+
+            if (!$found) {
+              $cart_item_data = [
+                'membership_post_id_renew' =>  $meta_value,
+              ];
+
+              WC()->cart->add_to_cart(
+                $parent_product_id, 
+                1, 
+                $variation_id, 
+                [], 
+                $cart_item_data
+              );
+              $added_flag = true;
+            }
+          }
+          if( !empty( $late_fee_product_id ) ) {
+            WC()->cart->add_to_cart(
+                $late_fee_product_id,
+              1,
+            );
+          }
+
+        if ($added_flag) {
+            wp_safe_redirect(wc_get_cart_url());
+            exit;
+        }
+    }
+}
+
