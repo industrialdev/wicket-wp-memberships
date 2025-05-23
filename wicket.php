@@ -12,7 +12,7 @@ namespace Wicket_Memberships;
  * Domain Path: /languages
  * Requires at least: 6.0
  * Requires PHP: 8.0
- * Requires Plugins: wicket-wp-base-plugin
+ * Requires Plugins: wicket-wp-base-plugin, woocommerce, woocommerce-subscriptions
  * @package Wicket
  */
 

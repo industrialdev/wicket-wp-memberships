@@ -87,10 +87,6 @@ foreach ($rows as $row) {
     continue;
   }
 
-  if($array['Status'] != 'Active') {
-    continue;
-  }
-
   if( !empty( $skip_approval ) ) {
     $array['skip_approval'] = 1;
   }
