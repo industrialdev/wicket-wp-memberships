@@ -210,7 +210,6 @@ const CreateRenewalOrder = ({ membership }) => {
 					style={
 						{
 							maxWidth: '650px',
-							minHeight: '300px',
 							width: '100%'
 						}
 					}
@@ -248,7 +247,8 @@ const CreateRenewalOrder = ({ membership }) => {
                   isSearchable={true}
                   isLoading={ wcProductOptions.length === 0 }
                   options={wcProductOptions}
-                  styles={{ menuPortal: base => ({ ...base, zIndex: 9999 }) }}
+                  menuPortalTarget={document.body}
+                  styles={{ menuPortal: provided => ({ ...provided, zIndex: 100001 }) }}
                   onChange={selected => {
                     setCreateRenewalOrderFormData({
                       ...createRenewalOrderFormData,
@@ -278,9 +278,11 @@ const CreateRenewalOrder = ({ membership }) => {
                   isClearable={false}
                   isSearchable={true}
                   isLoading={productVariations[getSelectedProductId()] === undefined}
+                  menuPortalTarget={document.body}
+                  styles={{ menuPortal: provided => ({ ...provided, zIndex: 100001 }) }}
                   options={productVariations[getSelectedProductId()] ? productVariations[getSelectedProductId()].map((variation) => {
                     return {
-                      label: `#${variation.id}`,
+                      label: `${variation.name} (#${variation.id})`,
                       value: variation.id
                     }
                   }) : []}
