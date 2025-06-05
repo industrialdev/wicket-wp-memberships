@@ -1224,7 +1224,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $next_tier_form_page_id = get_post_meta($membership->ID, 'membership_next_tier_form_page_id', true);
 
       $next_tier_subscription_renewal = 
-        ( !empty($membership_json_data['membership_next_tier_subscription_renewal']) || !empty($_ENV['WICKET_MSHIP_SUBSCRIPTION_RENEW'])) 
+        ( !empty($membership_json_data['membership_next_tier_subscription_renewal'])) 
           ? true : false;
       if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC'] ) ) {
         $debug_comment_hide = '';
