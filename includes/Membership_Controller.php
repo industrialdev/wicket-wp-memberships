@@ -636,17 +636,19 @@ function add_order_item_meta ( $item_id, $values ) {
         if(!empty($membership['membership_next_tier_subscription_renewal']) && !empty($sub) && $sub->get_billing_period() == 'month') {
           //subscription renewal flow MONTHLY RENEWAL uses end_date for subscription_end_date
           $date = new \DateTime(substr($end_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
+          $expire_or_end_date = $end_date; //for order note context
           $date->setTimezone(new \DateTimeZone('UTC'));
           $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
           Utilities::wicket_logger( 'Setting Subscription END date', $dates_to_update['end']);
         } else {
           $date = new \DateTime(substr($expire_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
+          $expire_or_end_date = $expire_date; //for order note context
           $date->setTimezone(new \DateTimeZone('UTC'));
           $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
           Utilities::wicket_logger( 'Setting Subscription END date', $dates_to_update['end']);
         }
       }
-      if( in_array ( 'next_payment_date', $fields ) ) {
+      if( in_array ( 'next_payment_date', $fields ) && !empty($sub) && $sub->get_billing_period() != 'month') {
         $date = new \DateTime(substr($end_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
         $date->setTimezone(new \DateTimeZone('UTC'));
         $dates_to_update['next_payment']  = $date->format('Y-m-d H:i:s');
@@ -678,7 +680,7 @@ function add_order_item_meta ( $item_id, $values ) {
           if(!empty($dates_to_update['next_payment'])) {
             $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date)).'('.$dates_to_update['next_payment'].')';
           }
-          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date)).'('.$dates_to_update['end'].')';
+          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_or_end_date)).'('.$dates_to_update['end'].')';
           $sub->add_order_note($order_note);
         } catch (\Exception $e) {
           $order_note = 'Membership ' .$membership['membership_post_id'].' attempted to change these subscription dates. '.$e->getMessage();
