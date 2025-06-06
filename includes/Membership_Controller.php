@@ -615,6 +615,7 @@ function add_order_item_meta ( $item_id, $values ) {
    */
   public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ], $subcription_created = false ) {
     if( function_exists( 'wcs_get_subscription' )) {
+      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
       Utilities::wicket_logger( 'update_membership_subscription', $fields);
 
       //$start_date   = $membership['membership_starts_at'];
@@ -632,10 +633,18 @@ function add_order_item_meta ( $item_id, $values ) {
       }
       */
       if( in_array ( 'end_date', $fields ) ) {
-        $date = new \DateTime(substr($expire_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
-        $date->setTimezone(new \DateTimeZone('UTC'));
-        $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
-        Utilities::wicket_logger( 'Setting Subscription END date', $dates_to_update['end']);
+        if(!empty($membership['membership_next_tier_subscription_renewal']) && !empty($sub) && $sub->get_billing_period() == 'month') {
+          //subscription renewal flow MONTHLY RENEWAL uses end_date for subscription_end_date
+          $date = new \DateTime(substr($end_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
+          $date->setTimezone(new \DateTimeZone('UTC'));
+          $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
+          Utilities::wicket_logger( 'Setting Subscription END date', $dates_to_update['end']);
+        } else {
+          $date = new \DateTime(substr($expire_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
+          $date->setTimezone(new \DateTimeZone('UTC'));
+          $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
+          Utilities::wicket_logger( 'Setting Subscription END date', $dates_to_update['end']);
+        }
       }
       if( in_array ( 'next_payment_date', $fields ) ) {
         $date = new \DateTime(substr($end_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
@@ -643,7 +652,6 @@ function add_order_item_meta ( $item_id, $values ) {
         $dates_to_update['next_payment']  = $date->format('Y-m-d H:i:s');
         Utilities::wicket_logger( 'Setting Subscription NEXT_PAYMENT date', $dates_to_update['next_payment']);
       }
-      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
       if( !empty( $sub )) {
         try {
 //          We previously did this value being cleared before updating because it prevented changing end date
