@@ -1344,8 +1344,8 @@ function add_order_item_meta ( $item_id, $values ) {
       if( $current_time >= $membership_early_renew_at && $current_time < $membership_ends_at ) {
         //if autopay is enabled we do not allow or prompt for early renewal
         if(!empty($membership_data['meta']['membership_subscription_id'])) {
+          $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
           if(!empty($sub)) {
-            $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
             $is_autopay_enabled = $sub->get_requires_manual_renewal() ? false : true;
             if(!$is_autopay_enabled) {
               $callout['type'] = 'early_renewal';
