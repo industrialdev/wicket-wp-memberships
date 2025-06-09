@@ -184,7 +184,10 @@ function add_order_item_meta ( $item_id, $values ) {
                   $membership_current = null;
                 } else {
                   $this->processing_renewal = true;
-                  if(! Helper::has_next_payment_date($membership_current)) {
+                  $next_payment_time = $subscription->get_time( 'next_payment' );
+                  $end_time = $subscription->get_time( 'end' );
+                  if(! Helper::has_next_payment_date($membership_current) 
+                      || ( $subscription->get_billing_period() == 'month') && $next_payment_time < $end_time) {
                     $order->add_order_note( 'Monthly payment order against membership ID: '. $membership_post_id_renew);
                     Utilities::wicket_logger( '--monthly-- skip renew for membership postID', $membership_post_id_renew);
                     continue;
@@ -374,6 +377,23 @@ function add_order_item_meta ( $item_id, $values ) {
       //create subscriptions for non-subscription products tied to tiers
       $MSC = new Membership_Subscription_Controller(); 
       $MSC->create_subscriptions( $order, $user ); // create subscriptions
+    }
+
+    Utilities::wicket_logger( 'Creating a membership', ['order_id'=>$order_id]);
+
+    foreach($subscriptions as $subscription) {
+      $today = current_time( 'Y-m-d' );
+      $created_date = $subscription->get_date( 'date_created' );
+      $created_date = date( 'Y-m-d', strtotime($created_date));
+      Utilities::wicket_logger( 'MSHIP CREATED sub date compare monthly', ['today'=>$today, 'created_date'=>$created_date]);
+      if($subscription->get_billing_period() == 'month') {
+        if( $created_date !== $today) {
+          Utilities::wicket_logger( 'SKIPPING MEMBERSHIP CREATION - monthly subscription processed', ['sub_id'=>$subscription->get_id(), 'order_id'=>$order_id]);
+          return;
+        } else {
+          Utilities::wicket_logger( 'MEMBERSHIP CREATED - monthly subscription created', ['sub_id'=>$subscription->get_id(), 'order_id'=>$order_id]);
+        }
+      }
     }
 
     //get membership_data from subscriptions
