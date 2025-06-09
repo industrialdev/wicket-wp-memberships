@@ -26,8 +26,30 @@ class Helper {
           remove_meta_box( 'extra_info_data', self::get_membership_cpt_slug(), 'normal' );
       } );
     }
+    add_action( 'woocommerce_subscription_renewal_payment_complete', [$this, 'adjust_next_payment_date_after_renewal'], 10, 2 );
   }
 
+  /**
+   * Subscription Next Payment Date Adjustment
+   * When the subscription is renewed manually we want the next payment date change to follow the membership cycle
+   * This overrides woocommerce default behavior to set the next payment date to the current date + 1 billing cycle
+   * @param mixed $subscription
+   * @param mixed $renewal_order
+   * @return void
+   */
+  function adjust_next_payment_date_after_renewal( $subscription, $renewal_order ) {
+      $old_next_payment = $subscription->get_time( 'next_payment' );
+      //only update next payment date if it is set and the billing period is monthly
+      if ( ! $old_next_payment || $subscription->get_billing_period() != 'month') {
+          return;
+      }
+      $new_timestamp = strtotime( '+1 month', $old_next_payment );
+      $subscription->update_dates( [
+          'next_payment' => gmdate( 'Y-m-d H:i:s', $new_timestamp ),
+      ] );
+      $subscription->save();
+      Utilities::wicket_logger( "Next payment for MONTHLY subscription #{$subscription->get_id()} manually set to " . gmdate( 'Y-m-d H:i:s', $new_timestamp ) );
+  }
 
   function wps_select_checkout_field_display_admin_order_meta( $post ) {    
     if ( ! is_admin() ) {
