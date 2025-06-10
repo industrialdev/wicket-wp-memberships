@@ -38,7 +38,7 @@ class Utilities {
 
 
   public static function wicket_logger( $message, $data = [], $format = 'json', $logFile = "mship_error.log"){
-    //if('development' == wp_get_environment_type()) {
+    if('development' == wp_get_environment_type()) {
       $date = new \DateTime();
       $date = $date->format("Y-m-d H:i:s") . ' ';
       if(!is_array($data)) {
@@ -49,7 +49,7 @@ class Utilities {
       $message .= PHP_EOL;
       $path = defined('WP_PLUGIN_DIR') ? WP_PLUGIN_DIR.'/../../' : getcwd();
       file_put_contents($path.'/'.$logFile, $message, FILE_APPEND);
-    //}
+    }
   }
 
  public static function wc_log_mship_error( $data, $level = 'error' ) {
