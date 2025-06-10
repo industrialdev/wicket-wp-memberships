@@ -28,6 +28,10 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.101 =
+* Date June 10 2025
+* Hide early renew callout when autorenew
+
 = 1.0.100 =
 * Date June 2 2025
 * Bugfix: Prorated logic helper methods added
