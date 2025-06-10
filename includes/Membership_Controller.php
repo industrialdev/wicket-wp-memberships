@@ -1479,14 +1479,23 @@ function add_order_item_meta ( $item_id, $values ) {
        
       //adding to early renewal array here
       if( $current_time >= $membership_early_renew_at && $current_time < $membership_ends_at ) {
-        $callout['type'] = 'early_renewal';
-        $callout['header'] = $Membership_Config->get_renewal_window_callout_header( $iso_code );
-        $callout['content'] = $Membership_Config->get_renewal_window_callout_content( $iso_code );
-        $callout['button_label'] = $Membership_Config->get_renewal_window_callout_button_label( $iso_code );
-        $early_renewal[] = [
-          'membership' => $membership_data,
-          'callout' => $callout
-        ];
+        //if autopay is enabled we do not allow or prompt for early renewal
+        if(!empty($membership_data['meta']['membership_subscription_id'])) {
+          $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
+          if(!empty($sub)) {
+            $is_autopay_enabled = $sub->get_requires_manual_renewal() ? false : true;
+            if(!$is_autopay_enabled) {
+              $callout['type'] = 'early_renewal';
+              $callout['header'] = $Membership_Config->get_renewal_window_callout_header( $iso_code );
+              $callout['content'] = $Membership_Config->get_renewal_window_callout_content( $iso_code );
+              $callout['button_label'] = $Membership_Config->get_renewal_window_callout_button_label( $iso_code );
+              $early_renewal[] = [
+                'membership' => $membership_data,
+                'callout' => $callout
+              ];
+            }
+          }
+        }
         //adding to the garce period array here
       } else if ( $current_time >= $membership_ends_at && $current_time <= $membership_expires_at ) {
         $callout['type'] = 'grace_period';
