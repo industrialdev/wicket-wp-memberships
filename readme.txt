@@ -28,6 +28,26 @@ This plugin is not available in the WordPress.org plugin repository. It is distr
 
 == Changelog ==
 
+= 1.0.101 =
+* Date June 10 2025
+* Hide early renew callout when autorenew
+
+= 1.0.100 =
+* Date June 2 2025
+* Bugfix: Prorated logic helper methods added
+
+= 1.0.99 =
+* Date May 22 2025
+* Bugfix: Timezone issues when date select picker is used
+
+= 1.0.98 =
+* Date May 22 2025
+* Bugfix: "Create Renewal Order" modal improvements
+
+= 1.0.97 =
+* Date May 12 2025
+* Bugfix: Settings page form submission
+
 = 1.0.95 =
 * Date May 12 2025
 * Added: Display email address on organization/individual member pages

@@ -5,14 +5,14 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket - Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.95
+ * Version: 1.0.101
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
  * Domain Path: /languages
  * Requires at least: 6.0
  * Requires PHP: 8.0
- * Requires Plugins: wicket-wp-base-plugin
+ * Requires Plugins: wicket-wp-base-plugin, woocommerce, woocommerce-subscriptions
  * @package Wicket
  */
 

@@ -21,6 +21,7 @@ class Settings {
 
   public static function wicket_membership_render_plugin_settings_page() {
     ?>
+    <form action="options.php" method="post">
     <h2>Wicket Membership Settings</h2>
     <form action="options.php" method="post">
     <?php
@@ -60,7 +61,6 @@ class Settings {
     //options
     add_settings_field( 'wicket_show_mship_order_org_search', '<p>Set the Organization on Subscription Membership in Admin</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_mship_order_org_search'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Renewal Callouts</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
-    add_settings_field( 'wicket_mship_subscription_renew', '<p>Use Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_subscription_renew'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_membership_merge', '<p>Individual Membership Merge</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_membership_merge'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_membership_merge_key', '<p>Merge Webhook API Key</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_membership_merge_key'], 'wicket_membership_plugin', 'functional_settings' );
     
@@ -134,7 +134,7 @@ class Settings {
   public static function wicket_mship_subscription_renew() {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_subscription_renew]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_subscription_renew']), false). " />"
-      .'<span style="color:red;">[BETA]</span> Renew existing subscription for all memberships using built-in subscription renewal order behavior. Will look for an existing subscription renewal order to checkout, and create one if not found.';
+      .'<span style="color:red;">[BETA]</span> Use subscription renewal flow for Tiers. Enables checking for an existing subscription renewal order to checkout, and create one if not found.';
   }
 
   public static function wicket_memberships_debug_acc() {
