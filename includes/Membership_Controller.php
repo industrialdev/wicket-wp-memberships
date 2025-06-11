@@ -1393,6 +1393,7 @@ function add_order_item_meta ( $item_id, $values ) {
 #        continue;
       }
 
+      unset($membership_data['subscription_renewal']);
       if(!empty($next_tier_subscription_renewal)) {
         //We are using subscription renewals to maintain the membership
         $current_subscription = wcs_get_subscription( $membership_json_data['membership_subscription_id'] );
