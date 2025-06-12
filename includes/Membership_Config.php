@@ -208,29 +208,62 @@ class Membership_Config {
     return false;
   }
 
+  /**
+   * Get the calendar seasons from the cycle data.
+   *
+   * If found, it processes each season to:
+   * - Convert `start_date` and `end_date` into ISO 8601 format using the WordPress timezone.
+   *
+   * @return array|false An array of formatted seasons if available, or false if not set.
+   */
   public function get_calendar_seasons() {
     if ( ! isset( $this->cycle_data['calendar_items'] ) || ! is_array( $this->cycle_data['calendar_items'] ) ) {
       return false;
     }
 
-  //  Data structure:
-  //   (
-  //     [season_name] => Season 2
-  //     [active] => 1
-  //     [start_date] => 2024-04-01
-  //     [end_date] => 2024-04-30
-  //   )
+    //  Data structure:
+    //   (
+    //     [season_name] => Season 2
+    //     [active] => true
+    //     [start_date] => 2024-04-01
+    //     [end_date] => 2024-04-30
+    //   )
 
     // change start_date and end_date to ISO8601 format
-    // and active to boolean
     $seasons = $this->cycle_data['calendar_items'];
+
     foreach ( $seasons as $key => $season ) {
       $seasons[ $key ]['start_date'] = (new \DateTime( date("Y-m-d", strtotime( $season['start_date'] )), wp_timezone() ))->format('c');
       $seasons[ $key ]['end_date'] = (new \DateTime( date("Y-m-d", strtotime( $season['end_date'] )), wp_timezone() ))->format('c');
-      $seasons[ $key ]['active'] = $season['active'] === '1' ? true : false;
+      // $seasons[ $key ]['active'] = $season['active'] === '1' ? true : false; // we don't this because it's already registered as boolean field
     }
 
     return $seasons;
+  }
+
+  /**
+   * Get the current calendar season based on the current date.
+   *
+   * @return array|false An array of the current season if found, or false if no active season matches.
+   */
+  public function get_current_calendar_season() {
+    $seasons = $this->get_calendar_seasons();
+    
+    if ( empty( $seasons ) ) {
+      return false;
+    }
+
+    $current_time = strtotime('now');
+
+    foreach( $seasons as $season ) {
+      if ( $season['active'] &&
+        ( $current_time >= strtotime( $season['start_date'] ) && ( $current_time <= strtotime( $season['end_date'] ) ) )
+      ) {
+        return $season;
+      }
+    }
+
+    return false;
   }
 
   public function get_period_data() {

@@ -1073,14 +1073,14 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 												showMonthDropdown
 												showYearDropdown
 												dropdownMode="select"
-												selected={ tempSeason.start_date !== '' ? moment.utc(tempSeason.start_date).format('YYYY-MM-DD') : null }
+												selected={ tempSeason.start_date !== '' ? moment(tempSeason.start_date).format('YYYY-MM-DD') : null }
 												popperProps={{
 													zIndex: 25
 												}}
 												onChange={value => {
 													setTempSeason({
 														...tempSeason,
-														start_date: moment.utc(value).format('YYYY-MM-DD')
+														start_date: moment(value).format('YYYY-MM-DD')
 													});
 												}}
 											/>
@@ -1098,14 +1098,14 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 												showMonthDropdown
 												showYearDropdown
 												dropdownMode="select"
-												selected={ tempSeason.end_date !== '' ? moment.utc(tempSeason.end_date).format('YYYY-MM-DD') : null }
+												selected={ tempSeason.end_date !== '' ? moment(tempSeason.end_date).format('YYYY-MM-DD') : null }
 												popperProps={{
 													zIndex: 25
 												}}
 												onChange={value => {
 													setTempSeason({
 														...tempSeason,
-														end_date: moment.utc(value).format('YYYY-MM-DD')
+														end_date: moment(value).format('YYYY-MM-DD')
 													});
 												}}
 											/>
