@@ -2,7 +2,7 @@
 namespace Wicket_Memberships;
 
 /**
- * Plugin Name: Wicket - Memberships
+ * Plugin Name: Wicket Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
  * Version: 1.0.101
@@ -10,8 +10,8 @@ namespace Wicket_Memberships;
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
  * Domain Path: /languages
- * Requires at least: 6.0
- * Requires PHP: 8.0
+ * Requires at least: 6.5
+ * Requires PHP: 8.1
  * Requires Plugins: wicket-wp-base-plugin, woocommerce, woocommerce-subscriptions
  * @package Wicket
  */
@@ -81,8 +81,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
           $plugin_data = \get_plugin_data( WP_PLUGIN_DIR . '/wicket-wp-base-plugin/wicket.php' );
           $_ENV['WICKET_BASE_PLUGIN_VERSION'] = $plugin_data['Version'];
           $options = get_option( 'wicket_membership_plugin_options' );
-          
-          if(isset($options['wicket_mship_subscription_renew'])) {
+
+    if (isset($options['wicket_mship_subscription_renew'])) {
             if($options['wicket_mship_subscription_renew']) {
               $_ENV['WICKET_MSHIP_SUBSCRIPTION_RENEW']=true;
             }
@@ -167,7 +167,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       new Utilities;
 
 			register_activation_hook( WICKET_MEMBERSHIP_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
-			add_action( 'plugins_loaded', array( $this, 'load_textdomain' ) );
+      add_action('init', array($this, 'load_textdomain'));
+      add_action('init', array($this, 'register_automatewoo_triggers'));
 
       //Order wicket-membership subscription hooks
       //Hooks fired twice included in class contructor
@@ -188,32 +189,27 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //check items in cart for valid renewal dates or return error
       //TODO: currently disabled need validate and remove, replaced with 'memberships_verify_cart' on checkout hooks
       //add_action( 'woocommerce_checkout_create_order_line_item', [  __NAMESPACE__.'\\Membership_Controller', 'validate_renewal_order_items'], 10, 4 );
-      
+
       //
       add_action( 'template_redirect', [ $this, 'set_onboarding_posted_data_to_wc_session' ]);
 
       //plugin option settings & page including debug
       add_action( 'admin_menu', array ( __NAMESPACE__.'\\Settings' , 'wicket_membership_add_settings_page' ));
       add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'wicket_membership_register_settings' ));
-      
+
       //check order items before and at checkout process
-      
+
       //TODO: Confirm where date could gte miscalculated
       //add_action( 'woocommerce_cart_contents', array( $this, 'memberships_verify_cart' ) );
       //add_action( 'woocommerce_add_to_cart', array( $this, 'memberships_verify_cart' ) );
       //add_action( 'woocommerce_checkout_process', array( $this, 'memberships_verify_cart' ) );
       //add_action( 'woocommerce_before_checkout_form', array( $this, 'memberships_verify_cart' ) );
 
-      add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_end_date' ), 10, 1 );
-      add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_grace_period' ), 10, 1 );
-      add_filter( 'automatewoo/triggers', array( $this, 'init_wicket_mship_renew_early' ), 10, 1 );
-
       //these will expire memberships that have not been renewed at end of grace period
       add_action('wp', array( $this, 'schedule_daily_membership_expiry'), 10, 2);
       add_action('schedule_daily_membership_expiry_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_expiry_hook'), 10, 2);
       //these will set to garce_period memberships that have not been renewed at membership_ends_at date
-      add_action('wp', array( $this, 'schedule_daily_membership_grace_period'), 10, 2);
-      add_action('schedule_daily_membership_grace_period_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_grace_period_hook'), 10, 2);
+      add_action('wp', array($this, 'schedule_daily_membership_grace_period'), 10, 2);
     }
 
     public static function schedule_daily_membership_expiry() {
@@ -243,11 +239,11 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
           'meta_query' => [
             [
               'key'    => '_customer_user',
-              'value'  => $user->ID,    
+              'value'  => $user->ID,
             ],
             [
               'key'    => '_subscription_renewal',
-              'compare' => 'EXISTS'   
+              'compare' => 'EXISTS'
             ],
           ],
         'post_type'   => 'shop_order',
@@ -264,24 +260,24 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
             foreach($subscriptions as $subscription) {
               if( $subscription->has_status( array( 'on-hold', 'pending', 'pending-cancel' ) ) ) {
                 $cannot_process[] = $order->ID;
-              }  
+              }
             }
             //get the checkout url for the order by ID
-            $url[$order->ID] = $the_order->get_checkout_payment_url(); 
+            $url[$order->ID] = $the_order->get_checkout_payment_url();
           }
           if( !empty($url)) {
             foreach($url as $key => $val) {
               //if the subscription each order is in a renewable status provide a link to checkout with it
               if( !in_array($key, $cannot_process )) {
                 $error_message_links[] = ' <a href="'.$val.'">'.sprintf(__("Click Here to checkout with Order ID# %s",'wicket-memberships'), $key).'</a> ';
-              }    
+              }
             }
             //combine multiple checkout order links if they exist and error with links in notice
             if(!empty($error_message_links)) {
               wc_add_notice($error_message . '<br />'.implode("<br />", $error_message_links), 'error');
-              return;  
+              return;
             }
-          }  
+          }
         }
       }
 
@@ -346,9 +342,16 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       return $triggers;
     }
 
+    public function register_automatewoo_triggers()
+    {
+      add_filter('automatewoo/triggers', array($this, 'init_wicket_mship_end_date'), 10, 1);
+      add_filter('automatewoo/triggers', array($this, 'init_wicket_mship_grace_period'), 10, 1);
+      add_filter('automatewoo/triggers', array($this, 'init_wicket_mship_renew_early'), 10, 1);
+    }
+
     /**
-		 * Plugin activation config
-		 */
+     * Plugin activation config
+     */
 		public function plugin_activate() {
 			// Minimum versions for base plugin.
       $base_version_minimum_not_met = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0', '<' );
