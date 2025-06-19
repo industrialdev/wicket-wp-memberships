@@ -196,7 +196,9 @@ function wicket_mship_add_tier_reference_product_data_fields() {
                 'id'          => 'tier_reference',
                 'label'       => __('Tier Reference', 'woocommerce'),
                 'desc_tip'    => true,
-                'description' => __('An internal identifier used for tier matching.', 'woocommerce'),
+                'description' => __('An internal identifier used for tier matching. When more than one product is 
+                    attached to a Tier in the Membership Plugin you can identify which product will be the renewal 
+                    product chosen automatically for that tier.', 'woocommerce'),
             ]);
             ?>
         </div>
