@@ -2,6 +2,8 @@
 
 namespace Wicket_Memberships;
 
+use Wicket_Memberships\Utilities;
+
 defined( 'ABSPATH' ) || exit;
 
 class Helper {
@@ -25,8 +27,30 @@ class Helper {
       } );
       add_action('save_post_wicket_mship_tier', [$this, 'add_slug_on_mship_tier_create'], 10, 3);
     }
+    add_action( 'woocommerce_subscription_renewal_payment_complete', [$this, 'adjust_next_payment_date_after_renewal'], 10, 2 );
   }
 
+  /**
+   * Subscription Next Payment Date Adjustment
+   * When the subscription is renewed manually we want the next payment date change to follow the membership cycle
+   * This overrides woocommerce default behavior to set the next payment date to the current date + 1 billing cycle
+   * @param mixed $subscription
+   * @param mixed $renewal_order
+   * @return void
+   */
+  function adjust_next_payment_date_after_renewal( $subscription, $renewal_order ) {
+      $old_next_payment = $subscription->get_time( 'next_payment' );
+      //only update next payment date if it is set and the billing period is monthly
+      if ( ! $old_next_payment || $subscription->get_billing_period() != 'month') {
+          return;
+      }
+      $new_timestamp = strtotime( '+1 month', $old_next_payment );
+      $subscription->update_dates( [
+          'next_payment' => gmdate( 'Y-m-d H:i:s', $new_timestamp ),
+      ] );
+      $subscription->save();
+      Utilities::wicket_logger( "Next payment for MONTHLY subscription #{$subscription->get_id()} manually set to " . gmdate( 'Y-m-d H:i:s', $new_timestamp ) );
+  }
 
   function add_slug_on_mship_tier_create($post_ID, $post, $update) {
       if ($update) return;
@@ -411,5 +435,66 @@ class Helper {
           </div>
           <?php
       }
+  }
+
+  /**
+   * Do we be updating next payment date on this membership
+   * @param mixed $membership
+   * @param bool $processing_renewal
+   * @return bool
+   */
+
+  public static function has_next_payment_date( $membership ) {
+    $has_next_payment_date = false;
+    if(!empty($membership['membership_subscription_id'])) {
+      $subscription = wcs_get_subscription( $membership['membership_subscription_id'] );
+    }
+
+    if( empty($subscription) ) {
+      return $has_next_payment_date;
+    }
+
+    $is_autopay_enabled = $subscription->get_requires_manual_renewal() ? false : true;
+
+    if( !empty( $membership['membership_next_tier_subscription_renewal'] ) || $is_autopay_enabled ) {
+          /**
+           * https://app.asana.com/0/1206866539294627/1208600763040824/f
+           * 
+           * This is only time we want next_payment_date set to allow subscriptions to generate a renewal order automatically.
+           * The date is always set to the Membership End Date (membership_ends_at) to coincide with renewal date.
+           * 
+           */
+      $has_next_payment_date = true;
+    } else {
+        $subscription = wcs_get_subscription( $membership['membership_subscription_id'] );
+        $subscription_period = $subscription->get_billing_period(); // Get the billing period (e.g., 'month', 'year')
+        $Membership_Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
+        $Membership_Config = $Membership_Tier->get_config();
+        $membership_period_data = $Membership_Config->get_period_data();
+        $membership_period = $membership_period_data['period_type'];
+        Utilities::wicket_logger( 'inside has_next_payment_date', [$membership_period == $subscription_period, $membership_period_data, $membership_period, $subscription_period]);
+        if( $membership_period == $subscription_period) {
+          /**
+           * https://app.asana.com/0/1206866539294627/1208600763040824/f
+           * For non-subscription style renewal we need to be careful with the next payment date
+           * - If subscription interval matches membership config (ex: 1 year), then no next payment date on subscription
+           * 
+           * NOTE: Returning this indicates we should not have any date in next_payment on subscription
+           * and makes sure we clear any date that may currently exist in the field
+           */
+          $has_next_payment_date = 'clear';
+        }
+          /**
+           * https://app.asana.com/0/1206866539294627/1208600763040824/f
+           * If subscription interval does not match membership config (ex: subscription = monthly, membership = annual) then next payment date is not updated based on membership config
+           * - end date = membership end date
+           * - subscription renewal does not renew subscription
+           * 
+           * NOTE: Here return false used to skip processing order in the renewals order validation 
+           * in `Membership_Controller->get_memberships_data_from_subscription_products()`
+           * 
+           */
+    }    
+    return $has_next_payment_date;
   }
 }

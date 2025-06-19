@@ -234,6 +234,34 @@ class Membership_Tier {
     return false;
   }
 
+    /**
+   * Get the tier renewal type
+   *
+   * @return string|bool String, false otherwise
+   */
+  public function get_tier_renewal_type() {
+    if ( !empty($this->tier_data['renewal_type']) ) {
+      return $this->tier_data['renewal_type'];
+    }
+
+    return false;
+  }
+
+
+  /**
+   * Is subscription renewal type
+   *
+   * @return bool
+   */
+  public function is_renewal_subscription() {
+    if ( $this->tier_data['renewal_type'] == 'subscription') {
+      return true;
+    }
+
+    return false;
+  }
+
+
   /**
    * Is form page renewal type
    *

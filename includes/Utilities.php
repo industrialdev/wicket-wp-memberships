@@ -34,6 +34,11 @@ class Utilities {
     add_action('admin_notices', [$this, 'show_membership_product_delete_error'], 1);
     add_action('admin_notices', [$this, 'show_membership_delete_error'], 1);
     add_action('template_redirect', [$this, 'wicket_membership_clear_the_cart'], 10);
+    //allows connect a subscription to a membership on subscription edit page 
+    if(isset($_ENV['WICKET_MSHIP_ASSIGN_SUBSCRIPTION']) && $_ENV['WICKET_MSHIP_ASSIGN_SUBSCRIPTION']) {
+      add_action('woocommerce_admin_order_data_after_order_details', [$this, 'wicket_display_membership_id_input_on_order'], 10, 1);
+      add_action('woocommerce_process_shop_subscription_meta', [$this, 'wicket_assign_subscription_to_membership'], 10, 1);
+    }
   }
 
   function wicket_membership_clear_the_cart() {
@@ -43,8 +48,6 @@ class Utilities {
         exit;
     }
   }
-
-
 
   public static function wicket_logger( $message, $data = [], $format = 'json', $logFile = "mship_error.log"){
     if('development' == wp_get_environment_type()) {
@@ -367,7 +370,7 @@ function wicket_sub_org_select_callback( $subscription ) {
    * Ipdate the tier uuid using Wicket Tier Page [post_row_action], necessary for migrating a tier data from staging to production
    * @return json
    */
-  function handle_wicket_tier_uuid_update() {
+  public function handle_wicket_tier_uuid_update() {
     check_ajax_referer('tier_uuid_update_nonce', 'nonce');
     $new_tier_uuid = isset($_POST['tierUUID']) ? sanitize_text_field($_POST['tierUUID']) : '';
     $tier_post_id = isset($_POST['postID']) ? sanitize_text_field($_POST['postID']) : '';
@@ -380,5 +383,128 @@ function wicket_sub_org_select_callback( $subscription ) {
       wp_send_json_error($tier_data[0]);
     }
     wp_reset_postdata();
+  }
+
+    /**
+   * Input added to assign a Membership ID to subscription
+   * @param mixed $subscription
+   * @return void
+   */
+  public function wicket_display_membership_id_input_on_order($subscription)
+  {
+    $subscription = wcs_get_subscription($subscription->get_id());
+    if (empty($subscription)) {
+      return;
+    }
+    $membership_id = $subscription->get_meta('_membership_id');
+  ?>
+    <style>
+      .custom-meta-container {
+        display: none;
+        margin-top: 5px;
+      }
+    </style>
+    <p class="form-field form-field-wide">
+      <label for="membership_id" class="toggle-meta" style="cursor: pointer; color: #0073aa;">Click Here to attach to an existing Membership by Post ID</label>
+    </p>
+    <div id="membership_id" class="custom-meta-container">
+      <input placeholder="Membership Post ID" onfocus="if(!this.dataset.alerted){alert('Only add this field if you understand exactly what it is and why it is needed!\n\nThe customer/user assigned to subscription will become the membership owner.\n\nIt is not necessary and it can create membership problems if done incorrectly.\n\nYou have been WARNED!'); this.dataset.alerted = true;}" type="text" name="wicket_subscription_add_membership_id" value="<?php echo $membership_id; ?>"><br>
+      <small><span style="color:red;font-weight:bold;">IMPORTANT:</span> <strong style="color:black;">NOT REQUIRED. Do not enter any value here unless you understand why. <i>IF SET INCORRECTLY IT WILL BREAK YOUR MEMBERSHIPS.</i></strong></small>
+    </div>
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        document.querySelectorAll(".toggle-meta").forEach(function(label) {
+          label.addEventListener("click", function() {
+            var container = document.getElementById(this.getAttribute("for"));
+            if (container) {
+              container.style.display = container.style.display === "none" ? "block" : "none";
+            }
+          });
+        });
+      });
+    </script>
+  <?php
+  }
+
+  /**
+   * This assigns a subscription to a membership so it can be used in a particular renewal flow
+   * SPECIFICALLY: Associate-Retailer and Associate-Clinic will try to renew an existing subscription
+   * if the subscription does not yet exist it must be created and assigned the product with the custom price
+   * once it is created this method allows you to assign it to a membership and then the renewal order will get generated correctly.
+   */
+  public function wicket_assign_subscription_to_membership($membership_subscription_id, $membership_id = null) {
+    if (! class_exists('Wicket_Memberships\Membership_Controller') || !$membership_subscription_id || ( empty($membership_id) && empty($_REQUEST['wicket_subscription_add_membership_id']) )) {
+      return;
+    }
+    if(!empty($_REQUEST['wicket_subscription_add_membership_id']) && empty($membership_id) ) {
+      $membership_id = sanitize_text_field($_REQUEST['wicket_subscription_add_membership_id']);
+    }
+    $subscription = wcs_get_subscription($membership_subscription_id);
+    if (!empty($subscription) && $membership_id == $subscription->get_meta('_membership_id')) {
+      return;
+    } else if (!empty($subscription)) {
+      $subscription->update_meta_data('_membership_id', $membership_id);
+      $subscription->save();
+      $membership_order_id = $subscription->get_parent_id();
+      foreach ($subscription->get_items() as $item_id => $subscription_item) {
+        $product_id = $subscription_item->get_product_id();
+        $product = wc_get_product($product_id);
+        if (has_term('Membership', 'product_cat', $product_id) && $product->get_sku() != 'LBM') {
+          $membership_product_id = $product_id;
+          wc_add_order_item_meta($item_id, '_membership_post_id_renew', $membership_id);
+        }
+      }
+
+      $old_user_id = get_post_meta($membership_id, 'user_id', true);
+
+      //we need this later on to merge the new and old membership data to save back to user and order meta
+      $membership_array = (new \Wicket_Memberships\Membership_Controller())->get_membership_array_from_user_meta_by_post_id($membership_id, $old_user_id);
+
+      $user_id = $subscription->get_customer_id();
+      $user = get_user_by('id', $user_id);
+
+      update_post_meta($membership_id, 'membership_post_id', $membership_id);
+      $membership_meta['membership_post_id'] = $membership_id;
+
+      update_post_meta($membership_id, 'user_id', $user_id);
+      $membership_meta['user_id'] = $user_id;
+
+      update_post_meta($membership_id, 'user_name', $user->display_name);
+      $membership_meta['user_name'] = $user->display_name;
+
+      update_post_meta($membership_id, 'user_email', $user->user_email);
+      $membership_meta['user_email'] = $user->user_email;
+
+      update_post_meta($membership_id, 'membership_user_uuid', $user->user_login);
+      $membership_meta['membership_user_uuid'] = $user->user_login;
+
+      update_post_meta($membership_id, 'membership_parent_order_id', $membership_order_id);
+      $membership_meta['membership_parent_order_id'] = $membership_order_id;
+
+      update_post_meta($membership_id, 'membership_subscription_id', $membership_subscription_id);
+      $membership_meta['membership_subscription_id'] = $membership_subscription_id;
+
+      update_post_meta($membership_id, 'membership_product_id', $membership_product_id);
+      $membership_meta['membership_product_id'] = $membership_product_id;
+
+      //just in case - may need to be synced
+      $membership_next_tier_form_page_id = get_post_meta($membership_id, 'membership_next_tier_form_page_id', true);
+      $membership_meta['membership_next_tier_form_page_id'] = $membership_next_tier_form_page_id;
+      $membership_next_tier_id = get_post_meta($membership_id, 'membership_next_tier_id', true);
+      $membership_meta['membership_next_tier_id'] = $membership_next_tier_id;
+      $membership_next_tier_subscription_renewal = get_post_meta($membership_id, 'membership_next_tier_subscription_renewal', true);
+      $membership_meta['membership_next_tier_subscription_renewal'] = $membership_next_tier_subscription_renewal;
+
+      if (! empty($membership_array)) {
+        $updated_membership_array = array_merge($membership_array, $membership_meta);
+        $updated_user_meta = update_user_meta($membership_meta['user_id'], '_wicket_membership_' . $membership_id, json_encode($updated_membership_array));
+        if ($membership_meta['user_id'] != $old_user_id && !empty($updated_user_meta)) {
+          delete_user_meta($old_user_id, '_wicket_membership_' . $membership_id);
+        }
+        update_post_meta($updated_membership_array['membership_parent_order_id'], '_wicket_membership_' . $updated_membership_array['membership_product_id'], json_encode($updated_membership_array));
+        update_post_meta($updated_membership_array['membership_subscription_id'], '_wicket_membership_' . $updated_membership_array['membership_product_id'], json_encode($updated_membership_array));
+        $subscription->add_order_note("Reassigned subscription to membership ID: " . $membership_id, false);
+      }
+    }
   }
 }
