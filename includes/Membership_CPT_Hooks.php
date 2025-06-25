@@ -19,7 +19,6 @@ class Membership_CPT_Hooks {
 
   public function __construct() {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
-    $this->status_names = Helper::get_all_status_names();
     add_filter('manage_'.$this->membership_cpt_slug.'_posts_columns', [ $this, $this->membership_cpt_slug.'_table_head']);
     add_action('manage_'.$this->membership_cpt_slug.'_posts_custom_column', [ $this, $this->membership_cpt_slug.'_table_content'], 10, 2 );
 
@@ -191,6 +190,9 @@ class Membership_CPT_Hooks {
    * Customize Wicket Member List Page Contents
    */
   public function wicket_membership_table_content( $column_name, $post_id ) {
+    if ( empty( $this->status_names ) ) {
+      $this->status_names = Helper::get_all_status_names();
+    }
     $meta = get_post_meta( $post_id );
     if( $column_name == 'membership_status' ) {
       echo $this->status_names[ $meta[$column_name][0] ][ 'name' ];

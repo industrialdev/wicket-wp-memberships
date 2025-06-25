@@ -164,6 +164,10 @@ class Utilities {
       $category = get_term_by( 'slug', 'membership_late_fee', 'product_cat' );
       $cat_id = $category->term_id;
       $membership_categories[] = $cat_id;
+      // We don't want to disable quantity input if the membership categories are not set (triggers bug: https://app.asana.com/1/1138832104141584/task/1210499044933981?focus=true)
+      if(empty($membership_categories)) {
+        return $product_quantity;
+      }
       if ( has_term( $membership_categories, 'product_cat', $cart_item['product_id']) ) {
         $product_quantity = sprintf('<strong>%s</strong><input type="hidden" name="cart[%s][qty]" value="%s" />', $cart_item['quantity'], $cart_item_key, $cart_item['quantity']);
       }
