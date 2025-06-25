@@ -32,6 +32,11 @@ function wicket_gform_membership_operations() {
     $membership_tier_slug = get_post_meta( $membership_post_id_renew, 'membership_tier_slug', true );
     [$parent_product_id, $variation_id] = wicket_get_product_by_tier_reference_with_slug($membership_tier_slug);
     
+    //if no match this is not necessary
+    if(empty($parent_product_id)) {
+      return;
+    }
+
     if(!empty($parent_product_id)) {
         $cart_item_data = [
         'membership_post_id_renew' =>  $membership_post_id_renew,
