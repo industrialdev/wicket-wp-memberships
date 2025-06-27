@@ -27,6 +27,9 @@ class Import_Controller {
           $membership_tier_post_id = Membership_Tier::get_tier_id_by_wicket_uuid( $record['Membership_Tier_UUID'] );
           if( !empty( $membership_tier_post_id ) ) {
             $membership_tier_array = $this->get_tier_by_id( $membership_tier_post_id );
+            if(empty($membership_tier_array)) {
+              return new \WP_REST_Response(['error' => 'Missing tier type designation in Tier Data.']);
+            }
           } else {
             return new \WP_REST_Response(['error' => 'Missing Tier in Plugin.']);
           }
@@ -67,7 +70,11 @@ class Import_Controller {
           $membership_post_mapping['membership_seats'] = 1;
           $membership_post_mapping['membership_wicket_uuid'] = $record['Person_Membership_UUID'];
           $membership_post_mapping['membership_tier_uuid'] = $membership_tier_array['tier_uuid'];
+
           $membership_post_mapping['membership_next_tier_id'] = $membership_tier_array['next_tier'];
+          $membership_post_mapping['membership_next_tier_form_page_id'] = $membership_tier_array['next_tier_form_page_id'];
+          $membership_post_mapping['membership_next_tier_subscription_renewal'] = $membership_tier_array['next_tier_subscription_renewal'];
+
           $membership_post_mapping['membership_period'] = $membership_tier_array['period_type'];
           $membership_post_mapping['membership_interval'] = $membership_tier_array['period_count'];
           $membership_post_mapping['membership_status'] = $this->get_status( 
@@ -96,6 +103,9 @@ class Import_Controller {
           $membership_tier_post_id = Membership_Tier::get_tier_id_by_wicket_uuid( $record['Membership_Tier_UUID'] );
           if( !empty( $membership_tier_post_id ) ) {
             $membership_tier_array = $this->get_tier_by_id( $membership_tier_post_id );
+            if(empty($membership_tier_array)) {
+              return new \WP_REST_Response(['error' => 'Missing tier type designation in Tier Data.']);
+            }
           } else {
             return new \WP_REST_Response(['error' => 'Missing Tier in Plugin.']); 
           }
@@ -139,7 +149,11 @@ class Import_Controller {
           $membership_post_mapping['membership_seats'] = $record['Max_assignments'];
           $membership_post_mapping['membership_wicket_uuid'] = $record['Organization_Membership_UUID'];
           $membership_post_mapping['membership_tier_uuid'] = $membership_tier_array['tier_uuid'];
+
           $membership_post_mapping['membership_next_tier_id'] = $membership_tier_array['next_tier'];
+          $membership_post_mapping['membership_next_tier_form_page_id'] = $membership_tier_array['next_tier_form_page_id'];
+          $membership_post_mapping['membership_next_tier_subscription_renewal'] = $membership_tier_array['next_tier_subscription_renewal'];
+
           $membership_post_mapping['membership_period'] = $membership_tier_array['period_type'];
           $membership_post_mapping['membership_interval'] = $membership_tier_array['period_count'];
           $membership_post_mapping['membership_status'] = $this->get_status( 
@@ -183,7 +197,25 @@ class Import_Controller {
     $response['ID'] = $tier_id;
     $tier_data = maybe_unserialize( get_post_meta( $tier_id, 'tier_data', true ));
     $response['tier_uuid'] = $tier_data['mdp_tier_uuid'];
-    $response['next_tier'] = $tier_data['next_tier_id'];
+
+    $response['renewal_type'] = $tier_data['renewal_type'];
+
+    //set the default values
+    $response['next_tier'] = 0;
+    $response['next_tier_form_page_id'] = 0;
+    $response['next_tier_subscription_renewal'] = false;
+
+    if($response['renewal_type'] == 'current_tier' || $response['renewal_type'] == 'sequential_logic' ) {
+      $response['next_tier'] = $tier_data['next_tier_id'];
+    } else if( $response['renewal_type'] == 'form_flow' ) {
+      $response['next_tier_form_page_id'] = $tier_data['next_tier_form_page_id'];
+    } else if ( $response['renewal_type'] == 'subscription' ) {
+      $response['next_tier_subscription_renewal'] = true;
+      $response['next_tier'] = $tier_id; //this is for self reference only on all subscription renewal tiers
+    } else {
+      return '';
+    }
+
     $tier_config_id = $tier_data['config_id'];
     $config = new Membership_Config( $tier_config_id );
     $response['early_renew_days'] = $config->get_renewal_window_days();
