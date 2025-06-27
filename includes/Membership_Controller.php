@@ -176,8 +176,8 @@ function add_order_item_meta ( $item_id, $values ) {
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
                 $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
-                Utilities::wicket_logger( 'processing order - membership_current object from user meta ', [$membership_current]);
-                if(empty($membership_current['membership_parent_order_id']) || $membership_current['membership_parent_order_id'] == $order_id) {
+                Utilities::wc_log_mship_error( ['processing order - membership_current object from user meta ', $membership_current]);
+                if(/*empty($membership_current['membership_parent_order_id']) ||*/ $membership_current['membership_parent_order_id'] == $order_id) {
                   //this is just an order having their status cycled so we should not create a renewal order on it BUT because
                   //we are storing the current renewal id on the current subscription item we need to prevent it processing a renewal
                   unset($membership_post_id_renew);
@@ -186,8 +186,9 @@ function add_order_item_meta ( $item_id, $values ) {
                   $this->processing_renewal = true;
                   $next_payment_time = $subscription->get_time( 'next_payment' );
                   $end_time = $subscription->get_time( 'end' );
-                  if(! Helper::has_next_payment_date($membership_current) 
-                      || ( $subscription->get_billing_period() == 'month') && $next_payment_time < $end_time) {
+                  Utilities::wc_log_mship_error( ['Helper::has_next_payment_date', Helper::has_next_payment_date($membership_current), $membership_post_id_renew] );
+                  if( (! Helper::has_next_payment_date($membership_current) || 'clear' != Helper::has_next_payment_date($membership_current) ) 
+                      || ( ( $subscription->get_billing_period() == 'month') && $next_payment_time < $end_time) ){
                     $order->add_order_note( 'Monthly payment order against membership ID: '. $membership_post_id_renew);
                     Utilities::wicket_logger( '--monthly-- skip renew for membership postID', $membership_post_id_renew);
                     continue;
