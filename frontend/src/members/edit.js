@@ -212,6 +212,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
           membership.updatingNow = false;
           membership.updateResult = '';
 
+          console.log('mship ID' + membership.ID);
+
           // set renewal type
           if ( membership.data.renewal_type === 'form_flow' || ( /*membership.data.renewal_type === undefined &&*/ [0, false].indexOf(membership.data.membership_next_tier_form_page_id) === -1 )) {
             membership.data.renewalType = 'form_flow';
@@ -225,7 +227,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             membership.data.renewalType = 'subscription';
           }
           console.log('renewal_type' + membership.data.renewalType);
-          if ( membership.data.renewal_type === 'current_tier' || ( /*membership.data.renewal_type === undefined &&*/ [0, false].indexOf(membership.data.membership_next_tier_id) === -1 && membership.data.membership_tier_post_id == membership.data.membership_next_tier_id)) {
+          if ( membership.data.renewal_type === 'current_tier' || ( /*membership.data.renewal_type === undefined &&*/ [0, false].indexOf(membership.data.membership_next_tier_id) === -1 && membership.data.membership_tier_post_id == membership.data.membership_next_tier_id && (! ['', 0, false].indexOf(membership.data.membership_next_tier_subscription_renewal) === -1))) {
             membership.data.renewalType = 'current_tier';
           }
           console.log('renewal_type' + membership.data.renewalType);
@@ -235,6 +237,10 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
               membership.data.tierRenewalType = membership.data.renewalType;
             }
             membership.data.renewalType = 'inherited';
+          }
+          console.log('renewal_type' + membership.data.renewalType);
+          if( membership.data.tierRenewalType === undefined ) {
+            membership.data.tierRenewalType = 'current_tier';
           }
           console.log('tierRenewalType' + membership.data.tierRenewalType);
 
