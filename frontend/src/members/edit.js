@@ -85,6 +85,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 		{ label: __('Inherited from Tier', 'wicket-memberships'), value: 'inherited' },
 		{ label: __('Sequential Logic', 'wicket-memberships'), value: 'sequential_logic' },
 		{ label: __('Renewal Form Flow', 'wicket-memberships'), value: 'form_flow' },
+		{ label: __('Subscription Renewal', 'wicket-memberships'), value: 'subscription' },
 		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' }
 	];
 
