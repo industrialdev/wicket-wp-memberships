@@ -153,3 +153,16 @@ export const createRenewalOrder = (membershipId, productId, variationId) => {
     }
   });
 }
+
+/**
+ * Transfer Membership
+ */
+export const transferMembership = ({ new_owner_uuid, membership_post_id }) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/membership/${membership_post_id}/transfer_membership`,
+    method: 'POST',
+    data: {
+      new_owner_uuid
+    }
+  });
+}
