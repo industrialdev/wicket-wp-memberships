@@ -15,6 +15,7 @@ const ManageMembership = ({ membership }) => {
   const [transferError, setTransferError] = useState(null);
   const [transferSuccess, setTransferSuccess] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [futureStartWarning, setFutureStartWarning] = useState(null);
 
   const loadMembershipOwnerOptions = (inputValue, callback) => {
     if (!inputValue || inputValue.length < 3) return;
@@ -48,10 +49,34 @@ const ManageMembership = ({ membership }) => {
           <div>
             <Button
               variant='secondary'
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                setFutureStartWarning(null);
+                // Check if membership_starts_at is in the future
+                const startDate = new Date(membership.data.membership_starts_at);
+                const now = new Date();
+                if (startDate > now) {
+                  setFutureStartWarning(__('This membership has not started yet. You cannot manage it until the membership is active.', 'wicket-memberships'));
+                  return;
+                }
+                setIsModalOpen(true);
+              }}
             >
               {__('Manage Membership', 'wicket-memberships')}
             </Button>
+            {futureStartWarning && (
+              <Modal
+                title={__('Membership Not Started', 'wicket-memberships')}
+                onRequestClose={() => setFutureStartWarning(null)}
+                style={{ maxWidth: '400px', width: '100%' }}
+              >
+                <div style={{ color: 'orange', margin: '20px 0' }}>{futureStartWarning}</div>
+                <div style={{ textAlign: 'right' }}>
+                  <Button variant="primary" onClick={() => setFutureStartWarning(null)}>
+                    {__('OK', 'wicket-memberships')}
+                  </Button>
+                </div>
+              </Modal>
+            )}
           </div>
         </div>
       </BorderedBox>

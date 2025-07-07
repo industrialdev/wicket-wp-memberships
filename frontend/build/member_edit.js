@@ -7169,6 +7169,7 @@ const ManageMembership = ({
   const [transferError, setTransferError] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [transferSuccess, setTransferSuccess] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   const [showConfirm, setShowConfirm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const [futureStartWarning, setFutureStartWarning] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const loadMembershipOwnerOptions = (inputValue, callback) => {
     if (!inputValue || inputValue.length < 3) return;
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_5___default()({
@@ -7200,8 +7201,37 @@ const ManageMembership = ({
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_2__.LabelWpStyled, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
     variant: "secondary",
-    onClick: () => setIsModalOpen(true)
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Manage Membership', 'wicket-memberships'))))), isModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Modal, {
+    onClick: () => {
+      setFutureStartWarning(null);
+      // Check if membership_starts_at is in the future
+      const startDate = new Date(membership.data.membership_starts_at);
+      const now = new Date();
+      if (startDate > now) {
+        setFutureStartWarning((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('This membership has not started yet. You cannot manage it until the membership is active.', 'wicket-memberships'));
+        return;
+      }
+      setIsModalOpen(true);
+    }
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Manage Membership', 'wicket-memberships')), futureStartWarning && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Modal, {
+    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Membership Not Started', 'wicket-memberships'),
+    onRequestClose: () => setFutureStartWarning(null),
+    style: {
+      maxWidth: '400px',
+      width: '100%'
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      color: 'orange',
+      margin: '20px 0'
+    }
+  }, futureStartWarning), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      textAlign: 'right'
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
+    variant: "primary",
+    onClick: () => setFutureStartWarning(null)
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('OK', 'wicket-memberships'))))))), isModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Modal, {
     title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Manage Membership', 'wicket-memberships'),
     onRequestClose: () => setIsModalOpen(false),
     style: {
