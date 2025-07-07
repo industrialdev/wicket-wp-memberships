@@ -7280,10 +7280,10 @@ const ManageMembership = ({
         setTransferSuccess(true);
         setShowConfirm(false);
         // Redirect to the new membership edit page
-        const wicketMembershipUuid = response.wicket_membership_uuid;
-        const userUuid = selectedOwner.value;
-        console.log(`admin.php?page=wicket_individual_member_edit&id=${userUuid}&membership_uuid=${wicketMembershipUuid}`);
-        //window.location.href = `admin.php?page=wicket_individual_member_edit&id=${userUuid}&membership_uuid=${wicketMembershipUuid}`;
+        if (response.success && response.redirect_url) {
+          window.open(response.redirect_url, '_blank');
+          window.location.reload();
+        }
       } catch (e) {
         setTransferError(e.message || 'Transfer failed');
       } finally {
