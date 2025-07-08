@@ -22,7 +22,25 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
    */
 
    public function register_routes() {
-   /**
+  /**
+   * Delete all memberships for a person_uuid from the MDP
+   */
+    register_rest_route( $this->namespace, '/person/(?P<person_uuid>[a-zA-Z0-9-]+)/delete_all_memberships', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'delete_all_person_memberships' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+        'args' => array(
+          'person_uuid' => array(
+            'required' => true,
+            'type' => 'string',
+            'description' => 'The person_uuid whose memberships will be deleted from the MDP.'
+          ),
+        ),
+      ),
+    ) );
+
+    /**
     * Get All Tiers MDP
     */
     register_rest_route( $this->namespace, '/membership_tiers', array(
@@ -296,6 +314,16 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       ),
       //'schema' => array( $this, '' ),
     ) );    
+  }
+
+  public function delete_all_person_memberships( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $person_uuid = $params['person_uuid'] ?? null;
+    if ( empty( $person_uuid ) ) {
+      return new \WP_REST_Response(['success' => false, 'error' => 'Missing person_uuid'], 400);
+    }
+    $result = Utilities::delete_all_person_memberships_from_mdp( $person_uuid );
+    return new \WP_REST_Response(['success' => true, 'result' => $result], 200);
   }
 
   public function mdp_person_lookup( \WP_REST_Request $request ) {
