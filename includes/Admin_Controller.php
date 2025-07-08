@@ -65,6 +65,10 @@ class Admin_Controller {
       return new \WP_REST_Response(['success' => false, 'error' => 'Original membership not found.'], 404);
     }
 
+    $original_user_id = get_post_meta( $membership_post_id, 'user_id', true );
+    $customer_meta = get_user_meta( $original_user_id, '_wicket_membership_'.$membership_post_id, true );
+    $old_customer_meta_array = $new_customer_meta_array = $customer_meta ? json_decode( $customer_meta, true ) : [];
+
     // Used to set the new membership start date and old membership end date
     $now_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
 
@@ -100,7 +104,7 @@ class Admin_Controller {
       'post_title'   => $original_post->post_title,
       'post_status'  => $original_post->post_status,
       'post_content' => $original_post->post_content,
-      'post_author'  => 0, // or set to $user->ID if you want
+      'post_author'  => 0,
     ]);
 
     if ( is_wp_error( $new_post_id ) ) {
@@ -115,17 +119,12 @@ class Admin_Controller {
       }
     }
 
-    $original_user_id = get_post_meta( $membership_post_id, 'user_id', true );
-
     // Set the new owner UUID and user info
     $user = get_user_by('login', $new_owner_uuid);
     if(empty($user)) {
       $user_id = wicket_create_wp_user_if_not_exist( $new_owner_uuid );
       $user = get_user_by('id', $user_id);
     }
-
-    $customer_meta = get_user_meta( $original_user_id, '_wicket_membership_'.$membership_post_id, true );
-    $old_customer_meta_array = $new_customer_meta_array = $customer_meta ? json_decode( $customer_meta, true ) : [];
 
     // Update the new post with the new owner information
     update_post_meta( $new_post_id, 'user_name', $user->display_name );
@@ -141,10 +140,15 @@ class Admin_Controller {
     update_post_meta( $membership_post_id, 'membership_grace_period_days', 0 );
     update_post_meta( $membership_post_id, 'membership_status', Wicket_Memberships::STATUS_CANCELLED );
 
+    $membership_type = $old_customer_meta_array['membership_type'] == 'individual' ? 'person_memberships' : 'organization_memberships';
     // Update the new wicket membership with the new external ID
-    wicket_update_membership_external_id( $membership_wicket_uuid, $old_customer_meta_array['membership_type'], $new_post_id );
+    $response_external_id = wicket_update_membership_external_id( $membership_wicket_uuid, $membership_type, $new_post_id );
+    if ( is_wp_error( $response_external_id ) ) {
+      Utilities::wc_log_mship_error( [ 'Transfer membership - Set external ID failed.', 'wicket_api_error' => $response_external_id->get_error_message( 'wicket_api_error' ), $membership_wicket_uuid, $membership_type, $new_post_id, $old_customer_meta_array['membership_type'] ]);
+    }
 
     $meta_data = [
+      'membership_starts_at' =>  $old_customer_meta_array['membership_starts_at'],
       'membership_ends_at' =>  $now_iso_date,
       'membership_expires_at' => $now_iso_date,
       'membership_grace_period_days' => 0

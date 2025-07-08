@@ -54,8 +54,8 @@ const ManageMembership = ({ membership }) => {
                 // Check if membership_starts_at is in the future
                 const startDate = new Date(membership.data.membership_starts_at);
                 const now = new Date();
-                if (startDate > now) {
-                  setFutureStartWarning(__('This membership has not started yet. You cannot manage it until the membership is active.', 'wicket-memberships'));
+                if (startDate > now || ( membership.data.membership_status !== 'active' && membership.data.membership_status !== 'Active' ) ) {
+                  setFutureStartWarning(__('You cannot manage a membership that is not currently active or has not reached the start date yet.', 'wicket-memberships'));
                   return;
                 }
                 setIsModalOpen(true);
@@ -134,6 +134,7 @@ const ManageMembership = ({ membership }) => {
                       isBusy={isTransferring}
                       disabled={isTransferring}
                       onClick={async () => {
+                        if (isTransferring) return; // Prevent double submit
                         setIsTransferring(true);
                         setTransferError(null);
                         setTransferSuccess(false);
@@ -142,15 +143,28 @@ const ManageMembership = ({ membership }) => {
                             new_owner_uuid: selectedOwner.value,
                             membership_post_id: membership.data.membership_post_id
                           });
-                          setTransferSuccess(true);
                           setShowConfirm(false);
-                          // Redirect to the new membership edit page
-                          if (response.success && response.redirect_url) {
-                            window.open(response.redirect_url, '_blank');
-                            window.location.reload();
+                          // Robustly check for response shape
+                          if (!response || typeof response !== 'object') {
+                            setTransferError(__('Unexpected server response. Please try again.', 'wicket-memberships'));
+                            return;
                           }
+                          if ('error' in response && response.error) {
+                            setTransferError(response.data.error || __('Transfer failed', 'wicket-memberships'));
+                            return;
+                          }
+                          if ('success' in response && response.success) {
+                            setTransferSuccess(true);
+                            if (response.success.data.redirect_url) {
+                              window.open(response.success.data.redirect_url, '_blank');
+                              window.location.reload();
+                            }
+                            return;
+                          }
+                          // If neither success nor error, fallback
+                          setTransferError(__('Transfer failed. Please try again.', 'wicket-memberships'));
                         } catch (e) {
-                          setTransferError(e.message || 'Transfer failed');
+                          setTransferError((e && e.message) ? e.message : __('Transfer failed', 'wicket-memberships'));
                         } finally {
                           setIsTransferring(false);
                         }
