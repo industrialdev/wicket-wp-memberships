@@ -133,12 +133,16 @@ class Admin_Controller {
     update_post_meta( $new_post_id, 'membership_user_uuid', $new_owner_uuid );
     update_post_meta( $new_post_id, 'membership_starts_at', $now_iso_date );
     update_post_meta( $new_post_id, 'membership_wicket_uuid', $membership_wicket_uuid );
+    //TODO: we are leaving the order attached to the original user who paid for it, do not link to new membership
+    //delete_post_meta( $new_post_id, 'membership_parent_order_id');
 
     // Update end and expiry date of the old membership post and cancel it
     update_post_meta( $membership_post_id, 'membership_ends_at', $now_iso_date );
     update_post_meta( $membership_post_id, 'membership_expires_at', $now_iso_date );
     update_post_meta( $membership_post_id, 'membership_grace_period_days', 0 );
     update_post_meta( $membership_post_id, 'membership_status', Wicket_Memberships::STATUS_CANCELLED );
+    //TODO: we have reassigned the subscription to the new user so unassign the meta data linking to old membership
+    //delete_post_meta( $membership_post_id, 'membership_subscription_id');
 
     $membership_type = $old_customer_meta_array['membership_type'] == 'individual' ? 'person_memberships' : 'organization_memberships';
     // Update the new wicket membership with the new external ID
@@ -159,6 +163,7 @@ class Admin_Controller {
     $old_customer_meta_array['membership_ends_at'] = $now_iso_date;
     $old_customer_meta_array['membership_expires_at'] = $now_iso_date;
     $old_customer_meta_array['membership_status'] = Wicket_Memberships::STATUS_CANCELLED;
+    //$old_customer_meta_array["membership_subscription_id"] = '';
     update_user_meta( $user->ID, '_wicket_membership_'.$membership_post_id, json_encode( $old_customer_meta_array) );
 
     $new_customer_meta_array["user_name"] = $user->display_name;
@@ -166,6 +171,7 @@ class Admin_Controller {
     $new_customer_meta_array["user_id"] = $user->ID;
     $new_customer_meta_array["membership_user_uuid"] = $new_owner_uuid;
     $new_customer_meta_array["membership_starts_at"] = $now_iso_date;
+    //$new_customer_meta_array["membership_parent_order_id"] = '';
     update_user_meta( $user->ID, '_wicket_membership_'.$new_post_id, json_encode( $new_customer_meta_array) );
 
     if( $subscription_id = get_post_meta( $membership_post_id, 'membership_subscription_id', true)) {
@@ -199,6 +205,10 @@ class Admin_Controller {
       }
       $membership_parent_order_id = get_post_meta( $membership_post_id, 'membership_parent_order_id', true );
       if(!empty($membership_parent_order_id)) {
+        $order = wc_get_order( $membership_parent_order_id );
+        // Commented out to persist original user and order meta for reference
+        // Will cause membership problems if order status is changed
+        /*
           $order_meta_array = json_decode( get_post_meta( $membership_parent_order_id, '_wicket_membership_'.$product_id, true ), true );
           if(empty($order_meta_array)) {
             $order_meta_array = $new_customer_meta_array;
@@ -210,9 +220,10 @@ class Admin_Controller {
           $order_meta_array['membership_wickets'] = $membership_wicket_uuid;
           update_post_meta( $membership_parent_order_id, '_wicket_membership_'.$product_id, json_encode( $order_meta_array) );
 
-          $sub->set_customer_id($user->ID);
-          $sub->save();
-          $sub->add_order_note( "Reassigning customer to {$user->user_email} on an admin transfer of membership.");
+          $order->set_customer_id($user->ID);
+          $order->save();
+          */
+          $order->add_order_note( "Reassigned attached SUBSCRIPTION to {$user->user_email} on an admin transfer of membership.<br><br>WARNING: DO NOT MANIPULATE ORDER STATUS OR META. THIS IS A SUBSCRIPTION TRANSFER ONLY." );
 
       }
     }

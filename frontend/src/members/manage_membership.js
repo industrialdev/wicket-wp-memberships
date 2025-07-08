@@ -54,8 +54,9 @@ const ManageMembership = ({ membership }) => {
                 // Check if membership_starts_at is in the future
                 const startDate = new Date(membership.data.membership_starts_at);
                 const now = new Date();
-                if (startDate > now || ( membership.data.membership_status !== 'active' && membership.data.membership_status !== 'Active' ) ) {
-                  setFutureStartWarning(__('You cannot manage a membership that is not currently active or has not reached the start date yet.', 'wicket-memberships'));
+                now.setHours(0, 0, 0, 0);
+                if (startDate >= now || ( membership.data.membership_status !== 'active' && membership.data.membership_status !== 'Active' ) ) {
+                  setFutureStartWarning(__('You cannot manage a membership that is not currently active or does not have a start date in the past.', 'wicket-memberships'));
                   return;
                 }
                 setIsModalOpen(true);
@@ -69,7 +70,7 @@ const ManageMembership = ({ membership }) => {
                 onRequestClose={() => setFutureStartWarning(null)}
                 style={{ maxWidth: '400px', width: '100%' }}
               >
-                <div style={{ color: 'orange', margin: '20px 0' }}>{futureStartWarning}</div>
+                <div style={{ color: 'black', margin: '20px 0' }}>{futureStartWarning}</div>
                 <div style={{ textAlign: 'right' }}>
                   <Button variant="primary" onClick={() => setFutureStartWarning(null)}>
                     {__('OK', 'wicket-memberships')}
