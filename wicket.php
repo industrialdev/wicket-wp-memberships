@@ -144,6 +144,24 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 	 */
 	class Wicket_Memberships {
 
+        /**
+     * Plugin instance.
+     * @var Wicket_Memberships|null
+     */
+    protected static $instance = null;
+
+    /**
+     * URL to this plugin's directory.
+     * @var string
+     */
+    public $plugin_url = '';
+
+    /**
+     * Path to this plugin's directory.
+     * @var string
+     */
+    public $plugin_path = '';
+
     const STATUS_PENDING    = 'pending';
     const STATUS_GRACE      = 'grace_period';
     const STATUS_ACTIVE     = 'active';
@@ -152,7 +170,26 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
     const STATUS_CANCELLED  = 'cancelled';
     const WICKET_MEMBERSHIPS_CAPABILITY = 'manage_options';
 
-    public function __construct() {
+        public function __construct() {}
+
+    /**
+     * Access this plugin’s working instance.
+     * @return Wicket_Memberships
+     */
+    public static function get_instance()
+    {
+        if (null === self::$instance) {
+            self::$instance = new self();
+        }
+
+        return self::$instance;
+    }
+
+    public function plugin_setup() {
+
+        $this->plugin_url = plugins_url('/', __FILE__);
+        $this->plugin_path = plugin_dir_path(__FILE__);
+
 			// Load the main plugin classes
  			new Admin_Controller;
 			new Membership_Post_Types;
@@ -366,6 +403,10 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 		}
 
 	} // end Class Wicket_Memberships.
-	new Wicket_Memberships();
+	// new Wicket_Memberships();
+  add_action(
+    'plugins_loaded',
+    [Wicket_Memberships::get_instance(), 'plugin_setup']
+  );
 }
 
