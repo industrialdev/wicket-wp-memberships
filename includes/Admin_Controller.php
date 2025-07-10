@@ -431,6 +431,9 @@ class Admin_Controller {
       } else {
         $membership_item['data'] = [];
       }
+      if(empty($membership_item['data']['membership_subscription_id'])) {
+        $membership_item['data']['membership_subscription_id'] = get_post_meta( $membership->ID, 'membership_subscription_id', true);
+      }
       if(!empty($membership->user_name)) {
         $membership_item['data']['user_name'] = $membership->user_name;
       }
