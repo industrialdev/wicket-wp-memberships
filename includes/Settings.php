@@ -72,10 +72,21 @@ class Settings {
     add_settings_field( 'wicket_memberships_debug_renew', '<p>WICKET_MEMBERSHIPS_DEBUG_RENEW</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_renew'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'wicket_memberships_debug_cart_ids', '<p>WICKET_MEMBERSHIPS_DEBUG_CART_IDS</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_cart_ids'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'bypass_wicket', '<p>BYPASS_WICKET</p>', [__NAMESPACE__.'\\Settings', 'bypass_wicket'], 'wicket_membership_plugin', 'debug_settings' );
-  
+    add_settings_field( 'wicket_mship_membership_merge_key', '<p>Merge Webhook API Key</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_membership_merge_key'], 'wicket_membership_plugin', 'functional_settings' );
+    
     //status change reporting
     add_settings_section( 'status_settings', 'Membership Status Changes', [__NAMESPACE__.'\\Settings', 'wicket_plugin_status_change_reporting'], 'wicket_membership_plugin' );
   
+  }
+
+  public static function wicket_mship_membership_merge_key() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_membership_merge_key]' type='text' value='".esc_attr( $options['wicket_mship_membership_merge_key']). "' />"
+    .' Update the merge webhook signature authentication key value. Unique for this webook <code>'.str_replace("/wp", "", get_site_url()).'/wp-json/wicket_member/v1/membership/merge</code>.<br/><br/>';  
+    #if(empty(esc_attr( $options['wicket_mship_membership_merge_key']))) {
+    #  echo '<input name="wicket_mship_create_merge_webhook" class="button button-primary" type="submit" value="Create Merge Webhook in MDP" />'
+    #  .'<br/>Click to create the merge webhook in the MDP > Settings > Webhooks now.';    
+    #}
   }
 
   public static function wicket_mship_disable_renewal() {
@@ -162,6 +173,7 @@ class Settings {
   }
 
   public static function wicket_membership_plugin_options_validate( $input ) {
+    $newinput['wicket_mship_membership_merge_key'] = trim($input['wicket_mship_membership_merge_key']);
     $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
     $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
     $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);

@@ -868,8 +868,9 @@ function add_order_item_meta ( $item_id, $values ) {
           'post_status' => 'publish',
           'meta_input'  => $meta
         ]);
-        wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
       }
+      //moved outside of conditional for merge membership functionality to work on update membership post meta
+      wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
 
     if( !empty( $membership['membership_parent_order_id'] )) {
       $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );

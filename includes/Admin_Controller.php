@@ -3,6 +3,7 @@
 namespace Wicket_Memberships;
 
 use Wicket_Memberships\Utilities;
+use Wicket_Memberships\Helper;
 
 /**
  * Class Admin_Controller
@@ -968,5 +969,117 @@ class Admin_Controller {
     $response_array['order_url'] = $created_order_url;
     $response_array['success'] = 'Renewal Order created successfully.';
     return new \WP_REST_Response($response_array, 200);
+  }
+
+   /**
+   * Merge memberships on users
+   * NOTE: Currently only moving ALL Memberships / started setup to extend for moving individual memberships
+   * 
+   * @param int $record_id WP user_id merging records FROM - ( If we receive a UUID we are moving a single membership )
+   * @param string $person_uuid person merging records TO
+   * @return \WP_REST_Response
+   */
+  public static function update_memberships_owner( $record_id, $person_uuid ): \WP_REST_Response {
+    $self = new self();
+
+    $user_id = wicket_create_wp_user_if_not_exist($person_uuid );
+    $merged_user = get_user_by('id', $user_id);
+
+    if( empty($merged_user) || $merged_user->ID == $record_id ) {
+      return new \WP_REST_Response(['error' => 'Merge user should not be the same as current owner.'], 200);      
+    }
+
+    $meta_key = is_numeric( $record_id ) ? 'user_id' : 'membership_wicket_uuid';
+
+    $args = array(
+      'post_type' => $self->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query'     => array(
+        array(
+          'key'     => $meta_key,
+          'value'   => $record_id,
+          'compare' => '='
+        ),
+      )
+    );
+
+    $user_name = $merged_user->first_name.' '.$merged_user->last_name;
+    $memberships = get_posts( $args );
+
+    foreach( $memberships as $membership) {
+      $membership_post_id = $membership->ID;
+      if( $merged_user->ID == $membership->user_id ) {
+        return new \WP_REST_Response(['error' => 'Merge user should not be the same as current owner.'], 200);      
+      }
+
+      if($meta_key != 'user_id') {
+        $date1 = new \DateTime($membership->membership_ends_at);
+        $date2 = new \DateTime($membership->membership_expires_at);
+        $interval = $date1->diff($date2);
+        $grace_period_days = !empty($interval->days) ? $interval->days : 0;
+          $response1 = wicket_assign_individual_membership(
+            $person_uuid,
+            $membership->membership_tier_uuid,
+            $membership->membership_start_at,
+            $membership->membership_ends_at,
+            $grace_period_days,
+          );
+          Utilities::wc_log_mship_error(["CREATED mship single merge in MDP", $response1]);
+
+          $response2 = wicket_delete_person_membership($record_id);
+          Utilities::wc_log_mship_error(["DELETED mship single merge in MDP", $response2]);
+
+          $single_merged_wicket_membership_uuid = $response1['data']['id'];
+          update_post_meta( $membership_post_id, 'membership_wicket_uuid', $single_merged_wicket_membership_uuid);
+          wicket_update_membership_external_id( $single_merged_wicket_membership_uuid, 'person_memberships', $membership_post_id );
+      }
+
+      $orig_user_id = is_numeric( $record_id ) ? $record_id : get_post_meta( $membership_post_id, 'user_id', true);
+      $orig_user = get_user_by('id', $orig_user_id);
+      $merged[] = $membership->membership_wicket_uuid;
+
+      update_post_meta( $membership_post_id, 'user_id', $merged_user->ID);
+      update_post_meta( $membership_post_id, 'membership_user_uuid', $person_uuid);
+      update_post_meta( $membership_post_id, 'user_name', $user_name);
+      update_post_meta( $membership_post_id, 'user_email', $merged_user->user_email);
+
+      $customer_meta = get_user_meta( $orig_user_id, '_wicket_membership_'.$membership_post_id );
+      $customer_meta_array = json_decode( $customer_meta[0], true);
+
+      if(empty($customer_meta)) {
+        $customer_meta = get_post_meta( $membership_post_id );
+      }
+
+      $customer_meta_array['user_id'] = $merged_user->ID;
+      $customer_meta_array['membership_user_uuid'] = $person_uuid;
+      $customer_meta_array['user_name'] = $user_name;
+      $customer_meta_array['user_email'] = $merged_user->user_email;
+      update_user_meta( $merged_user->ID, '_wicket_membership_'.$membership_post_id, json_encode( $customer_meta_array) );
+
+      if(!empty($customer_meta_array['membership_parent_order_id'])) {
+        update_post_meta( $customer_meta_array['membership_parent_order_id'], '_wicket_membership_'.$customer_meta_array['membership_product_id'], json_encode( $customer_meta_array) );
+        $order = wc_get_order($customer_meta_array['membership_parent_order_id']);
+        if(!empty($order)) {
+          $order->set_customer_id($merged_user->ID);
+          $order->save();
+          $order->add_order_note("Customer updated on Membership Transfer from {$orig_user->first_name} {$orig_user->last_name} Email: {$orig_user->user_email} Membership ID: {$membership->membership_wicket_uuid}");
+          Helper::change_order_address_match_customer($order);
+        }
+      }
+      if(!empty($customer_meta_array['membership_subscription_id'])) {
+        update_post_meta( $customer_meta_array['membership_subscription_id'], '_wicket_membership_'.$customer_meta_array['membership_product_id'], json_encode( $customer_meta_array) );  
+        $subscription = wcs_get_subscription($customer_meta_array['membership_subscription_id']);
+        if(!empty($subscription)) {
+          $subscription->set_customer_id($merged_user->ID);
+          $subscription->save();
+          $subscription->add_order_note("Customer updated on Membership Transfer from {$orig_user->first_name} {$orig_user->last_name} Email: {$orig_user->user_email} Membership ID: {$membership->membership_wicket_uuid}");
+          Helper::change_order_address_match_customer($subscription);
+          Helper::assign_preferred_payment_method_to_order($subscription);
+        }
+      }
+    }
+    Utilities::wc_log_mship_error(['Merged memberships', $merged, 'From user ID: '.$orig_user_id, 'To user UUID: '.$person_uuid]);
+    return new \WP_REST_Response(['success' => $merged], 200);
   }
 }
