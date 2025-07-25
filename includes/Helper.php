@@ -441,7 +441,7 @@ class Helper {
    * Do we be updating next payment date on this membership
    * @param mixed $membership
    * @param bool $processing_renewal
-   * @return bool
+   * @return mixed
    */
 
   public static function has_next_payment_date( $membership ) {
@@ -451,7 +451,7 @@ class Helper {
     }
 
     if( empty($subscription) ) {
-      return $has_next_payment_date;
+      return 'clear';
     }
 
     $is_autopay_enabled = $subscription->get_requires_manual_renewal() ? false : true;
