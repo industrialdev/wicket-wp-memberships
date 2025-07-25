@@ -1285,7 +1285,8 @@ function add_order_item_meta ( $item_id, $values ) {
             'value'   => Wicket_Memberships::STATUS_GRACE,
             'compare' => '='
           );
-        } else if($status == 'pending') {
+          // DISABLED UNTIL WE HAVE MERGED THIS BRANCH TO MAIN AND CAN UPDATE ACC PLUGIN TO MATCH
+          // } else if($status == 'pending') {
         $status_array[] =
           array(
             'key'     => 'membership_status',
