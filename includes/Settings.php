@@ -157,9 +157,39 @@ class Settings {
 
   public static function allow_local_imports() {
     $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[allow_local_imports]' type='checkbox' value='1' ".checked(1, esc_attr( $options['allow_local_imports']), false). " />"
-      .'Enable MDP exports to be <a target="_blank" href="'.plugins_url('wicket-wp-memberships').'/csv_post.php">imported here</a>.';
-  }
+    ?>
+    <input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[allow_local_imports]' type='checkbox' value='1' <?php echo checked(1, esc_attr( $options['allow_local_imports']), false); ?> />
+    Enable MDP export CSV ONLY to be imported on the ssh cmd line <!--<a target="_blank" href="<?php echo plugins_url('wicket-wp-memberships'); ?>/csv_post.php">imported here</a>-->.
+    <p style="color:black;font-style:italic;display:inline;">
+        IMPORTANT: Requires direct access to membership plugin folder through ssh.
+        <span id="allow-local-imports-help" style="cursor:pointer; margin-left:8px;" title="Show more info">
+            <span style="font-size:1.2em;">&#x2753;</span>
+        </span>
+    </p>
+    <div id="allow-local-imports-details" style="display:none; margin-top:8px;">
+        <p style="color:black;font-style:italic">1. Make sure the MDP User Sync has been run before performing imports to create wp users.</p>
+        <p style="color:black;font-style:italic">2. Upload Membership CSV to media folder. Separate files for Individuals and Organizations.</p>
+        <p style="color:black;font-style:italic">3. Run the import command from the ssh command line in the plugin folder: <code>php ./csv_import_threads.php</code>.</p>
+        <p style="color:black;font-style:italic">4. Follow guidance to add the correct args. Import is batched, wait until complete or run as a background task!</p>
+        <p style="color:black;font-style:italic"><code>php ./csv_import_threads.php { individual|organization } { file_path from /uploads/ } { api_domain - optional str } { skip_approval - optional bool }</code></p>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var helpIcon = document.getElementById('allow-local-imports-help');
+        var detailsDiv = document.getElementById('allow-local-imports-details');
+        if(helpIcon && detailsDiv) {
+            helpIcon.addEventListener('click', function() {
+                if(detailsDiv.style.display === 'none') {
+                    detailsDiv.style.display = 'block';
+                } else {
+                    detailsDiv.style.display = 'none';
+                }
+            });
+        }
+    });
+    </script>
+    <?php
+}
 
   public static function wicket_show_order_debug_data() {
     $options = get_option( 'wicket_membership_plugin_options' );
