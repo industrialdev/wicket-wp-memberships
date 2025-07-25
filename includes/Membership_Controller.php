@@ -734,12 +734,20 @@ function add_order_item_meta ( $item_id, $values ) {
     $grace_period_days = false;
     $max_assignments = false;
 
+    if('development' == wp_get_environment_type()) {
+          Utilities::wc_log_mship_error( ['update_mdp_record', $membership, $meta_data] );
+    }
+
     if( ! empty( $meta_data['membership_starts_at'] ) ) {
       $starts_at = $meta_data['membership_starts_at'];
+    } else {
+      $starts_at = $membership['membership_starts_at'];
     }
 
     if( ! empty( $meta_data['membership_ends_at'] ) ) {
       $ends_at = $meta_data['membership_ends_at'];
+    } else {
+      $ends_at = $membership['membership_ends_at'];
     }
 
     if( $meta_data['membership_grace_period_days'] == '0' || ! empty( $meta_data['membership_grace_period_days'] ) ) {
