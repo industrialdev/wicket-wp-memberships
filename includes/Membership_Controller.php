@@ -637,6 +637,9 @@ function add_order_item_meta ( $item_id, $values ) {
   public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ], $subcription_created = false ) {
     if( function_exists( 'wcs_get_subscription' )) {
       $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+      if(!empty($subcription_created)) {
+        Utilities::wicket_logger( 'A MEMBERSHIP SUBSCRIPTION WAS CREATED', $fields);
+      }
       Utilities::wicket_logger( 'update_membership_subscription', $fields);
 
       //$start_date   = $membership['membership_starts_at'];
@@ -686,15 +689,16 @@ function add_order_item_meta ( $item_id, $values ) {
             $this->schedule_wicket_wipe_next_payment_date( $sub->get_id() );
             Utilities::wicket_logger( 'CLEARED: NEXT_PAYMENT', [$fields['next_payment_date'],$dates_to_update['next_payment']]);
           }
-          if( $subcription_created ) {
+          //we need to add the hook after the status update to ensure the dates are set correctly
+          //when the subscription status is set to active after this code runs it changes subscription dates
+          if(!empty($dates_to_update)) { 
+            $sub->update_dates($dates_to_update);
+            Utilities::wicket_logger( 'SUBSCRIPTION DATES BEING UPDATED MANUALLY: dates_to_update', $dates_to_update);
             add_action('woocommerce_subscription_status_updated', function( $subscription_id ) use ( $dates_to_update ) {
               $sub = wcs_get_subscription( $subscription_id );
               $sub->update_dates($dates_to_update);
-              Utilities::wicket_logger( '---woocommerce_subscription_status_updated---', [$sub->get_id(), $dates_to_update ]);
-            }, 10, 2 );        
-          } else {
-            $sub->update_dates($dates_to_update);
-            Utilities::wicket_logger( 'SUBSCRIPTION DATES BEING UPDATED MANUALLY: dates_to_update', $dates_to_update);
+              Utilities::wicket_logger( '---woocommerce_subscription_status_updated--- SUBSCRIPTION DATES BEING UPDATED ', [$sub->get_id(), $dates_to_update ]);
+            }, 10, 2 );
           }
           $order_note = 'Membership ' .$membership['membership_post_id'].' changed these subscription dates. ';
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
