@@ -1505,7 +1505,9 @@ function add_order_item_meta ( $item_id, $values ) {
           $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
           if(!empty($sub)) {
             $is_autopay_enabled = $sub->get_requires_manual_renewal() ? false : true;
-            if(!$is_autopay_enabled) {
+          }
+        }
+        if(empty($is_autopay_enabled)) {
               $callout['type'] = 'early_renewal';
               $callout['header'] = $Membership_Config->get_renewal_window_callout_header( $iso_code );
               $callout['content'] = $Membership_Config->get_renewal_window_callout_content( $iso_code );
@@ -1514,8 +1516,6 @@ function add_order_item_meta ( $item_id, $values ) {
                 'membership' => $membership_data,
                 'callout' => $callout
               ];
-            }
-          }
         }
         //adding to the garce period array here
       } else if ( $current_time >= $membership_ends_at && $current_time <= $membership_expires_at ) {
