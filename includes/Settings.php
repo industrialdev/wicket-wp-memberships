@@ -66,6 +66,7 @@ class Settings {
     add_settings_field( 'wicket_mship_multi_tier_renewal', '<p>Use Multi-Tier Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_multi_tier_renewal'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_assign_subscription', '<p>Membership Subscription Assignment</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_assign_subscription'], 'wicket_membership_plugin', 'functional_settings' );
     //add_settings_field( 'wicket_mship_subscription_renew', '<p>Use Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_subscription_renew'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_autorenew_toggle', '<p>Enable User Autorenew Subscription Toggle</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_toggle'], 'wicket_membership_plugin', 'functional_settings' );
     
     //debug
     add_settings_section( 'debug_settings', 'Debug Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_debug_text'], 'wicket_membership_plugin' );
@@ -129,6 +130,12 @@ class Settings {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[bypass_wicket]' type='checkbox' value='1' ".checked(1, esc_attr( $options['bypass_wicket']), false). " />"
       .'Do not create memberships in wicket MDP.';
+  }
+  
+  public static function wicket_mship_autorenew_toggle() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_mship_autorenew_toggle' name='wicket_membership_plugin_options[wicket_mship_autorenew_toggle]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_autorenew_toggle']), false). " />"
+      .'Enable the use of the Wicket Autorenew Checkbox Toggle anywhere on the front-end and in Gravity Forms with the shortcode <code>[wicket_autorenew_toggle_shortcode]</code>';
   }
   
   public static function wicket_mship_subscription_renew() {
@@ -212,6 +219,7 @@ class Settings {
   public static function wicket_membership_plugin_options_validate( $input ) {
     $newinput['wicket_mship_multi_tier_renewal'] = trim($input['wicket_mship_multi_tier_renewal']);
     $newinput['wicket_mship_assign_subscription'] = trim($input['wicket_mship_assign_subscription']);
+    $newinput['wicket_mship_autorenew_toggle'] = trim($input['wicket_mship_autorenew_toggle']);
     $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
     $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
     $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);

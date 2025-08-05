@@ -25,6 +25,7 @@ class Membership_Controller {
 
   //prop used to bypass pending approval for renewals
   public $processing_renewal = false;
+  public $status_cycled = false;
 
   public function __construct() {
     $this->bypass_wicket = !empty( $_ENV['BYPASS_WICKET'] ) ?? false;
@@ -171,6 +172,24 @@ function add_order_item_meta ( $item_id, $values ) {
           }
           $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id );
           if( !empty( $membership_tier->tier_data )) {
+              if($membership_tier->tier_data['renewal_type'] != 'subscription') {
+                $autorenew_user_meta = get_user_meta($order->get_user_id(), 'subscription_autopay_enabled', true);
+                if($autorenew_user_meta == 'yes') {
+                  $subscription->update_meta_data('_requires_manual_renewal', 'false');
+                } else {
+                  $subscription->update_meta_data('_requires_manual_renewal', 'true');
+                }
+                $subscription->save();
+              }
+
+              /*
+              DEBUG AUTORENEW FLOW
+              --------------------  
+              //$sub_renew = $subscription->get_meta('_requires_manual_renewal');
+              //$is_autopay_enabled = $subscription->get_requires_manual_renewal() ? false : true;
+              //var_dump(['here',$subscription->get_id(), $sub_renew, $subscription->get_requires_manual_renewal()]);exit;
+              */
+
               $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
               $period_data = $config->get_period_data();
               //if we have the current membership_post ID in the renew field on cart item
@@ -182,6 +201,7 @@ function add_order_item_meta ( $item_id, $values ) {
                   //we are storing the current renewal id on the current subscription item we need to prevent it processing a renewal
                   unset($membership_post_id_renew);
                   $membership_current = null;
+                  $this->status_cycled = true;
                 } else {
                   $this->processing_renewal = true;
                   $next_payment_time = $subscription->get_time( 'next_payment' );
@@ -412,7 +432,7 @@ function add_order_item_meta ( $item_id, $values ) {
 
     //connect product memberships and create subscriptions
     foreach ($memberships as $membership) {
-      do_action( 'wicket_member_create_record' , $membership, $self->processing_renewal );
+      do_action( 'wicket_member_create_record' , $membership, $self->processing_renewal, $self->status_cycled );
     }
   }
 
@@ -507,7 +527,16 @@ function add_order_item_meta ( $item_id, $values ) {
       if(! empty($sub) && !empty( $order_note )) {
         $sub->add_order_note( $order_note );
       }
-    }
+      /* FROM Auto-Renew Toggle BRANCH -- UNCLEARED ----------------------------------------------
+          $order = wc_get_order($membership['membership_parent_order_id']);
+          if(!empty($order) && !empty($order_note) && empty($this->status_cycled)) {
+            $order->add_order_note( $order_note );
+          } else if(!empty($this->status_cycled)) {
+            $order_note = 'Status cycled triggering any pending updates to membership ID #'.$membership['membership_post_id'];
+            $order->add_order_note( $order_note );
+          }
+      */
+      }
   }
 
   public static function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
@@ -543,12 +572,16 @@ function add_order_item_meta ( $item_id, $values ) {
   /**
    * Create the membership records
    */
-  public static function create_membership_record( $membership, $processing_renewal = false ) {
+  public static function create_membership_record( $membership, $processing_renewal = false, $status_cycled = false ) {
     $membership_wicket_uuid = '';
     $self = new self();
 
     if(!empty($processing_renewal)) {
       $self->processing_renewal = true;
+    }
+
+    if(!empty($status_cycled)) {
+      $self->status_cycled = true;
     }
 
     if($self->bypass_wicket) {
@@ -566,6 +599,24 @@ function add_order_item_meta ( $item_id, $values ) {
     //always create the local membership record to get post_id
     $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $membership_wicket_uuid );
     Utilities::wicket_logger( 'create local membership - postID', $membership['membership_post_id']);
+
+
+    // Set autopay flags on the subscription if enabled for the user
+    $autorenew_user_meta = get_user_meta($membership['user_id'], 'subscription_autopay_enabled', true);
+    if($autorenew_user_meta == 'yes' && !empty( $membership['membership_next_tier_subscription_renewal'] ) && !empty($membership['membership_subscription_id'])) {
+            $subscription = wcs_get_subscription( $membership['membership_subscription_id'] );
+            if (function_exists('wcs_get_subscription')) {
+                $subscription = wcs_get_subscription($membership['membership_subscription_id']);
+                if ($subscription) {
+                    $subscription->update_meta_data('_requires_manual_renewal', 'false');
+                    $subscription->save();
+                }
+            }
+      //      DEBUG AUTORENEW FLOW
+      $sub_renew = $subscription->get_meta('_requires_manual_renewal');
+      $is_autopay_enabled = $subscription->get_requires_manual_renewal() ? false : true;
+      Utilities::wc_log_mship_error(['RAN: create_membership_record->user_meta: subscription_autopay_enabled', $subscription->get_id(), $autorenew_user_meta,  '_requires_manual_renewal=' .$sub_renew, 'get_requires_manual_renewal='.$subscription->get_requires_manual_renewal()]);
+    }
 
     //we are pending approval so change some statuses and send email
     if( $tier->is_approval_required() && ! $self->processing_renewal ) {
@@ -593,6 +644,7 @@ function add_order_item_meta ( $item_id, $values ) {
       }
 
       $self->update_membership_subscription( $membership, $date_flags_array, true );
+
       $membership_post_data = Helper::get_post_meta( $membership['membership_post_id'] );
       do_action('wicket_membership_created_mdp', $membership_post_data);
     }
@@ -678,6 +730,7 @@ function add_order_item_meta ( $item_id, $values ) {
         $dates_to_update['next_payment']  = $date->format('Y-m-d H:i:s');
         Utilities::wicket_logger( 'Setting Subscription NEXT_PAYMENT date', $dates_to_update['next_payment']);
       }
+      
       if( !empty( $sub )) {
         try {
 //          We previously did this value being cleared before updating because it prevented changing end date
@@ -717,11 +770,22 @@ function add_order_item_meta ( $item_id, $values ) {
           $sub->add_order_note($order_note);
           return 'ERROR on Subscription Update: '. $e->getMessage();
         }
-        //add_action('woocommerce_subscription_status_updated', function( $subscription_id )  {
-        //  $sub = wcs_get_subscription( $subscription_id );
-        //  $sub->update_dates(['next_payment' => 0]);
-        //}, 10, 2 );        
-      }
+
+        $autorenew_user_meta = get_user_meta($membership['user_id'], 'subscription_autopay_enabled', true);
+        $is_autopay_enabled = $sub->get_requires_manual_renewal() ? false : true;
+
+        //DEBUG AUTORENEW FLOW
+        //--------------------  
+        $sub_renew = $sub->get_meta('_requires_manual_renewal');
+        //var_dump([$sub->get_id(),$sub_renew, $sub->get_requires_manual_renewal(), $is_autopay_enabled, $autorenew_user_meta]);exit;
+
+        if(! $is_autopay_enabled && $autorenew_user_meta == 'no') {
+          add_action('woocommerce_subscription_status_updated', function( $subscription_id )  {
+            $sub = wcs_get_subscription( $subscription_id );
+            $sub->update_dates(['next_payment' => 0]);
+          }, 10, 2 );       
+        }
+      }        
     }
   }
 
@@ -1394,6 +1458,17 @@ function add_order_item_meta ( $item_id, $values ) {
       if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC'] ) ) {
         $debug_comment_hide = '';
         $debug_comment_eol = '<br>';
+      }
+
+      if(!empty($membership_data['meta']['membership_subscription_id'])) {
+        $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
+        $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
+        if( $is_autopay_enabled ) {
+          echo "<$debug_comment_hide--";
+          echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
+          echo "//-->$debug_comment_eol";
+          continue;
+        }
       }
 
       //TODO: validate that we can remove this method of checking for already renewed memberships, replaced by the NEW method using $renewal_post_id array below.

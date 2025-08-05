@@ -137,7 +137,6 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_DISABLE_RENEWALS']=true;
             }
           }
-
           if(isset($options['wicket_mship_multi_tier_renewal'])) {
             if($options['wicket_mship_multi_tier_renewal']) {
               $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS']=true;
@@ -149,6 +148,11 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
           if(isset($options['wicket_mship_assign_subscription'])) {
             if($options['wicket_mship_assign_subscription']) {
               $_ENV['WICKET_MSHIP_ASSIGN_SUBSCRIPTION']=true;
+            }
+          }
+          if(isset($options['wicket_mship_autorenew_toggle'])) {
+            if($options['wicket_mship_autorenew_toggle']) {
+              $_ENV['WICKET_MSHIP_AUTORENEW_TOGGLE']=true;
             }
           }
           require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/membership-code-hooks.php' );
@@ -226,6 +230,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action('schedule_daily_membership_expiry_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_expiry_hook'), 10, 2);
       //these will set to garce_period memberships that have not been renewed at membership_ends_at date
       add_action('wp', array($this, 'schedule_daily_membership_grace_period'), 10, 2);
+      
+      //checkbox toggle - can be used for view subscriptions
+      add_action('init', [__NAMESPACE__.'\\Utilities', 'autorenew_checkbox_toggle_switch']);
     }
 
     public static function schedule_daily_membership_expiry() {

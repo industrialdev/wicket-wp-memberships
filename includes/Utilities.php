@@ -511,4 +511,180 @@ function wicket_sub_org_select_callback( $subscription ) {
       }
     }
   }
+
+  public static function autorenew_checkbox_toggle_switch() {
+    if(!empty($_ENV['WICKET_MSHIP_AUTORENEW_TOGGLE'])) {
+      add_action('wp', [__NAMESPACE__.'\\Utilities', 'wc_autorenew_toggle_filters']);
+      add_action('wp_footer', [__NAMESPACE__.'\\Utilities', 'wicket_wc_enqueue_scripts_autorenew_toggle']);
+      add_action('wp_ajax_auto_renew_enabled_for_user', [__NAMESPACE__.'\\Utilities', 'handle_user_auto_renew_toggle']);
+      add_action('wp_ajax_nopriv_auto_renew_enabled_for_user', [__NAMESPACE__.'\\Utilities', 'handle_user_auto_renew_toggle']); // Allow guests if needed
+      add_action('wp_enqueue_scripts', [__NAMESPACE__.'\\Utilities', 'enqueue_mship_ajax_script']);
+    }
+  }
+
+  static function wc_autorenew_toggle_filters() {
+    $self = new self();
+    add_shortcode('wicket_autorenew_toggle_shortcode', [$self, 'wc_autorenew_toggle_shortcode']);
+    add_filter('gform_field_value_wicket_autorenew_toggle_shortcode', function($value) {
+      return do_shortcode('[wicket_autorenew_toggle_shortcode]');
+    });
+  }
+
+  /**
+   * Summary of wc_autorenew_toggle_shortcode
+   * @param mixed $atts
+   * @return void
+   */
+  function wc_autorenew_toggle_shortcode($atts) {
+    if($_REQUEST['subscription_id']) {
+      $subscription_id = !empty(intval($atts['subscription_id'])) ? intval($atts['subscription_id']) : intval($_REQUEST['subscription_id']);
+    } else if($_REQUEST['membership_post_id_renew']) {
+      $subscription_id = get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true );
+    }
+    if(!empty($subscription_id)) {
+      $sub = wcs_get_subscription( $subscription_id );
+      if(!empty($sub)) {
+        $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
+      }  
+      $checked = !empty($is_autopay_enabled) ? 'checked' : '';
+    } else {
+      $user_autopay_enabled = get_user_meta( get_current_user_id(), 'subscription_autopay_enabled', true);
+      $checked = !empty($user_autopay_enabled) && $user_autopay_enabled == 'yes' ? 'checked' : '';
+    }
+    ob_start();
+    ?>
+    <label class="wicket-wc-toggle">
+      <input type="checkbox" id="wicket-wc-toggle" <?php echo $checked; ?>>
+      <span class="slider"></span>
+    </label>
+    <?php
+    return ob_get_clean();
+  }
+
+  /**
+   *  Includes the styling and js for the autorenew toggle in the footer
+   * 
+   *  <label class="wicket-wc-toggle">
+   *    <input type="checkbox" id="wicket-wc-toggle">
+   *    <span class="slider"></span>
+   *  </label>
+   * @return void
+   */
+  public static function wicket_wc_enqueue_scripts_autorenew_toggle() {
+    wp_localize_script('auto_renew_enabled_for_user', 
+      'wicket_mship_ajax_object', 
+      ['ajaxurl' => admin_url('admin-ajax.php'), 
+      'user_id' => get_current_user_id()
+      ]
+    );
+    ?>
+    <style>
+        .wicket-wc-toggle {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .wicket-wc-toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .wicket-wc-toggle .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            border-radius: 12px;
+            transition: 0.3s;
+        }
+
+        .wicket-wc-toggle .slider::before {
+            content: "";
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .wicket-wc-toggle input:checked + .slider {
+            background-color: #2c6fbb;
+        }
+
+        .wicket-wc-toggle input:checked + .slider::before {
+            transform: translateX(26px);
+        }
+    </style>
+
+    <script>
+      jQuery(document).ready(function($) {
+          $('#wicket-wc-toggle').on('change', function() {
+              var isChecked = $(this).is(':checked') ? 1 : 0;
+              $.ajax({
+                  url: wicket_mship_ajax_object.ajaxurl,
+                  type: 'POST',
+                  data: {
+                      action: 'auto_renew_enabled_for_user',
+                      user_id: wicket_mship_ajax_object.user_id,
+                      <?php
+                        if(!empty($_REQUEST['subscription_id'])) {
+                          echo "subscription_id: '".$_REQUEST['subscription_id']."',\n";
+                        }
+                        if(!empty($_REQUEST['membership_post_id_renew'])) {
+                          echo "membership_post_id_renew: '".$_REQUEST['membership_post_id_renew']."',\n";
+                        }
+                      ?>
+                      enabled: isChecked
+                  },
+                  success: function(response) {
+                      console.log('Success:', response);
+                  },
+                  error: function(error) {
+                      console.log('Error:', error);
+                  }
+              });
+          });
+      });
+    </script>
+    <?php  
+  }
+  
+  public static function handle_user_auto_renew_toggle() {
+    if (!isset($_POST['user_id']) || !isset($_POST['enabled'])) {
+        wp_send_json_error(['message' => 'Invalid request.']);
+    }
+    $user_id = intval($_POST['user_id']);
+    $enabled = $_POST['enabled'] == 1 ? 'yes' : 'no';
+    if( isset($_POST['subscription_id']) ) {
+      $subscription_id = $_POST['subscription_id'];
+    } else if( isset($_POST['membership_post_id_renew']) ) {
+      $subscription_id = get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true );
+    }
+    if(!empty($subscription_id)) {
+      $subscription = wcs_get_subscription($subscription_id);
+      $subscription_renewal_boolean = $enabled == 'yes' ? 'false' : 'true'; //reverse to set manual_renewal_enabeld;
+      $subscription->update_meta_data('_requires_manual_renewal', $subscription_renewal_boolean);
+      $subscription->save();
+      $subscription->add_order_note('Customer turned '.($enabled == 'yes' ? 'on' : 'off').' automatic renewals via the Wicket Toggle. Manual renewal flag set to '.$subscription_renewal_boolean);
+    }
+    update_user_meta($user_id, 'subscription_autopay_enabled', $enabled);
+    wp_send_json_success(['message' => 'Auto-renew status updated for '.$user_id, 'status' => $enabled]);
+  }
+
+  public static function enqueue_mship_ajax_script() {
+    wp_enqueue_script('ajax-script', get_template_directory_uri() . '/js/custom-ajax.js', ['jquery'], null, true);
+    wp_localize_script('ajax-script', 'wicket_mship_ajax_object', [
+        'ajaxurl' => admin_url('admin-ajax.php'), 
+        'user_id' => get_current_user_id()
+    ]);
+  }
 }
