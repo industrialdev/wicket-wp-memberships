@@ -720,6 +720,9 @@ function add_order_item_meta ( $item_id, $values ) {
         if(empty($membership['organization_uuid'])) {
           $membership['organization_uuid'] = $membership['org_uuid'] ;
         }
+        if(empty($membership['membership_seats']) && !empty($membership['org_seats'])) {
+          $membership['membership_seats'] = $membership['org_seats'];
+        }
         if( $membership['membership_seats'] < 1) {
           $membership['membership_seats'] = null;
         }
