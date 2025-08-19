@@ -74,6 +74,34 @@ class Utilities {
     }
   }
 
+   /**
+   * Delete all memberships for a person_uuid from the MDP
+   *
+   * @param string $person_uuid
+   * @return array|null
+   */
+  public static function delete_all_person_memberships_from_mdp( $person_uuid ) {
+    if ( empty( $person_uuid ) || ! function_exists( 'wicket_get_person_memberships' ) || ! function_exists( 'wicket_delete_person_membership' ) ) {
+      return 'failed';
+    }
+    $memberships =  wicket_get_person_memberships( $person_uuid );
+
+    foreach($memberships['data'] as $membership) {
+      $membership_wicket_uuid = $membership['id'];
+      if($membership['type'] == 'person_memberships') {
+        $response_api = wicket_delete_person_membership( $membership_wicket_uuid );
+      } elseif($membership['type'] == 'organization_memberships') {
+        $response_api = wicket_delete_organization_membership( $membership_wicket_uuid );
+      }
+      if(is_wp_error( $response_api )) {
+        $response[$membership_wicket_uuid] = $response_api->get_error_message( 'wicket_api_error' );
+      } else {
+        $response[$membership_wicket_uuid] = 'deleted from mdp';
+      }
+    }
+    return $response;
+  }
+
   function delete_wicket_membership_in_mdp( $post_id ) {
     if(function_exists('wicket_delete_person_membership')) {
       $membership_wicket_uuid = get_post_meta( $post_id, 'membership_wicket_uuid', true);

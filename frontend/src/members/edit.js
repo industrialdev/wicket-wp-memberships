@@ -1114,7 +1114,11 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 								]}
 							>
 								<FlexItem>
-									<Button variant="primary" type='submit'>
+									<Button
+                    variant="primary"
+                    type='submit'
+                    disabled={manageStatusFormData.newStatus === ''}
+                  >
 										{__('Update Status', 'wicket-memberships')}
 									</Button>
 								</FlexItem>
