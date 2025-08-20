@@ -135,7 +135,7 @@ class Settings {
   public static function wicket_mship_autorenew_toggle() {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_mship_autorenew_toggle' name='wicket_membership_plugin_options[wicket_mship_autorenew_toggle]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_autorenew_toggle']), false). " />"
-      .'Enable the use of the Wicket Autorenew Checkbox Toggle anywhere on the front-end and in Gravity Forms with the shortcode <code>[wicket_autorenew_toggle_shortcode]</code>';
+      .'Enable the use of the Wicket Autorenew Checkbox Toggle anywhere on the front-end and in Gravity Forms with the shortcode <code>[wicket_autorenew_toggle_shortcode]</code><br><span style="color:red;">Note:</span> When toggled will set persistent user meta that causes all a user\'s membership subscription purchases to auto-renew when payment method allows.';
   }
   
   public static function wicket_mship_subscription_renew() {
