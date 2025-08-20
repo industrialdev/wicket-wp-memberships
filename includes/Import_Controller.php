@@ -2,6 +2,8 @@
 
 namespace Wicket_Memberships;
 
+use Wicket_Memberships\Utilities;
+
 defined( 'ABSPATH' ) || exit;
 
 class Import_Controller {
@@ -19,6 +21,9 @@ class Import_Controller {
   }
 
   public function create_individual_memberships( $record ) {
+          if(empty($record)) {
+            return 'File line read error.';
+          }
           $skip_approval = !empty( $record['skip_approval'] ) ? true : false;
           if( $record['Membership_Type'] == 'organization' ) {
             return new \WP_REST_Response(['success' => 'Skipping an Org Seat Membership.']);
@@ -87,17 +92,29 @@ class Import_Controller {
           }
 
           $response = (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'], $skip_approval );
-          
+          $membership_id = $response;
+
+          //if this is a delta import (Sheet has Previous_External_ID column value set)
           if( !empty($delta) ) {
-            $membership_post_mapping['membership_post_id'] = $response;
+            $membership_post_mapping['membership_post_id'] = $membership_id;
+            //we are performing or scheduling the status changeover from current to next membership
             (new Membership_Controller)->scheduler_dates_for_expiry( $membership_post_mapping );
             $response .= ' Delta Membership ID#'.$membership_post_mapping['previous_membership_post_id'];
+          } 
+          
+          //if this is a subscription renewal tier import we need to create the placeholder subscription for reference when renewing
+          if( $membership_tier_array['renewal_type'] == 'subscription' ) {
+            $subscription_id = $this->createSubscriptionForRenewal( $membership_post_mapping, $membership_id );
+            $response .= ' Subscription created ID# '.$subscription_id;
           }
 
           return new \WP_REST_Response(['success' => 'Individual Membership created: External_ID#'.$response ]);
         }
 
         public function create_organization_memberships( $record ) {
+          if(empty($record)) {
+            return 'File line read error.';
+          }
           $skip_approval = !empty( $record['skip_approval'] ) ? true : false;
           $membership_post_mapping['membership_type'] = $record['Membership_Type'];
           $membership_tier_post_id = Membership_Tier::get_tier_id_by_wicket_uuid( $record['Membership_Tier_UUID'] );
@@ -167,11 +184,20 @@ class Import_Controller {
           }
 
           $response = (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'], $skip_approval );
+          $membership_id = $response;
 
+          //if this is a delta import (Sheet has Previous_External_ID column value set)
           if( !empty($delta) ) {
-            $membership_post_mapping['membership_post_id'] = $response;
+            $membership_post_mapping['membership_post_id'] = $membership_id;
+            //we are performing or scheduling the status changeover from current to next membership
             (new Membership_Controller)->scheduler_dates_for_expiry( $membership_post_mapping );
             $response .= ' Delta Membership ID#'.$membership_post_mapping['previous_membership_post_id'];
+          } 
+          
+          //if this is a subscription renewal tier import we need to create the placeholder subscription for reference when renewing
+          if( $membership_tier_array['renewal_type'] == 'subscription' ) {
+            $subscription_id = $this->createSubscriptionForRenewal( $membership_post_mapping, $membership_id );
+            $response .= ' Subscription created ID# '.$subscription_id;
           }
 
           return new \WP_REST_Response(['success' => 'Organization Membership created: External_ID#'.$response ]);
@@ -197,6 +223,7 @@ class Import_Controller {
     $response['ID'] = $tier_id;
     $tier_data = maybe_unserialize( get_post_meta( $tier_id, 'tier_data', true ));
     $response['tier_uuid'] = $tier_data['mdp_tier_uuid'];
+    $response['next_tier'] = $tier_data['next_tier_id'];
 
     $response['renewal_type'] = $tier_data['renewal_type'];
 
@@ -224,5 +251,58 @@ class Import_Controller {
     $response['period_type'] = $period_data['period_type'];
     $response['period_count'] = $period_data['period_count'];
     return $response;
+  }
+
+  /**
+   * When a membership_renewal_type = subscription] we will need this subscription to start the next renewal from
+   * 
+   * @param mixed $membership
+   * @param mixed $membership_id
+   * @return int
+   */
+  private function createSubscriptionForRenewal( $membership, $membership_id ) {
+    $Membership_Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
+    if( $Membership_Tier->is_renewal_subscription() ) {
+      $Membership_Config = $Membership_Tier->get_config();
+      $products = $Membership_Tier->get_products_data();
+      $product_id = !empty( $products[0]['variation_id'] ) ? $products[0]['variation_id'] : $products[0]['product_id'];
+      $product_id = apply_filters( 'wicket_subscription_renewal_product_tier_filter', $product_id );
+      $wc_product = wc_get_product( $product_id );
+      $membership_period_data = $Membership_Config->get_period_data();
+      $start_date_mysqltime = date ('Y-m-d H:i:s', strtotime( $membership['membership_starts_at']));
+      $next_payment_date_mysqltime = date ('Y-m-d H:i:s', strtotime( $membership['membership_ends_at']));
+      $end_date_mysqltime = date ('Y-m-d H:i:s', strtotime( $membership['membership_expires_at']));
+
+      // We do not need an order as there will be no payment for the initial membership imported
+      $subscription = wcs_create_subscription( array(
+        'customer_id' => $membership['user_id'],
+        'billing_period' => $membership_period_data['period_type'],
+        'billing_interval' => 1,
+        'start_date' => $start_date_mysqltime,
+      ) );
+      //make sure this happens before setting dates, woo subscriptions makes changes based on existing dates when its status changes
+      $subscription->update_status('active');
+
+      $dates['next_payment'] = $next_payment_date_mysqltime;
+      $dates['end'] = $end_date_mysqltime;
+      $subscription->update_dates($dates);
+
+      $subscription->add_product( $wc_product );
+      $subscription->calculate_totals();
+      $subscription->save();
+
+      //add the org uuid if this is an organization membership
+      if(!empty($membership['organization_uuid'])) {
+        $subscription_products = $subscription->get_items();
+        foreach( $subscription_products as $item ) {
+          wc_add_order_item_meta( $item->get_id(), '_org_uuid', $membership['organization_uuid'] );
+        }  
+      }
+
+      $subscription_id = $subscription->get_id();
+      ( new Utilities() )->wicket_assign_subscription_to_membership( $subscription_id, $membership_id  );
+      $subscription->add_order_note('This subscription was created on import. No order was created as no payment was received. Will be used for subsequent renewals.');
+      return $subscription_id;
+    }
   }
 }

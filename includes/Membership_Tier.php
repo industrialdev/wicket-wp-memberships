@@ -240,6 +240,34 @@ class Membership_Tier {
     return false;
   }
 
+    /**
+   * Get the tier renewal type
+   *
+   * @return string|bool String, false otherwise
+   */
+  public function get_tier_renewal_type() {
+    if ( !empty($this->tier_data['renewal_type']) ) {
+      return $this->tier_data['renewal_type'];
+    }
+
+    return false;
+  }
+
+
+  /**
+   * Is subscription renewal type
+   *
+   * @return bool
+   */
+  public function is_renewal_subscription() {
+    if ( $this->tier_data['renewal_type'] == 'subscription') {
+      return true;
+    }
+
+    return false;
+  }
+
+
   /**
    * Is form page renewal type
    *
@@ -635,5 +663,10 @@ class Membership_Tier {
     $memberships = get_posts( $args );
 
     return $memberships;
+  }
+
+  public function get_membership_tier_slug() {
+    $membership_tier_slug = get_post_meta( $this->post_id, 'membership_tier_slug', true );
+    return $membership_tier_slug;
   }
 }

@@ -19,7 +19,22 @@ class Admin_Controller {
   public function __construct() {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     add_action( 'admin_menu', array( $this, 'init_menu' ) );
-    add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
+    add_action( 'admin_footer', array( $this, 'admin_footer_scripts' ) );
+  }
+
+  /**
+   * Add admin footer script
+   */
+  public function admin_footer_scripts() {
+    ?>
+    <script type="text/javascript">
+      var wicketMembershipsSettings = {
+        'WICKET_MSHIP_MERGE_TOOLS': '<?php echo $_ENV['WICKET_MSHIP_MERGE_TOOLS']; ?>',
+        'WICKET_MSHIP_MULTI_TIER_RENEWALS': '<?php echo $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS']; ?>',
+      };
+    </script>
+    <?php
   }
 
   /**
@@ -324,8 +339,14 @@ class Admin_Controller {
 
       //set the renewal scheduler dates
       $Membership_Controller->scheduler_dates_for_expiry( $membership );
+
       //update subscription dates
-      $Membership_Controller->update_membership_subscription( $membership, ['start_date', 'end_date', 'next_payment_date'] );
+      $date_flags_array = [ 'start_date', 'end_date' ];
+      if( $has_next_payment_date = Helper::has_next_payment_date( $membership )) {
+        $date_flags_array['next_payment_date'] = $has_next_payment_date;
+      }
+
+      $Membership_Controller->update_membership_subscription( $membership, $date_flags_array );
       $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
       //set subscription active
       $Membership_Controller->update_subscription_status(
@@ -602,8 +623,8 @@ class Admin_Controller {
       if(empty($membership_data['membership_next_tier_id'])) {
         $membership_data['membership_next_tier_id'] = get_post_meta( $membership->ID, 'membership_next_tier_id', true);
       }
-      if(empty($membership_data['membership_next_tier_form_page_id'])) {
-        $membership_data['membership_next_tier_form_page_id'] = get_post_meta( $membership->ID, 'membership_next_tier_form_page_id', true);
+      if(empty($membership_data['membership_next_tier_subscription_renewal'])) {
+        $membership_data['membership_next_tier_subscription_renewal'] = get_post_meta( $membership->ID, 'membership_next_tier_subscription_renewal', true);
       }
       $membership_data['membership_next_tier_id'] = (int) $membership_data['membership_next_tier_id'];
       $membership_data['membership_next_tier_form_page_id'] = (int) $membership_data['membership_next_tier_form_page_id'];
@@ -642,10 +663,16 @@ class Admin_Controller {
           if( function_exists( 'wcs_get_subscription' )) {
             $sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
             if(!empty( $sub )) {
-            $membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
-            $membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
-            $membership_item['subscription']['status'] = $sub->get_status();
-            $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub->get_time('next_payment')), wp_timezone() ))->format('Y-m-d');
+              $membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
+              $membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
+              $membership_item['subscription']['status'] = $sub->get_status();
+              $sub_next_payment_date = $sub->get_time('next_payment');
+              if( empty($sub_next_payment_date_set ) && !empty($sub_next_payment_date ) && ($meta['membership_status'] == 'delayed' || $meta['membership_status'] == 'active')) {
+                $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub_next_payment_date), wp_timezone() ))->format('Y-m-d');
+                $sub_next_payment_date_set = true;
+              } else {
+                $membership_item['subscription']['next_payment_date'] = 'N/A';
+              }
             }
           }  
         }
@@ -675,6 +702,9 @@ class Admin_Controller {
     }
 
     $membership_post = get_post_meta( $membership_post_id );
+    $membership_post_array = array_map(function($item) {
+      return $item[0];
+    }, $membership_post);
 
     if( $membership_post['membership_status'][0] == 'cancelled') {
       $response_array['error'] = 'Cannot update a cancelled membership record. Membership update failed.';
@@ -728,13 +758,19 @@ class Admin_Controller {
       $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
       $grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
 
-      if(!empty($data['next_tier_form_page_id'])) {
+      if($data['renewal_type'] == 'subscription') {
+        $data['membership_next_tier_id'] = "";
+        $data['membership_next_tier_form_page_id'] = "";
+        $data['membership_next_tier_subscription_renewal'] = 1;
+      } else if(!empty($data['next_tier_form_page_id'])) {
         $data['membership_next_tier_id'] = "";
         $data['membership_next_tier_form_page_id'] = $data['next_tier_form_page_id'];
+        $data['membership_next_tier_subscription_renewal'] = 0;
         unset($data['next_tier_form_page_id']);
       } else if(!empty($data['next_tier_id'])) {
         $data['membership_next_tier_id'] = $data['next_tier_id'];
         $data['membership_next_tier_form_page_id'] = "";
+        $data['membership_next_tier_subscription_renewal'] = 0;
         unset($data['next_tier_id']);
       }
       if($data['renewal_type'] == 'current_tier') {
@@ -775,16 +811,17 @@ class Admin_Controller {
       $response_code = 200;
     } else {
       //update subscription (only add end as next_payment_date if not using next_form_id) and set expiry date as end date
-      $date_flags_array = [ 'start_date', 'end_date' ];
       $membership_dates_update['membership_subscription_id'] = $membership_post['membership_subscription_id'][0];
       $membership_dates_update['membership_starts_at'] = $data['membership_starts_at'];
       $membership_dates_update['membership_ends_at'] = $data['membership_ends_at'];
       $membership_dates_update['membership_expires_at'] = $data['membership_expires_at'];
       $membership_dates_update['membership_post_id'] = $data['membership_post_id'];
 
-      //if( $membership_post['membership_tier_post_id'][0] == $membership_post['membership_next_tier_id'][0]) {
-        $date_flags_array[] = 'next_payment_date';
-      //}
+      $date_flags_array = [ 'start_date', 'end_date' ];
+      if( $has_next_payment_date = Helper::has_next_payment_date( $membership )) {
+        $date_flags_array['next_payment_date'] = $has_next_payment_date;
+      }
+
       $date_update_response = $Membership_Controller->update_membership_subscription( $membership_dates_update, $date_flags_array );
 
       $Membership_Controller->amend_membership_json( $membership_post_id, $data );
