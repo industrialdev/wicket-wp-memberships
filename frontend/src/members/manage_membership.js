@@ -6,6 +6,7 @@ import { addQueryArgs } from '@wordpress/url';
 import apiFetch from '@wordpress/api-fetch';
 import { PLUGIN_API_URL } from '../constants';
 import { transferMembership } from '../services/api';
+import SwitchMembership from './switch_membership';
 
 const ManageMembership = ({ membership }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -98,30 +99,8 @@ const ManageMembership = ({ membership }) => {
             />
           </div>   
           {action === 'switch' && (
-            <div style={{ marginBottom: '16px' }}>
-              <LabelWpStyled style={{ height: '20px' }} >
-                {__('Switch Tier Action', 'wicket-memberships')}&nbsp;
-                <span title={__('Choose to create an order or a new membership for tier immediately.', 'wicket-memberships')}>
-                  <Icon icon='info' />
-                </span>
-              </LabelWpStyled>
-              <div style={{ marginTop: '20px', maxWidth: 250 }}>
-                <SelectWpStyled
-                  options={[
-                    { label: __('Create Order', 'wicket-memberships'), value: 'create_order' },
-                    { label: __('Create Membership', 'wicket-memberships'), value: 'create_membership' }
-                  ]}
-                  value={null}
-                  /*onChange={selected => alert(__('Selected: ', 'wicket-memberships') + selected.label)}*/
-                  isSearchable={false}
-                  isClearable={false}
-                  placeholder={__('Select Option', 'wicket-memberships')}
-                />
-
-                <Button style={{ marginTop: '20px'}} variant="secondary" disabled>{__('Coming Soon', 'wicket-memberships')}</Button>
-              </div>
-            </div>
-          )}       
+            <SwitchMembership />
+          )}
           {action === 'transfer' && (
             <div style={{ marginBottom: '16px' }}>
               <LabelWpStyled style={{ height: '20px' }} >

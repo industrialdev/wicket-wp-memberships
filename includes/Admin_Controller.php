@@ -65,6 +65,105 @@ class Admin_Controller {
     );
   }
 
+  public static function switch_membership_request( $args) {
+    $self = new self();
+    if( !empty($args['new_tier_post_id'])) {
+      $self->create_switch_membership( $args['membership_post_id'], $args['new_tier_post_id']);
+    } else if (!empty($args['new_product_id'])) {
+      $self->create_switch_order( $args['membership_post_id'], $args['new_product_id']);
+    }
+  }
+
+  /**
+   * Admin membership edit page switch membership
+   * https://app.asana.com/1/1138832104141584/project/1209996062337717/task/1210003466118773
+   * 
+   * @param int $membership_post_id
+   * @param int $new_tier_post_id
+   * @param string $switch_date
+   * @return \WP_REST_Response
+   */
+
+  public function create_switch_membership( $membership_post_id, $new_tier_post_id, $switch_date = null ) {
+    // Get the original membership post
+    $original_post = get_post( $membership_post_id );
+    if ( ! $original_post ) {
+      return new \WP_REST_Response(['success' => false, 'error' => 'Original membership not found.'], 404);
+    }
+    if(empty($switch_date)) {
+      $switch_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+    } else {
+      $switch_iso_date = (new \DateTime( date("Y-m-d", strtotime($switch_date)), wp_timezone() ))->format('c');
+    }
+
+    $user_id = get_post_meta( $membership_post_id, 'user_id', true );
+    $user = get_user_by('id', $user_id);
+    if(empty($user)) {
+      return new \WP_REST_Response(['success' => false, 'error' => 'User not found.'], 404);
+    }
+    $owner_uuid = $user->user_login;
+
+    $membership_tier = new Membership_Tier( $new_tier_post_id );
+    $membership_tier_uuid = $membership_tier->tier_data['wicket_uuid'];
+    $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
+
+    $membership_starts_at = $switch_iso_date;
+    $membership_ends_at = get_post_meta( $membership_post_id, 'membership_ends_at', true);
+    $membership_grace_period_days = $config->get_late_fee_window_days();
+
+    //Create a new membership in the MDP for the new tier using the original membership data
+    $response = wicket_assign_individual_membership( 
+            $owner_uuid,
+            $membership_tier_uuid,
+            $membership_starts_at,
+            $membership_ends_at,
+            $membership_grace_period_days
+          );
+
+    if ( is_wp_error( $response ) ) {
+      return new \WP_REST_Response(['success' => false, 'error' => 'Failed to create new wicket membership.', 'wicket_api_error' => $response->get_error_message( 'wicket_api_error' )], 400);
+    }
+    $membership_wicket_uuid = $response['data']['id'];
+
+    // Create a new membership post for the new tier
+    $new_post_id = wp_insert_post([
+      'post_type'    => $original_post->post_type,
+      'post_title'   => $original_post->post_title,
+      'post_status'  => $original_post->post_status,
+      'post_content' => $original_post->post_content,
+      'post_author'  => 0,
+    ]);
+
+    if ( is_wp_error( $new_post_id ) ) {
+      return new \WP_REST_Response(['success' => false, 'error' => 'Failed to create new membership post.'], 400);
+    }
+
+    // Copy all meta from the original post to the new post
+    $all_meta = get_post_meta( $membership_post_id );
+    foreach ( $all_meta as $meta_key => $meta_values ) {
+      foreach ( $meta_values as $meta_value ) {
+        update_post_meta( $new_post_id, $meta_key, maybe_unserialize( $meta_value ) );
+      }
+    }
+
+    // Update the new post with the new owner information
+    update_post_meta( $new_post_id, 'membership_wicket_uuid', $membership_wicket_uuid );
+    update_post_meta( $new_post_id, 'membership_tier_post_id', $new_tier_post_id );
+    update_post_meta( $new_post_id, 'membership_tier_name', $membership_tier->tier_data['mdp_tier_name'] );
+    update_post_meta( $new_post_id, 'membership_tier_uuid', $membership_tier->tier_data['mdp_tier_uuid'] );
+    update_post_meta( $new_post_id, 'membership_next_tier_id', $membership_tier->get_next_tier_id() );
+    update_post_meta( $new_post_id, 'membership_next_tier_form_page_id', $membership_tier->get_next_tier_form_page_id() );
+    update_post_meta( $new_post_id, 'membership_next_tier_subscription_renewal', $membership_tier->is_renewal_subscription() );
+    update_post_meta( $new_post_id, 'membership_type', $membership_tier->tier_data['type'] );
+
+    return new \WP_REST_Response([
+      'success' => true,
+      'membership_wicket_uuid' => $membership_wicket_uuid,
+      'redirect_url' => admin_url("admin.php?page=wicket_individual_member_edit&id={$owner_uuid}&membership_uuid={$membership_wicket_uuid}")
+    ], 200);
+
+  }
+
   /**
    * Admin membership edit page transfer membership
    * https://app.asana.com/1/1138832104141584/project/1206866539294627/task/1209995232309006?focus=true
