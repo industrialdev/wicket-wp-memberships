@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { __ } from '@wordpress/i18n';
 import { SelectWpStyled, LabelWpStyled } from '../styled_elements';
 import { Button, Icon } from '@wordpress/components';
 import { WC_PRODUCT_TYPES } from '../constants';
 import { fetchWcProducts, fetchProductVariations } from '../services/api';
-import apiFetch from '@wordpress/api-fetch';
-import { addQueryArgs } from '@wordpress/url';
+import { switchMembership as switchMembershipApi } from '../services/api';
 
-const SwitchMembership = () => {
+const SwitchMembership = ({ membership }) => {
   const [switchOption, setSwitchOption] = useState(null);
   const [selectedTier, setSelectedTier] = useState(null);
   const [tierOptions, setTierOptions] = useState([]);
@@ -17,6 +16,12 @@ const SwitchMembership = () => {
   const [productVariations, setProductVariations] = useState({}); // { product_id: [] }
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [selectedVariationId, setSelectedVariationId] = useState(null);
+  const didMountRef = useRef(false);
+
+  // Set didMountRef after first render
+  useEffect(() => {
+    didMountRef.current = true;
+  }, []);
 
   // Fetch all WooCommerce products (with Membership category)
   const getAllWcProducts = async () => {
@@ -41,6 +46,11 @@ const SwitchMembership = () => {
     }
     setIsLoadingProducts(false);
   };
+
+  // Load products immediately on mount
+  useEffect(() => {
+    getAllWcProducts();
+  }, []);
 
   /**
    * Fetch variations for the selected product id
@@ -80,6 +90,22 @@ const SwitchMembership = () => {
 
   // (loadProducts) removed; use getAllWcProducts instead
 
+  // Helper to call switch_membership API and redirect
+  // switchType: 'tier' or 'order', postId: product/tier id
+  const handleSwitchMembership = async (switchType, postId) => {
+    if (!membership || !membership.ID || !postId || !switchType) return;
+    try {
+      const response = await switchMembershipApi(membership.ID, postId, switchType);
+      if (response && response.url) {
+        window.location.href = response.url;
+      }
+    } catch (e) {
+      // Optionally handle error
+      // eslint-disable-next-line no-console
+      console.error('Switch membership failed', e);
+    }
+  };
+
   return (
     <div style={{ marginBottom: '16px' }}>
       <LabelWpStyled style={{ height: '20px' }} >
@@ -100,9 +126,6 @@ const SwitchMembership = () => {
             if (selected && selected.value === 'create_membership') {
               loadTiers('');
             }
-             if (selected && selected.value === 'create_order') {
-               getAllWcProducts();
-             }
           }}
           isSearchable={false}
           isClearable={false}
@@ -143,17 +166,23 @@ const SwitchMembership = () => {
               options={wcProductOptions}
               menuPortalTarget={typeof window !== 'undefined' ? document.body : null}
               styles={{ menuPortal: provided => ({ ...provided, zIndex: 100001 }) }}
-              onMenuOpen={() => {
-                if (wcProductOptions.length === 0) getAllWcProducts();
-              }}
+
               onChange={selected => {
-                setSelectedProductId(selected ? selected.value : null);
-                setSelectedVariationId(null);
-                const product = wcProductOptions.find(option => option.value === (selected ? selected.value : null));
-                if (product && product.type === 'variable-subscription') {
-                  getProductVariations(product.value);
-                }
-              }}
+                setSelectedProductId(prevId => {
+                  const newId = selected ? selected.value : null;
+                  setSelectedVariationId(null);
+                  // Only call getProductVariations if this is a real user change (not initial mount)
+                  if (didMountRef.current) {
+                    const product = wcProductOptions.find(option => option.value === newId);
+                    if (product && product.type === 'variable-subscription') {
+                      getProductVariations(product.value);
+                    }
+                  }
+                  return newId;
+                });
+                // Do not call switch_membership here; only on button click
+              }
+            }
             />
             {/* Show variations if variable-subscription */}
             {(() => {
@@ -181,6 +210,9 @@ const SwitchMembership = () => {
                       })) : []}
                       onChange={selected => {
                         setSelectedVariationId(selected ? selected.value : null);
+                        if (selected && selected.value) {
+                          // Just set the selected variation, do not call switch_membership here
+                        }
                       }}
                     />
                   </div>
@@ -191,7 +223,21 @@ const SwitchMembership = () => {
           </div>
         )}
 
-        <Button style={{ marginTop: '20px'}} variant="secondary" disabled>{__('Coming Soon', 'wicket-memberships')}</Button>
+        <Button
+          style={{ marginTop: '20px'}}
+          variant="primary"
+          disabled={
+            !selectedProductId ||
+            (wcProductOptions.find(option => option.value === selectedProductId)?.type === 'variable-subscription' && !selectedVariationId)
+          }
+          onClick={() => {
+            // Use variationId if set, otherwise use productId
+            const postIdToSend = selectedVariationId || selectedProductId;
+            handleSwitchMembership('order', postIdToSend);
+          }}
+        >
+          {__('Switch Membership', 'wicket-memberships')}
+        </Button>
       </div>
 
     </div>

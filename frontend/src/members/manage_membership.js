@@ -99,7 +99,7 @@ const ManageMembership = ({ membership }) => {
             />
           </div>   
           {action === 'switch' && (
-            <SwitchMembership />
+            <SwitchMembership membership={membership} />
           )}
           {action === 'transfer' && (
             <div style={{ marginBottom: '16px' }}>

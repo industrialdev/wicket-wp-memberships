@@ -632,7 +632,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
    */
   public function switch_membership( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    if ( empty( $params['membership_post_id'] ) || ( empty( $params['new_tier_post_id'] ) || empty( $params['new_product_id'] ) ) ) {
+    if ( empty( $params['membership_post_id'] ) || empty( $params['switch_post_id'] ) || empty( $params['switch_type'] ) ) {
       return new \WP_REST_Response( [ 'success' => false, 'error' => ['Missing required parameters.', $params] ], 400 );
     }
     $result = Admin_Controller::switch_membership_request( $params );

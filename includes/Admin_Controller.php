@@ -67,10 +67,19 @@ class Admin_Controller {
 
   public static function switch_membership_request( $args) {
     $self = new self();
-    if( !empty($args['new_tier_post_id'])) {
-      $self->create_switch_membership( $args['membership_post_id'], $args['new_tier_post_id']);
-    } else if (!empty($args['new_product_id'])) {
-      $self->create_switch_order( $args['membership_post_id'], $args['new_product_id']);
+    $switch_post_id = $args['switch_post_id'];
+    $membership_post_id = $args['membership_post_id'];
+    
+    return new \WP_REST_Response([
+      'success' => true,
+      'membership_wicket_uuid' => json_encode([$args, $switch_post_id, $membership_post_id]),
+      'redirect_url' => ''
+    ], 200);
+    
+    if( $args['switch_type'] == 'tier') {
+      $self->create_switch_membership( $membership_post_id, $switch_post_id);
+    } else if ($args['switch_type'] == 'order') {
+      $self->create_switch_order( $membership_post_id, $switch_post_id);
     }
   }
 

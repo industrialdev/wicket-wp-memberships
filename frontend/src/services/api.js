@@ -166,3 +166,14 @@ export const transferMembership = ({ new_owner_uuid, membership_post_id }) => {
     }
   });
 }
+
+/**
+ * Switch Membership Product
+ */
+export const switchMembership = (membershipId, switchPostID, switchType) => {
+  if (!membershipId || !switchPostID || !switchType) return Promise.reject('Missing membershipId, switchPostID, or switchType');
+  return apiFetch({
+    path: addQueryArgs(`${PLUGIN_API_URL}/membership/${membershipId}/switch_membership`, { switch_post_id: switchPostID, switch_type: switchType }),
+    method: 'POST',
+  });
+};
