@@ -3,7 +3,7 @@ import { __ } from '@wordpress/i18n';
 import { SelectWpStyled, LabelWpStyled } from '../styled_elements';
 import { Button, Icon } from '@wordpress/components';
 import { WC_PRODUCT_TYPES } from '../constants';
-import { fetchWcProducts, fetchProductVariations } from '../services/api';
+import { fetchWcProducts, fetchProductVariations, fetchTiers } from '../services/api';
 import { switchMembership as switchMembershipApi } from '../services/api';
 
 const SwitchMembership = ({ membership }) => {
@@ -18,12 +18,10 @@ const SwitchMembership = ({ membership }) => {
   const [selectedVariationId, setSelectedVariationId] = useState(null);
   const didMountRef = useRef(false);
 
-  // Set didMountRef after first render
   useEffect(() => {
     didMountRef.current = true;
   }, []);
 
-  // Fetch all WooCommerce products (with Membership category)
   const getAllWcProducts = async () => {
     setIsLoadingProducts(true);
     const promises = WC_PRODUCT_TYPES.map((type) =>
@@ -47,17 +45,13 @@ const SwitchMembership = ({ membership }) => {
     setIsLoadingProducts(false);
   };
 
-  // Load products immediately on mount
-  useEffect(() => {
-    getAllWcProducts();
-  }, []);
+
 
   /**
    * Fetch variations for the selected product id
    */
   const getProductVariations = (productId) => {
 
-    // check if we already have variations for this product
     if (productId === null || productVariations[productId]) { return; }
 
     fetchProductVariations(
@@ -73,26 +67,32 @@ const SwitchMembership = ({ membership }) => {
     });
   }
 
-  // Load membership tiers (typeahead)
-  const loadTiers = (inputValue = '') => {
-    setLoadingTiers(true);
-    apiFetch({
-      path: addQueryArgs('/wp/v2/wicket_mship_tier', { search: inputValue, per_page: -1 }),
-    }).then((response) => {
-      const options = (Array.isArray(response) ? response : []).map((tier) => ({
-        label: tier.mdp_tier_name || (tier.title && tier.title.rendered) || __('(No Name)', 'wicket-memberships'),
-        value: tier.id
-      }));
-      setTierOptions(options);
-      setLoadingTiers(false);
-    });
+  // Helper to decode HTML entities
+  const decodeHtml = (html) => {
+    const txt = document.createElement('textarea');
+    txt.innerHTML = html;
+    return txt.value;
   };
 
-  // (loadProducts) removed; use getAllWcProducts instead
+  const loadTiers = (inputValue = '') => {
+    setLoadingTiers(true);
+    fetchTiers({ search: inputValue, per_page: -1 })
+      .then((response) => {
+        const options = (Array.isArray(response) ? response : []).map((tier) => {
+          let rawLabel = tier.mdp_tier_name || (tier.title && tier.title.rendered) || __('(No Name)', 'wicket-memberships');
+          return {
+            label: decodeHtml(rawLabel),
+            value: tier.id
+          };
+        });
+        setTierOptions(options);
+      })
+      .finally(() => {
+        setLoadingTiers(false);
+      });
+  };
 
-  // Helper to call switch_membership API and redirect
-  // switchType: 'tier' or 'order', postId: product/tier id
-  const handleSwitchMembership = async (switchType, postId) => {
+ const handleSwitchMembership = async (switchType, postId) => {
     if (!membership || !membership.ID || !postId || !switchType) return;
     try {
       const response = await switchMembershipApi(membership.ID, postId, switchType);
@@ -100,8 +100,6 @@ const SwitchMembership = ({ membership }) => {
         window.location.href = response.url;
       }
     } catch (e) {
-      // Optionally handle error
-      // eslint-disable-next-line no-console
       console.error('Switch membership failed', e);
     }
   };
@@ -123,8 +121,11 @@ const SwitchMembership = ({ membership }) => {
           value={switchOption}
           onChange={selected => {
             setSwitchOption(selected);
-            if (selected && selected.value === 'create_membership') {
+            if (selected && selected.value === 'create_membership' && tierOptions.length === 0) {
               loadTiers('');
+            }
+            if (selected && selected.value === 'create_order' && wcProductOptions.length === 0) {
+              getAllWcProducts();
             }
           }}
           isSearchable={false}
@@ -139,7 +140,6 @@ const SwitchMembership = ({ membership }) => {
               options={tierOptions}
               value={selectedTier}
               isLoading={loadingTiers}
-              onInputChange={val => loadTiers(val)}
               onChange={option => setSelectedTier(option)}
               isSearchable={true}
               isClearable={false}
@@ -180,11 +180,9 @@ const SwitchMembership = ({ membership }) => {
                   }
                   return newId;
                 });
-                // Do not call switch_membership here; only on button click
               }
             }
             />
-            {/* Show variations if variable-subscription */}
             {(() => {
               const product = wcProductOptions.find(option => option.value === selectedProductId);
               if (product && product.type === 'variable-subscription') {
@@ -227,13 +225,27 @@ const SwitchMembership = ({ membership }) => {
           style={{ marginTop: '20px'}}
           variant="primary"
           disabled={
-            !selectedProductId ||
-            (wcProductOptions.find(option => option.value === selectedProductId)?.type === 'variable-subscription' && !selectedVariationId)
+            (switchOption && switchOption.value === 'create_order' &&
+              (!selectedProductId ||
+                (wcProductOptions.find(option => option.value === selectedProductId)?.type === 'variable-subscription' && !selectedVariationId)
+              )
+            ) ||
+            (switchOption && switchOption.value === 'create_membership' && !selectedTier)
           }
           onClick={() => {
-            // Use variationId if set, otherwise use productId
-            const postIdToSend = selectedVariationId || selectedProductId;
-            handleSwitchMembership('order', postIdToSend);
+            let postIdToSend = null;
+            let switchType = null;
+            if (switchOption && switchOption.value === 'create_order') {
+              // Use variationId if set, otherwise use productId
+              postIdToSend = selectedVariationId || selectedProductId;
+              switchType = 'order';
+            } else if (switchOption && switchOption.value === 'create_membership') {
+              postIdToSend = selectedTier && selectedTier.value;
+              switchType = 'tier';
+            }
+            if (postIdToSend && switchType) {
+              handleSwitchMembership(switchType, postIdToSend);
+            }
           }}
         >
           {__('Switch Membership', 'wicket-memberships')}
