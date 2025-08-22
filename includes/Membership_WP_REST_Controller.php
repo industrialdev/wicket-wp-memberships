@@ -635,7 +635,6 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     if ( empty( $params['membership_post_id'] ) || empty( $params['switch_post_id'] ) || empty( $params['switch_type'] ) ) {
       return new \WP_REST_Response( [ 'success' => false, 'error' => ['Missing required parameters.', $params] ], 400 );
     }
-    $result = Admin_Controller::switch_membership_request( $params );
-    return new \WP_REST_Response( [ 'success' => $result ], 200 );
+    return Admin_Controller::switch_membership_request( $params );
   }
 }

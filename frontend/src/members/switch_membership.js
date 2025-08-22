@@ -96,8 +96,8 @@ const SwitchMembership = ({ membership }) => {
     if (!membership || !membership.ID || !postId || !switchType) return;
     try {
       const response = await switchMembershipApi(membership.ID, postId, switchType);
-      if (response && response.url) {
-        window.location.href = response.url;
+      if (response && response.redirect_url) {
+        window.location.href = response.redirect_url;
       }
     } catch (e) {
       console.error('Switch membership failed', e);

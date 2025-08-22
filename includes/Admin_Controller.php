@@ -70,19 +70,31 @@ class Admin_Controller {
     $switch_post_id = $args['switch_post_id'];
     $membership_post_id = $args['membership_post_id'];
     
-    return new \WP_REST_Response([
-      'success' => true,
-      'membership_wicket_uuid' => json_encode([$args, $switch_post_id, $membership_post_id]),
-      'redirect_url' => ''
-    ], 200);
-    
     if( $args['switch_type'] == 'tier') {
-      $self->create_switch_membership( $membership_post_id, $switch_post_id);
+      return $self->create_switch_membership( $membership_post_id, $switch_post_id);
     } else if ($args['switch_type'] == 'order') {
-      $self->create_switch_order( $membership_post_id, $switch_post_id);
+      return $self->create_switch_order( $membership_post_id, $switch_post_id);
+    } else {
+      return new \WP_REST_Response([
+        'success' => false,
+        'error' => 'Invalid switch_type param. Tiers (tier) and Orders (order) are the only valid options.'
+      ], 400);
     }
   }
 
+  public function create_switch_order( $membership_post_id, $switch_post_id ) {
+    // Get the original membership post
+    $original_post = get_post( $membership_post_id );
+    if ( ! $original_post ) {
+      return new \WP_REST_Response(['success' => false, 'error' => 'Original membership not found.'], 404);
+    }
+
+    return new \WP_REST_Response([
+      'success' => true,
+      //'membership_wicket_uuid' => $membership_wicket_uuid,
+      //'redirect_url' => admin_url("admin.php?page=wicket_individual_member_edit&id={$owner_uuid}&membership_uuid={$membership_wicket_uuid}")
+    ], 200);
+  }
   /**
    * Admin membership edit page switch membership
    * https://app.asana.com/1/1138832104141584/project/1209996062337717/task/1210003466118773
@@ -113,11 +125,12 @@ class Admin_Controller {
     $owner_uuid = $user->user_login;
 
     $membership_tier = new Membership_Tier( $new_tier_post_id );
-    $membership_tier_uuid = $membership_tier->tier_data['wicket_uuid'];
+    $membership_tier_uuid = $membership_tier->tier_data['mdp_tier_uuid'];
     $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
 
     $membership_starts_at = $switch_iso_date;
     $membership_ends_at = get_post_meta( $membership_post_id, 'membership_ends_at', true);
+    $membership_ends_at = (new \DateTime( date("Y-m-d", strtotime($membership_ends_at)), wp_timezone() ))->format('c');
     $membership_grace_period_days = $config->get_late_fee_window_days();
 
     //Create a new membership in the MDP for the new tier using the original membership data
@@ -130,7 +143,19 @@ class Admin_Controller {
           );
 
     if ( is_wp_error( $response ) ) {
-      return new \WP_REST_Response(['success' => false, 'error' => 'Failed to create new wicket membership.', 'wicket_api_error' => $response->get_error_message( 'wicket_api_error' )], 400);
+      return new \WP_REST_Response([
+        'success' => false, 
+        'error' => 'Failed to create new wicket membership.', 
+        'wicket_api_error' => $response->get_error_message( 'wicket_api_error' ), 
+        'payload' => [
+            $new_tier_post_id,
+            $owner_uuid,
+            $membership_tier_uuid,
+            $membership_starts_at,
+            $membership_ends_at,
+            $membership_grace_period_days
+        ]
+      ], 400);
     }
     $membership_wicket_uuid = $response['data']['id'];
 
@@ -155,7 +180,7 @@ class Admin_Controller {
       }
     }
 
-    // Update the new post with the new owner information
+    // Update the new post with the new information
     update_post_meta( $new_post_id, 'membership_wicket_uuid', $membership_wicket_uuid );
     update_post_meta( $new_post_id, 'membership_tier_post_id', $new_tier_post_id );
     update_post_meta( $new_post_id, 'membership_tier_name', $membership_tier->tier_data['mdp_tier_name'] );
@@ -164,13 +189,18 @@ class Admin_Controller {
     update_post_meta( $new_post_id, 'membership_next_tier_form_page_id', $membership_tier->get_next_tier_form_page_id() );
     update_post_meta( $new_post_id, 'membership_next_tier_subscription_renewal', $membership_tier->is_renewal_subscription() );
     update_post_meta( $new_post_id, 'membership_type', $membership_tier->tier_data['type'] );
+    update_post_meta( $new_post_id, 'membership_starts_at', $switch_iso_date );
+    update_post_meta( $new_post_id, 'membership_grace_period_days', $membership_grace_period_days );
+
+    //update the old membership post with the new status and end date
+    update_post_meta( $membership_post_id, 'membership_status', Wicket_Memberships::STATUS_CANCELLED );
+    update_post_meta( $membership_post_id, 'membership_ends_at', $switch_iso_date );
 
     return new \WP_REST_Response([
       'success' => true,
       'membership_wicket_uuid' => $membership_wicket_uuid,
       'redirect_url' => admin_url("admin.php?page=wicket_individual_member_edit&id={$owner_uuid}&membership_uuid={$membership_wicket_uuid}")
     ], 200);
-
   }
 
   /**

@@ -56,6 +56,9 @@ const ManageMembership = ({ membership }) => {
                 const startDate = new Date(membership.data.membership_starts_at);
                 const now = new Date();
                 now.setHours(0, 0, 0, 0);
+                console.log('manage_membership');
+                console.log(now);
+                console.log(startDate);
                 if (startDate >= now || ( membership.data.membership_status !== 'active' && membership.data.membership_status !== 'Active' ) ) {
                   setFutureStartWarning(__('You cannot manage a membership that is not currently active or does not have a start date in the past.', 'wicket-memberships'));
                   return;
