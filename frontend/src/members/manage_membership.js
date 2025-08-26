@@ -100,7 +100,24 @@ const ManageMembership = ({ membership }) => {
               isClearable={false}
               placeholder={__('Select Action', 'wicket-memberships')}
             />
-          </div>   
+          </div>
+          {(!action || action === '') && (
+            <div style={{
+              marginBottom: '16px',
+              background: '#f0f4f8',
+              padding: '18px 24px',
+              borderRadius: '4px',
+              color: '#333',
+              width: '100%',
+              boxSizing: 'border-box',
+              fontSize: '15px',
+              lineHeight: 1.7
+            }}>
+              <strong>{__('Please select an available action to manage this membership.', 'wicket-memberships')}</strong><br /><br />
+              <strong>{__('Transfer Membership:', 'wicket-memberships')}</strong> {__('Select another Person to continue this membership. The current membership will be cancelled for the current person, and a new membership for the remainder of the membership term will be created for the person selected.', 'wicket-memberships')}<br /><br />
+              <strong>{__('Switch Membership:', 'wicket-memberships')}</strong> {__('Select another Tier to apply to this membership. The current membership will be cancelled and a new membership for the remainder of the membership term will be created for the new tier selected.', 'wicket-memberships')}
+            </div>
+          )}
           {action === 'switch' && (
             <SwitchMembership membership={membership} />
           )}

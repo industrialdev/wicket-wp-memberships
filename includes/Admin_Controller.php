@@ -83,18 +83,79 @@ class Admin_Controller {
   }
 
   public function create_switch_order( $membership_post_id, $switch_post_id ) {
-    // Get the original membership post
-    $original_post = get_post( $membership_post_id );
-    if ( ! $original_post ) {
-      return new \WP_REST_Response(['success' => false, 'error' => 'Original membership not found.'], 404);
+    $product_id = $switch_post_id;
+    if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
+      $response_array['error'] = 'Error: Membership not found. Request did not succeed.';
+      return new \WP_REST_Response($response_array, 400);
     }
+
+    //Generate an Order
+    $membership = Helper::get_post_meta( $membership_post_id );
+    $membership_status = $membership['membership_status'];
+    $customer_uuid = $membership['membership_user_uuid'];
+
+    // Check if the membership is in an active status
+    if( ! in_array( $membership_status, ['active', 'grace_period', 'delayed'] ) ) {
+      $response_array['error'] = 'Error: Membership not in active status. Request did not succeed.';
+      return new \WP_REST_Response($response_array, 400);
+    }
+
+    if ( empty( $product_id ) ) {
+      $response_array['error'] = 'Error: Product ID not found. Request did not succeed.';
+      return new \WP_REST_Response($response_array, 400);
+    }
+
+    $wc_product = wc_get_product( $product_id );
+
+    // Ensure they exist in WP, and if not yet create them
+    $customer_wp_id = wicket_create_wp_user_if_not_exist($customer_uuid);
+
+    // Reference: https://rudrastyh.com/woocommerce/create-orders-programmatically.html
+    $order = new \WC_Order();
+    $order->set_created_via( 'admin' );
+    $order->set_customer_id( $customer_wp_id );
+    $order->add_product( $wc_product );
+    $order->calculate_totals(); // Without this order total will be zero
+    $order->set_status( 'checkout-draft' );
+    $order->save();
+
+    // Associate the membership record with the order
+    $order_items = $order->get_items();
+    foreach($order_items as $item) {
+      wc_update_order_item_meta( $item->get_id(), '_membership_post_id_switch', $membership_post_id );
+    }
+
+    $subscription = wcs_create_subscription( array(
+      'order_id' => $order->get_id(),
+      'customer_id' => $customer_wp_id,
+      'billing_period' => 'year',
+      'billing_interval' => 1,
+      'start_date' => current_time( 'mysql' ),
+    ) );
+    $subscription->add_product( $wc_product );
+    $subscription->calculate_totals();
+    $subscription->save();
+    $subscription->add_order_note( 'Switch membership order ( Original Membership PostID: '.$membership_post_id.' )' );
+
+    $subscription_items = $subscription->get_items();
+    foreach($subscription_items as $item) {
+      wc_update_order_item_meta( $item->get_id(), '_membership_post_id_switch', $membership_post_id );
+    }
+
+    // Add the subscription to the order
+    $order->add_order_note( 'Subscription created successfully.' );
+    $order->update_meta_data( '_subscription_id', $subscription->get_id() );
+    $order->save();
+
+    $created_order_url = admin_url( 'admin.php?page=wc-orders&action=edit&id=' . $order->get_id(), 'https' );
 
     return new \WP_REST_Response([
       'success' => true,
-      //'membership_wicket_uuid' => $membership_wicket_uuid,
-      //'redirect_url' => admin_url("admin.php?page=wicket_individual_member_edit&id={$owner_uuid}&membership_uuid={$membership_wicket_uuid}")
+      'membership_wicket_uuid' => $membership['membership_wicket_uuid'],
+      'redirect_url' => $created_order_url
     ], 200);
   }
+
   /**
    * Admin membership edit page switch membership
    * https://app.asana.com/1/1138832104141584/project/1209996062337717/task/1210003466118773
@@ -107,6 +168,10 @@ class Admin_Controller {
 
   public function create_switch_membership( $membership_post_id, $new_tier_post_id, $switch_date = null ) {
     // Get the original membership post
+    if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
+      $response_array['error'] = 'Error: Membership not found. Request did not succeed.';
+      return new \WP_REST_Response($response_array, 400);
+    }
     $original_post = get_post( $membership_post_id );
     if ( ! $original_post ) {
       return new \WP_REST_Response(['success' => false, 'error' => 'Original membership not found.'], 404);
