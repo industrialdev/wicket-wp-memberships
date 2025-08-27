@@ -1463,17 +1463,6 @@ function add_order_item_meta ( $item_id, $values ) {
         $debug_comment_eol = '<br>';
       }
 
-      if(!empty($membership_data['meta']['membership_subscription_id'])) {
-        $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
-        $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
-        if( $is_autopay_enabled ) {
-          echo "<$debug_comment_hide--";
-          echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
-          echo "//-->$debug_comment_eol";
-          continue;
-        }
-      }
-
       //TODO: validate that we can remove this method of checking for already renewed memberships, replaced by the NEW method using $renewal_post_id array below.
       /* PREV: This is a renewal of a previous membership so assign a var with both type and next id it so it can be compared to other mships found */
       /* PREV: We are also calculating the end date of the previous membership that we want to match against to remove from the callout response */
@@ -1489,6 +1478,17 @@ function add_order_item_meta ( $item_id, $values ) {
 #        echo 'FOUND a renewal membership:'."membership_renewal_exists[ $renewal_index_id ][ $ends_at_date ]";
 #        echo "//-->$debug_comment_eol";
 #        continue;
+      }
+
+      if(!empty($membership_data['meta']['membership_subscription_id'])) {
+        $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
+        $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
+        if( $is_autopay_enabled ) {
+          echo "<$debug_comment_hide--";
+          echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
+          echo "//-->$debug_comment_eol";
+          continue;
+        }
       }
 
       unset($membership_data['subscription_renewal']);
