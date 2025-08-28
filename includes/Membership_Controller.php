@@ -1483,7 +1483,8 @@ function add_order_item_meta ( $item_id, $values ) {
       if(!empty($membership_data['meta']['membership_subscription_id'])) {
         $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
         $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
-        if( $is_autopay_enabled ) {
+        $subscription_status = $sub->get_status();
+        if( $is_autopay_enabled && $subscription_status != 'expired' && $subscription_status != 'cancelled' && $subscription_status != 'switched' && $subscription_status != 'trash') {
           echo "<$debug_comment_hide--";
           echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
           echo "//-->$debug_comment_eol";
@@ -1582,7 +1583,11 @@ function add_order_item_meta ( $item_id, $values ) {
         if(!empty($membership_data['meta']['membership_subscription_id'])) {
           $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
           if(!empty($sub)) {
+            $subscription_status = $sub->get_status();
             $is_autopay_enabled = $sub->get_requires_manual_renewal() ? false : true;
+            if($subscription_status == 'expired' || $subscription_status == 'cancelled' || $subscription_status == 'switched' || $subscription_status == 'trash') {
+              $is_autopay_enabled = false;
+            }
           }
         }
         if(empty($is_autopay_enabled)) {
