@@ -285,6 +285,10 @@ class Import_Controller {
 
       $dates['next_payment'] = $next_payment_date_mysqltime;
       $dates['end'] = $end_date_mysqltime;
+      if($dates['next_payment'] == $dates['end']) {
+        //add 1 second to end date so it is always after next payment date
+        $dates['end'] = date ('Y-m-d H:i:s', strtotime( $dates['end']. " + 1 second"));
+      }
       $subscription->update_dates($dates);
 
       $subscription->add_product( $wc_product );
