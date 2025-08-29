@@ -39,6 +39,25 @@ class Utilities {
       add_action('woocommerce_admin_order_data_after_order_details', [$this, 'wicket_display_membership_id_input_on_order'], 10, 1);
       add_action('woocommerce_process_shop_subscription_meta', [$this, 'wicket_assign_subscription_to_membership'], 10, 1);
     }
+    add_action('woocommerce_admin_order_data_after_order_details', [$this, 'display_autopay_status_row_admin'], 15, 1);
+  }
+
+  public function display_autopay_status_row_admin($order) {
+    if (!is_object($order) || !method_exists($order, 'get_type')) {
+      return;
+    }
+    if ($order->get_type() !== 'shop_subscription') {
+      return;
+    }
+    if (!method_exists($order, 'get_requires_manual_renewal')) {
+      return;
+    }
+    $is_manual = $order->get_requires_manual_renewal();
+    $autopay_status = $is_manual ? __('Off', 'wicket-memberships') : __('On', 'wicket-memberships');
+    echo '<div class="order_data_column">
+      <h4>' . esc_html__('Autopay Enabled', 'wicket-memberships') . '</h4>
+      <p><strong>' . esc_html($autopay_status) . '</strong></p>
+    </div>';
   }
 
   function wicket_membership_clear_the_cart() {
