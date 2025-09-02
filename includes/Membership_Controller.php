@@ -206,9 +206,10 @@ function add_order_item_meta ( $item_id, $values ) {
                   $this->processing_renewal = true;
                   $next_payment_time = $subscription->get_time( 'next_payment' );
                   $end_time = $subscription->get_time( 'end' );
-                  Utilities::wc_log_mship_error( ['Helper::has_next_payment_date', Helper::has_next_payment_date($membership_current), $membership_post_id_renew] );
+                  $is_renewal = $order->get_meta( '_wcs_subscription_renewal' ) === 'yes' ? true : false;
+                  Utilities::wc_log_mship_error( ['is_renewal', $is_renewal, 'Helper::has_next_payment_date', Helper::has_next_payment_date($membership_current), $membership_post_id_renew] );
                   if( (! Helper::has_next_payment_date($membership_current) || 'clear' != Helper::has_next_payment_date($membership_current) ) 
-                      || ( ( $subscription->get_billing_period() == 'month') && $next_payment_time < $end_time) ){
+                      || ( ( $subscription->get_billing_period() == 'month') && $next_payment_time < $end_time && !empty($is_renewal)) ){
                     $order->add_order_note( 'Monthly payment order against membership ID: '. $membership_post_id_renew);
                     Utilities::wicket_logger( '--monthly-- skip renew for membership postID', $membership_post_id_renew);
                     continue;
