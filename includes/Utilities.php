@@ -736,13 +736,22 @@ function wicket_sub_org_select_callback( $subscription ) {
    * @return void
    */
   public static function enqueue_mship_ajax_script() {
-    $script_path = get_template_directory() . '/js/custom-ajax.js';
+    // get_stylesheet_directory() automatically checks child theme first and falls back to parent theme
+    $script_path = get_stylesheet_directory() . '/js/custom-ajax.js';
+    
+    // Always register a script handle to ensure wp_localize_script works
     if (file_exists($script_path)) {
-      wp_enqueue_script('ajax-script', get_template_directory_uri() . '/js/custom-ajax.js', ['jquery'], null, true);
-      wp_localize_script('ajax-script', 'wicket_mship_ajax_object', [
-          'ajaxurl' => admin_url('admin-ajax.php'),
-          'user_id' => get_current_user_id()
-      ]);
+      // Enqueue the custom script if it exists
+      wp_enqueue_script('ajax-script', get_stylesheet_directory_uri() . '/js/custom-ajax.js', ['jquery'], null, true);
+    } else {
+      // Register a dummy script to ensure wp_localize_script has something to attach to
+      wp_register_script('ajax-script', false, ['jquery'], null, true);
     }
+    
+    // Always register the ajax object for use by other scripts
+    wp_localize_script('ajax-script', 'wicket_mship_ajax_object', [
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'user_id' => get_current_user_id()
+    ]);
   }
 }
