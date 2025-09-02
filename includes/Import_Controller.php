@@ -24,6 +24,9 @@ class Import_Controller {
           if(empty($record)) {
             return 'File line read error.';
           }
+          if($this->local_membership_exists($record['Person_Membership_UUID'])) {
+            return new \WP_REST_Response(['error' => 'Already exists: Wicket UUID#'.$record['Person_Membership_UUID'] ]);
+          }
           $skip_approval = !empty( $record['skip_approval'] ) ? true : false;
           if( $record['Membership_Type'] == 'organization' ) {
             return new \WP_REST_Response(['success' => 'Skipping an Org Seat Membership.']);
@@ -114,6 +117,9 @@ class Import_Controller {
         public function create_organization_memberships( $record ) {
           if(empty($record)) {
             return 'File line read error.';
+          }
+          if($this->local_membership_exists($record['Organization_Membership_UUID'])) {
+            return new \WP_REST_Response(['error' => 'Already exists: Wicket_UUID#'.$record['Organization_Membership_UUID'] ]);
           }
           $skip_approval = !empty( $record['skip_approval'] ) ? true : false;
           $membership_post_mapping['membership_type'] = $record['Membership_Type'];
@@ -309,4 +315,26 @@ class Import_Controller {
       return $subscription_id;
     }
   }
+
+    public function local_membership_exists($wicket_uuid) {
+    $args = [
+      'post_type' => $this->membership_cpt_slug,
+      'meta_query' => [
+        [
+          'key' => 'membership_wicket_uuid',
+          'value' => $wicket_uuid,
+          'compare' => '='
+        ]
+      ],
+      'posts_per_page' => 1,
+      'fields' => 'ids'
+    ];
+    $query = new \WP_Query( $args );
+    if( $query->have_posts() ) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
 }
