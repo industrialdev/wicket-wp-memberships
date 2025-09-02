@@ -1126,6 +1126,9 @@ function add_order_item_meta ( $item_id, $values ) {
     foreach($items as $item) {
       $item_id = $item->get_id();
       $product = $item->get_product();
+      if(empty($product)) {
+        continue;
+      }
       $product_id = $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
       if ( ! has_term( 'Membership', 'product_cat', $product_id) ) {
         continue;
