@@ -727,11 +727,22 @@ function wicket_sub_org_select_callback( $subscription ) {
     wp_send_json_success(['message' => 'Auto-renew status updated for '.$user_id, 'status' => $enabled]);
   }
 
+  /**
+   * Enqueue membership AJAX script if it exists
+   *
+   * Checks for the existence of custom-ajax.js in the theme directory
+   * and enqueues it along with localization data if found.
+   *
+   * @return void
+   */
   public static function enqueue_mship_ajax_script() {
-    wp_enqueue_script('ajax-script', get_template_directory_uri() . '/js/custom-ajax.js', ['jquery'], null, true);
-    wp_localize_script('ajax-script', 'wicket_mship_ajax_object', [
-        'ajaxurl' => admin_url('admin-ajax.php'), 
-        'user_id' => get_current_user_id()
-    ]);
+    $script_path = get_template_directory() . '/js/custom-ajax.js';
+    if (file_exists($script_path)) {
+      wp_enqueue_script('ajax-script', get_template_directory_uri() . '/js/custom-ajax.js', ['jquery'], null, true);
+      wp_localize_script('ajax-script', 'wicket_mship_ajax_object', [
+          'ajaxurl' => admin_url('admin-ajax.php'),
+          'user_id' => get_current_user_id()
+      ]);
+    }
   }
 }
