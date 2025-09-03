@@ -746,6 +746,7 @@ function wicket_sub_org_select_callback( $subscription ) {
     } else {
       // Register a dummy script to ensure wp_localize_script has something to attach to
       wp_register_script('ajax-script', false, ['jquery'], null, true);
+      wp_enqueue_script('ajax-script');
     }
     
     // Always register the ajax object for use by other scripts
