@@ -464,6 +464,30 @@ function add_order_item_meta ( $item_id, $values ) {
           '%s'
       ]
     );
+
+    if ( ! class_exists( 'ActionScheduler_Queue' ) ) {
+        return;
+    }
+
+    $args = array(
+        'status' => 'pending', // Or other statuses like 'complete', 'failed'
+        'hook'   => 'woocommerce_scheduled_subscription_payment',
+        'args'   => array( 'subscription_id' => $sub_id ),
+    );
+
+    $scheduled_actions = ActionScheduler_Queue::instance()->get_actions( $args );
+
+    foreach ( $scheduled_actions as $action_id => $action ) {
+        if ( $action->get_id() === $action_id ) {
+            ActionScheduler_Queue::instance()->delete( $action_id );
+        }
+    }
+
+    $sub = wcs_get_subscription( $sub_id );
+    if(! empty($sub)) {
+      $sub->delete_date( 'next_payment' );
+      $sub->add_order_note( 'Wicket clear next payment schedule and date.' );
+    }
   }
 
   /**
