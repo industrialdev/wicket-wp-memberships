@@ -34,7 +34,7 @@ class Utilities {
     add_action('admin_notices', [$this, 'show_membership_product_delete_error'], 1);
     add_action('admin_notices', [$this, 'show_membership_delete_error'], 1);
     add_action('template_redirect', [$this, 'wicket_membership_clear_the_cart'], 10);
-    //allows connect a subscription to a membership on subscription edit page 
+    //allows connect a subscription to a membership on subscription edit page
     if(isset($_ENV['WICKET_MSHIP_ASSIGN_SUBSCRIPTION']) && $_ENV['WICKET_MSHIP_ASSIGN_SUBSCRIPTION']) {
       add_action('woocommerce_admin_order_data_after_order_details', [$this, 'wicket_display_membership_id_input_on_order'], 10, 1);
       add_action('woocommerce_process_shop_subscription_meta', [$this, 'wicket_assign_subscription_to_membership'], 10, 1);
@@ -133,8 +133,8 @@ class Utilities {
         }
         if( empty($response) || is_wp_error( $response ) ) {
           wp_redirect(get_admin_url() . "edit.php?post_type=wicket_membership&all_posts=1&show_membership_delete_error=1");
-        }  
-      }  
+        }
+      }
     }
   }
 
@@ -271,7 +271,7 @@ class Utilities {
   function set_subscription_postmeta_suborg_uuid() {
     if(!empty($_REQUEST['wicket_sub_org_select_uuid'])) {
       wc_update_order_item_meta( $_REQUEST['wicket_update_suborg_item_id'], '_org_uuid', $_REQUEST['wicket_sub_org_select_uuid'] );
-    }  
+    }
   }
 
   function wicket_sub_org_select_metabox( $post_type, $post ) {
@@ -408,7 +408,7 @@ function wicket_sub_org_select_callback( $subscription ) {
   function handle_suborg_search() {
     check_ajax_referer('suborg_nonce', 'nonce');
     $search_term = isset($_POST['term']) ? sanitize_text_field($_POST['term']) : '';
-    $search_json = json_encode(['searchTerm' => $search_term, 'autocomplete' => true]);  
+    $search_json = json_encode(['searchTerm' => $search_term, 'autocomplete' => true]);
     $request = new \WP_REST_Request('POST');
     $request->set_headers(['Content-Type' => 'application/json']);
     $request->set_body($search_json); // Set the body as the JSON string
@@ -583,16 +583,16 @@ function wicket_sub_org_select_callback( $subscription ) {
    * @return void
    */
   function wc_autorenew_toggle_shortcode($atts) {
-    if($_REQUEST['subscription_id']) {
+    if(isset($_REQUEST['subscription_id']) && !empty($_REQUEST['subscription_id'])) {
       $subscription_id = !empty(intval($atts['subscription_id'])) ? intval($atts['subscription_id']) : intval($_REQUEST['subscription_id']);
-    } else if($_REQUEST['membership_post_id_renew']) {
+    } else if(isset($_REQUEST['membership_post_id_renew']) && !empty($_REQUEST['membership_post_id_renew'])) {
       $subscription_id = get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true );
     }
     if(!empty($subscription_id)) {
       $sub = wcs_get_subscription( $subscription_id );
       if(!empty($sub)) {
         $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
-      }  
+      }
       $checked = !empty($is_autopay_enabled) ? 'checked' : '';
     } else {
       $user_autopay_enabled = get_user_meta( get_current_user_id(), 'subscription_autopay_enabled', true);
@@ -610,7 +610,7 @@ function wicket_sub_org_select_callback( $subscription ) {
 
   /**
    *  Includes the styling and js for the autorenew toggle in the footer
-   * 
+   *
    *  <label class="wicket-wc-toggle">
    *    <input type="checkbox" id="wicket-wc-toggle">
    *    <span class="slider"></span>
@@ -618,9 +618,9 @@ function wicket_sub_org_select_callback( $subscription ) {
    * @return void
    */
   public static function wicket_wc_enqueue_scripts_autorenew_toggle() {
-    wp_localize_script('auto_renew_enabled_for_user', 
-      'wicket_mship_ajax_object', 
-      ['ajaxurl' => admin_url('admin-ajax.php'), 
+    wp_localize_script('auto_renew_enabled_for_user',
+      'wicket_mship_ajax_object',
+      ['ajaxurl' => admin_url('admin-ajax.php'),
       'user_id' => get_current_user_id()
       ]
     );
@@ -683,11 +683,11 @@ function wicket_sub_org_select_callback( $subscription ) {
                       action: 'auto_renew_enabled_for_user',
                       user_id: wicket_mship_ajax_object.user_id,
                       <?php
-                        if(!empty($_REQUEST['subscription_id'])) {
-                          echo "subscription_id: '".$_REQUEST['subscription_id']."',\n";
+                        if(isset($_REQUEST['subscription_id']) && !empty($_REQUEST['subscription_id'])) {
+                          echo "subscription_id: '".esc_js($_REQUEST['subscription_id'])."',\n";
                         }
-                        if(!empty($_REQUEST['membership_post_id_renew'])) {
-                          echo "membership_post_id_renew: '".$_REQUEST['membership_post_id_renew']."',\n";
+                        if(isset($_REQUEST['membership_post_id_renew']) && !empty($_REQUEST['membership_post_id_renew'])) {
+                          echo "membership_post_id_renew: '".esc_js($_REQUEST['membership_post_id_renew'])."',\n";
                         }
                       ?>
                       enabled: isChecked
@@ -702,9 +702,9 @@ function wicket_sub_org_select_callback( $subscription ) {
           });
       });
     </script>
-    <?php  
+    <?php
   }
-  
+
   public static function handle_user_auto_renew_toggle() {
     if (!isset($_POST['user_id']) || !isset($_POST['enabled'])) {
         wp_send_json_error(['message' => 'Invalid request.']);
@@ -738,7 +738,7 @@ function wicket_sub_org_select_callback( $subscription ) {
   public static function enqueue_mship_ajax_script() {
     // get_stylesheet_directory() automatically checks child theme first and falls back to parent theme
     $script_path = get_stylesheet_directory() . '/js/custom-ajax.js';
-    
+
     // Always register a script handle to ensure wp_localize_script works
     if (file_exists($script_path)) {
       // Enqueue the custom script if it exists
@@ -748,7 +748,7 @@ function wicket_sub_org_select_callback( $subscription ) {
       wp_register_script('ajax-script', false, ['jquery'], null, true);
       wp_enqueue_script('ajax-script');
     }
-    
+
     // Always register the ajax object for use by other scripts
     wp_localize_script('ajax-script', 'wicket_mship_ajax_object', [
         'ajaxurl' => admin_url('admin-ajax.php'),
