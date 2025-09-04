@@ -170,6 +170,10 @@ function add_order_item_meta ( $item_id, $values ) {
           if(empty($product_id)) {
             $product_id = $item->get_product_id();
           }
+          if ( apply_filters( 'wpml_current_language', null ) !== 'en' ) {
+            $product_id = apply_filters( 'wpml_object_id', $product_id, 'product', false, 'en' );
+            Utilities::wc_log_mship_error( ['^WPML Alt lang detected - applied to product_id _en_ object filter', ['product_id' => $product_id]]);
+          }
           $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id );
           if( !empty( $membership_tier->tier_data )) {
               if($membership_tier->tier_data['renewal_type'] != 'subscription') {
@@ -741,7 +745,7 @@ function add_order_item_meta ( $item_id, $values ) {
             $sub->update_dates($clear_dates_to_update);
             unset($dates_to_update['next_payment']);
             $this->schedule_wicket_wipe_next_payment_date( $sub->get_id() );
-            Utilities::wicket_logger( 'CLEARED: NEXT_PAYMENT', [$fields['next_payment_date'],$dates_to_update['next_payment']]);
+            Utilities::wc_log_mship_error( ['CLEARED: NEXT_PAYMENT', [$sub->get_id(), $fields['next_payment_date'],$dates_to_update['next_payment']]]);
           }
           //we need to add the hook after the status update to ensure the dates are set correctly
           //when the subscription status is set to active after this code runs it changes subscription dates
