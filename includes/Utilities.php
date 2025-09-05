@@ -674,8 +674,26 @@ function wicket_sub_org_select_callback( $subscription ) {
 
     <script>
       jQuery(document).ready(function($) {
+          
+          // Update the Gravity Forms hidden field text field "Autorenew Selected". It must also have a custom CSS class set to "autorenew_selected"
+          // This is used mainly for confirmation redirects
+          function sync_autorenew_field() {
+            if ($('#wicket-wc-toggle').is(':checked')) {
+              $('.autorenew_selected input').val('yes').attr('value','yes');
+            } else {
+              $('.autorenew_selected input').val('').attr('value','');
+            }
+          }
+
+          // Run once on page load (value might be pre-set by PHP above)
+          sync_autorenew_field();
+
           $('#wicket-wc-toggle').on('change', function() {
               var isChecked = $(this).is(':checked') ? 1 : 0;
+              
+              sync_autorenew_field();
+              console.log('wicket-wc-toggle changed');
+
               $.ajax({
                   url: wicket_mship_ajax_object.ajaxurl,
                   type: 'POST',
