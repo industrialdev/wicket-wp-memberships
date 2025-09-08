@@ -30,6 +30,12 @@ function wicket_gform_membership_operations() {
   //if the membership_post_id_renew is an array, we are in the multi-tier renewal flow
   if(!empty($membership_post_id_renew) && !is_array($membership_post_id_renew)) {
     $membership_tier_slug = get_post_meta( $membership_post_id_renew, 'membership_tier_slug', true );
+        
+    //if no value this is not necessary
+    if(empty($membership_tier_slug)) {
+      return;
+    }
+
     [$parent_product_id, $variation_id] = wicket_get_product_by_tier_reference_with_slug($membership_tier_slug);
     
     //if no match this is not necessary
