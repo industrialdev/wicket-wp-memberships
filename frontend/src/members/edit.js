@@ -173,8 +173,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             memberships.map((m) => {
               if (m.ID == manageStatusFormData.postId) {
                 m.data.membership_status = manageStatusFormData.newStatus;
-                m.data.membership_ends_at = moment(response.membership_ends_at).format('YYYY-MM-DD');
-                m.data.membership_expires_at = moment(response.membership_expires_at).format('YYYY-MM-DD');
+                m.data.membership_ends_at = moment(response.response.membership_ends_at).format('YYYY-MM-DD');
+                m.data.membership_expires_at = moment(response.response.membership_expires_at).format('YYYY-MM-DD');
                 m.updatedNow = true;
               }
               return m;
