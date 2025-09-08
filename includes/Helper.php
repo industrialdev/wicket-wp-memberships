@@ -470,9 +470,16 @@ class Helper {
         $subscription_period = $subscription->get_billing_period(); // Get the billing period (e.g., 'month', 'year')
         $Membership_Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
         $Membership_Config = $Membership_Tier->get_config();
+        if(empty($Membership_Config)) {
+          Utilities::wc_log_mship_error( ['^NO MEMBERSHIP CONFIG FOUND for tier post id', ['membership_tier_post_id' => $membership['membership_tier_post_id'] ]]);
+          if($subscription_period != 'month') {
+            return 'clear';
+          }
+          return;
+        }
         $membership_period_data = $Membership_Config->get_period_data();
         $membership_period = $membership_period_data['period_type'];
-        Utilities::wicket_logger( 'inside has_next_payment_date', [$membership_period == $subscription_period, $membership_period_data, $membership_period, $subscription_period]);
+        Utilities::wc_log_mship_error( ['inside has_next_payment_date', [$membership_period == $subscription_period, $membership_period_data, $membership_period, $subscription_period] ]);
         if( $membership_period == $subscription_period) {
           /**
            * https://app.asana.com/0/1206866539294627/1208600763040824/f
