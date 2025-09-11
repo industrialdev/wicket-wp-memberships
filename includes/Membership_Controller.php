@@ -1530,6 +1530,9 @@ function add_order_item_meta ( $item_id, $values ) {
       if(!empty($next_tier_subscription_renewal)) {
         //We are using subscription renewals to maintain the membership
         $current_subscription = wcs_get_subscription( $membership_json_data['membership_subscription_id'] );
+        if(empty($current_subscription)) {
+          continue;
+        }
         $renewal_orders = $current_subscription->get_related_orders('renewal');
         foreach ($renewal_orders as $order_id) {
           $the_order = wc_get_order($order_id);
