@@ -97,6 +97,11 @@ class Import_Controller {
           $response = (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'], $skip_approval );
           $membership_id = $response;
 
+          if(!empty($membership_id) && $membership_post_mapping['membership_status'] == Wicket_Memberships::STATUS_DELAYED) {
+            $membership_starts_at = strtotime( $membership_post_mapping['membership_starts_at'] );
+            as_schedule_single_action( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => 0, 'new_membership_post_id' => $membership_id ], 'wicket-membership-plugin', false );
+          }
+
           //if this is a delta import (Sheet has Previous_External_ID column value set)
           if( !empty($delta) ) {
             $membership_post_mapping['membership_post_id'] = $membership_id;
@@ -191,6 +196,11 @@ class Import_Controller {
 
           $response = (new Membership_Controller)->create_local_membership_record( $membership_post_mapping, $membership_post_mapping['membership_wicket_uuid'], $skip_approval );
           $membership_id = $response;
+
+          if(!empty($membership_id) && $membership_post_mapping['membership_status'] == Wicket_Memberships::STATUS_DELAYED) {
+            $membership_starts_at = strtotime( $membership_post_mapping['membership_starts_at'] );
+            as_schedule_single_action( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => 0, 'new_membership_post_id' => $membership_id ], 'wicket-membership-plugin', false );
+          }
 
           //if this is a delta import (Sheet has Previous_External_ID column value set)
           if( !empty($delta) ) {
