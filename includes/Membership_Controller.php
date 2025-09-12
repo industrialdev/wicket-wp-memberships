@@ -1546,6 +1546,15 @@ function add_order_item_meta ( $item_id, $values ) {
 
         if( empty($renewal_link_url) && strtotime($membership_data['meta']['membership_ends_at']) > $current_time ) {
           $renewal_link_url = wcs_get_early_renewal_url( $current_subscription );
+          // Extract just the query string variables from the URL
+          $query_string = '';
+          if ($renewal_link_url) {
+            $parts = parse_url($renewal_link_url);
+            if (isset($parts['query'])) {
+              $query_string = $parts['query'];
+            }
+          }
+          $renewal_link_url = '/cart/?' . $query_string;
           $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
         } elseif( empty($renewal_link_url) && !empty( $the_order) /*&& $the_order->ID != $membership_data['meta']['membership_parent_order_id']*/) {
           //$the_order->update_status('on-hold', __('Order status changed generating a pending renewal order.'));
