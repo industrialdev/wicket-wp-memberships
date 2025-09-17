@@ -238,7 +238,7 @@ function add_order_item_meta ( $item_id, $values ) {
               $membership = [
                 'membership_parent_order_id' => $order_id,
                 'membership_subscription_id' => $subscription_id,
-                'membership_product_id' => $original_product_id, // Use original product ID for role assignment
+                'membership_product_id' => $product_id, // Use original product ID for role assignment
                 'membership_tier_post_id' => $membership_tier->get_membership_tier_post_id(),
                 'membership_tier_name' => $membership_tier->tier_data['mdp_tier_name'],
                 'membership_tier_uuid' => $membership_tier->tier_data['mdp_tier_uuid'],
@@ -288,9 +288,9 @@ function add_order_item_meta ( $item_id, $values ) {
                 delete_post_meta( $order_id, $old_post_meta );
               }
               delete_post_meta( $order_id, '_wicket_membership_'.$product_id );
-              $order_meta_id = add_post_meta( $order_id, '_wicket_membership_'.$original_product_id,  json_encode( $membership ), 1 );
+              $order_meta_id = add_post_meta( $order_id, '_wicket_membership_'.$product_id,  json_encode( $membership ), 1 );
               delete_post_meta( $subscription_id, '_wicket_membership_'.$product_id );
-              $subscription_meta_id = add_post_meta( $subscription_id, '_wicket_membership_'.$original_product_id,  json_encode( $membership ), 1 );
+              $subscription_meta_id = add_post_meta( $subscription_id, '_wicket_membership_'.$product_id,  json_encode( $membership ), 1 );
 
               $membership['order_meta_id'] = $order_meta_id;
               $membership['subscription_meta_id'] = $subscription_meta_id;
