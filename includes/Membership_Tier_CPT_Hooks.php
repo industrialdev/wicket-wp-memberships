@@ -322,7 +322,7 @@ class Membership_Tier_CPT_Hooks {
         $individual_memberships = get_individual_memberships();
         foreach($individual_memberships['data'] as $tier) {
           $selected = $tier_uuid == $tier['id'] ? 'selected' : '';
-          $options[] = '<option '.$selected.' value="'.$tier['id'].'">'.$tier['attributes']['name_en'].'</option>';
+          $options[] = '<option '.$selected.' value="'.$tier['id'].'|'.$tier['attributes']['name_en'].'">'.$tier['attributes']['name_en'].'</option>';
         }
         $select = '<select style="width:175px;" id="tier_post_'.$post->ID.'" name="tier_uuid_changed">'.implode("\n",$options).'</select>';
         $nonce = wp_create_nonce('tier_uuid_update_nonce');

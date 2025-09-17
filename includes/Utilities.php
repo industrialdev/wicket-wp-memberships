@@ -423,11 +423,18 @@ function wicket_sub_org_select_callback( $subscription ) {
    */
   public function handle_wicket_tier_uuid_update() {
     check_ajax_referer('tier_uuid_update_nonce', 'nonce');
-    $new_tier_uuid = isset($_POST['tierUUID']) ? sanitize_text_field($_POST['tierUUID']) : '';
+    $new_tier_name = isset($_POST['tierUUID']) ? sanitize_text_field(explode('|', $_POST['tierUUID'])[1]) : '';
+    $new_tier_uuid = isset($_POST['tierUUID']) ? sanitize_text_field(explode('|', $_POST['tierUUID'])[0]) : '';
     $tier_post_id = isset($_POST['postID']) ? sanitize_text_field($_POST['postID']) : '';
     $tier_data = get_post_meta($tier_post_id, 'tier_data');
     $tier_data[0]['mdp_tier_uuid'] = $new_tier_uuid;
+    $tier_data[0]['mdp_tier_name'] = $new_tier_name;
+    $post_args = array(
+        'ID'         => $tier_post_id,
+        'post_title' => $new_tier_name,
+    );
     try {
+      wp_update_post( $post_args );
       update_post_meta(($tier_post_id), 'tier_data', $tier_data[0]);
       wp_send_json_success($tier_data[0]);
     } catch (\Exception $e) {
