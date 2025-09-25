@@ -613,6 +613,7 @@ class Admin_Controller {
     }
     $membership['membership_type'] = $membership_post['membership_type'][0];
     $membership['membership_wicket_uuid'] = $membership_post['membership_wicket_uuid'][0];
+    $membership['org_seats'] = $membership_post['org_seats'][0] ?? 0;
     $wicket_response = $Membership_Controller->update_mdp_record( $membership, $data );
 
     if( is_wp_error( $wicket_response ) ) {
