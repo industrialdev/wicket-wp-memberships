@@ -570,6 +570,10 @@ class Admin_Controller {
       $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
       $grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
 
+        $data['membership_next_tier_id'] = $membership_post['membership_next_tier_id'];
+        $data['membership_next_tier_form_page_id'] = $membership_post['membership_next_tier_form_page_id'];
+        $data['membership_next_tier_subscription_renewal'] = $membership_post['membership_next_tier_subscription_renewal'];
+
       if($data['renewal_type'] == 'subscription') {
         $data['membership_next_tier_id'] = "";
         $data['membership_next_tier_form_page_id'] = "";
@@ -579,7 +583,7 @@ class Admin_Controller {
         $data['membership_next_tier_form_page_id'] = $data['next_tier_form_page_id'];
         $data['membership_next_tier_subscription_renewal'] = 0;
         unset($data['next_tier_form_page_id']);
-      } else if(!empty($data['next_tier_id'])) {
+      } else if(!empty($data['next_tier_id']) && empty($data['membership_next_tier_subscription_renewal'])) {
         $data['membership_next_tier_id'] = $data['next_tier_id'];
         $data['membership_next_tier_form_page_id'] = "";
         $data['membership_next_tier_subscription_renewal'] = 0;
@@ -593,6 +597,7 @@ class Admin_Controller {
       if($data['renewal_type'] == 'inherited') {
         $data['membership_next_tier_id'] = $membership_tier->get_next_tier_id();
         $data['membership_next_tier_form_page_id'] = $membership_tier->get_next_tier_form_page_id();
+        $data['membership_next_tier_subscription_renewal'] = $membership_tier->is_renewal_subscription();
       }
 
       $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", $membership_starts_at_seconds), wp_timezone() ))->format('c');
@@ -615,6 +620,11 @@ class Admin_Controller {
     $membership['membership_wicket_uuid'] = $membership_post['membership_wicket_uuid'][0];
     $membership['org_seats'] = $membership_post['org_seats'][0] ?? 0;
     $wicket_response = $Membership_Controller->update_mdp_record( $membership, $data );
+
+    $membership['membership_subscription_id'] = $membership_post['membership_subscription_id'][0];
+    $membership['membership_next_tier_id'] = $data['membership_next_tier_id'];
+    $membership['membership_next_tier_form_page_id'] = $data['membership_next_tier_form_page_id'];
+    $membership['membership_next_tier_subscription_renewal'] = $data['membership_next_tier_subscription_renewal'];
 
     if( is_wp_error( $wicket_response ) ) {
       $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $membership_post );
