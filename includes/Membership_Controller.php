@@ -26,6 +26,7 @@ class Membership_Controller {
   //prop used to bypass pending approval for renewals
   public $processing_renewal = false;
   public $status_cycled = false;
+  private static $renewing_membership_post_ids;
 
   public function __construct() {
     $this->bypass_wicket = !empty( $_ENV['BYPASS_WICKET'] ) ?? false;
@@ -574,6 +575,22 @@ function add_order_item_meta ( $item_id, $values ) {
     //connect product memberships and create subscriptions
     foreach ($memberships as $membership) {
       do_action( 'wicket_member_create_record' , $membership, $self->processing_renewal, $self->status_cycled );
+    }
+    $self->remove_membership_user_id_meta( $order_id );
+  }
+
+  private function remove_membership_user_id_meta( $order_id ) {
+    $order = wc_get_order( $order_id );
+    $items = $order->get_items();
+    foreach( $items as $item ) {
+      wc_delete_order_item_meta( $item->get_id(), '_membership_user_id' );
+    }
+    $subscriptions = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
+    foreach( $subscriptions as $subscription ) {
+      $subscription_products = $subscription->get_items();
+        foreach( $subscription_products as $item ) {
+          wc_delete_order_item_meta( $item->get_id(), '_membership_user_id' );
+        }
     }
   }
 
@@ -1322,18 +1339,20 @@ function add_order_item_meta ( $item_id, $values ) {
       }
       //add or update membership renewal post id meta on item
       $renew_post_id = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', false );
-      if($this->array_all_empty($renew_post_id )) {
+      if($this->array_all_empty($renew_post_id ) || !in_array($membership_post_id, self::$renewing_membership_post_ids )) {
         wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id, false);
         $renew_order_flag = 'Added';
-      } else if ( !in_array($renew_post_id, $membership_post_id) && empty($new_order_processed)) {
+      } else if ( !in_array($membership_post_id, $renew_post_id ) && empty($new_order_processed)) {
         wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id, false );
         $renew_order_flag = "Updated on subscription renewal from membership post id $renew_post_id to";
-      } else if(in_array($renew_post_id, $membership['previous_membership_post_id']))  {
+      } else if(in_array($membership['previous_membership_post_id'], $renew_post_id))  {
         wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id, false );
         $renew_order_flag = "Updated on subscription renewal order from membership post id $renew_post_id to";
       }
     }
     if(!empty( $renew_order_flag )) {
+      //Group Billing: We need to keep track of these as there is multiple now / now using in_array()
+      self::$renewing_membership_post_ids[] = $membership_post_id;
       $membership_type = $membership['membership_type'];
       if( $membership['membership_type'] != 'individual' ) {
         $membership_type = 'org';
