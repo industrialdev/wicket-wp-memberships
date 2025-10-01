@@ -457,7 +457,7 @@ function add_order_item_meta ( $item_id, $values ) {
     if( empty( $mship_order_id ) || empty( $mship_product_id ) ) {
       return [];
     }
-    $membership_current = $self->get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id );
+    $membership_current = $self->get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id, $membership_post_id );
     return $membership_current;
   }
 
@@ -468,8 +468,11 @@ function add_order_item_meta ( $item_id, $values ) {
    * @param integer $mship_product_id
    * @return array
    */
-  public static function get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id ) {
-    $membership_current = get_post_meta( $mship_order_id, '_wicket_membership_'.$mship_product_id, true );
+  public static function get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id, $membership_post_id = null ) {
+    $membership_current = get_post_meta( $mship_order_id, $membership_post_id.'_wicket_membership_'.$mship_product_id, true );
+    if(empty($membership_current)) {
+      $membership_current = get_post_meta( $mship_order_id, '_wicket_membership_'.$mship_product_id, true );
+    }
     if( empty( $membership_current ) ) {
       return [];
     }
@@ -620,6 +623,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $args = [
         'membership_parent_order_id' => $membership['membership_parent_order_id'],
         'membership_product_id' => $membership['membership_product_id'],
+        'membership_post_id' => $membership['membership_post_id'],
       ];
     }
 
@@ -684,21 +688,21 @@ function add_order_item_meta ( $item_id, $values ) {
       }
   }
 
-  public static function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
+  public static function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id, $membership_post_id ) {
     $self = new self();
-    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id, $membership_post_id );
     $self->membership_early_renew_at_date_reached( $membership );
   }
 
-  public static function catch_membership_ends_at( $membership_parent_order_id, $membership_product_id ) {
+  public static function catch_membership_ends_at( $membership_parent_order_id, $membership_product_id, $membership_post_id ) {
     $self = new self();
-    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id, $membership_post_id );
     $self->membership_ends_at_date_reached( $membership );
   }
 
-  public static function catch_membership_expires_at( $membership_parent_order_id, $membership_product_id ) {
+  public static function catch_membership_expires_at( $membership_parent_order_id, $membership_product_id, $membership_post_id ) {
     $self = new self();
-    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id, $membership_post_id );
     $self->membership_expires_at_date_reached( $membership );
   }
 
@@ -1546,7 +1550,7 @@ function add_order_item_meta ( $item_id, $values ) {
 
       //TODO: previous post ID may not exist on membership record and only be on order meta
       if(empty($membership->previous_membership_post_id)) {
-        $order_membership_meta = $this->get_membership_array_from_order_and_product_id( $membership_data['meta']['membership_parent_order_id'], $membership_data['meta']['membership_product_id']);
+        $order_membership_meta = $this->get_membership_array_from_order_and_product_id( $membership_data['meta']['membership_parent_order_id'], $membership_data['meta']['membership_product_id'], $membership_data['ID']);
         if(!empty($order_membership_meta['previous_membership_post_id'])) {
           $membership_is_renewal = $order_membership_meta['previous_membership_post_id'];
         }
