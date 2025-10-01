@@ -68,8 +68,8 @@ class Helper {
     }
     $post_meta = get_post_meta( $post->get_id() );
     foreach($post_meta as $key => $val) {
-    if( str_starts_with( $key, '_wicket_membership_')) {
-        echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';var_dump( json_decode( maybe_unserialize( $val[0] ), true) ); echo '</pre>';
+      if( strpos( $key, '_wicket_membership_' ) !== false ) {
+        echo '<br><strong>'.$key.':</strong><pre>';var_dump( json_decode( maybe_unserialize( $val[0] ), true) ); echo '</pre>';
       }
     }
   }
@@ -118,16 +118,24 @@ class Helper {
       }
     );
     $mship_product_id = get_post_meta( $post->ID, 'membership_product_id', true );
+    $mship_order_id = get_post_meta( $post->ID, 'membership_parent_order_id', true );
     echo '<table><tr><td valign="top"><h3>Post Data</h3><pre>';
-    var_dump( $new_meta );
+    var_dump( json_encode( $new_meta, JSON_PRETTY_PRINT ) );
     echo '</pre></td>';
     echo '<td valign="top"><h3>Customer Data</h3>( _wicket_membership_';echo $post->ID.' )<br><pre>';
     $customer_meta = Membership_Controller::get_membership_array_from_user_meta_by_post_id( $post->ID, $new_meta['user_id'] );
-    var_dump( $customer_meta );
+    var_dump( json_encode($customer_meta, JSON_PRETTY_PRINT ));
     echo '</pre></td>"';
-    echo '<td valign="top"><h3>Order Data</h3>( _wicket_membership_';echo $mship_product_id.' )<br><pre>';
-    var_dump( Membership_Controller::get_membership_array_from_post_id( $post->ID ) );
-    echo '</pre></td></tr></table>"';
+    $memberships = Membership_Controller::get_membership_arrays_from_order_id( $mship_order_id );
+    echo '<td valign="top">';
+    foreach($memberships as $membership) {
+      $post_id = json_decode($membership)->membership_post_id;
+      echo '<h3>Order Data</h3>( '.$post_id.'_wicket_membership_';echo $mship_product_id.' )<br><pre>';
+      $membership = json_encode(json_decode($membership), JSON_PRETTY_PRINT);
+      var_dump( $membership );
+      echo '</pre>';
+    }
+    echo "</td></tr></table>";
   }
 
   public static function get_wp_languages_iso() {

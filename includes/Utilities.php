@@ -245,6 +245,7 @@ class Utilities {
           if(!empty($order_id)) {
             //clear the meta on the order for this membership
             $order_meta_removed = delete_post_meta( $order_id, '_wicket_membership_'.$mship->membership_product_id );
+            $order_meta_removed = delete_post_meta( $order_id,  $mship->ID.'_wicket_membership_'.$mship->membership_product_id );
             $order = wc_get_order( $order_id );
             if(!empty($order)) {
               $order->add_order_note( "Membership ID: {$mship->ID} deleted when user deleted.");
@@ -560,7 +561,10 @@ function wicket_sub_org_select_callback( $subscription ) {
           delete_user_meta($old_user_id, '_wicket_membership_' . $membership_id);
         }
         update_post_meta($updated_membership_array['membership_parent_order_id'], '_wicket_membership_' . $updated_membership_array['membership_product_id'], json_encode($updated_membership_array));
+        update_post_meta($updated_membership_array['membership_parent_order_id'], $membership_id.'_wicket_membership_' . $updated_membership_array['membership_product_id'], json_encode($updated_membership_array));
+
         update_post_meta($updated_membership_array['membership_subscription_id'], '_wicket_membership_' . $updated_membership_array['membership_product_id'], json_encode($updated_membership_array));
+        update_post_meta($updated_membership_array['membership_subscription_id'], $membership_id.'_wicket_membership_' . $updated_membership_array['membership_product_id'], json_encode($updated_membership_array));
         $subscription->add_order_note("Reassigned subscription to membership ID: " . $membership_id, false);
       }
     }

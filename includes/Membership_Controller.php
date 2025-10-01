@@ -400,16 +400,20 @@ function add_order_item_meta ( $item_id, $values ) {
                 $membership['previous_membership_post_id'] = $membership_post_id_renew;
                 //remove old membership data json from renewal subscription
                 $old_product_id = get_post_meta( $membership_post_id_renew, 'membership_product_id', true);
+                $legacy_post_meta = '_wicket_membership_'.$old_product_id;                
+                delete_post_meta( $order_id, $legacy_post_meta );
                 $old_post_meta = '_wicket_membership_'.$old_product_id;
                 delete_post_meta( $order_id, $old_post_meta );
               }
+             /*           
+              Group Billing: This was moved to after membership post created since we are using post_ID in meta key
               delete_post_meta( $order_id, '_wicket_membership_'.$product_id );
               $order_meta_id = add_post_meta( $order_id, '_wicket_membership_'.$product_id,  json_encode( $membership ), 1 );
               delete_post_meta( $subscription_id, '_wicket_membership_'.$product_id );
               $subscription_meta_id = add_post_meta( $subscription_id, '_wicket_membership_'.$product_id,  json_encode( $membership ), 1 );
-
               $membership['order_meta_id'] = $order_meta_id;
               $membership['subscription_meta_id'] = $subscription_meta_id;
+             */
               $memberships[] = $membership;
               Utilities::wicket_logger( 'processing order - membership created', [$membership_post_id_renew, $membership]);
               return $memberships;
@@ -461,6 +465,19 @@ function add_order_item_meta ( $item_id, $values ) {
     return $membership_current;
   }
 
+  public static function get_membership_arrays_from_order_id( $mship_order_id ) {
+    $self = new self();
+    $memberships = [];
+    $order = wc_get_order( $mship_order_id );
+    $meta = $order->get_meta_data();
+    foreach( $meta as $key => $value ) {
+      if( strpos( $value->key, '_wicket_membership_' ) !== false ) {
+          $memberships[] = $value->value;
+      }
+    }
+    return $memberships;   
+  }
+
     /**
    * Get the membership json data on order using order post_id and subscription post_id
    *
@@ -492,8 +509,8 @@ function add_order_item_meta ( $item_id, $values ) {
     if( ! empty( $membership_array ) ) {
       $updated_membership_array = array_merge($membership_array, $meta_array);
       update_user_meta( $membership_array['user_id'], '_wicket_membership_'.$membership_post_id, json_encode( $updated_membership_array) );
-      update_post_meta( $membership_array['membership_parent_order_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
-      update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+      update_post_meta( $membership_array['membership_parent_order_id'], $membership_post_id.'_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+      update_post_meta( $membership_array['membership_subscription_id'], $membership_post_id.'_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
       return true;
     }
     return false;
@@ -749,8 +766,19 @@ function add_order_item_meta ( $item_id, $values ) {
     $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $membership_wicket_uuid );
     Utilities::wicket_logger( 'create local membership - postID', $membership['membership_post_id']);
 
-
-    // Set autopay flags on the subscription if enabled for the user
+              //Group Billing: moved from earlier in the process since we are using post_ID in meta key
+              delete_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] ); //this is legacy data may exist
+              delete_post_meta( $membership['membership_parent_order_id'], $membership['membership_post_id'].'_wicket_membership_'.$membership['membership_product_id'] );
+              $order_meta_id = add_post_meta( $membership['membership_parent_order_id'], $membership['membership_post_id'].'_wicket_membership_'.$membership['membership_product_id'],  json_encode( $membership ), 1 );
+              delete_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] ); //this is legacy data may exist
+              delete_post_meta( $membership['membership_subscription_id'], $membership['membership_post_id'].'_wicket_membership_'.$membership['membership_product_id'] );
+              $subscription_meta_id = add_post_meta( $membership['membership_subscription_id'], $membership['membership_post_id'].'_wicket_membership_'.$membership['membership_product_id'],  json_encode( $membership ), 1 );
+              $membership['order_meta_id'] = $order_meta_id;
+              $membership['subscription_meta_id'] = $subscription_meta_id;
+              update_post_meta( $membership['membership_post_id'], 'order_meta_id', $order_meta_id );
+              update_post_meta( $membership['membership_post_id'], 'subscription_meta_id', $subscription_meta_id );
+    
+              // Set autopay flags on the subscription if enabled for the user
     $autorenew_user_meta = get_user_meta($membership['user_id'], 'subscription_autopay_enabled', true);
     if($autorenew_user_meta == 'yes' && !empty( $membership['membership_next_tier_subscription_renewal'] ) && !empty($membership['membership_subscription_id'])) {
             $subscription = wcs_get_subscription( $membership['membership_subscription_id'] );
@@ -1223,20 +1251,26 @@ function add_order_item_meta ( $item_id, $values ) {
       }
 
     if( !empty( $membership['membership_parent_order_id'] )) {
-      $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
+      $order_meta = get_post_meta( $membership['membership_parent_order_id'], $membership_post.'_wicket_membership_'.$membership['membership_product_id'] );
+      if(empty($order_meta)) {
+        $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
+      }
       $order_meta_array = json_decode( $order_meta[0], true);
       $order_meta_array['membership_post_id'] = $membership_post;
       $order_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
-      update_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $order_meta_array) );
+      update_post_meta( $membership['membership_parent_order_id'], $membership_post.'_wicket_membership_'.$membership['membership_product_id'], json_encode( $order_meta_array) );
       $customer_meta_array['membership_parent_order_id'] = $membership['membership_parent_order_id'];
     }
 
     if( !empty( $membership['membership_subscription_id'] )) {
-      $subscription_meta = get_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] );
+      $subscription_meta = get_post_meta( $membership['membership_subscription_id'], $membership_post.'_wicket_membership_'.$membership['membership_product_id'] );
+      if(empty($subscription_meta)) {
+        $subscription_meta = get_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] );
+      }
       $subscription_meta_array = json_decode( $subscription_meta[0], true);
       $subscription_meta_array['membership_post_id'] = $membership_post;
       $subscription_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
-      update_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );
+      update_post_meta( $membership['membership_subscription_id'], $membership_post.'_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );
       $customer_meta_array['membership_subscription_id'] = $membership['membership_subscription_id'];
       $this->wicket_update_subscription_meta_membership_post_id( $membership_post, $membership, true );
     }
@@ -1287,15 +1321,15 @@ function add_order_item_meta ( $item_id, $values ) {
         continue;
       }
       //add or update membership renewal post id meta on item
-      $renew_post_id = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true );
-      if(empty($renew_post_id )) {
-        wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id, true);
+      $renew_post_id = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', false );
+      if($this->array_all_empty($renew_post_id )) {
+        wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id, false);
         $renew_order_flag = 'Added';
-      } else if ( $renew_post_id != $membership_post_id && empty($new_order_processed)) {
-        wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id );
+      } else if ( !in_array($renew_post_id, $membership_post_id) && empty($new_order_processed)) {
+        wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id, false );
         $renew_order_flag = "Updated on subscription renewal from membership post id $renew_post_id to";
-      } else if($renew_post_id == $membership['previous_membership_post_id'])  {
-        wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id );
+      } else if(in_array($renew_post_id, $membership['previous_membership_post_id']))  {
+        wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id, false );
         $renew_order_flag = "Updated on subscription renewal order from membership post id $renew_post_id to";
       }
     }
