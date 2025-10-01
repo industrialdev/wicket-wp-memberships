@@ -570,9 +570,9 @@ class Admin_Controller {
       $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
       $grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
 
-        $data['membership_next_tier_id'] = $membership_post['membership_next_tier_id'];
-        $data['membership_next_tier_form_page_id'] = $membership_post['membership_next_tier_form_page_id'];
-        $data['membership_next_tier_subscription_renewal'] = $membership_post['membership_next_tier_subscription_renewal'];
+        $data['membership_next_tier_id'] = $membership_post['membership_next_tier_id'][0];
+        $data['membership_next_tier_form_page_id'] = $membership_post['membership_next_tier_form_page_id'][0];
+        $data['membership_next_tier_subscription_renewal'] = $membership_post['membership_next_tier_subscription_renewal'][0];
 
       if($data['renewal_type'] == 'subscription') {
         $data['membership_next_tier_id'] = "";
@@ -583,7 +583,7 @@ class Admin_Controller {
         $data['membership_next_tier_form_page_id'] = $data['next_tier_form_page_id'];
         $data['membership_next_tier_subscription_renewal'] = 0;
         unset($data['next_tier_form_page_id']);
-      } else if(!empty($data['next_tier_id']) && empty($data['membership_next_tier_subscription_renewal'])) {
+      } else if((!empty($data['renewal_type']) && $data['renewal_type'] == 'sequential_logic') || (!empty($data['next_tier_id']) && empty($data['membership_next_tier_subscription_renewal']))) {
         $data['membership_next_tier_id'] = $data['next_tier_id'];
         $data['membership_next_tier_form_page_id'] = "";
         $data['membership_next_tier_subscription_renewal'] = 0;
