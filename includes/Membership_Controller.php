@@ -71,22 +71,30 @@ function add_cart_item_data( $cart_item_meta, $product_id ) {
       $cart_item_meta[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
     }
     
+    // We are parsing for a lot of possibilities here on the query string 
+    // single renewal - there is a string value with a membership post_id to renew 
     if( isset( $_REQUEST['membership_post_id_renew'])  && !is_array($_REQUEST['membership_post_id_renew'])) {
       $cart_item_meta[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
     } else if(isset( $_REQUEST['membership_post_id_renew'])  && is_array($_REQUEST['membership_post_id_renew'])) {
-      foreach($_REQUEST['membership_post_id_renew'] as $mpid) {
-        $cart_item_meta[ 'membership_post_id_renew' ][] = sanitize_text_field ( $mpid );
+      // the query var is an array of values, it could be multi-callout (has a key) or group membership (no key)
+      foreach($_REQUEST['membership_post_id_renew'] as $key => $mpid) {
+        if(empty($key)) {
+          $cart_item_meta[ 'membership_post_id_renew' ][] = sanitize_text_field ( $mpid );
+        } else if($key == $product_id) {
+          $cart_item_meta[ 'membership_post_id_renew' ] = sanitize_text_field ( $mpid );
+        }
       }
     }
 
+    //this is for group membership where they are onboarding a bunch of users (membership_user_id[] = ###)  to create new memberships
+    //there is no case we have where it is not an array but have put it in for compatibility for implementations
     if( isset( $_REQUEST['membership_user_id'])  && !is_array($_REQUEST['membership_user_id'])) {
       $cart_item_meta[ 'membership_user_id' ] = isset( $_REQUEST['membership_user_id'] ) ? sanitize_text_field ( $_REQUEST['membership_user_id'] ): "" ;
     } else if(isset( $_REQUEST['membership_user_id'])  && is_array($_REQUEST['membership_user_id'])) {
-      foreach($_REQUEST['membership_user_id'] as $muid) {
-        $cart_item_meta[ 'membership_user_id' ][] = sanitize_text_field ( $muid );
+      foreach($_REQUEST['membership_user_id'] as $key => $muid) {
+        $cart_item_meta[ 'membership_user_id' ] = sanitize_text_field ( $muid );
       }
     }
-
     return $cart_item_meta;
 }
 
@@ -290,7 +298,7 @@ function add_order_item_meta ( $item_id, $values ) {
                 //here we process each renewal post_ID individually since we can have multiple for group bolling
                 foreach( $membership_current_array as $membership_current ) {
                   $membership_data['user_id'] = $membership_current['user_id'];
-                  $membership[] = $this->process_membership( $membership_data, $membership_tier, $membership_current );
+                  $membership = $this->process_membership( $membership_data, $membership_tier, $membership_current );
                   $memberships = array_merge( $memberships, $membership ); //merge to handle multiple memberships in one order
                 }
               } else {
@@ -298,6 +306,7 @@ function add_order_item_meta ( $item_id, $values ) {
                 //TODO: should we be looking on the order as well or can we do this per product only
                 $membership_users_id = wc_get_order_item_meta( $item->get_id(), '_membership_user_id', false);
                 if( ! $this->array_all_empty($membership_users_id) ) {
+                  $membership_data['group_user_id'] = $order->get_user_id();
                   foreach($membership_users_id as $membership_user_id) {
                     $membership_data['user_id'] = $membership_user_id;
                     $membership = $this->process_membership( $membership_data, $membership_tier );
@@ -398,6 +407,9 @@ function add_order_item_meta ( $item_id, $values ) {
                     $membership['membership_seats'] = $seats;
               }
               if( !empty( $membership_post_id_renew )) {
+                if(!empty($membership_current['group_user_id'])) {
+                  $membership['group_user_id'] = $membership_current['group_user_id'];
+                }
                 $membership['previous_membership_post_id'] = $membership_post_id_renew;
                 //remove old membership data json from renewal subscription
                 $old_product_id = get_post_meta( $membership_post_id_renew, 'membership_product_id', true);
@@ -1236,6 +1248,10 @@ function add_order_item_meta ( $item_id, $values ) {
       $meta['previous_membership_post_id'] = $membership['previous_membership_post_id'];
     }
 
+    if(!empty( $membership['group_user_id'] )) {
+      $meta['group_user_id'] = $membership['group_user_id'];
+    }
+
     if( $membership['membership_type'] == 'organization') {
       $org_data = Helper::get_org_data( $membership['organization_uuid'] );
       $meta['org_location'] = 'N/A';
@@ -1339,7 +1355,7 @@ function add_order_item_meta ( $item_id, $values ) {
       }
       //add or update membership renewal post id meta on item
       $renew_post_id = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', false );
-      if($this->array_all_empty($renew_post_id ) || !in_array($membership_post_id, self::$renewing_membership_post_ids )) {
+      if( $this->array_all_empty($renew_post_id ) || (!empty(self::$renewing_membership_post_ids) && !in_array($membership_post_id, self::$renewing_membership_post_ids ) )) {
         wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id, false);
         $renew_order_flag = 'Added';
       } else if ( !in_array($membership_post_id, $renew_post_id ) && empty($new_order_processed)) {
@@ -1622,6 +1638,10 @@ function add_order_item_meta ( $item_id, $values ) {
       }
       $Membership_Config = $Membership_Tier->get_config();
 
+      if(empty($Membership_Config)) {
+        continue;
+      }
+      
       if( !empty( $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] )) {
         $membership_data['multi_tier_renewal'] = $Membership_Config->is_multitier_renewal();
       }
