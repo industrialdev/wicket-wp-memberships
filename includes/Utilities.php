@@ -186,7 +186,7 @@ class Utilities {
       $item = WC()->cart->get_cart_item( $cart_item_key );
       $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
       $category = get_term_by( 'slug', 'membership_late_fee', 'product_cat' );
-      $cat_id = $category->term_id;
+      $cat_id = isset($category->term_id) && !empty($category->term_id) ? $category->term_id : 0;
       $membership_categories[] = $cat_id;
       if ( has_term( $membership_categories, 'product_cat', $item['product_id']) ) {
         $product_remove = '<a href="'.esc_url( add_query_arg( 'empty-cart', 'true', wc_get_cart_url() ) ).'" class="remove" aria-label="Remove" onclick="event.stopImmediatePropagation(); return confirm(\''.__("This will empty the cart of all items.", 'wicket-memberships').'\');">×</a>';
@@ -209,7 +209,7 @@ class Utilities {
     if (is_cart()) {
       $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
       $category = get_term_by( 'slug', 'membership_late_fee', 'product_cat' );
-      $cat_id = $category->term_id;
+      $cat_id = isset($category->term_id) && !empty($category->term_id) ? $category->term_id : 0;
       $membership_categories[] = $cat_id;
       // We don't want to disable quantity input if the membership categories are not set (triggers bug: https://app.asana.com/1/1138832104141584/task/1210499044933981?focus=true)
       if(empty($membership_categories)) {
