@@ -228,6 +228,7 @@ function add_order_item_meta ( $item_id, $values ) {
         $membership_data['subscription_id'] = $subscription_id;
         $subscription_products = $subscription->get_items();
         foreach( $subscription_products as $item ) {
+          $membership_current_array = []; //start out empty for each item to compile current memberships to renew
           $product_id = $item->get_variation_id();
           if(empty($product_id)) {
             $product_id = $item->get_product_id();
@@ -261,7 +262,7 @@ function add_order_item_meta ( $item_id, $values ) {
               //var_dump(['here',$subscription->get_id(), $sub_renew, $subscription->get_requires_manual_renewal()]);exit;
               */
 
-              //if we have the current membership_post ID in the renew field on cart item
+              //if we have any current membership_post ID in the renew field on cart item
               $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', false );
               if( ! $this->array_all_empty($membership_post_id_renew) ) {
                 foreach( $membership_post_id_renew as $mpid ) {
@@ -276,6 +277,7 @@ function add_order_item_meta ( $item_id, $values ) {
                     $this->status_cycled = true;
                   } else {
                     $this->processing_renewal = true;
+                    $membership_current['previous_membership_post_id'] = $mpid;
                     $next_payment_time = $subscription->get_time( 'next_payment' );
                     $end_time = $subscription->get_time( 'end' );
                     $is_renewal = wcs_order_contains_subscription( $order, 'renewal' ) ;
@@ -406,6 +408,7 @@ function add_order_item_meta ( $item_id, $values ) {
                     }
                     $membership['membership_seats'] = $seats;
               }
+              $membership_post_id_renew = $membership_current['previous_membership_post_id'];
               if( !empty( $membership_post_id_renew )) {
                 if(!empty($membership_current['group_user_id'])) {
                   $membership['group_user_id'] = $membership_current['group_user_id'];
@@ -852,6 +855,8 @@ function add_order_item_meta ( $item_id, $values ) {
       $self->update_membership_subscription( $membership, $date_flags_array, true );
 
       $membership_post_data = Helper::get_post_meta( $membership['membership_post_id'] );
+      $membership_post_data['membership_post_id'] = $membership['membership_post_id'];
+
       do_action('wicket_membership_created_mdp', $membership_post_data);
     }
     return $membership;
