@@ -227,3 +227,38 @@ function wicket_mship_save_tier_reference_field($post_id) {
     }
 }
 
+/**
+ * For Group Subscription functionality
+ * Woocommerce by default will not copy multiple non-unique meta into a renewal order.
+ * Here we hook to manually copy multiple meta with the same key to renewal order line items.
+ */
+add_action( 'wcs_renewal_order_created', 'wicket_force_copy_multiple_meta_on_renewal', 10, 2 );
+
+function wicket_force_copy_multiple_meta_on_renewal( $renewal_order, $subscription ) {
+    
+    $meta_key_to_keep = '_membership_post_id_renew';
+    
+    foreach ( $subscription->get_items() as $subscription_item ) {
+        $original_meta_values = wc_get_order_item_meta( $subscription_item->get_id(), $meta_key_to_keep, false );
+        if ( is_array( $original_meta_values ) && count( $original_meta_values ) > 1 ) {
+            $renewal_item = wicket_find_renewal_order_item( $renewal_order, $subscription_item );            
+            if ( $renewal_item ) {
+                $renewal_item->delete_meta_data( $meta_key_to_keep );
+                foreach ( $original_meta_values as $meta_value ) {
+                    $renewal_item->add_meta_data( $meta_key_to_keep, $meta_value, false );
+                }
+                $renewal_item->save();
+            }
+        }
+    }
+}
+
+function wicket_find_renewal_order_item( $renewal_order, $subscription_item ) {
+    foreach ( $renewal_order->get_items() as $renewal_item ) {
+        if ( $renewal_item->get_product_id() === $subscription_item->get_product_id() ) {
+            return $renewal_item;
+        }
+    }
+    return false;
+}
+
