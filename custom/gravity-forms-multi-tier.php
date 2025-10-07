@@ -77,7 +77,7 @@ function wicket_multi_tier_renewal_checkbox_option_field($form) {
                 //this needs to be set so we know which product we want to put in the cart
                 //it is possible a tier can have multiple products attached so we cannot just use that
                 if($tier_reference == $tier_slug) {
-                  $choices[] = ['text' =>  $tier->post_title, 'value' => $tier->ID];
+                  $choices[] = ['text' =>  $tier->post_title .' (Product: '.$product->get_name().")", 'value' => $tier->ID];
                 }  
               }
             }
