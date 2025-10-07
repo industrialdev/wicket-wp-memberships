@@ -669,4 +669,8 @@ class Membership_Tier {
     $membership_tier_slug = get_post_meta( $this->post_id, 'membership_tier_slug', true );
     return $membership_tier_slug;
   }
+
+  public function get_tier_post_id() {
+    return $this->post_id;
+  }
 }
