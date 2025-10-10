@@ -162,7 +162,7 @@ function add_order_item_meta ( $item_id, $values ) {
 
     $subscriptions = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
     //$subscriptions_ids = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
-    Utilities::wicket_logger( '^get_memberships_data_from_subscription_products orderID', [$order_id]);
+    Utilities::wc_log_mship_error( [ '^get_memberships_data_from_subscription_products orderID', [$order_id]]);
     foreach( $subscriptions as $subscription_id => $subscription ) {
         $subscription_products = $subscription->get_items();
         foreach( $subscription_products as $item ) {
@@ -215,7 +215,7 @@ function add_order_item_meta ( $item_id, $values ) {
                   $is_renewal = wcs_order_contains_subscription( $order, 'renewal' ) ;
                   Utilities::wc_log_mship_error( [ 'subscription_billing_period', $subscription->get_billing_period(), 'is_renewal', $is_renewal, 'Helper::has_next_payment_date', Helper::has_next_payment_date($membership_current), $membership_post_id_renew] );
                   if( /*(! Helper::has_next_payment_date($membership_current) || 'clear' != Helper::has_next_payment_date($membership_current) )
-                      ||*/ ( ( $subscription->get_billing_period() == 'month') && $next_payment_time < $end_time && !empty($is_renewal)) ){
+                      ||*/ ( ( $subscription->get_billing_period() == 'month' && $subscription->get_billing_interval() == 1) && $next_payment_time < $end_time && !empty($is_renewal)) ){
                     $order->add_order_note( 'Monthly payment order against membership ID: '. $membership_post_id_renew);
                     Utilities::wicket_logger( '--monthly-- skip renew for membership postID', $membership_post_id_renew);
                     continue;
@@ -407,19 +407,19 @@ function add_order_item_meta ( $item_id, $values ) {
       $MSC->create_subscriptions( $order, $user ); // create subscriptions
     }
 
-    Utilities::wicket_logger( 'Creating a membership', ['order_id'=>$order_id]);
+    Utilities::wc_log_mship_error( ['Creating a membership', ['order_id'=>$order_id]]);
 
     foreach($subscriptions as $subscription) {
       $today = current_time( 'Y-m-d' );
       $created_date = $subscription->get_date( 'date_created' );
       $created_date = date( 'Y-m-d', strtotime($created_date));
       Utilities::wicket_logger( 'MSHIP CREATED sub date compare monthly', ['today'=>$today, 'created_date'=>$created_date]);
-      if($subscription->get_billing_period() == 'month') {
+      if($subscription->get_billing_period() == 'month' && $subscription->get_billing_interval() == 1) {
         if( $created_date !== $today) {
-          Utilities::wicket_logger( 'SKIPPING MEMBERSHIP CREATION - monthly subscription processed', ['sub_id'=>$subscription->get_id(), 'order_id'=>$order_id]);
+          Utilities::wc_log_mship_error( [ 'SKIPPING MEMBERSHIP CREATION - monthly subscription processed', ['sub_id'=>$subscription->get_id(), 'order_id'=>$order_id]]);
           return;
         } else {
-          Utilities::wicket_logger( 'MEMBERSHIP CREATED - monthly subscription created', ['sub_id'=>$subscription->get_id(), 'order_id'=>$order_id]);
+          Utilities::wc_log_mship_error( [ 'MEMBERSHIP CREATED - monthly subscription created', ['sub_id'=>$subscription->get_id(), 'order_id'=>$order_id]]);
         }
       }
     }
@@ -629,6 +629,7 @@ function add_order_item_meta ( $item_id, $values ) {
 
     //always create the local membership record to get post_id
     $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $membership_wicket_uuid );
+    add_post_meta( $membership['membership_post_id'], 'membership_post_id', $membership['membership_post_id'], true );
     Utilities::wicket_logger( 'create local membership - postID', $membership['membership_post_id']);
 
 
@@ -740,7 +741,7 @@ function add_order_item_meta ( $item_id, $values ) {
       }
       */
       if( in_array ( 'end_date', $fields ) ) {
-        if(!empty($membership['membership_next_tier_subscription_renewal']) && !empty($sub) && $sub->get_billing_period() == 'month') {
+        if(!empty($membership['membership_next_tier_subscription_renewal']) && !empty($sub) && ($sub->get_billing_period() == 'month' && $sub->get_billing_interval() == 1)) {
           //subscription renewal flow MONTHLY RENEWAL uses end_date for subscription_end_date
           $date = new \DateTime(substr($end_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
           $expire_or_end_date = $end_date; //for order note context
