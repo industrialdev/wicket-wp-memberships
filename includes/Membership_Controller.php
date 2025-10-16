@@ -200,7 +200,8 @@ function add_order_item_meta ( $item_id, $values ) {
               $period_data = $config->get_period_data();
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
-                $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
+                $membership_user_id = get_post_meta( $membership_post_id_renew, 'user_id', true);
+                $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $membership_user_id );
                 Utilities::wc_log_mship_error( ['processing order - membership_current object from user meta ', $membership_current]);
                 if(/*empty($membership_current['membership_parent_order_id']) ||*/ $membership_current['membership_parent_order_id'] == $order_id) {
                   //this is just an order having their status cycled so we should not create a renewal order on it BUT because
@@ -234,7 +235,11 @@ function add_order_item_meta ( $item_id, $values ) {
                   $membership_next_tier_form_page_id = $membership_tier->get_next_tier_form_page_id();
               }
               $dates = $config->get_membership_dates( $membership_current );
-              $user_object = get_user_by( 'id', $order->get_user_id() );
+              if(!empty($membership_user_id)) {
+                $user_object = get_user_by( 'id', $membership_user_id );
+              } else {
+                $user_object = get_user_by( 'id', $order->get_user_id() );
+              }
               $membership = [
                 'membership_parent_order_id' => $order_id,
                 'membership_subscription_id' => $subscription_id,
@@ -431,14 +436,16 @@ function add_order_item_meta ( $item_id, $values ) {
     }
 
     //membership data arrays
-    $memberships = array_map(function (array $arr) use ($user_id, $person_uuid) {
-        $arr['person_uuid'] = $person_uuid;
-        $arr['user_id'] = $user_id;
-        return $arr;
-    }, $memberships);
-
-    //connect product memberships and create subscriptions
-    foreach ($memberships as $membership) {
+    foreach($memberships as $membership) {
+        if(!empty($membership['membership_wp_user_id'])) {
+          $user_id = $membership['membership_wp_user_id'];
+        } else if(!empty($membership['user_id'])) {
+          $user_id = $membership['user_id'];
+        } else {
+          $user_id = $order->get_user_id();
+        }
+      $membership['user_id'] = $user_id;
+      $membership['person_uuid'] = $self->get_person_uuid( $user_id );
       do_action( 'wicket_member_create_record' , $membership, $self->processing_renewal, $self->status_cycled );
     }
   }
@@ -1032,6 +1039,7 @@ function add_order_item_meta ( $item_id, $values ) {
    * Create the WP Membership Record
    */
   public function create_local_membership_record( $membership, $membership_wicket_uuid, $skip_approval = false ) {
+    //Utilities::wc_log_mship_error(['create_local_membership_record', $membership, $membership_wicket_uuid, $skip_approval]);
     $wicket_membership_type = 'person_memberships';
     if( ! empty( $membership['membership_status'] )) {
       $status = $membership['membership_status'];
@@ -1450,6 +1458,9 @@ function add_order_item_meta ( $item_id, $values ) {
         $Membership_Tier = new Membership_Tier( $membership->membership_tier_post_id );
       }
       $Membership_Config = $Membership_Tier->get_config();
+      if(empty($Membership_Config)) {
+        continue;
+      }
 
       if( !empty( $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] )) {
         $membership_data['multi_tier_renewal'] = $Membership_Config->is_multitier_renewal();
