@@ -1178,13 +1178,13 @@ function add_order_item_meta ( $item_id, $values ) {
       }
       //add or update membership renewal post id meta on item
       $renew_post_id = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true );
-      if(empty($renew_post_id )) {
+      if(empty($renew_post_id ) && $membership['membership_product_id'] == $product_id ) {
         wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id, true);
         $renew_order_flag = 'Added';
-      } else if ( $renew_post_id != $membership_post_id && empty($new_order_processed)) {
+      } else if ( !empty($renew_post_id) && $renew_post_id != $membership_post_id && empty($new_order_processed)) {
         wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id );
         $renew_order_flag = "Updated on subscription renewal from membership post id $renew_post_id to";
-      } else if($renew_post_id == $membership['previous_membership_post_id'])  {
+      } else if(!empty($renew_post_id) && $renew_post_id == $membership['previous_membership_post_id'])  {
         wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id );
         $renew_order_flag = "Updated on subscription renewal order from membership post id $renew_post_id to";
       }

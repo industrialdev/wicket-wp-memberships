@@ -419,6 +419,11 @@ class Helper {
           'value'   => $s,
           'compare' => 'LIKE',
         ),
+        array(
+          'key'     => 'membership_user_uuid',
+          'value'   => $s,
+          'compare' => 'LIKE',
+        ),
       );
       $query->set( 'meta_query', $meta_query );
     }
