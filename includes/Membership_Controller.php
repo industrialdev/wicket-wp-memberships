@@ -756,7 +756,7 @@ function add_order_item_meta ( $item_id, $values ) {
           Utilities::wicket_logger( 'Setting Subscription END date', $dates_to_update['end']);
         }
       }
-      if( in_array ( 'next_payment_date', $fields ) && !empty($sub) && $sub->get_billing_period() != 'month') {
+      if( in_array ( 'next_payment_date', $fields ) && !empty($sub) && !($sub->get_billing_period() == 'month' && $sub->get_billing_interal() == 1)) {
         $date = new \DateTime(substr($end_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
         $date->setTimezone(new \DateTimeZone('UTC'));
         $dates_to_update['next_payment']  = $date->format('Y-m-d H:i:s');
