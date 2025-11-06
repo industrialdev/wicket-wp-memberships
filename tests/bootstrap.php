@@ -38,3 +38,19 @@ tests_add_filter('muplugins_loaded', '_manually_load_plugins');
 
 // Start up the WP testing environment.
 require "{$_tests_dir}/includes/bootstrap.php";
+
+// Include custom factories
+require_once __DIR__ . '/factories/class-wp-unittest-factory-for-wicket-mship-tier.php';
+require_once __DIR__ . '/factories/class-wp-unittest-factory-for-wicket-mship-config.php';
+require_once __DIR__ . '/factories/class-wp-unittest-factory-for-wicket-mship-membership.php';
+
+
+// Register custom factories after $factory is initialized by the test suite
+tests_add_filter('set_up_before_class', function() {
+    global $factory;
+    if ($factory) {
+        $factory->wicket_mship_tier = new WP_UnitTest_Factory_For_Wicket_Mship_Tier( $factory );
+        $factory->wicket_mship_config = new WP_UnitTest_Factory_For_Wicket_Mship_Config( $factory );
+        $factory->wicket_mship_membership = new WP_UnitTest_Factory_For_Wicket_Mship_Membership( $factory );
+    }
+});
