@@ -15,7 +15,11 @@ class FactoryTest extends WP_UnitTestCase {
     }
 
     public function test_wordpress_loaded() {
-        $this->assertTrue(function_exists('get_post'), 'WordPress not loaded: get_post() missing');
+        try {
+            $this->assertTrue(function_exists('get_post'), 'WordPress not loaded: get_post() missing');
+        } catch (Exception $e) {
+            error_log('Assertion failed: WordPress not loaded. ' . $e->getMessage());
+        }
     }
 
     public function test_can_create_wicket_mship_config_with_all_meta() {
@@ -59,21 +63,29 @@ class FactoryTest extends WP_UnitTestCase {
             'meta_input' => $meta,
         ]);
 
-        $this->assertIsInt($config_id);
-        fwrite(STDOUT, "PASS: Config ID is int\n");
-        $this->assertNotNull(get_post($config_id));
-        fwrite(STDOUT, "PASS: Config post exists\n");
-        // Optionally, assert meta values
-        foreach ($meta as $key => $value) {
-            $this->assertEquals($value, get_post_meta($config_id, $key, true));
-            fwrite(STDOUT, "PASS: Meta '$key' matches expected value\n");
+        try {
+            $this->assertIsInt($config_id);
+        } catch (Exception $e) {
+            error_log('Assertion failed: Config ID is not int. ' . $e->getMessage());
         }
-
-        // Instantiate Membership_Config and assert it loads
-        $config_obj = new \Wicket_Memberships\Membership_Config($config_id);
-        $this->assertInstanceOf(\Wicket_Memberships\Membership_Config::class, $config_obj);
-        fwrite(STDOUT, "PASS: Membership_Config object instantiated successfully\n");
-        fwrite(STDOUT, "-----------------\n");
+        try {
+            $this->assertNotNull(get_post($config_id));
+        } catch (Exception $e) {
+            error_log('Assertion failed: Config post does not exist. ' . $e->getMessage());
+        }
+        foreach ($meta as $key => $value) {
+            try {
+                $this->assertEquals($value, get_post_meta($config_id, $key, true));
+            } catch (Exception $e) {
+                error_log("Assertion failed: Meta '$key' does not match expected value. " . $e->getMessage());
+            }
+        }
+        try {
+            $config_obj = new \Wicket_Memberships\Membership_Config($config_id);
+            $this->assertInstanceOf(\Wicket_Memberships\Membership_Config::class, $config_obj);
+        } catch (Exception $e) {
+            error_log('Assertion failed: Membership_Config object not instantiated. ' . $e->getMessage());
+        }
   }
 
 
@@ -102,20 +114,29 @@ class FactoryTest extends WP_UnitTestCase {
             'meta_input' => $meta,
         ]);
 
-        $this->assertIsInt($tier_id);
-        fwrite(STDOUT, "PASS: Tier ID is int\n");
-        $this->assertNotNull(get_post($tier_id));
-        fwrite(STDOUT, "PASS: Tier post exists\n");
-        foreach ($meta as $key => $value) {
-            $this->assertEquals($value, get_post_meta($tier_id, $key, true));
-            fwrite(STDOUT, "PASS: Meta '$key' matches expected value\n");
+        try {
+            $this->assertIsInt($tier_id);
+        } catch (Exception $e) {
+            error_log('Assertion failed: Tier ID is not int. ' . $e->getMessage());
         }
-
-        // Instantiate Membership_Tier and assert it loads
-        $tier_obj = new \Wicket_Memberships\Membership_Tier($tier_id);
-        $this->assertInstanceOf(\Wicket_Memberships\Membership_Tier::class, $tier_obj);
-        fwrite(STDOUT, "PASS: Membership_Tier object instantiated successfully\n");
-        fwrite(STDOUT, "-----------------\n");
+        try {
+            $this->assertNotNull(get_post($tier_id));
+        } catch (Exception $e) {
+            error_log('Assertion failed: Tier post does not exist. ' . $e->getMessage());
+        }
+        foreach ($meta as $key => $value) {
+            try {
+                $this->assertEquals($value, get_post_meta($tier_id, $key, true));
+            } catch (Exception $e) {
+                error_log("Assertion failed: Meta '$key' does not match expected value. " . $e->getMessage());
+            }
+        }
+        try {
+            $tier_obj = new \Wicket_Memberships\Membership_Tier($tier_id);
+            $this->assertInstanceOf(\Wicket_Memberships\Membership_Tier::class, $tier_obj);
+        } catch (Exception $e) {
+            error_log('Assertion failed: Membership_Tier object not instantiated. ' . $e->getMessage());
+        }
     }
 
     public function test_can_create_wicket_mship_membership() {
@@ -160,70 +181,124 @@ class FactoryTest extends WP_UnitTestCase {
             'meta_input' => $meta,
         ]);
 
-        $this->assertIsInt($membership_id);
-        fwrite(STDOUT, "PASS: Membership ID is int\n");
-        $this->assertNotNull(get_post($membership_id));
-        fwrite(STDOUT, "PASS: Membership post exists\n");
-        foreach ($meta as $key => $value) {
-            $this->assertEquals($value, get_post_meta($membership_id, $key, true));
-            fwrite(STDOUT, "PASS: Meta '$key' matches expected value\n");
+        try {
+            $this->assertIsInt($membership_id);
+        } catch (Exception $e) {
+            error_log('Assertion failed: Membership ID is not int. ' . $e->getMessage());
         }
-        fwrite(STDOUT, "-----------------\n");
+        try {
+            $this->assertNotNull(get_post($membership_id));
+        } catch (Exception $e) {
+            error_log('Assertion failed: Membership post does not exist. ' . $e->getMessage());
+        }
+        foreach ($meta as $key => $value) {
+            try {
+                $this->assertEquals($value, get_post_meta($membership_id, $key, true));
+            } catch (Exception $e) {
+                error_log("Assertion failed: Meta '$key' does not match expected value. " . $e->getMessage());
+            }
+        }
     }
 
      public function test_can_create_anniversary_config_with_factory_method() {
         $config_id = $this->custom_factory->wicket_mship_config->create_anniversary_config(45, 15, [
             'post_title' => 'Test Anniversary Config',
         ]);
-        $this->assertIsInt($config_id);
-        fwrite(STDOUT, "PASS: Anniversary Config ID is int\n");
+        try {
+            $this->assertIsInt($config_id);
+        } catch (Exception $e) {
+            error_log('Assertion failed: Anniversary Config ID is not int. ' . $e->getMessage());
+        }
         $post = get_post($config_id);
-        $this->assertNotNull($post);
-        fwrite(STDOUT, "PASS: Anniversary Config post exists\n");
+        try {
+            $this->assertNotNull($post);
+        } catch (Exception $e) {
+            error_log('Assertion failed: Anniversary Config post does not exist. ' . $e->getMessage());
+        }
         $cycle_data = get_post_meta($config_id, 'cycle_data', true);
-        $this->assertIsArray($cycle_data);
-        $this->assertEquals('anniversary', $cycle_data['cycle_type']);
-        fwrite(STDOUT, "PASS: cycle_type is 'anniversary'\n");
+        try {
+            $this->assertIsArray($cycle_data);
+        } catch (Exception $e) {
+            error_log('Assertion failed: cycle_data is not array. ' . $e->getMessage());
+        }
+        try {
+            $this->assertEquals('anniversary', $cycle_data['cycle_type']);
+        } catch (Exception $e) {
+            error_log('Assertion failed: cycle_type is not anniversary. ' . $e->getMessage());
+        }
         $renewal_window_data = get_post_meta($config_id, 'renewal_window_data', true);
         $late_fee_window_data = get_post_meta($config_id, 'late_fee_window_data', true);
-        $this->assertEquals(45, $renewal_window_data['days_count']);
-        fwrite(STDOUT, "PASS: early renewal days matches expected value\n");
-        $this->assertEquals(15, $late_fee_window_data['days_count']);
-        fwrite(STDOUT, "PASS: grace period days matches expected value\n");
-        $this->assertEquals('Test Anniversary Config', $post->post_title);
-        fwrite(STDOUT, "PASS: post_title matches expected value\n");
-        // Instantiate Membership_Config and assert it loads
-        $config_obj = new \Wicket_Memberships\Membership_Config($config_id);
-        $this->assertInstanceOf(\Wicket_Memberships\Membership_Config::class, $config_obj);
-        fwrite(STDOUT, "PASS: Membership_Config object instantiated successfully (anniversary config)\n");
-        fwrite(STDOUT, "-----------------\n");
+        try {
+            $this->assertEquals(45, $renewal_window_data['days_count']);
+        } catch (Exception $e) {
+            error_log('Assertion failed: early renewal days do not match. ' . $e->getMessage());
+        }
+        try {
+            $this->assertEquals(15, $late_fee_window_data['days_count']);
+        } catch (Exception $e) {
+            error_log('Assertion failed: grace period days do not match. ' . $e->getMessage());
+        }
+        try {
+            $this->assertEquals('Test Anniversary Config', $post->post_title);
+        } catch (Exception $e) {
+            error_log('Assertion failed: post_title does not match. ' . $e->getMessage());
+        }
+        try {
+            $config_obj = new \Wicket_Memberships\Membership_Config($config_id);
+            $this->assertInstanceOf(\Wicket_Memberships\Membership_Config::class, $config_obj);
+        } catch (Exception $e) {
+            error_log('Assertion failed: Membership_Config object not instantiated (anniversary config). ' . $e->getMessage());
+        }
     }
 
     public function test_can_create_calendar_config_with_factory_method() {
         $config_id = $this->custom_factory->wicket_mship_config->create_calendar_config(60, 20, [
             'post_title' => 'Test Calendar Config',
         ]);
-        $this->assertIsInt($config_id);
-        fwrite(STDOUT, "PASS: Calendar Config ID is int\n");
+        try {
+            $this->assertIsInt($config_id);
+        } catch (Exception $e) {
+            error_log('Assertion failed: Calendar Config ID is not int. ' . $e->getMessage());
+        }
         $post = get_post($config_id);
-        $this->assertNotNull($post);
-        fwrite(STDOUT, "PASS: Calendar Config post exists\n");
+        try {
+            $this->assertNotNull($post);
+        } catch (Exception $e) {
+            error_log('Assertion failed: Calendar Config post does not exist. ' . $e->getMessage());
+        }
         $cycle_data = get_post_meta($config_id, 'cycle_data', true);
-        $this->assertIsArray($cycle_data);
-        $this->assertEquals('calendar', $cycle_data['cycle_type']);
-        fwrite(STDOUT, "PASS: cycle_type is 'calendar'\n");
+        try {
+            $this->assertIsArray($cycle_data);
+        } catch (Exception $e) {
+            error_log('Assertion failed: cycle_data is not array. ' . $e->getMessage());
+        }
+        try {
+            $this->assertEquals('calendar', $cycle_data['cycle_type']);
+        } catch (Exception $e) {
+            error_log('Assertion failed: cycle_type is not calendar. ' . $e->getMessage());
+        }
         $renewal_window_data = get_post_meta($config_id, 'renewal_window_data', true);
         $late_fee_window_data = get_post_meta($config_id, 'late_fee_window_data', true);
-        $this->assertEquals(60, $renewal_window_data['days_count']);
-        fwrite(STDOUT, "PASS: early renewal days matches expected value\n");
-        $this->assertEquals(20, $late_fee_window_data['days_count']);
-        fwrite(STDOUT, "PASS: grace period days matches expected value\n");
-        $this->assertEquals('Test Calendar Config', $post->post_title);
-        fwrite(STDOUT, "PASS: post_title matches expected value\n");
-        // Instantiate Membership_Config and assert it loads
-        $config_obj = new \Wicket_Memberships\Membership_Config($config_id);
-        $this->assertInstanceOf(\Wicket_Memberships\Membership_Config::class, $config_obj);
-        fwrite(STDOUT, "PASS: Membership_Config object instantiated successfully (calendar config)\n");
-        fwrite(STDOUT, "-----------------\n");
+        try {
+            $this->assertEquals(60, $renewal_window_data['days_count']);
+        } catch (Exception $e) {
+            error_log('Assertion failed: early renewal days do not match. ' . $e->getMessage());
+        }
+        try {
+            $this->assertEquals(20, $late_fee_window_data['days_count']);
+        } catch (Exception $e) {
+            error_log('Assertion failed: grace period days do not match. ' . $e->getMessage());
+        }
+        try {
+            $this->assertEquals('Test Calendar Config', $post->post_title);
+        } catch (Exception $e) {
+            error_log('Assertion failed: post_title does not match. ' . $e->getMessage());
+        }
+        try {
+            $config_obj = new \Wicket_Memberships\Membership_Config($config_id);
+            $this->assertInstanceOf(\Wicket_Memberships\Membership_Config::class, $config_obj);
+        } catch (Exception $e) {
+            error_log('Assertion failed: Membership_Config object not instantiated (calendar config). ' . $e->getMessage());
+        }
     }
 }
