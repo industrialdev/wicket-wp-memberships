@@ -17,6 +17,8 @@ class WP_UnitTest_Factory_For_Wicket_Mship_Config extends WP_UnitTest_Factory_Fo
      * @return int Post ID of created config.
      */
     public function create_anniversary_config($early_renewal_days = 30, $grace_period_days = 10, $args = []) {
+        $early_renewal_days = !isset($early_renewal_days) ? 30 : $early_renewal_days;
+        $grace_period_days = !isset($grace_period_days) ? 10 : $grace_period_days;
 
         $args_array['align-end-dates-enabled'] = false;
         $args_array['align-end-dates-type'] = 'last-day-of-month'; // 'last-day-of-month' '15th-of-month'
@@ -76,6 +78,9 @@ class WP_UnitTest_Factory_For_Wicket_Mship_Config extends WP_UnitTest_Factory_Fo
      * @return int Post ID of created config.
      */
     public function create_calendar_config($early_renewal_days = 30, $grace_period_days = 10, $args = []) {
+        $early_renewal_days = !isset($early_renewal_days) ? 30 : $early_renewal_days;
+        $grace_period_days = !isset($grace_period_days) ? 10 : $grace_period_days;
+
         $renewal_window_data = [
             'days_count' => $early_renewal_days,
             'locales' => [
@@ -114,6 +119,7 @@ class WP_UnitTest_Factory_For_Wicket_Mship_Config extends WP_UnitTest_Factory_Fo
                 ],
             ],
         ];
+        $cycle_data = array_merge($cycle_data, $args);
         $meta_input = [
             'renewal_window_data' => $renewal_window_data,
             'late_fee_window_data' => $late_fee_window_data,
