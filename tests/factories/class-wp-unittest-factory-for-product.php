@@ -20,6 +20,11 @@ class WP_UnitTest_Factory_For_Product extends WP_UnitTest_Factory_For_Post {
             'meta_input' => [],
         ];
         $args = array_merge($defaults, $post_args);
-        return parent::create($args);
+
+        // Set product category taxonomy if provided
+        $post_id = parent::create($args);
+        $cat = isset($args['product_cat']) ? $args['product_cat'] : 'Membership';
+        wp_set_object_terms($post_id, $cat, 'product_cat');
+        return $post_id;
     }
 }

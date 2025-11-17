@@ -74,12 +74,14 @@ function get_item_data ( $other_data, $cart_item ) {
 }
 
 function add_order_item_meta ( $item_id, $values ) {
+  if(is_array($values)) {
     if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
       wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
     }
     if(empty(wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)) && !empty($values['membership_post_id_renew'])) {
       wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $values['membership_post_id_renew'] );
     }
+  }
 }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////

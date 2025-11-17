@@ -13,9 +13,15 @@ class WP_UnitTest_Factory_For_Wicket_Mship_Config extends WP_UnitTest_Factory_Fo
      * @param array $args Override post args.
      * @param int $early_renewal_days Number of days before end date for early renewal.
      * @param int $grace_period_days Number of days after end date for grace period.
+     * @param array $args Override default args. ['align-end-dates-enabled' => bool, 'align-end-dates-type' => string]
      * @return int Post ID of created config.
      */
     public function create_anniversary_config($early_renewal_days = 30, $grace_period_days = 10, $args = []) {
+
+        $args_array['align-end-dates-enabled'] = false;
+        $args_array['align-end-dates-type'] = 'last-day-of-month'; // 'last-day-of-month' '15th-of-month'
+        $args_array = array_merge($args_array, $args);
+
         $renewal_window_data = [
             'days_count' => $early_renewal_days,
             'locales' => [
@@ -42,8 +48,8 @@ class WP_UnitTest_Factory_For_Wicket_Mship_Config extends WP_UnitTest_Factory_Fo
             'anniversary_data' => [
                 'period_count' => 1,
                 'period_type' => 'year',
-                'align_end_dates_enabled' => true,
-                'align_end_dates_type' => 'last-day-of-month',
+                'align_end_dates_enabled' => $args_array['align-end-dates-enabled'],
+                'align_end_dates_type' => $args_array['align-end-dates-type'],
             ],
         ];
         $meta_input = [

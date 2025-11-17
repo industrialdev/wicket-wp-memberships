@@ -1,28 +1,81 @@
 <?php
-// tests/MembershipsTest.php
-use \Brain\Monkey;
-use \Brain\Monkey\Functions;
+require_once __DIR__ . '/WP_UnitTestCase_NoDeprecationFail.php';
+
+use function Brain\Monkey\Functions\when;
+use function Brain\Monkey\Functions\expect;
+use function Brain\Monkey\setUp;
+use function Brain\Monkey\tearDown;
 
 defined('ABSPATH') || exit;
 
-class MembershipsTest extends WP_UnitTestCase {
-    protected function tearDown(): void {
-        Monkey\tearDown();
-        parent::tearDown();
-    }
-
+class MembershipsTest extends WP_UnitTestCase_NoDeprecationFail {
     protected $custom_factory;
-
 
     public function setUp(): void {
         parent::setUp();
-        Monkey\setUp();
+        error_reporting(E_ALL & ~E_WARNING);
+        setUp();
         $factory = isset($GLOBALS['factory']) ? $GLOBALS['factory'] : $this->factory;
         $this->custom_factory = (object) [
             'wicket_mship_tier' => new WP_UnitTest_Factory_For_Wicket_Mship_Tier($factory),
             'wicket_mship_config' => new WP_UnitTest_Factory_For_Wicket_Mship_Config($factory),
             'wicket_mship_membership' => new WP_UnitTest_Factory_For_Wicket_Mship_Membership($factory),
         ];
+
+    }
+
+    protected function tearDown(): void {
+        parent::tearDown();
+        tearDown();
+        $this->local_teardown();
+    }
+
+    private function local_teardown() {
+        // Cleanup posts
+        $post_types = [
+            'wicket_mship_membership',
+            'wicket_mship_config',
+            'wicket_mship_tier',
+            'product',
+            'shop_order',
+            'shop_subscription'
+        ];
+        foreach ($post_types as $type) {
+            $posts = get_posts([
+                'post_type' => $type,
+                'post_status' => 'any',
+                'numberposts' => -1,
+                'fields' => 'ids'
+            ]);
+            foreach ($posts as $post_id) {
+                wp_delete_post($post_id, true);
+            }
+        }
+        // Cleanup users
+        $users = get_users([
+            'fields' => 'ID'
+        ]);
+        foreach ($users as $user_id) {
+            if ($user_id > 1) { // Don't delete admin
+                wp_delete_user($user_id);
+            }
+        }
+        // Cleanup user meta
+        global $wpdb;
+        $wpdb->query("DELETE FROM {$wpdb->usermeta} WHERE meta_key LIKE '_wicket_membership_%'");
+        // Cleanup post meta
+        $wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE '_wicket_membership_%'");
+    }
+
+    private function generate_test_uuid() {
+        return sprintf(
+            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff),
+            mt_rand(0, 0xffff),
+            mt_rand(0, 0x0fff) | 0x4000,
+            mt_rand(0, 0x3fff) | 0x8000,
+            mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
+        );
     }
 
     public function test_can_create_membership_post() {
@@ -75,8 +128,6 @@ class MembershipsTest extends WP_UnitTestCase {
     }
 
     protected function create_subscription_with_product_and_pending_order( $product_id ) {
-
-        printf("[DEBUG] Entered create_subscription_with_product_and_pending_order\n");
         // Create a WooCommerce order in pending_payment status
         $order = wc_create_order();
         $user_id = $this->factory->user->create([
@@ -88,8 +139,6 @@ class MembershipsTest extends WP_UnitTestCase {
         // Default unpaid status for WooCommerce order is 'pending'
         $order->update_status('pending');
         $order_id = $order->get_id();
-
-        printf("[DEBUG] Created order with ID: %s\n", $order_id);
 
         // Create a WooCommerce subscription with the product and link to parent order
         if (!class_exists('WC_Subscription')) {
@@ -103,14 +152,11 @@ class MembershipsTest extends WP_UnitTestCase {
             'billing_period'  => 'month',
             'billing_interval'=> 1,
             'start_date'      => gmdate('Y-m-d H:i:s'),
-            // 'end_date'    => '', // Optional: set if you want a limited subscription
-            // 'status'      => 'pending', // Optional: let it default
+            'status'          => 'pending'
         ]);
 
         $subscription->add_product(wc_get_product($product_id), 1);
         $subscription_id = $subscription->get_id();
-
-        printf("[DEBUG] Created subscription with ID: %s\n", $subscription_id);
 
         // Assertions with console reporting on fail
         try {
@@ -147,27 +193,21 @@ class MembershipsTest extends WP_UnitTestCase {
         return $order_id;
     }
 
-    public function test_create_membership_for_anniversary_config_and_product_on_tier() {
+    public function test_create_individual_membership_for_anniversary_config_and_product_on_tier() {
 
-    Functions::when('wicket_assign_individual_membership')
-    ->alias(function($args) {
-        // Return your custom response for this test
-        return ['success' => true, 'data' => ['membership_id' => 999, 'type' => 'individual']];
-    });
+      $uuid = $this->generate_test_uuid();
 
-    Functions::when('wicket_assign_organization_membership')
-        ->alias(function($args) {
-            // Return your custom response for this test
-            return ['success' => true, 'data' => ['membership_id' => 888, 'type' => 'organization']];
-        });
-        
-        printf("[DEBUG] Running test_create_membership_for_anniversary_config_and_product_on_tier\n");
-        // Create an anniversary config
-        $config_id = $this->custom_factory->wicket_mship_config->create_anniversary_config(30, 10, [
-            'post_title' => 'Anniversary Config',
-        ]);
-
-        printf("[DEBUG] Created config with ID: %s\n", $config_id);
+      //BrainMonkey mock base plugin and MDP API responses
+      when('wicket_assign_individual_membership')->justReturn([
+          'success' => true,
+          'data' => ['id' => $uuid]
+      ]);
+      when('wicket_assign_organization_membership')->justReturn([
+          'success' => true,
+          'data' => ['id' => $uuid]
+      ]);
+      when('wicket_get_person_membership_exists')->justReturn([]);
+      when('wicket_update_membership_external_id')->justReturn([]);
 
         // Create a simple product
         $product_factory = new WP_UnitTest_Factory_For_Product($this->factory);
@@ -178,10 +218,11 @@ class MembershipsTest extends WP_UnitTestCase {
             'stock' => 50,
         ]);
 
-        printf("[DEBUG] Created product with ID: %s\n", $product_id);
+        $config_id = $this->custom_factory->wicket_mship_config->create_anniversary_config(30, 10, [
+            'post_title' => 'Anniversary Config',
+        ]);
 
         // Create a tier using both config and product
-        printf("[DEBUG] post_type_exists('wicket_mship_tier'): %s\n", post_type_exists('wicket_mship_tier') ? 'true' : 'false');
         $tier_data = [
             'mdp_tier_name' => 'Tier With Product',
             'mdp_tier_uuid' => uniqid('tier-uuid-'),
@@ -197,44 +238,46 @@ class MembershipsTest extends WP_UnitTestCase {
             ],
         ];
         $tier_id = $this->custom_factory->wicket_mship_tier->create_tier_with_config($config_id, $tier_data);
-        //$tier_obj = new \Wicket_Memberships\Membership_Tier($tier_id);
-        printf("[DEBUG] Created tier with ID: %s\n", $tier_id);
-
-        // Stub: Add assertions and further logic as needed
-        $this->assertIsInt($config_id);
-        $this->assertIsInt($product_id);
-        $this->assertIsInt($tier_id);
 
         $order_id = $this->create_subscription_with_product_and_pending_order( $product_id );
-        printf("[DEBUG] Returned order ID from helper: %s\n", $order_id);
-        // Change the order status to 'processing' after subscription creation
+        $user_id = get_post_meta( $order_id, '_customer_user', true );
+
+        $this->assertIsNumeric($config_id);
+        $this->assertIsNumeric($product_id);
+        $this->assertIsNumeric($tier_id);
+        $this->assertIsNumeric($order_id);
+        $this->assertIsNumeric($user_id);
+
         $order = wc_get_order($order_id);
         if ($order) {
-            printf("[DEBUG] Updating order status to processing for order ID: %s\n", $order_id);
             $order->update_status('processing');
-
             //Woocommerce hooks to simulate order processing
             do_action('woocommerce_order_status_processing', $order->get_id());
-            
-            sleep(5);
+
             // Get subscriptions for this order
             if (function_exists('wcs_get_subscriptions_for_order')) {
-                printf("[DEBUG] wcs_get_subscriptions_for_order is available, fetching subscriptions for order ID: %s\n", $order_id);
                 $subscriptions = wcs_get_subscriptions_for_order($order_id, ['order_type' => 'any']);
                 foreach ($subscriptions as $subscription_id => $subscription) {
+                    $status = $subscription->get_status();
                     $items = $subscription->get_items();
-                    printf("Subscription ID: %s has %d items.\n", $subscription_id, count($items));
-                    foreach ($items as $item_id => $item) {
-                        printf("Subscription item ID: %s, product ID: %s\n", $item_id, $item->get_product_id());
-                        $meta = $item->get_meta_data();
-                        var_dump($meta);exit;
-                        foreach ($meta as $meta_obj) {
-                            printf("Meta key: %s, value: %s\n", $meta_obj->key, print_r($meta_obj->value, true));
-                        }
-                    }
+                  foreach ( $subscription->get_items() as $item_id => $item ) {
+                      $meta_value = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true );
+                      $this->assertNotNull($meta_value, 'Meta key _membership_post_id_renew does not exist on subscription item.');
+                      $membership_post_id = $meta_value;
+                      $this->assertNotNull(get_post($membership_post_id), 'Membership post does not exist.');
+                      $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true));
+                      $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true));
+                      $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true));
+
+                      $todays_date = gmdate('Y-m-d\T00:00:00+00:00');
+                      $ends_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($todays_date . ' +1 year'));
+                      $expires_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($ends_at_date . ' +10 days'));
+                      $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true));
+                      $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true));
+                      $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true));
+                   }
                 }
             }
         }
-
     }
 }

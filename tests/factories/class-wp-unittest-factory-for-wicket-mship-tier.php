@@ -64,6 +64,7 @@ class WP_UnitTest_Factory_For_Wicket_Mship_Tier extends WP_UnitTest_Factory_For_
             'post_title' => $tier_data['mdp_tier_name'],
             'post_status' => 'publish',
             'meta_input' => $meta_input,
+            'post_type' => 'wicket_mship_tier',
         ];
         $args = array_merge($defaults, $post_args);
         return $this->create($args);
