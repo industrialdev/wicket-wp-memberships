@@ -1,4 +1,7 @@
 <?php
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../vendor/antecedent/patchwork/Patchwork.php';
+
 /**
  * PHPUnit bootstrap file.
  */
@@ -25,15 +28,12 @@ require_once "{$_tests_dir}/includes/functions.php";
 /**
  * Manually load required plugins.
  */
-function _manually_load_plugins()
-{
-    // Load WooCommerce first
-    require dirname(dirname(__FILE__)) . '../../woocommerce/woocommerce.php';
-
-    // Then load your plugin
+function _manually_load_plugins() {
+    require dirname(dirname(__FILE__)) . '/../woocommerce/woocommerce.php';
+    require dirname(dirname(__FILE__)) . '/../woocommerce-subscriptions/woocommerce-subscriptions.php';
+    require dirname(dirname(__FILE__)) . '/../wicket-wp-base-plugin/wicket.php';
     require dirname(dirname(__FILE__)) . '/wicket.php';
 }
-
 tests_add_filter('muplugins_loaded', '_manually_load_plugins');
 
 // Start up the WP testing environment.
