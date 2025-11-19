@@ -17,7 +17,7 @@ flush();
 ob_flush();
 
 if( count($argv) < 3 || strpos($argv[1], 'help') !== false ) {
-  echo "\n\nphp csv_import.php { individual|organization } { file_path from /uploads/ } { api_domain - optional str } { skip_approval - optional bool }\n\n";
+  echo "\n\nphp ./csv_import_threads.php { individual|organization } { file_path from /uploads/ } { api_domain - optional str } { skip_approval - optional bool }\n\n";
   exit;
 }
 var_dump($argv);

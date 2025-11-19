@@ -175,6 +175,9 @@ class Membership_Config_CPT_Hooks {
     } else if ( $column_name === 'tier_count' ) {
       $tier_uuids = Membership_Tier::get_tier_uuids_by_config_id( $post_id );
       echo count( $tier_uuids );
+      if( $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] && $config->is_multitier_renewal() ) {
+        echo ' (Multi-Tier)';
+      }
     }
 
     if ( empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
@@ -195,9 +198,12 @@ class Membership_Config_CPT_Hooks {
       echo '</pre>';
     } else if ( $column_name === 'cycle_data' ) {
       $meta = get_post_meta( $post_id, 'cycle_data', true );
+      $multi_tier_renewal = get_post_meta( $post_id, 'multi_tier_renewal', true );
 
       echo '<pre>';
       print_r($meta);
+      echo "MultiTier:";
+      print_r($multi_tier_renewal);
       echo '</pre>';
     }
 

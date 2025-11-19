@@ -8,17 +8,23 @@ class Membership_Tier {
 
   public function __construct( $post_id ) {
     if ( ! get_post( $post_id ) ) {
-      throw new \Exception( 'Invalid post ID' );
+      //throw new \Exception( 'Invalid post ID' );
+      error_log('Membership_Tier: Invalid post ID: ' . $post_id);
+
+      $this->post_id = 0;
+      $this->tier_data = [];
+
+      return;
     }
 
     if ( get_post_type( $post_id ) !== Helper::get_membership_tier_cpt_slug() ) {
-      return;
       //throw new \Exception( 'Invalid post type' );
+      return;
     }
 
     $this->post_id = $post_id;
     $this->tier_data = $this->get_tier_data();
-	}
+  }
 
   /**
    * Get all tier WC Product IDs
@@ -233,6 +239,34 @@ class Membership_Tier {
 
     return false;
   }
+
+    /**
+   * Get the tier renewal type
+   *
+   * @return string|bool String, false otherwise
+   */
+  public function get_tier_renewal_type() {
+    if ( !empty($this->tier_data['renewal_type']) ) {
+      return $this->tier_data['renewal_type'];
+    }
+
+    return false;
+  }
+
+
+  /**
+   * Is subscription renewal type
+   *
+   * @return bool
+   */
+  public function is_renewal_subscription() {
+    if ( $this->tier_data['renewal_type'] == 'subscription') {
+      return true;
+    }
+
+    return false;
+  }
+
 
   /**
    * Is form page renewal type
@@ -629,5 +663,14 @@ class Membership_Tier {
     $memberships = get_posts( $args );
 
     return $memberships;
+  }
+
+  public function get_membership_tier_slug() {
+    $membership_tier_slug = get_post_meta( $this->post_id, 'membership_tier_slug', true );
+    return $membership_tier_slug;
+  }
+
+  public function get_tier_post_id() {
+    return $this->post_id;
   }
 }

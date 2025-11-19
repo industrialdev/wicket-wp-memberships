@@ -4,6 +4,7 @@ namespace Wicket_Memberships;
 
 use Wicket_Memberships\Membership_Controller;
 use Wicket_Memberships\Utilities;
+use Wicket_Memberships\Helper;
 
 /**
  * Class Settings
@@ -24,6 +25,7 @@ class Settings {
     <form action="options.php" method="post">
     <h2>Wicket Membership Settings</h2>
     <?php
+      Settings::check_migrate_tier_slugs();
       settings_fields( 'wicket_membership_plugin_options' );
       do_settings_sections( 'wicket_membership_plugin' ); ?>
     <p><input name="submit" class="button button-primary" type="submit" value="<?php esc_attr_e( 'Save' ); ?>" />
@@ -59,8 +61,12 @@ class Settings {
     add_settings_section( 'functional_settings', 'Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_functional_text'], 'wicket_membership_plugin' );
     //options
     add_settings_field( 'wicket_show_mship_order_org_search', '<p>Set the Organization on Subscription Membership in Admin</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_mship_order_org_search'], 'wicket_membership_plugin', 'functional_settings' );
-    add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Renewal Callouts</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
+
+    add_settings_field( 'wicket_mship_multi_tier_renewal', '<p>Use Multi-Tier Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_multi_tier_renewal'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_assign_subscription', '<p>Membership Subscription Assignment</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_assign_subscription'], 'wicket_membership_plugin', 'functional_settings' );
     //add_settings_field( 'wicket_mship_subscription_renew', '<p>Use Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_subscription_renew'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_autorenew_toggle', '<p>Enable User Autorenew Subscription Toggle</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_toggle'], 'wicket_membership_plugin', 'functional_settings' );
     
     //debug
     add_settings_section( 'debug_settings', 'Debug Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_debug_text'], 'wicket_membership_plugin' );
@@ -89,10 +95,23 @@ class Settings {
     #}
   }
 
+  public static function wicket_mship_multi_tier_renewal() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_multi_tier_renewal]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_multi_tier_renewal']), false). " />"
+      .'Enables the multi-tier checkbox setting on Membership Configs, multi-tier Account Centre callouts, and the Tier Opt-in Gravity Form Field for Renewals.<br/><strong style="color:red;">IMPORTANT</strong>:
+      Only use this if you undertsand the Multi-Tier Renewal Flow & Rules and follow the instructions to configure everything correctly.';
+  }
+
   public static function wicket_mship_disable_renewal() {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_disable_renewal]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_disable_renewal']), false). " />"
       .'Do not display renewal callouts in ACC.';
+  }
+
+  public static function wicket_mship_assign_subscription() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_assign_subscription]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_assign_subscription']), false). " />"
+      .'Allow assigning membership by ID on Woocommerce Subscription page.';
   }
 
   public static function wicket_show_mship_order_org_search() {
@@ -124,6 +143,12 @@ class Settings {
       .'Do not create memberships in wicket MDP.';
   }
   
+  public static function wicket_mship_autorenew_toggle() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_mship_autorenew_toggle' name='wicket_membership_plugin_options[wicket_mship_autorenew_toggle]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_autorenew_toggle']), false). " />"
+      .'Enable the use of the Wicket Autorenew Checkbox Toggle anywhere on the front-end and in Gravity Forms with the shortcode <code>[wicket_autorenew_toggle_shortcode]</code><br><span style="color:red;">Note:</span> When toggled will set persistent user meta that causes all a user\'s membership subscription purchases to auto-renew when payment method allows.';
+  }
+  
   public static function wicket_mship_subscription_renew() {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_subscription_renew]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_subscription_renew']), false). " />"
@@ -150,9 +175,39 @@ class Settings {
 
   public static function allow_local_imports() {
     $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[allow_local_imports]' type='checkbox' value='1' ".checked(1, esc_attr( $options['allow_local_imports']), false). " />"
-      .'Enable MDP exports to be <a target="_blank" href="'.plugins_url('wicket-wp-memberships').'/csv_post.php">imported here</a>.';
-  }
+    ?>
+    <input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[allow_local_imports]' type='checkbox' value='1' <?php echo checked(1, esc_attr( $options['allow_local_imports']), false); ?> />
+    Enable MDP export CSV ONLY to be imported on the ssh cmd line <!--<a target="_blank" href="<?php echo plugins_url('wicket-wp-memberships'); ?>/csv_post.php">imported here</a>-->.
+    <p style="color:black;font-style:italic;display:inline;">
+        IMPORTANT: Requires direct access to membership plugin folder through ssh.
+        <span id="allow-local-imports-help" style="cursor:pointer; margin-left:8px;" title="Show more info">
+            <span style="font-size:1.2em;">&#x2753;</span>
+        </span>
+    </p>
+    <div id="allow-local-imports-details" style="display:none; margin-top:8px;">
+        <p style="color:black;font-style:italic">1. Make sure the MDP User Sync has been run before performing imports to create wp users.</p>
+        <p style="color:black;font-style:italic">2. Upload Membership CSV to media folder. Separate files for Individuals and Organizations.</p>
+        <p style="color:black;font-style:italic">3. Run the import command from the ssh command line in the plugin folder: <code>php ./csv_import_threads.php</code>.</p>
+        <p style="color:black;font-style:italic">4. Follow guidance to add the correct args. Import is batched, wait until complete or run as a background task!</p>
+        <p style="color:black;font-style:italic"><code>php ./csv_import_threads.php { individual|organization } { file_path from /uploads/ } { api_domain - optional str } { skip_approval - optional bool }</code></p>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var helpIcon = document.getElementById('allow-local-imports-help');
+        var detailsDiv = document.getElementById('allow-local-imports-details');
+        if(helpIcon && detailsDiv) {
+            helpIcon.addEventListener('click', function() {
+                if(detailsDiv.style.display === 'none') {
+                    detailsDiv.style.display = 'block';
+                } else {
+                    detailsDiv.style.display = 'none';
+                }
+            });
+        }
+    });
+    </script>
+    <?php
+}
 
   public static function wicket_show_order_debug_data() {
     $options = get_option( 'wicket_membership_plugin_options' );
@@ -174,6 +229,9 @@ class Settings {
 
   public static function wicket_membership_plugin_options_validate( $input ) {
     $newinput['wicket_mship_membership_merge_key'] = trim($input['wicket_mship_membership_merge_key']);
+    $newinput['wicket_mship_multi_tier_renewal'] = trim($input['wicket_mship_multi_tier_renewal']);
+    $newinput['wicket_mship_assign_subscription'] = trim($input['wicket_mship_assign_subscription']);
+    $newinput['wicket_mship_autorenew_toggle'] = trim($input['wicket_mship_autorenew_toggle']);
     $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
     $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
     $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);
@@ -213,6 +271,20 @@ class Settings {
     $schedule = $self->get_next_scheduled_membership_expiry();
     if(!empty($schedule)) {          
       echo "<p>Next <strong>membership expiry</strong> will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_expiry_hook=1'>Run Now</a></p>";
+    }
+  }
+
+  public static function check_migrate_tier_slugs() {
+    $args = array(
+      'post_type' => Helper::get_membership_tier_cpt_slug(),
+      'posts_per_page' => -1,
+    );
+    $tiers = get_posts( $args );
+    foreach($tiers as $tier) {
+      $tier_slug = get_post_meta( $tier->ID, 'membership_tier_slug', true);
+      if(empty($tier_slug)) {
+        (new Helper)->add_slug_on_mship_tier_create( $tier->ID, $tier, true);
+      }
     }
   }
 }

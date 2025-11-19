@@ -4,12 +4,14 @@ import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { TextControl, Button, Flex, FlexItem, Modal, TextareaControl, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalHeading as Heading, Icon } from '@wordpress/components';
-import { API_URL, DEFAULT_DATE_FORMAT, WC_PRODUCT_TYPES } from '../constants';
+import { API_URL, DEFAULT_DATE_FORMAT, PLUGIN_SETTINGS, WC_PRODUCT_TYPES } from '../constants';
 import he from 'he';
 import { Wrap, ActionRow, FormFlex, ErrorsRow, BorderedBox, SelectWpStyled, CustomDisabled, LabelWpStyled, ReactDatePickerStyledWrap, AppWrap } from '../styled_elements';
 import DatePicker from 'react-datepicker';
 import MembershipConfigTiers from './tiers';
 import { fetchWcProducts } from '../services/api';
+import { Tooltip } from 'react-tooltip'
+//import 'react-tooltip/dist/react-tooltip.css';
 
 const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tierCptSlug, postId, tierMdpUuids, languageCodes }) => {
 
@@ -56,6 +58,7 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 
 	const [form, setForm] = useState({
 		name: '',
+    multi_tier_renewal: false,
 		renewal_window_data: {
 			days_count: '1',
 			locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
@@ -267,7 +270,8 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 				status: 'publish',
 				renewal_window_data: form.renewal_window_data,
 				late_fee_window_data: form.late_fee_window_data,
-				cycle_data: form.cycle_data
+				cycle_data: form.cycle_data,
+        multi_tier_renewal: form.multi_tier_renewal,
 			}
 		}).then((response) => {
 			console.log(response);
@@ -302,7 +306,8 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 					name: decodedTitle,
 					renewal_window_data: post.renewal_window_data,
 					late_fee_window_data: post.late_fee_window_data,
-					cycle_data: post.cycle_data
+					cycle_data: post.cycle_data,
+          multi_tier_renewal: post.multi_tier_renewal,
 				});
 			});
 		}
@@ -363,6 +368,53 @@ const CreateMembershipConfig = ({ configCptSlug, configListUrl, tierListUrl, tie
 									}}
 									value={form.name}
 								/>
+                {PLUGIN_SETTINGS.WICKET_MSHIP_MULTI_TIER_RENEWALS &&
+                <>
+                <FlexItem>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+									<CheckboxControl
+										label={__('Multi-Tier Renewal', 'wicket-memberships')}
+										checked={form.multi_tier_renewal}
+										onChange={(value) => setForm({ ...form, multi_tier_renewal: value })}
+										__nextHasNoMarginBottom={true}
+									/>
+                    <span
+                      tabIndex={0}
+                      style={{
+                        display: 'inline-flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        backgroundColor: '#007bff', // Bootstrap blue
+                        color: '#fff',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        lineHeight: 1,                      
+                      }}
+                      aria-label={__('What is Multi-Tier Renewal?', 'wicket-memberships')}
+                      data-tooltip-id="membership-multi-tier-tooltip"
+                      data-tooltip-html={
+                          [
+                            __('All the Membership Tiers attached to this or any other Membership Config set to use', 'wicket-memberships'),
+                            __('a Multi-Tier Renewal where they all have similar options selected for Renewal Flow,', 'wicket-memberships'),
+                            __('will be combined into a single callout in the Account Centre.', 'wicket-memberships'),
+                          ].join('<br />')
+                    }
+                    >
+                      ?
+                    </span>
+                    <Tooltip
+                      id="membership-multi-tier-tooltip"
+                      place="right"
+                      effect="solid" 
+                      multiline={true} />
+                  </div>
+                </FlexItem> 
+                </>
+                }
 							</FlexBlock>
 						</Flex>
 

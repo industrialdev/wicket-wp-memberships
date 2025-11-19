@@ -232,6 +232,7 @@ class Membership_Tier_CPT_Hooks {
     $columns['category'] = __( 'Category', 'wicket-memberships' );
     $columns['member_count'] = __( '# Members', 'wicket-memberships' );
     $columns['config_name'] = __( 'Config', 'wicket-memberships' );
+    $columns['slug'] = __( 'MDP Tier Slug', 'wicket-memberships' );
 
     if ( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
       $columns['tier_data'] = __( 'Tier Data', 'wicket-memberships' );
@@ -280,8 +281,21 @@ class Membership_Tier_CPT_Hooks {
     }
 
     if ( $column_name === 'config_name' ) {
+      echo "<span style='white-space: nowrap;'>";
       $config = $tier->get_config();
       echo $config->get_title();
+      if( $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] && $config->is_multitier_renewal() ) {
+        echo ' (Multi-Tier)';
+      }
+      echo '</span>';
+    }
+
+    if ( $column_name === 'slug' ) {
+      $tier_slug = get_post_meta( $post_id, 'membership_tier_slug', true);
+
+      echo <<<HTML
+      <div>$tier_slug</div>
+      HTML;
     }
 
     if ( empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
@@ -290,8 +304,11 @@ class Membership_Tier_CPT_Hooks {
 
     if ( $column_name === 'tier_data' ) {
       $tier_data = get_post_meta( $post_id, 'tier_data', true );
+      $tier_slug = get_post_meta( $post_id, 'membership_tier_slug', true );
       echo '<pre>';
       print_r($tier_data);
+      echo "MDP Tier Slug:";
+      print_r($tier_slug);
       echo '</pre>';
     }
   }
@@ -305,7 +322,7 @@ class Membership_Tier_CPT_Hooks {
         $individual_memberships = get_individual_memberships();
         foreach($individual_memberships['data'] as $tier) {
           $selected = $tier_uuid == $tier['id'] ? 'selected' : '';
-          $options[] = '<option '.$selected.' value="'.$tier['id'].'">'.$tier['attributes']['name_en'].'</option>';
+          $options[] = '<option '.$selected.' value="'.$tier['id'].'|'.$tier['attributes']['name_en'].'">'.$tier['attributes']['name_en'].'</option>';
         }
         $select = '<select style="width:175px;" id="tier_post_'.$post->ID.'" name="tier_uuid_changed">'.implode("\n",$options).'</select>';
         $nonce = wp_create_nonce('tier_uuid_update_nonce');

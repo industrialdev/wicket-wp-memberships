@@ -249,6 +249,9 @@ const ManageTierProducts = ({
   const allRemoteDataLoaded = () => {
 		return wcProductOptions.length > 0;
 	}
+	console.log('limit:');
+	console.log(limit);
+	console.log('--------------');
 
 	console.log('Subcomponent Products:');
 	console.log(products);

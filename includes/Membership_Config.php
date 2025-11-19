@@ -373,4 +373,7 @@ class Membership_Config {
     return $dates;
   }
 
+  public function is_multitier_renewal() {
+    return  get_post_meta( $this->post_id, 'multi_tier_renewal', true );
+  }
 }

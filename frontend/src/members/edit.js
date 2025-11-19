@@ -173,8 +173,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             memberships.map((m) => {
               if (m.ID == manageStatusFormData.postId) {
                 m.data.membership_status = manageStatusFormData.newStatus;
-                m.data.membership_ends_at = moment(response.membership_ends_at).format('YYYY-MM-DD');
-                m.data.membership_expires_at = moment(response.membership_expires_at).format('YYYY-MM-DD');
+                m.data.membership_ends_at = moment(response.response.membership_ends_at).format('YYYY-MM-DD');
+                m.data.membership_expires_at = moment(response.response.membership_expires_at).format('YYYY-MM-DD');
                 m.updatedNow = true;
               }
               return m;
@@ -218,7 +218,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
           if ( membership.data.renewal_type === 'form_flow' || ( /*membership.data.renewal_type === undefined &&*/ [0, false].indexOf(membership.data.membership_next_tier_form_page_id) === -1 )) {
             membership.data.renewalType = 'form_flow';
           }
-
+          console.log('renewal_type' + membership.data.renewalType);
           if ( membership.data.renewal_type === 'sequential_logic' || ( /*membership.data.renewal_type === undefined &&*/ [0, false].indexOf(membership.data.membership_next_tier_id) === -1 && membership.data.membership_tier_post_id != membership.data.membership_next_tier_id)) {
             membership.data.renewalType = 'sequential_logic';
           }
@@ -230,6 +230,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
           if ( membership.data.renewal_type === 'current_tier' || ( /*membership.data.renewal_type === undefined &&*/ [0, false].indexOf(membership.data.membership_next_tier_id) === -1 && membership.data.membership_tier_post_id == membership.data.membership_next_tier_id && (! ['', 0, false].indexOf(membership.data.membership_next_tier_subscription_renewal) === -1))) {
             membership.data.renewalType = 'current_tier';
           }
+          console.log('renewal_type' + membership.data.renewalType);
 
           if( membership.data.renewal_type === undefined || membership.data.renewal_type === 'inherited')  {
             if( membership.data.renewalType !== undefined) {
@@ -241,7 +242,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
           if( membership.data.tierRenewalType === undefined ) {
             membership.data.tierRenewalType = 'current_tier';
           }
-          
           console.log('tierRenewalType' + membership.data.tierRenewalType);
 
           // Set initial membership owner options
@@ -1114,7 +1114,11 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 								]}
 							>
 								<FlexItem>
-									<Button variant="primary" type='submit'>
+									<Button
+                    variant="primary"
+                    type='submit'
+                    disabled={manageStatusFormData.newStatus === ''}
+                  >
 										{__('Update Status', 'wicket-memberships')}
 									</Button>
 								</FlexItem>

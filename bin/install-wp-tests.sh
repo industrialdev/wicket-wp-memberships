@@ -161,7 +161,7 @@ install_db() {
 		elif ! [ -z $DB_SOCK_OR_PORT ] ; then
 			EXTRA=" --socket=$DB_SOCK_OR_PORT"
 		elif ! [ -z $DB_HOSTNAME ] ; then
-			EXTRA=" --host=$DB_HOSTNAME --protocol=tcp"
+			EXTRA=" --host=$DB_HOSTNAME --protocol=tcp --ssl=0"
 		fi
 	fi
 
@@ -179,3 +179,43 @@ install_db() {
 install_wp
 install_test_suite
 install_db
+
+# Symlink this plugin into the test environment's plugins directory
+PLUGIN_SLUG="wicket-wp-memberships"
+PLUGIN_SOURCE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PLUGIN_TARGET_DIR="$WP_CORE_DIR/wp-content/plugins/$PLUGIN_SLUG"
+
+if [ ! -L "$PLUGIN_TARGET_DIR" ]; then
+	ln -s "$PLUGIN_SOURCE_DIR" "$PLUGIN_TARGET_DIR"
+	echo "Symlinked $PLUGIN_SOURCE_DIR to $PLUGIN_TARGET_DIR"
+fi
+
+# Symlink wicket-wp-base-plugin into the test environment's plugins directory
+BASE_PLUGIN_SLUG="wicket-wp-base-plugin"
+BASE_PLUGIN_SOURCE_DIR="$(cd "$PLUGIN_SOURCE_DIR/../$BASE_PLUGIN_SLUG" && pwd)"
+BASE_PLUGIN_TARGET_DIR="$WP_CORE_DIR/wp-content/plugins/$BASE_PLUGIN_SLUG"
+
+if [ -d "$BASE_PLUGIN_SOURCE_DIR" ] && [ ! -L "$BASE_PLUGIN_TARGET_DIR" ]; then
+	ln -s "$BASE_PLUGIN_SOURCE_DIR" "$BASE_PLUGIN_TARGET_DIR"
+	echo "Symlinked $BASE_PLUGIN_SOURCE_DIR to $BASE_PLUGIN_TARGET_DIR"
+fi
+
+# Symlink WooCommerce into the test environment's plugins directory
+WOOCOMMERCE_PLUGIN_SLUG="woocommerce"
+WOOCOMMERCE_PLUGIN_SOURCE_DIR="$(cd "$PLUGIN_SOURCE_DIR/../../$WOOCOMMERCE_PLUGIN_SLUG" && pwd)"
+WOOCOMMERCE_PLUGIN_TARGET_DIR="$WP_CORE_DIR/wp-content/plugins/$WOOCOMMERCE_PLUGIN_SLUG"
+
+if [ -d "$WOOCOMMERCE_PLUGIN_SOURCE_DIR" ] && [ ! -L "$WOOCOMMERCE_PLUGIN_TARGET_DIR" ]; then
+    ln -s "$WOOCOMMERCE_PLUGIN_SOURCE_DIR" "$WOOCOMMERCE_PLUGIN_TARGET_DIR"
+    echo "Symlinked $WOOCOMMERCE_PLUGIN_SOURCE_DIR to $WOOCOMMERCE_PLUGIN_TARGET_DIR"
+fi
+
+# Symlink WooCommerce Subscriptions into the test environment's plugins directory
+WOOCOMMERCE_SUBSCRIPTIONS_PLUGIN_SLUG="woocommerce-subscriptions"
+WOOCOMMERCE_SUBSCRIPTIONS_PLUGIN_SOURCE_DIR="$(cd "$PLUGIN_SOURCE_DIR/../../$WOOCOMMERCE_SUBSCRIPTIONS_PLUGIN_SLUG" && pwd)"
+WOOCOMMERCE_SUBSCRIPTIONS_PLUGIN_TARGET_DIR="$WP_CORE_DIR/wp-content/plugins/$WOOCOMMERCE_SUBSCRIPTIONS_PLUGIN_SLUG"
+
+if [ -d "$WOOCOMMERCE_SUBSCRIPTIONS_PLUGIN_SOURCE_DIR" ] && [ ! -L "$WOOCOMMERCE_SUBSCRIPTIONS_PLUGIN_TARGET_DIR" ]; then
+    ln -s "$WOOCOMMERCE_SUBSCRIPTIONS_PLUGIN_SOURCE_DIR" "$WOOCOMMERCE_SUBSCRIPTIONS_PLUGIN_TARGET_DIR"
+    echo "Symlinked $WOOCOMMERCE_SUBSCRIPTIONS_PLUGIN_SOURCE_DIR to $WOOCOMMERCE_SUBSCRIPTIONS_PLUGIN_TARGET_DIR"
+fi

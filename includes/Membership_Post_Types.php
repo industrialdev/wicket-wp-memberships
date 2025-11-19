@@ -588,7 +588,7 @@ class Membership_Post_Types {
               }
 
               // if type is organization and seat type is per_seat, max 1 product is allowed
-              if ( $value['type'] === 'organization' && $value['seat_type'] === 'per_seat' && count( $value['product_data'] ) > 1 ) {
+              if ( $value['type'] === 'organization' && $value['seat_type'] === 'per_seat' && count( $value['product_data'] ) > 99 ) {
                 $errors->add( 'rest_invalid_param_product_data', __( 'Only one product is allowed for organization tier types.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
@@ -971,6 +971,21 @@ class Membership_Post_Types {
     );
 
     register_post_type( $this->membership_config_cpt_slug, $args );
+
+    add_action('rest_api_init', function () {
+      register_rest_field($this->membership_config_cpt_slug, 'multi_tier_renewal', [
+          'get_callback'    => function ($object) {
+              return get_post_meta($object['id'], 'multi_tier_renewal', true);
+          },
+          'update_callback' => function ($value, $object) {
+              return update_post_meta($object->ID, 'multi_tier_renewal', $value);
+          },
+          'schema' => [
+              'description' => 'Is multi tier renewal',
+              'context'     => ['view', 'edit'],
+          ],
+      ]);
+    });
   }
 
     /**
@@ -1028,6 +1043,21 @@ class Membership_Post_Types {
     );
 
     register_post_type( $this->membership_tier_cpt_slug, $args );
+
+    add_action('rest_api_init', function () {
+      register_rest_field($this->membership_tier_cpt_slug, 'membership_tier_slug', [
+          'get_callback'    => function ($object) {
+              return get_post_meta($object['id'], 'membership_tier_slug', true);
+          },
+          'update_callback' => function ($value, $object) {
+              return update_post_meta($object->ID, 'membership_tier_slug', $value);
+          },
+          'schema' => [
+              'description' => 'membership_tier_slug',
+              'context'     => ['view', 'edit'],
+          ],
+      ]);
+    });
   }
 
 }

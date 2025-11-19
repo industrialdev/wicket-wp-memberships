@@ -3,6 +3,7 @@
 namespace Wicket_Memberships;
 
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Config;
 
@@ -24,6 +25,7 @@ class Membership_Controller {
 
   //prop used to bypass pending approval for renewals
   public $processing_renewal = false;
+  public $status_cycled = false;
 
   public function __construct() {
     $this->bypass_wicket = !empty( $_ENV['BYPASS_WICKET'] ) ?? false;
@@ -46,7 +48,7 @@ class Membership_Controller {
     //change to hidden fields and remove 'woocommerce_get_item_data' filter to hide data
     $value = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field( $_REQUEST['org_uuid'] ) : '';
     echo '<div><label>org_uuid</label><p><input type="text" name="org_uuid" value="' . $value . '"></p></div>';
-    $value = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field( $_REQUEST['membership_post_id_renew'] ) : '';
+    $value = isset( $_REQUEST['membership_post_id_renew'] )  && !is_array($_REQUEST['membership_post_id_renew']) ? sanitize_text_field( $_REQUEST['membership_post_id_renew'] ) : '';
     echo '<div><label>membership_post_id_renew</label><p><input type="text" name="membership_post_id_renew" value="' . $value . '"></p></div>';
 }
 
@@ -54,7 +56,7 @@ function add_cart_item_data( $cart_item_meta, $product_id ) {
     if ( isset( $_REQUEST ['org_uuid'] ) ) {
       $cart_item_meta[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
     }
-    if( isset( $_REQUEST['membership_post_id_renew']) ) {
+    if( isset( $_REQUEST['membership_post_id_renew']) && !is_array($_REQUEST['membership_post_id_renew'])) {
       $cart_item_meta[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
     }
     return $cart_item_meta;
@@ -66,18 +68,20 @@ function get_item_data ( $other_data, $cart_item ) {
       $data[] = array( 'name' => 'org_uuid', 'display'  => $cart_item['org_uuid'] );
     }
     if(!empty($cart_item['membership_post_id_renew'])) {
-      $data[] = array( 'name' => 'membership_post_id_renew', 'display'  => $cart_item['membership_post_id_renew'] );            
+      $data[] = array( 'name' => 'membership_post_id_renew', 'display'  => $cart_item['membership_post_id_renew'] );
     }
     return $data;
 }
 
 function add_order_item_meta ( $item_id, $values ) {
+  if(is_array($values)) {
     if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
       wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
     }
     if(empty(wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)) && !empty($values['membership_post_id_renew'])) {
       wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $values['membership_post_id_renew'] );
     }
+  }
 }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -96,7 +100,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $post_id = $id;
     } else {
       $membership_wicket_uuid = $id;
-      $query = new \WP_Query( 
+      $query = new \WP_Query(
         array(
         'posts_per_page'   => 1,
         'post_type'        => $this->membership_cpt_slug,
@@ -105,7 +109,7 @@ function add_order_item_meta ( $item_id, $values ) {
     ) );
       $post_id = $query->posts[0]->ID;
     }
-    
+
     $meta['membership_status'] = $status;
 
     $response = wp_update_post([
@@ -157,9 +161,10 @@ function add_order_item_meta ( $item_id, $values ) {
     $membership_current = null;
     $memberships = [];
     $order_id = $order->get_id();
-    
+
     $subscriptions = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
     //$subscriptions_ids = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
+    Utilities::wc_log_mship_error( [ '^get_memberships_data_from_subscription_products orderID', [$order_id]]);
     foreach( $subscriptions as $subscription_id => $subscription ) {
         $subscription_products = $subscription->get_items();
         foreach( $subscription_products as $item ) {
@@ -167,33 +172,86 @@ function add_order_item_meta ( $item_id, $values ) {
           if(empty($product_id)) {
             $product_id = $item->get_product_id();
           }
+          $original_product_id = $product_id; // Preserve original product ID before any translation
+          $product_data = wicket_get_multilang_product_id( $product_id, 'en' );
+          if ( $product_data['was_translated'] ) {
+            $product_id = $product_data['translated'];
+            Utilities::wc_log_mship_error( ['^WPML Alt lang detected - applied to product_id _en_ object filter', ['original_product_id' => $original_product_id, 'translated_product_id' => $product_id, 'current_lang' => $product_data['current_lang']]]);
+          }
           $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id );
           if( !empty( $membership_tier->tier_data )) {
+              if($membership_tier->tier_data['renewal_type'] != 'subscription') {
+                $autorenew_user_meta = get_user_meta($order->get_user_id(), 'subscription_autopay_enabled', true);
+                if($autorenew_user_meta == 'yes') {
+                  $subscription->update_meta_data('_requires_manual_renewal', 'false');
+                } else {
+                  $subscription->update_meta_data('_requires_manual_renewal', 'true');
+                }
+                $subscription->save();
+              }
+
+              /*
+              DEBUG AUTORENEW FLOW
+              --------------------
+              //$sub_renew = $subscription->get_meta('_requires_manual_renewal');
+              //$is_autopay_enabled = $subscription->get_requires_manual_renewal() ? false : true;
+              //var_dump(['here',$subscription->get_id(), $sub_renew, $subscription->get_requires_manual_renewal()]);exit;
+              */
+
               $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
               $period_data = $config->get_period_data();
               //if we have the current membership_post ID in the renew field on cart item
               if( $membership_post_id_renew = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_renew', true) ) {
-                $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $order->get_user_id() );
-                if($membership_current['membership_parent_order_id'] == $order_id) {
+                $membership_user_id = get_post_meta( $membership_post_id_renew, 'user_id', true);
+                $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $membership_user_id );
+                Utilities::wc_log_mship_error( ['processing order - membership_current object from user meta ', $membership_current]);
+                if(/*empty($membership_current['membership_parent_order_id']) ||*/ $membership_current['membership_parent_order_id'] == $order_id) {
                   //this is just an order having their status cycled so we should not create a renewal order on it BUT because
                   //we are storing the current renewal id on the current subscription item we need to prevent it processing a renewal
                   unset($membership_post_id_renew);
                   $membership_current = null;
+                  $this->status_cycled = true;
                 } else {
                   $this->processing_renewal = true;
+                  $next_payment_time = $subscription->get_time( 'next_payment' );
+                  $end_time = $subscription->get_time( 'end' );
+                  $is_renewal = wcs_order_contains_subscription( $order, 'renewal' ) ;
+                  Utilities::wc_log_mship_error( [ 'subscription_billing_period', $subscription->get_billing_period(), 'is_renewal', $is_renewal, 'Helper::has_next_payment_date', Helper::has_next_payment_date($membership_current), $membership_post_id_renew] );
+                  if( /*(! Helper::has_next_payment_date($membership_current) || 'clear' != Helper::has_next_payment_date($membership_current) )
+                      ||*/ ( ( $subscription->get_billing_period() == 'month' && $subscription->get_billing_interval() == 1) && $next_payment_time < $end_time && !empty($is_renewal)) ){
+                    $order->add_order_note( 'Monthly payment order against membership ID: '. $membership_post_id_renew);
+                    Utilities::wicket_logger( '--monthly-- skip renew for membership postID', $membership_post_id_renew);
+                    continue;
+                  } else {
+                    Utilities::wicket_logger( 'processing renewal for membership postID', $membership_post_id_renew);
+                  }
                 }
               }
+              switch(  $membership_tier->get_tier_renewal_type() ) {
+                case 'subscription':
+                  $membership_next_tier_id = 0;
+                  $membership_next_tier_form_page_id = 0;
+                  break;
+                default:
+                  $membership_next_tier_id = $membership_tier->get_next_tier_id();
+                  $membership_next_tier_form_page_id = $membership_tier->get_next_tier_form_page_id();
+              }
               $dates = $config->get_membership_dates( $membership_current );
-              $user_object = get_user_by( 'id', $order->get_user_id() );
+              if(!empty($membership_user_id)) {
+                $user_object = get_user_by( 'id', $membership_user_id );
+              } else {
+                $user_object = get_user_by( 'id', $order->get_user_id() );
+              }
               $membership = [
                 'membership_parent_order_id' => $order_id,
                 'membership_subscription_id' => $subscription_id,
-                'membership_product_id' => $product_id,
+                'membership_product_id' => $product_id, // Use original product ID for role assignment
                 'membership_tier_post_id' => $membership_tier->get_membership_tier_post_id(),
                 'membership_tier_name' => $membership_tier->tier_data['mdp_tier_name'],
                 'membership_tier_uuid' => $membership_tier->tier_data['mdp_tier_uuid'],
-                'membership_next_tier_id' => $membership_tier->get_next_tier_id(),
-                'membership_next_tier_form_page_id' => $membership_tier->get_next_tier_form_page_id(),
+                'membership_next_tier_id' => $membership_next_tier_id,
+                'membership_next_tier_form_page_id' => $membership_next_tier_form_page_id,
+                'membership_next_tier_subscription_renewal' => $membership_tier->is_renewal_subscription(),
                 'membership_type' => $membership_tier->tier_data['type'],
                 'membership_starts_at' => $dates['start_date'],
                 'membership_ends_at' =>  $dates['end_date'],
@@ -244,6 +302,7 @@ function add_order_item_meta ( $item_id, $values ) {
               $membership['order_meta_id'] = $order_meta_id;
               $membership['subscription_meta_id'] = $subscription_meta_id;
               $memberships[] = $membership;
+              Utilities::wicket_logger( 'processing order - membership created', [$membership_post_id_renew, $membership]);
           }
         }
       }
@@ -260,8 +319,8 @@ function add_order_item_meta ( $item_id, $values ) {
     if( empty( $user_id ) ) {
       $user_id = get_current_user_id();
     }
-    $customer_meta = get_user_meta( $user_id, '_wicket_membership_' . $membership_post_id, true ); 
-    return json_decode( $customer_meta, true ); 
+    $customer_meta = get_user_meta( $user_id, '_wicket_membership_' . $membership_post_id, true );
+    return json_decode( $customer_meta, true );
   }
 
     /**
@@ -275,7 +334,7 @@ function add_order_item_meta ( $item_id, $values ) {
     $mship_order_id = get_post_meta( $membership_post_id, 'membership_parent_order_id', true );
     $mship_product_id = get_post_meta( $membership_post_id, 'membership_product_id', true );
     $membership_current = get_post_meta( $membership_post_id );
-    return $membership_current; 
+    return $membership_current;
   }
 
 
@@ -292,8 +351,8 @@ function add_order_item_meta ( $item_id, $values ) {
     if( empty( $mship_order_id ) || empty( $mship_product_id ) ) {
       return [];
     }
-    $membership_current = $self->get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id ); 
-    return $membership_current; 
+    $membership_current = $self->get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id );
+    return $membership_current;
   }
 
     /**
@@ -304,11 +363,11 @@ function add_order_item_meta ( $item_id, $values ) {
    * @return array
    */
   public static function get_membership_array_from_order_and_product_id( $mship_order_id, $mship_product_id ) {
-    $membership_current = get_post_meta( $mship_order_id, '_wicket_membership_'.$mship_product_id, true ); 
+    $membership_current = get_post_meta( $mship_order_id, '_wicket_membership_'.$mship_product_id, true );
     if( empty( $membership_current ) ) {
       return [];
     }
-    return json_decode( $membership_current, true ); 
+    return json_decode( $membership_current, true );
   }
 
   /**
@@ -325,7 +384,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $updated_membership_array = array_merge($membership_array, $meta_array);
       update_user_meta( $membership_array['user_id'], '_wicket_membership_'.$membership_post_id, json_encode( $updated_membership_array) );
       update_post_meta( $membership_array['membership_parent_order_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
-      update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );  
+      update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
       return true;
     }
     return false;
@@ -347,12 +406,29 @@ function add_order_item_meta ( $item_id, $values ) {
     $user_id = $order->get_user_id();
     $user = get_user_by( 'id', $user_id );
     $person_uuid = $user->data->user_login;
-    
+
     $subscriptions = wcs_get_subscriptions( ['order_type' => 'parent', 'order_id' => $order_id] );
     if( 0 && empty( $subscriptions ) ) {
       //create subscriptions for non-subscription products tied to tiers
-      $MSC = new Membership_Subscription_Controller(); 
+      $MSC = new Membership_Subscription_Controller();
       $MSC->create_subscriptions( $order, $user ); // create subscriptions
+    }
+
+    Utilities::wc_log_mship_error( ['Creating a membership', ['order_id'=>$order_id]]);
+
+    foreach($subscriptions as $subscription) {
+      $today = current_time( 'Y-m-d' );
+      $created_date = $subscription->get_date( 'date_created' );
+      $created_date = date( 'Y-m-d', strtotime($created_date));
+      Utilities::wicket_logger( 'MSHIP CREATED sub date compare monthly', ['today'=>$today, 'created_date'=>$created_date]);
+      if($subscription->get_billing_period() == 'month' && $subscription->get_billing_interval() == 1) {
+        if( $created_date !== $today) {
+          Utilities::wc_log_mship_error( [ 'SKIPPING MEMBERSHIP CREATION - monthly subscription processed', ['sub_id'=>$subscription->get_id(), 'order_id'=>$order_id]]);
+          return;
+        } else {
+          Utilities::wc_log_mship_error( [ 'MEMBERSHIP CREATED - monthly subscription created', ['sub_id'=>$subscription->get_id(), 'order_id'=>$order_id]]);
+        }
+      }
     }
 
     //get membership_data from subscriptions
@@ -360,17 +436,68 @@ function add_order_item_meta ( $item_id, $values ) {
     if(empty($memberships)) {
       return;
     }
-    
-    //membership data arrays
-    $memberships = array_map(function (array $arr) use ($user_id, $person_uuid) {
-        $arr['person_uuid'] = $person_uuid;
-        $arr['user_id'] = $user_id;
-        return $arr;
-    }, $memberships);
 
-    //connect product memberships and create subscriptions
-    foreach ($memberships as $membership) {
-      do_action( 'wicket_member_create_record' , $membership, $self->processing_renewal );
+    //membership data arrays
+    foreach($memberships as $membership) {
+        if(!empty($membership['membership_wp_user_id'])) {
+          $user_id = $membership['membership_wp_user_id'];
+        } else if(!empty($membership['user_id'])) {
+          $user_id = $membership['user_id'];
+        } else {
+          $user_id = $order->get_user_id();
+        }
+      $membership['user_id'] = $user_id;
+      $membership['person_uuid'] = $self->get_person_uuid( $user_id );
+      do_action( 'wicket_member_create_record' , $membership, $self->processing_renewal, $self->status_cycled );
+    }
+  }
+
+  public function schedule_wicket_wipe_next_payment_date( $subscription_id ) {
+    if(!empty($subscription_id)) {
+      as_schedule_single_action( time() + 90, 'wicket_wipe_next_payment_date', ['membership_subscription_id' => $subscription_id], 'wicket-membership-plugin', false );
+    }
+  }
+
+  public static function catch_wicket_wipe_next_payment_date($sub_id) {
+    global $wpdb;
+    $result = $wpdb->update(
+      $wpdb->postmeta,
+      ['meta_value' => 0],
+      [
+          'post_id'  => $sub_id,
+          'meta_key' => '_schedule_next_payment'
+      ],
+      [
+          '%d'
+      ],
+      [
+          '%d',
+          '%s'
+      ]
+    );
+
+    if ( ! class_exists( 'ActionScheduler_Queue' ) ) {
+        return;
+    }
+
+    $args = array(
+        'status' => 'pending', // Or other statuses like 'complete', 'failed'
+        'hook'   => 'woocommerce_scheduled_subscription_payment',
+        'args'   => array( 'subscription_id' => $sub_id ),
+    );
+
+    $scheduled_actions = ActionScheduler_Queue::instance()->get_actions( $args );
+
+    foreach ( $scheduled_actions as $action_id => $action ) {
+        if ( $action->get_id() === $action_id ) {
+            ActionScheduler_Queue::instance()->delete( $action_id );
+        }
+    }
+
+    $sub = wcs_get_subscription( $sub_id );
+    if(! empty($sub)) {
+      $sub->delete_date( 'next_payment' );
+      $sub->add_order_note( 'Wicket clear next payment schedule and date.' );
     }
   }
 
@@ -388,7 +515,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $args = [
         'membership_parent_order_id' => $membership['membership_parent_order_id'],
         'membership_product_id' => $membership['membership_product_id'],
-      ];  
+      ];
     }
 
     if ( function_exists('as_schedule_single_action') ) {
@@ -396,7 +523,7 @@ function add_order_item_meta ( $item_id, $values ) {
       if(!empty($args)) {
         as_schedule_single_action( $membership_early_renew_at, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin', false );
         as_schedule_single_action( $membership_ends_at, 'add_membership_ends_at', $args, 'wicket-membership-plugin', false );
-        as_schedule_single_action( $membership_expires_at, 'add_membership_expires_at', $args, 'wicket-membership-plugin', false );  
+        as_schedule_single_action( $membership_expires_at, 'add_membership_expires_at', $args, 'wicket-membership-plugin', false );
       }
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
@@ -429,10 +556,27 @@ function add_order_item_meta ( $item_id, $values ) {
         }
       }
     }
-    $order = wc_get_order($membership['membership_parent_order_id']);
-    if(!empty($order) && !empty($order_note)) {
-      $order->add_order_note( $order_note );
+    if(!empty( $membership['membership_parent_order_id'] )) {
+      $order = wc_get_order($membership['membership_parent_order_id']);
+      if(!empty($order) && !empty($order_note)) {
+        $order->add_order_note( $order_note );
+      }
     }
+    if( function_exists( 'wcs_get_subscription' ) && !empty($membership['membership_subscription_id'] )) {
+      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+      if(! empty($sub) && !empty( $order_note )) {
+        $sub->add_order_note( $order_note );
+      }
+      /* FROM Auto-Renew Toggle BRANCH -- UNCLEARED ----------------------------------------------
+          $order = wc_get_order($membership['membership_parent_order_id']);
+          if(!empty($order) && !empty($order_note) && empty($this->status_cycled)) {
+            $order->add_order_note( $order_note );
+          } else if(!empty($this->status_cycled)) {
+            $order_note = 'Status cycled triggering any pending updates to membership ID #'.$membership['membership_post_id'];
+            $order->add_order_note( $order_note );
+          }
+      */
+      }
   }
 
   public static function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
@@ -468,7 +612,7 @@ function add_order_item_meta ( $item_id, $values ) {
   /**
    * Create the membership records
    */
-  public static function create_membership_record( $membership, $processing_renewal = false ) {
+  public static function create_membership_record( $membership, $processing_renewal = false, $status_cycled = false ) {
     $membership_wicket_uuid = '';
     $self = new self();
 
@@ -476,10 +620,14 @@ function add_order_item_meta ( $item_id, $values ) {
       $self->processing_renewal = true;
     }
 
+    if(!empty($status_cycled)) {
+      $self->status_cycled = true;
+    }
+
     if($self->bypass_wicket) {
       //Don't create the wicket connection when testing
       $self->create_local_membership_record(  $membership, $self->guidv4().'-fake' );
-      return $membership;  
+      return $membership;
     }
 
     $tier = new Membership_Tier( $membership['membership_tier_post_id'] );
@@ -487,9 +635,29 @@ function add_order_item_meta ( $item_id, $values ) {
     if( ! $tier->is_approval_required() || ( $tier->is_approval_required() && $self->processing_renewal )) {
       $membership_wicket_uuid = $self->create_mdp_record( $membership );
     }
-    
+
     //always create the local membership record to get post_id
     $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $membership_wicket_uuid );
+    add_post_meta( $membership['membership_post_id'], 'membership_post_id', $membership['membership_post_id'], true );
+    Utilities::wicket_logger( 'create local membership - postID', $membership['membership_post_id']);
+
+
+    // Set autopay flags on the subscription if enabled for the user
+    $autorenew_user_meta = get_user_meta($membership['user_id'], 'subscription_autopay_enabled', true);
+    if($autorenew_user_meta == 'yes' && !empty( $membership['membership_next_tier_subscription_renewal'] ) && !empty($membership['membership_subscription_id'])) {
+            $subscription = wcs_get_subscription( $membership['membership_subscription_id'] );
+            if (function_exists('wcs_get_subscription')) {
+                $subscription = wcs_get_subscription($membership['membership_subscription_id']);
+                if ($subscription) {
+                    $subscription->update_meta_data('_requires_manual_renewal', 'false');
+                    $subscription->save();
+                }
+            }
+      //      DEBUG AUTORENEW FLOW
+      $sub_renew = $subscription->get_meta('_requires_manual_renewal');
+      $is_autopay_enabled = $subscription->get_requires_manual_renewal() ? false : true;
+      Utilities::wc_log_mship_error(['RAN: create_membership_record->user_meta: subscription_autopay_enabled', $subscription->get_id(), $autorenew_user_meta,  '_requires_manual_renewal=' .$sub_renew, 'get_requires_manual_renewal='.$subscription->get_requires_manual_renewal()]);
+    }
 
     //we are pending approval so change some statuses and send email
     if( $tier->is_approval_required() && ! $self->processing_renewal ) {
@@ -501,7 +669,7 @@ function add_order_item_meta ( $item_id, $values ) {
       if( !empty($membership['organization_uuid']) ) {
         $path = 'admin.php?page=wicket_org_member_edit&id=' . $membership['organization_uuid']; //PATH TO THE ORG EDIT PAGE
       } else {
-        $user = get_user_by( 'id', $membership['user_id'] );    
+        $user = get_user_by( 'id', $membership['user_id'] );
         $membership_person_uuid = $user->data->user_login;
         $path = 'admin.php?page=wicket_individual_member_edit&id=' . $membership_person_uuid; //PATH TO THE PERSON EDIT PAGE
       }
@@ -510,20 +678,21 @@ function add_order_item_meta ( $item_id, $values ) {
     } else {
       //set the scheduled tasks
       $self->scheduler_dates_for_expiry( $membership );
-      //update subscription dates (only use next_payment_date on self renewals)
       $date_flags_array = [ 'start_date', 'end_date' ];
-      if( !empty($membership['membership_tier_post_id']) && !empty($membership['membership_next_tier_id']) 
-        && $membership['membership_tier_post_id'] == $membership['membership_next_tier_id']) {
-          $date_flags_array[] = 'next_payment_date';
+
+      if( $has_next_payment_date = Helper::has_next_payment_date( $membership )) {
+        $date_flags_array['next_payment_date'] = $has_next_payment_date;
       }
-      $self->update_membership_subscription( $membership, $date_flags_array );
+
+      $self->update_membership_subscription( $membership, $date_flags_array, true );
+
       $membership_post_data = Helper::get_post_meta( $membership['membership_post_id'] );
       do_action('wicket_membership_created_mdp', $membership_post_data);
     }
     return $membership;
   }
 
-  /** 
+  /**
    * Update subscription status
    */
 
@@ -536,7 +705,7 @@ function add_order_item_meta ( $item_id, $values ) {
         } catch (\Exception $e) {
           $sub->update_status( 'active', 'Subscription temporarily set active.' );
           $sub->update_status( $status, $note );
-        }  
+        }
       }
     }
   }
@@ -552,11 +721,20 @@ function add_order_item_meta ( $item_id, $values ) {
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
   }
 
-  /** 
-   * Update the subscription
+  /**
+   * Update the subscription dates
+   * NOTE: Woo Subscriptions will ALWAYS set the [next_payment_date] when the subscription STATUS CHANGES to 'active' while the end_date IS SET.
+   * - Set the dates on the 'woocommerce_subscription_status_updated' hook (after the subscription is created) to avoid this behavior
+   * - Necessary because subscription status is changed after this code is run for new subscriptions
    */
-  public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ] ) {
+  public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ], $subcription_created = false ) {
     if( function_exists( 'wcs_get_subscription' )) {
+      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+      if(!empty($subcription_created)) {
+        Utilities::wicket_logger( 'A MEMBERSHIP SUBSCRIPTION WAS CREATED', $fields);
+      }
+      Utilities::wicket_logger( 'update_membership_subscription', $fields);
+
       //$start_date   = $membership['membership_starts_at'];
       $end_date     = $membership['membership_ends_at'];
       $expire_date  = $membership['membership_expires_at'];
@@ -572,38 +750,82 @@ function add_order_item_meta ( $item_id, $values ) {
       }
       */
       if( in_array ( 'end_date', $fields ) ) {
-        $date = new \DateTime(substr($expire_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
-        $date->setTimezone(new \DateTimeZone('UTC'));
-        $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
+        if(!empty($membership['membership_next_tier_subscription_renewal']) && !empty($sub) && ($sub->get_billing_period() == 'month' && $sub->get_billing_interval() == 1)) {
+          //subscription renewal flow MONTHLY RENEWAL uses end_date for subscription_end_date
+          $date = new \DateTime(substr($end_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
+          $expire_or_end_date = $end_date; //for order note context
+          $date->setTimezone(new \DateTimeZone('UTC'));
+          $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
+          Utilities::wicket_logger( 'Setting Subscription END date', $dates_to_update['end']);
+        } else {
+          $date = new \DateTime(substr($expire_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
+          $expire_or_end_date = $expire_date; //for order note context
+          $date->setTimezone(new \DateTimeZone('UTC'));
+          $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
+          Utilities::wicket_logger( 'Setting Subscription END date', $dates_to_update['end']);
+        }
       }
-      //if( in_array ( 'next_payment_date', $fields ) ) {
-      //  $date = new \DateTime(substr($end_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
-      //  $date->setTimezone(new \DateTimeZone('UTC'));
-      //  $dates_to_update['next_payment']  = $date->format('Y-m-d H:i:s');
-      //}
-      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+      if( in_array ( 'next_payment_date', $fields ) && !empty($sub) && !($sub->get_billing_period() == 'month' && $sub->get_billing_interval() == 1)) {
+        $date = new \DateTime(substr($end_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
+        $date->setTimezone(new \DateTimeZone('UTC'));
+        $dates_to_update['next_payment']  = $date->format('Y-m-d H:i:s');
+        Utilities::wicket_logger( 'Setting Subscription NEXT_PAYMENT date', $dates_to_update['next_payment']);
+      }
+
       if( !empty( $sub )) {
         try {
-          $clear_dates_to_update['next_payment'] = '';
-          $sub->update_dates($clear_dates_to_update);
-          $sub->update_dates($dates_to_update);
+//          We previously did this value being cleared before updating because it prevented changing end date
+//          NOW we need to keep it in the case it is monthly renewal for an annual membership
+          if(!empty($fields['next_payment_date']) && ( !is_bool($fields['next_payment_date']) && $fields['next_payment_date'] == 'clear')) {
+            $clear_dates_to_update['next_payment'] = '';
+            $sub->update_dates($clear_dates_to_update);
+            unset($dates_to_update['next_payment']);
+            $this->schedule_wicket_wipe_next_payment_date( $sub->get_id() );
+            Utilities::wc_log_mship_error( ['CLEARED: NEXT_PAYMENT', [$sub->get_id(), $fields['next_payment_date'],$dates_to_update['next_payment']]]);
+          }
+          //we need to add the hook after the status update to ensure the dates are set correctly
+          //when the subscription status is set to active after this code runs it changes subscription dates
+          if(!empty($dates_to_update)) {
+            $sub->update_dates($dates_to_update);
+            Utilities::wicket_logger( 'SUBSCRIPTION DATES BEING UPDATED MANUALLY: dates_to_update', $dates_to_update);
+            add_action('woocommerce_subscription_status_updated', function( $subscription_id ) use ( $dates_to_update ) {
+              $sub = wcs_get_subscription( $subscription_id );
+              $sub->update_dates($dates_to_update);
+              Utilities::wicket_logger( '---woocommerce_subscription_status_updated--- SUBSCRIPTION DATES BEING UPDATED ', [$sub->get_id(), $dates_to_update ]);
+            }, 10, 2 );
+          }
           $order_note = 'Membership ' .$membership['membership_post_id'].' changed these subscription dates. ';
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
-          //$order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
-          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
+          if(!empty($dates_to_update['next_payment'])) {
+            $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date)).'('.$dates_to_update['next_payment'].')';
+          }
+          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_or_end_date)).'('.$dates_to_update['end'].')';
           $sub->add_order_note($order_note);
         } catch (\Exception $e) {
           $order_note = 'Membership ' .$membership['membership_post_id'].' attempted to change these subscription dates. '.$e->getMessage();
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
-          //$order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+          if(!empty($dates_to_update['next_payment'])) {
+            $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+          }
           $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
           $sub->add_order_note($order_note);
           return 'ERROR on Subscription Update: '. $e->getMessage();
         }
-        add_action('woocommerce_subscription_status_updated', function( $subscription_id )  {
-          $sub = wcs_get_subscription( $subscription_id );
-          $sub->update_dates(['next_payment' => 0]);
-        }, 10, 2 );        
+
+        $autorenew_user_meta = get_user_meta($membership['user_id'], 'subscription_autopay_enabled', true);
+        $is_autopay_enabled = $sub->get_requires_manual_renewal() ? false : true;
+
+        //DEBUG AUTORENEW FLOW
+        //--------------------
+        $sub_renew = $sub->get_meta('_requires_manual_renewal');
+        //var_dump([$sub->get_id(),$sub_renew, $sub->get_requires_manual_renewal(), $is_autopay_enabled, $autorenew_user_meta]);exit;
+
+        if(! $is_autopay_enabled && $autorenew_user_meta == 'no') {
+          add_action('woocommerce_subscription_status_updated', function( $subscription_id )  {
+            $sub = wcs_get_subscription( $subscription_id );
+            $sub->update_dates(['next_payment' => 0]);
+          }, 10, 2 );
+        }
       }
     }
   }
@@ -621,42 +843,54 @@ function add_order_item_meta ( $item_id, $values ) {
     $grace_period_days = false;
     $max_assignments = false;
 
+    if('development' == wp_get_environment_type()) {
+          Utilities::wc_log_mship_error( ['update_mdp_record', $membership, $meta_data] );
+    }
+
     if( ! empty( $meta_data['membership_starts_at'] ) ) {
       $starts_at = $meta_data['membership_starts_at'];
+    } else {
+      $starts_at = $membership['membership_starts_at'];
     }
 
     if( ! empty( $meta_data['membership_ends_at'] ) ) {
       $ends_at = $meta_data['membership_ends_at'];
+    } else {
+      $ends_at = $membership['membership_ends_at'];
     }
 
     if( $meta_data['membership_grace_period_days'] == '0' || ! empty( $meta_data['membership_grace_period_days'] ) ) {
       $grace_period_days = $meta_data['membership_grace_period_days'];
     }
 
-    if( ! empty( $meta_data['max_assignments'] ) ) {
+    $max_assignments =  $membership['org_seats'];
+
+    if( ! empty( $meta_data['org_seats'] ) ) {
+      $max_assignments =  $membership['org_seats'] == '0'  ? $meta_data['org_seats'] : 0;
+    } else if( ! empty( $meta_data['max_assignments'] ) ) {
       $max_assignments = ! empty( $meta_data['max_assignments'] ) ? $meta_data['max_assignments'] : 0;
     } else  if( ! empty( $meta_data['membership_seats'] ) ) {
       $max_assignments =  $meta_data['membership_seats'] == '0'  ? $meta_data['membership_seats'] : 0;
     }
 
     if( $membership['membership_type'] == 'individual' ) {
-      $response = wicket_update_individual_membership_dates( 
-        $membership['membership_wicket_uuid'], 
+      $response = wicket_update_individual_membership_dates(
+        $membership['membership_wicket_uuid'],
         $starts_at,
         $ends_at,
         $grace_period_days
-      );  
+      );
     } else {
     if( $max_assignments < 1) {
       $max_assignments = null;
     }
       $response = wicket_update_organization_membership_dates(
-        $membership['membership_wicket_uuid'], 
+        $membership['membership_wicket_uuid'],
         $starts_at,
         $ends_at,
         $max_assignments,
         $grace_period_days
-      );  
+      );
     }
     if( !empty($membership['membership_subscription_id'])) {
       $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
@@ -672,16 +906,16 @@ function add_order_item_meta ( $item_id, $values ) {
         $sub->add_order_note( "Admin changing membership dates in MDP. ($starts_at - $ends_at)");
       }
       return $response;
-    } 
+    }
    }
-  
+
   /**
    * Create the Membership Record in MDP
    */
   public function create_mdp_record( $membership ) {
     $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
     $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
-    
+
     $previous_membership_wicket_uuid = '';
     if(!empty($membership['previous_membership_post_id'])) {
       $previous_membership_wicket_uuid = get_post_meta( $membership['previous_membership_post_id'], 'membership_wicket_uuid', true);
@@ -691,64 +925,67 @@ function add_order_item_meta ( $item_id, $values ) {
     if( empty( $membership_wicket_uuid ) ) {
       if( $membership['membership_type'] == 'individual' ) {
         if( $base_version_supports_previous_membership_assignment ) {
-          $response = wicket_assign_individual_membership( 
+          $response = wicket_assign_individual_membership(
             $membership['person_uuid'],
-            $membership['membership_tier_uuid'], 
+            $membership['membership_tier_uuid'],
             $membership['membership_starts_at'],
             $membership['membership_ends_at'],
             $membership['membership_grace_period_days'],
             $previous_membership_wicket_uuid
-          );    
+          );
         } else {
-          $response = wicket_assign_individual_membership( 
+          $response = wicket_assign_individual_membership(
             $membership['person_uuid'],
-            $membership['membership_tier_uuid'], 
+            $membership['membership_tier_uuid'],
             $membership['membership_starts_at'],
             $membership['membership_ends_at'],
             $membership['membership_grace_period_days']
-          );    
+          );
         }
       } else {
         if(empty($membership['organization_uuid'])) {
           $membership['organization_uuid'] = $membership['org_uuid'] ;
+        }
+        if(empty($membership['membership_seats']) && !empty($membership['org_seats'])) {
+          $membership['membership_seats'] = $membership['org_seats'];
         }
         if( $membership['membership_seats'] < 1) {
           $membership['membership_seats'] = null;
         }
         if( $base_version_supports_grant_owner_assignment ) {
           $Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
-          $response = wicket_assign_organization_membership( 
+          $response = wicket_assign_organization_membership(
             $membership['person_uuid'],
             $membership['organization_uuid'],
-            $membership['membership_tier_uuid'], 
+            $membership['membership_tier_uuid'],
             $membership['membership_starts_at'],
             $membership['membership_ends_at'],
             $membership['membership_seats'],
             $membership['membership_grace_period_days'],
             $previous_membership_wicket_uuid,
             $Tier->is_grant_owner_assignment()
-          );    
+          );
         } elseif ( $base_version_supports_previous_membership_assignment ) {
-          $response = wicket_assign_organization_membership( 
+          $response = wicket_assign_organization_membership(
             $membership['person_uuid'],
             $membership['organization_uuid'],
-            $membership['membership_tier_uuid'], 
+            $membership['membership_tier_uuid'],
             $membership['membership_starts_at'],
             $membership['membership_ends_at'],
             $membership['membership_seats'],
             $membership['membership_grace_period_days'],
             $previous_membership_wicket_uuid
-          );    
+          );
         } else {
-          $response = wicket_assign_organization_membership( 
+          $response = wicket_assign_organization_membership(
             $membership['person_uuid'],
             $membership['organization_uuid'],
-            $membership['membership_tier_uuid'], 
+            $membership['membership_tier_uuid'],
             $membership['membership_starts_at'],
             $membership['membership_ends_at'],
             $membership['membership_seats'],
             $membership['membership_grace_period_days']
-          );    
+          );
         }
       }
       if( is_wp_error( $response ) ) {
@@ -757,7 +994,7 @@ function add_order_item_meta ( $item_id, $values ) {
         $membership_wicket_uuid = '';
       } else {
         $membership_wicket_uuid = $response['data']['id'];
-      } 
+      }
     }
     return $membership_wicket_uuid;
   }
@@ -767,9 +1004,9 @@ function add_order_item_meta ( $item_id, $values ) {
    */
   private function check_mdp_membership_record_exists( $membership ) {
     $membership_wicket_uuid = wicket_get_person_membership_exists(
-      $membership['person_uuid'], 
-      $membership['membership_tier_uuid'], 
-      $membership['membership_starts_at'], 
+      $membership['person_uuid'],
+      $membership['membership_tier_uuid'],
+      $membership['membership_starts_at'],
       $membership['membership_ends_at']
     );
     return $membership_wicket_uuid;
@@ -804,6 +1041,7 @@ function add_order_item_meta ( $item_id, $values ) {
    * Create the WP Membership Record
    */
   public function create_local_membership_record( $membership, $membership_wicket_uuid, $skip_approval = false ) {
+    //Utilities::wc_log_mship_error(['create_local_membership_record', $membership, $membership_wicket_uuid, $skip_approval]);
     $wicket_membership_type = 'person_memberships';
     if( ! empty( $membership['membership_status'] )) {
       $status = $membership['membership_status'];
@@ -831,6 +1069,7 @@ function add_order_item_meta ( $item_id, $values ) {
       'membership_tier_post_id' => $membership['membership_tier_post_id'],
       'membership_next_tier_id' => $membership['membership_next_tier_id'],
       'membership_next_tier_form_page_id' => $membership['membership_next_tier_form_page_id'],
+      'membership_next_tier_subscription_renewal' => $membership['membership_next_tier_subscription_renewal'],
       'membership_wicket_uuid' => $membership_wicket_uuid,
       'user_name' => $membership['membership_wp_user_display_name'],
       'user_email' => $membership['membership_wp_user_email'],
@@ -840,6 +1079,11 @@ function add_order_item_meta ( $item_id, $values ) {
       'membership_subscription_id' => $membership['membership_subscription_id'],
       'previous_membership_post_id' => $membership['previous_membership_post_id'],
     ];
+
+    if(!empty( $membership['previous_membership_post_id'] )) {
+      $meta['previous_membership_post_id'] = $membership['previous_membership_post_id'];
+    }
+
     if( $membership['membership_type'] == 'organization') {
       $org_data = Helper::get_org_data( $membership['organization_uuid'] );
       $meta['org_location'] = 'N/A';
@@ -886,9 +1130,9 @@ function add_order_item_meta ( $item_id, $values ) {
       $subscription_meta_array = json_decode( $subscription_meta[0], true);
       $subscription_meta_array['membership_post_id'] = $membership_post;
       $subscription_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
-      update_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );  
+      update_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );
       $customer_meta_array['membership_subscription_id'] = $membership['membership_subscription_id'];
-      $this->wicket_update_subscription_meta_membership_post_id( $membership_post, $membership );
+      $this->wicket_update_subscription_meta_membership_post_id( $membership_post, $membership, true );
     }
 
     $customer_meta = get_user_meta( $membership['user_id'], '_wicket_membership_'.$membership['membership_post_id'] );
@@ -906,16 +1150,20 @@ function add_order_item_meta ( $item_id, $values ) {
     return $membership_post;
   }
 
-    /**
+  /**
    * Always assign the membership post id created back to the membership subscription item(s)
    * If the item already has a post id then update it to the newly created membership post id
    * Add an order note with a link to the membership edit page
-   * 
+   *
+   * We need to keep the subscription renewal meta entry in sync with the current membership post id for renewal.
+   * It is possible the subscription membership item will be missing the renewal meta so we will add it
+   * If we are reusing the same subscription we need to change it from the last post id from the last renewal to the current one
+   *
    * @param mixed $membership_subscription_id
    * @param mixed $membership_post_id
    * @return void
    */
-  public function wicket_update_subscription_meta_membership_post_id( $membership_post_id, $membership ) {
+  public function wicket_update_subscription_meta_membership_post_id( $membership_post_id, $membership, $new_order_processed = false ) {
     $sub = wcs_get_subscription($membership['membership_subscription_id']);
     if(empty($sub)) {
       return;
@@ -924,18 +1172,24 @@ function add_order_item_meta ( $item_id, $values ) {
     foreach($items as $item) {
       $item_id = $item->get_id();
       $product = $item->get_product();
+      if(empty($product)) {
+        continue;
+      }
       $product_id = $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
       if ( ! has_term( 'Membership', 'product_cat', $product_id) ) {
         continue;
       }
       //add or update membership renewal post id meta on item
       $renew_post_id = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true );
-      if(empty($renew_post_id )) {
+      if(empty($renew_post_id ) && $membership['membership_product_id'] == $product_id ) {
         wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id, true);
         $renew_order_flag = 'Added';
-      } else if ( $renew_post_id != $membership_post_id) {
+      } else if ( !empty($renew_post_id) && $renew_post_id != $membership_post_id && empty($new_order_processed)) {
         wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id );
-        $renew_order_flag = "Updated from membership post id $renew_post_id to";
+        $renew_order_flag = "Updated on subscription renewal from membership post id $renew_post_id to";
+      } else if(!empty($renew_post_id) && $renew_post_id == $membership['previous_membership_post_id'])  {
+        wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id );
+        $renew_order_flag = "Updated on subscription renewal order from membership post id $renew_post_id to";
       }
     }
     if(!empty( $renew_order_flag )) {
@@ -951,7 +1205,7 @@ function add_order_item_meta ( $item_id, $values ) {
         update_post_meta( $membership_post_id, 'membership_wp_user_email', $membership['membership_wp_user_email']);
       }
       $membership_link = "<a target='_blank' href='?page=wicket_".$membership_type."_member_edit&id=".$membership['membership_user_uuid']."'>".$membership['membership_wp_user_email']."</a>";
-      $sub->add_order_note("$renew_order_flag membership post id ".$membership_post_id." for ". $membership_link ." on membership product line item.");  
+      $sub->add_order_note("$renew_order_flag membership post id ".$membership_post_id." for ". $membership_link ." on membership product line item.");
     }
   }
 
@@ -983,6 +1237,11 @@ function add_order_item_meta ( $item_id, $values ) {
       'post_status' => 'publish',
       'posts_per_page' => -1,
       'meta_query'     => array(
+        array(
+          'key'     => 'membership_parent_order_id',
+          'value'   => $membership['membership_parent_order_id'],
+          'compare' => '='
+        ),
         array(
           'key'     => 'user_id',
           'value'   => $membership['user_id'],
@@ -1023,7 +1282,7 @@ function add_order_item_meta ( $item_id, $values ) {
     }
 
     $posts = new \WP_Query( $args );
-    if( !empty( $posts->found_posts ) ) {      
+    if( !empty( $posts->found_posts ) ) {
       return $posts->posts[0]->ID;
     }
     return false;
@@ -1045,14 +1304,14 @@ function add_order_item_meta ( $item_id, $values ) {
   public function error_notice() {
     $error_message = '<p><strong>' . __( 'WICKET MDP MEMBERSHIP PROCESSING ERROR', 'wicket-memberships' ). '</strong></p>';
     $error_message .= '<p>'.$this->error_message.'</p>';
-      echo "<div class=\"notice notice-error is-dismissible\"> <p>$error_message</p></div>"; 
+      echo "<div class=\"notice notice-error is-dismissible\"> <p>$error_message</p></div>";
   }
 
   /**
    * Get membership record(s)
    *
    * @param string $flag membership state or all
-   * @param string $tier_uuid 
+   * @param string $tier_uuid
    * @param integer|null $user_id
    * @return array
    */
@@ -1062,9 +1321,9 @@ function add_order_item_meta ( $item_id, $values ) {
     }
 
     if( $flag == 'all' ) {
-      $status = [ 
-        Wicket_Memberships::STATUS_ACTIVE, 
-        Wicket_Memberships::STATUS_EXPIRED, 
+      $status = [
+        Wicket_Memberships::STATUS_ACTIVE,
+        Wicket_Memberships::STATUS_EXPIRED,
         Wicket_Memberships::STATUS_DELAYED
       ];
     } else {
@@ -1103,7 +1362,7 @@ function add_order_item_meta ( $item_id, $values ) {
   /**
    * Get Memberships in Renewal Periods
    */
-  public function get_membership_callouts( $user_id = null ) {
+  public function get_membership_callouts( $user_id = null, $status = "" ) {
     $membership_exists = [];
     $debug_comment_hide = "!";
     $debug_comment_eol = "\n";
@@ -1111,18 +1370,52 @@ function add_order_item_meta ( $item_id, $values ) {
     $grace_period = [];
     $pending_approval = [];
     $debug = [];
+    $multi_tier_renewals = [];
 
     $iso_code = apply_filters( 'wpml_current_language', null );
     if( empty( $iso_code )) {
       $locale = get_locale(); // Get the full locale (e.g., en_US)
-      $iso_code = substr($locale, 0, 2); // Extract the first two characters  
+      $iso_code = substr($locale, 0, 2); // Extract the first two characters
     }
 
     //TODO: remove open lookup
     if( empty( $user_id ) ) {
       $user_id = get_current_user_id();
     }
-    
+
+      $status_array =
+        array(
+          'relation' => 'OR'
+        );
+      if(empty($status)) {
+        $status_array[] =
+          array(
+            'key'     => 'membership_status',
+            'value'   => Wicket_Memberships::STATUS_ACTIVE,
+            'compare' => '='
+          );
+        $status_array[] =
+          array(
+            'key'     => 'membership_status',
+            'value'   => Wicket_Memberships::STATUS_DELAYED,
+            'compare' => '='
+          );
+        $status_array[] =
+          array(
+            'key'     => 'membership_status',
+            'value'   => Wicket_Memberships::STATUS_GRACE,
+            'compare' => '='
+          );
+          // DISABLED UNTIL WE HAVE MERGED THIS BRANCH TO MAIN AND CAN UPDATE ACC PLUGIN TO MATCH
+          // } else if($status == 'pending') {
+        $status_array[] =
+          array(
+            'key'     => 'membership_status',
+            'value'   => Wicket_Memberships::STATUS_PENDING,
+            'compare' => '='
+          );
+      }
+
     $args = array(
       'post_type' => $this->membership_cpt_slug,
       'post_status' => 'publish',
@@ -1133,29 +1426,7 @@ function add_order_item_meta ( $item_id, $values ) {
           'value'   => $user_id,
           'compare' => '='
         ),
-        array(
-        'relation' => 'OR', 
-          array(
-            'key'     => 'membership_status',
-            'value'   => Wicket_Memberships::STATUS_ACTIVE,
-            'compare' => '='
-          ),
-          array(
-            'key'     => 'membership_status',
-            'value'   => Wicket_Memberships::STATUS_PENDING,
-            'compare' => '='
-          ),          
-          array(
-            'key'     => 'membership_status',
-            'value'   => Wicket_Memberships::STATUS_DELAYED,
-            'compare' => '='
-          ),
-          array(
-            'key'     => 'membership_status',
-            'value'   => Wicket_Memberships::STATUS_GRACE,
-            'compare' => '='
-          ),
-        )
+        $status_array
       )
     );
     $memberships = get_posts( $args );
@@ -1170,12 +1441,17 @@ function add_order_item_meta ( $item_id, $values ) {
         }
       }, $meta_data);
 
-      $order_membership_meta = $this->get_membership_array_from_order_and_product_id( $membership_data['meta']['membership_parent_order_id'], $membership_data['meta']['membership_product_id']);
-      if(!empty($order_membership_meta['previous_membership_post_id'])) {
-        $membership_is_renewal = true;
+      //TODO: previous post ID may not exist on membership record and only be on order meta
+      if(empty($membership->previous_membership_post_id)) {
+        $order_membership_meta = $this->get_membership_array_from_order_and_product_id( $membership_data['meta']['membership_parent_order_id'], $membership_data['meta']['membership_product_id']);
+        if(!empty($order_membership_meta['previous_membership_post_id'])) {
+          $membership_is_renewal = $order_membership_meta['previous_membership_post_id'];
+        }
+      } else {
+        $membership_is_renewal = $membership->previous_membership_post_id;
       }
-      
-      if ( $membership->membership_status == 'active' || $membership->membership_status == 'delayed') { 
+
+      if ( $membership->membership_status == 'active' || $membership->membership_status == 'delayed') {
         $membership_exists[] = str_replace( [' ','-',','], '', strToLower($membership->membership_tier_name));
       }
 
@@ -1184,6 +1460,15 @@ function add_order_item_meta ( $item_id, $values ) {
       if( empty($Membership_Tier->get_mdp_tier_name()) ) {
         $Membership_Tier = new Membership_Tier( $membership->membership_tier_post_id );
       }
+      $Membership_Config = $Membership_Tier->get_config();
+      if(empty($Membership_Config)) {
+        continue;
+      }
+
+      if( !empty( $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] )) {
+        $membership_data['multi_tier_renewal'] = $Membership_Config->is_multitier_renewal();
+      }
+
       $membership_data['next_tier'] = false;
       $membership_data['form_page'] = false;
 
@@ -1198,17 +1483,16 @@ function add_order_item_meta ( $item_id, $values ) {
           'membership' => $membership_data,
           'callout' => $callout
         ];
-        continue;   
+        continue;
       }
 
       //We are calculating the early renew date globally from the config assigned to the tier
       //$membership_early_renew_at = strtotime( $membership->membership_early_renew_at ); //this was old way was set per membership
-      $Membership_Config = $Membership_Tier->get_config();
       $membership_early_renew_days = $Membership_Config->get_renewal_window_days();
       $membership_early_renew_at = ( strtotime($membership->membership_ends_at ) - ($membership_early_renew_days * 86400));
       //set the meta for debug only / below we determine mship is in early_renewal/grace_period and add to response sent to ACC plugin
       $membership_data['meta']['membership_early_renew_at'] = (new \DateTime( '@' . $membership_early_renew_at))->setTimezone(wp_timezone())->format('Y-m-d\TH:i:sP');
-      
+
       $membership_ends_at = strtotime( $membership->membership_ends_at );
       $membership_expires_at = strtotime( $membership->membership_expires_at );
       $current_time =  current_time( 'timestamp' );
@@ -1224,8 +1508,8 @@ function add_order_item_meta ( $item_id, $values ) {
       $next_tier_id = get_post_meta($membership->ID, 'membership_next_tier_id', true);
       $next_tier_form_page_id = get_post_meta($membership->ID, 'membership_next_tier_form_page_id', true);
 
-      $next_tier_subscription_renewal = 
-        ( !empty($membership_json_data['membership_next_tier_subscription_renewal'])) 
+      $next_tier_subscription_renewal =
+        ( !empty($membership_json_data['membership_next_tier_subscription_renewal']))
           ? true : false;
       if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_ACC'] ) ) {
         $debug_comment_hide = '';
@@ -1238,7 +1522,7 @@ function add_order_item_meta ( $item_id, $values ) {
       if(!empty( $membership_is_renewal )) {
         $ends_at_date = date( "Y-m-d", strtotime( $membership_data['meta']['membership_starts_at'] . "-1 days"));
         $renewal_index_id = !empty($next_tier_id) ? 'nt_'.$next_tier_id : 'nf_'.$next_tier_form_page_id;
-        $renewal_post_id[] = $order_membership_meta['previous_membership_post_id'];
+        $renewal_post_id[] = $membership_is_renewal;
         $membership_renewal_exists[ $renewal_index_id ][ $ends_at_date ] = true;
         //this shortcut to the next iteration was hiding some legitimate renewals, a better method detail above is now being used
         //original method is still being used but we are letting it flow through (commented lines below) to get caught later if necessary
@@ -1249,9 +1533,27 @@ function add_order_item_meta ( $item_id, $values ) {
 #        continue;
       }
 
+      if(!empty($membership_data['meta']['membership_subscription_id'])) {
+        $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
+        $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
+        $subscription_status = $sub->get_status();
+        $next_payment_date = $sub->get_time( 'next_payment' );
+        if( $is_autopay_enabled && !empty($next_payment_date) && $subscription_status != 'on-hold' && $subscription_status != 'expired' && $subscription_status != 'cancelled' && $subscription_status != 'switched' && $subscription_status != 'trash' && (current_time( 'timestamp' ) < $next_payment_date)) {
+          echo "<$debug_comment_hide--";
+          echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
+          echo '|'.( strtotime($next_payment_date) - current_time( 'timestamp' ) );
+          echo "//-->$debug_comment_eol";
+          continue;
+        }
+      }
+
+      unset($membership_data['subscription_renewal']);
       if(!empty($next_tier_subscription_renewal)) {
         //We are using subscription renewals to maintain the membership
         $current_subscription = wcs_get_subscription( $membership_json_data['membership_subscription_id'] );
+        if(empty($current_subscription)) {
+          continue;
+        }
         $renewal_orders = $current_subscription->get_related_orders('renewal');
         foreach ($renewal_orders as $order_id) {
           $the_order = wc_get_order($order_id);
@@ -1263,14 +1565,21 @@ function add_order_item_meta ( $item_id, $values ) {
           }
         }
 
-        if( empty($renewal_link_url) && strtotime($current_subscription->get_date( 'next_payment' )) > time() ) {
+        if( empty($renewal_link_url) && strtotime($membership_data['meta']['membership_ends_at']) > $current_time ) {
           $renewal_link_url = wcs_get_early_renewal_url( $current_subscription );
-        }
-
-        if( empty($renewal_link_url) && !empty( $the_order) ) {
-          //you cannot checkout a renewal order when the current subscription/order is active and pre-next-payment-date
+          // Extract just the query string variables from the URL
+          $query_string = '';
+          if ($renewal_link_url) {
+            $parts = parse_url($renewal_link_url);
+            if (isset($parts['query'])) {
+              $query_string = $parts['query'];
+            }
+          }
+          $renewal_link_url = '/cart/?' . $query_string;
+          $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
+        } elseif( empty($renewal_link_url) && !empty( $the_order) /*&& $the_order->ID != $membership_data['meta']['membership_parent_order_id']*/) {
           //$the_order->update_status('on-hold', __('Order status changed generating a pending renewal order.'));
-          $current_subscription->update_status('on-hold', __('Subscription status changed generating a pending renewal order.'));          
+          $current_subscription->update_status('on-hold', __('Membership plugin set subscription on-hold generating a pending renewal order.'));
           wcs_create_renewal_order($current_subscription);
           $renewal_orders = $current_subscription->get_related_orders('renewal');
           foreach ($renewal_orders as $order_id) {
@@ -1282,19 +1591,17 @@ function add_order_item_meta ( $item_id, $values ) {
             break;
           }
           $renewal_link_url = $the_order->get_checkout_payment_url();
-        } else {
-          $renewal_link_url = wcs_get_early_renewal_url( $current_subscription );//
+          $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
         }
-
-        //we need to keep the subscription renewal meta entry in sync with the current membership post id for renewal.
-        //it is possible the subscription membership item will be missing the renewal meta so we will add it
-        //if we are reusing the same subscription we need to change it from the last post id from the last renewal to the current one
-        $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
 
         $membership_data['subscription_renewal'] = [
           'title' => __("Renewal Invoice", 'wicket'),
           'permalink' => $renewal_link_url,
         ];
+        //if we have a subcription_id and renewing into the same tier we pass the subscription to the renewal callout
+        if( !empty( $membership_json_data['membership_subscription_id'] ) && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
+          $membership_data['next_tier']['next_subscription_id'] = $membership_json_data['membership_subscription_id'];
+        }
       } else if( !empty($next_tier_form_page_id) ) {
         //we are using a form page flow to renew the membership
         /* we found a renewal that has a subsequent membership already purchased, so do not return it */
@@ -1320,16 +1627,12 @@ function add_order_item_meta ( $item_id, $values ) {
         }
         //If we are not going to a page we can fallback to use all products as links
         $next_tier = new Membership_Tier( $next_tier_id );
-        $membership_data['next_tier'] = $next_tier->tier_data;          
+        $membership_data['next_tier'] = $next_tier->tier_data;
         $membership_data['next_tier']['next_product_id'] = $membership_json_data['membership_product_id'];
-        //if we have a subcription_id and renewing into the same tier we pass the subscription to the renewal callout
-        if( !empty( $membership_json_data['membership_subscription_id'] ) && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
-          $membership_data['next_tier']['next_subscription_id'] = $membership_json_data['membership_subscription_id'];
-        }
         //if it is *NOT* renewing into the same tier then account center will SHOW A DIRECT add_to_cart FOR EACH PRODUCT assigned to the next tier
         //TODO: This may be identified as a bug but it is a result of the rules we have been given
         //Multiple products assign to a tier vs. assigning this tier to be a sequential next tier for callout
-      } 
+      }
 
       //this checks the current membership's order meta for the previous_membership_post_id having been set
       //this was necessary if they change dthe membership tier the previous method misses the renewal because it is using different data
@@ -1340,15 +1643,22 @@ function add_order_item_meta ( $item_id, $values ) {
         echo "//-->$debug_comment_eol";
         continue;
       }
-       
+
       //adding to early renewal array here
       if( $current_time >= $membership_early_renew_at && $current_time < $membership_ends_at ) {
         //if autopay is enabled we do not allow or prompt for early renewal
         if(!empty($membership_data['meta']['membership_subscription_id'])) {
           $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
           if(!empty($sub)) {
+            $subscription_status = $sub->get_status();
             $is_autopay_enabled = $sub->get_requires_manual_renewal() ? false : true;
-            if(!$is_autopay_enabled) {
+            $next_payment_date = $sub->get_time( 'next_payment' );
+            if(empty($next_payment_date) || $subscription_status == 'on-hold' || $subscription_status == 'expired' || $subscription_status == 'cancelled' || $subscription_status == 'switched' || $subscription_status == 'trash' || (current_time( 'timestamp' ) > $next_payment_date)) {
+              $is_autopay_enabled = false;
+            }
+          }
+        }
+        if(empty($is_autopay_enabled)) {
               $callout['type'] = 'early_renewal';
               $callout['header'] = $Membership_Config->get_renewal_window_callout_header( $iso_code );
               $callout['content'] = $Membership_Config->get_renewal_window_callout_content( $iso_code );
@@ -1357,8 +1667,6 @@ function add_order_item_meta ( $item_id, $values ) {
                 'membership' => $membership_data,
                 'callout' => $callout
               ];
-            }
-          }
         }
         //adding to the garce period array here
       } else if ( $current_time >= $membership_ends_at && $current_time <= $membership_expires_at ) {
@@ -1377,12 +1685,39 @@ function add_order_item_meta ( $item_id, $values ) {
         ];
 
       }
+      $timing_debug = ( ( strtotime($membership_data['meta']['membership_ends_at']) - $current_time ) / 86400 ) > 0 ? ' in ' : ' was ';
+      #echo "<$debug_comment_hide--";
+      #echo "Renewal start" . $timing_debug . (int) ( ( strtotime($membership_data['meta']['membership_ends_at']) - $current_time ) / 86400 ) . ' days';
+      #echo "//-->$debug_comment_eol";
     }
 
     if(!empty($_ENV['WICKET_MSHIP_DISABLE_RENEWALS'])) {
       return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
     }
     return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'debug' => $debug, 'membership_exists' => $membership_exists ];
+  }
+
+  public function add_late_fee_product_to_subscription_renewal_order($subscription_id) {
+    if (!empty($subscription_id)) {
+      $sub = wcs_get_subscription( $subscription_id );
+      $membership_tier_post_id = get_post_meta($subscription_id, '_membership_tier_post_id', true);
+      $Membership_Tier = new Membership_Tier( $membership_tier_post_id );
+      $config_id = $Membership_Tier->get_config_id();
+      $Membership_Config = new Membership_Config( $config_id );
+      $late_fee_product_id = $Membership_Config->get_late_fee_window_product_id();
+      $product_exists = false;
+      foreach ($sub->get_items() as $item_id => $item) {
+          if ($item->get_product_id() == $late_fee_product_id) {
+              $product_exists = true;
+              break;
+          }
+      }
+      if (empty($product_exists)) {
+          $sub->add_product(wc_get_product($late_fee_product_id), 1);
+          $sub->calculate_totals();
+          $sub->save();
+      }
+    }
   }
 
   public function get_members_list_group_by_filter($groupby){
@@ -1423,14 +1758,14 @@ function add_order_item_meta ( $item_id, $values ) {
       )
     );
 
-    if( ! empty( $search ) ) {  
+    if( ! empty( $search ) ) {
       $args['meta_query'][] = array(
         'relation' => 'OR',
           array(
             'key'     => 'user_name',
             'value'   => $search,
             'compare' => 'LIKE'
-          ), 
+          ),
           array(
             'key'     => 'user_email',
             'value'   => $search,
@@ -1463,7 +1798,7 @@ function add_order_item_meta ( $item_id, $values ) {
         }
       }
     }
-    
+
     add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     if( $type == 'organization' ) {
       $args['meta_key'] = 'org_uuid';
@@ -1489,7 +1824,7 @@ function add_order_item_meta ( $item_id, $values ) {
           }
           $tier_new_meta[$key] = $val[0];
         }
-      );  
+      );
       $tier->meta = $tier_new_meta;
         if( $user->display_name == $user->user_login ) {
           $user->display_name = $user->first_name . ' ' . $user->last_name;
@@ -1514,8 +1849,8 @@ function add_order_item_meta ( $item_id, $values ) {
           $user_tiers = new \WP_Query( $args );
           foreach( $user_tiers->posts as $user_tier ) {
             $user_tier_uuid = get_post_meta( $user_tier->ID, 'membership_tier_uuid', true );
-            $tier->user->all_membership_tiers[] =  [ 
-              'uuid' => $user_tier_uuid, 
+            $tier->user->all_membership_tiers[] =  [
+              'uuid' => $user_tier_uuid,
               //'name' => $tiers_by_uuid['tier_data'][ $user_tier_uuid ]['name'] ,
             ];
           }
@@ -1552,7 +1887,7 @@ function add_order_item_meta ( $item_id, $values ) {
         $args['meta_query'] = array(
           'relation' => 'OR',
       );
-      
+
       foreach ($tier_uuids as $tier_uuid) {
           $tier_arg = array(
               'key'     => 'membership_tier_uuid',
@@ -1567,8 +1902,8 @@ function add_order_item_meta ( $item_id, $values ) {
         $tier->meta = array_map( function( $item ) {
             return $item[0];
         }, $tier_meta);
-      }  
-    }    
+      }
+    }
     foreach( $tiers->posts as $tier ) {
       $mship_tier_array[ $tier->meta['membership_tier_uuid'] ]['name']  = $all_tiers[ $tier->meta['membership_tier_uuid'] ]['attributes']['name'];
       if( in_array( 'count', $properties ) ) {
@@ -1617,7 +1952,7 @@ function add_order_item_meta ( $item_id, $values ) {
         $args['meta_query'] = array(
           'relation' => 'OR',
       );
-      
+
       foreach ($org_uuids as $org_uuid) {
           $org_arg = array(
               'key'     => 'org_uuid',
@@ -1632,7 +1967,7 @@ function add_order_item_meta ( $item_id, $values ) {
         $org->meta = array_map( function( $item ) {
             return $item[0];
         }, $org_meta);
-      }  
+      }
     }
 
     if( in_array('location', $properties ) ) {
@@ -1686,7 +2021,7 @@ function add_order_item_meta ( $item_id, $values ) {
           )
         );
     }
-    
+
     //tiers assigned to membership records as filters
     add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
     $args['meta_key'] = 'membership_tier_uuid';
