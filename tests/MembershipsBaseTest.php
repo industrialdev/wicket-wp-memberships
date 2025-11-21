@@ -264,7 +264,7 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
             if (function_exists('wcs_get_subscriptions_for_order')) {
                 $subscriptions = wcs_get_subscriptions_for_order($order_id, ['order_type' => 'any']);
             }
-            return [$tier_id, $user_id, $product_id,$subscriptions];
+            return [$tier_id, $user_id, $product_id,$subscriptions, $uuid];
         }
     }
 }

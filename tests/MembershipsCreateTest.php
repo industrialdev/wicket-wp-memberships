@@ -28,7 +28,8 @@ class MembershipsCreateTest extends MembershipsBaseTest {
         $tier_id,
         $user_id,
         $product_id,
-        $subscriptions
+        $subscriptions,
+        $wicket_uuid
       ] = $this->create_individual_membership_for_config_and_product_on_tier( $args );
 
         foreach ($subscriptions as $subscription_id => $subscription) {
@@ -37,6 +38,7 @@ class MembershipsCreateTest extends MembershipsBaseTest {
               $this->assertNotNull($meta_value, 'Meta key _membership_post_id_renew does not exist on subscription item.');
               $membership_post_id = $meta_value;
               $this->assertNotNull(get_post($membership_post_id), 'Membership post does not exist.');
+              $this->assertEquals($wicket_uuid, get_post_meta($membership_post_id, 'membership_wicket_uuid', true), 'Membership Wicket UUID does not match.');
               $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true), 'Membership tier ID does not match.');
               $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true), 'User ID does not match.');
               $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true), 'Membership product ID does not match.');
@@ -355,7 +357,8 @@ class MembershipsCreateTest extends MembershipsBaseTest {
         $tier_id,
         $user_id,
         $product_id,
-        $subscriptions
+        $subscriptions,
+        $wicket_uuid
       ] = $this->create_individual_membership_for_config_and_product_on_tier( $args );
 
         foreach ($subscriptions as $subscription_id => $subscription) {
@@ -368,6 +371,7 @@ class MembershipsCreateTest extends MembershipsBaseTest {
               $this->assertNotNull($renew_meta_value, 'Meta key _membership_post_id_renew does not exist on subscription item.');
               $membership_post_id = $renew_meta_value;
               $this->assertNotNull(get_post($membership_post_id), 'Membership post does not exist.');
+              $this->assertEquals($wicket_uuid, get_post_meta($membership_post_id, 'membership_wicket_uuid', true), 'Membership Wicket UUID does not match.');
               $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true), 'Membership tier ID does not match.');
               $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true), 'User ID does not match.');
 
