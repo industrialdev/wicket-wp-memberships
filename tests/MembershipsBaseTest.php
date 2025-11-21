@@ -68,17 +68,6 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
         $wpdb->query("DELETE FROM {$wpdb->postmeta} WHERE meta_key LIKE '_wicket_membership_%'");
     }
 
-    private function generate_test_uuid() {
-        return sprintf(
-            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff), mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000,
-            mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff), mt_rand(0, 0xffff), mt_rand(0, 0xffff)
-        );
-    }
-
     /**
      * Summary of test_can_create_membership_post
      * @return void
@@ -132,17 +121,23 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
         }
     }
 
-    protected function create_subscription_with_product_and_pending_order( $product_id, $user_id = null ) {
+    protected function create_subscription_with_product_and_pending_order( $product_id, $args ) {
         // Create a WooCommerce order in pending_payment status
         $order = wc_create_order();
-        if(empty($user_id)) {
+        if(empty($args['user_id'])) {
           $user_id = $this->factory->user->create([
               'role' => 'customer',
               'user_login' => 'test_customer_' . wp_generate_password(6, false),
           ]);
+        } else {
+          $user_id = $args['user_id'];
         }
         $order->set_customer_id($user_id);
-        $order->add_product(wc_get_product($product_id), 1);
+        $order_item_id = $order->add_product(wc_get_product($product_id), 1);
+        if($args['org_uuid']) {
+            // Add _org_uuid meta to the line item
+            wc_update_order_item_meta($order_item_id, '_org_uuid', $args['org_uuid']);
+        }
         // Default unpaid status for WooCommerce order is 'pending'
         $order->update_status('pending');
         $order_id = $order->get_id();
@@ -153,7 +148,7 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
             $this->markTestSkipped('WooCommerce Subscriptions plugin is not active.');
             return;
         }
-        $subscription = wcs_create_subscription([
+        $subscription_item_id = $subscription = wcs_create_subscription([
             'order_id'        => $order_id,
             'customer_id'     => $user_id,
             'billing_period'  => 'year',
@@ -161,6 +156,10 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
             'start_date'      => gmdate('Y-m-d H:i:s'),
             'status'          => 'pending'
         ]);
+        if($args['org_uuid']) {
+            // Add _org_uuid meta to the line item
+            wc_update_order_item_meta($subscription_item_id, '_org_uuid', $args['org_uuid']);
+        }
 
         $subscription->add_product(wc_get_product($product_id), 1);
         $subscription_id = $subscription->get_id();
@@ -206,7 +205,7 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
      * @return array<int|mixed>
      */
     public function create_individual_membership_for_config_and_product_on_tier( $args ) {
-        $uuid = $this->generate_test_uuid();
+        $uuid = wp_generate_uuid4();
         //BrainMonkey mock base plugin and MDP API responses
         when('wicket_assign_individual_membership')->justReturn([
             'success' => true,
@@ -218,6 +217,8 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
         ]);
         when('wicket_get_person_membership_exists')->justReturn([]);
         when('wicket_update_membership_external_id')->justReturn([]);
+
+        $membership_type = empty($args['org_uuid']) ? 'individual' : 'organization';
 
         // Create a simple product
         $product_id = $this->custom_factory->wicket_mship_product->create_product();
@@ -233,7 +234,7 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
             'mdp_tier_name' => 'Tier With Product',
             'mdp_tier_uuid' => uniqid('tier-uuid-'),
             'renewal_type' => 'subscription',
-            'type' => 'individual',
+            'type' => $membership_type,
             'seat_type' => 'per_seat',
             'product_data' => [
                 [
@@ -245,7 +246,7 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
         ];
         $tier_id = $this->custom_factory->wicket_mship_tier->create_tier_with_config($config_id, $tier_data);
 
-        $order_id = $this->create_subscription_with_product_and_pending_order( $product_id, $args['user_id'] );
+        $order_id = $this->create_subscription_with_product_and_pending_order( $product_id, $args );
         $user_id = get_post_meta( $order_id, '_customer_user', true );
 
         $this->assertIsNumeric($config_id);

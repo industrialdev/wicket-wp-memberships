@@ -36,18 +36,17 @@ class MembershipsCreateTest extends MembershipsBaseTest {
               $meta_value = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true );
               $this->assertNotNull($meta_value, 'Meta key _membership_post_id_renew does not exist on subscription item.');
               $membership_post_id = $meta_value;
-              //echo 'f'.$membership_post_id;
               $this->assertNotNull(get_post($membership_post_id), 'Membership post does not exist.');
-              $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true));
-              $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true));
-              $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true));
+              $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true), 'Membership tier ID does not match.');
+              $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true), 'User ID does not match.');
+              $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true), 'Membership product ID does not match.');
 
               $todays_date = gmdate('Y-m-d\T00:00:00+00:00');
               $ends_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($todays_date . ' +1 year'));
               $expires_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($ends_at_date . " + {$args['grace_period_days']} days"));
-              $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true));
-              $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true));
-              $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true));
+              $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true), 'Membership start date does not match.');
+              $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true), 'Membership end date does not match.');
+              $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true), 'Membership expire date does not match.');
            }
         }
     }
@@ -124,17 +123,17 @@ class MembershipsCreateTest extends MembershipsBaseTest {
               $this->assertNotNull($meta_value, 'Meta key _membership_post_id_renew does not exist on subscription item.');
               $membership_post_id = $meta_value;
               $this->assertNotNull(get_post($membership_post_id), 'Membership post does not exist.');
-              $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true));
-              $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true));
-              $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true));
+              $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true), 'Membership tier ID does not match.');
+              $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true), 'User ID does not match.');
+              $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true), 'Membership product ID does not match.');
 
               $todays_date = gmdate('Y-m-d\T00:00:00+00:00');
               $first_day_of_month = gmdate('Y-m-01\T00:00:00+00:00');
               $ends_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($first_day_of_month . ' +1 year'));
               $expires_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($ends_at_date . " + {$args['grace_period_days']} days"));
-              $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true));
-              $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true));
-              $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true));
+              $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true), 'Membership start date does not match.');
+              $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true), 'Membership end date does not match.');
+              $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true), 'Membership expire date does not match.');
            }
         }
     }
@@ -163,17 +162,17 @@ class MembershipsCreateTest extends MembershipsBaseTest {
               $this->assertNotNull($meta_value, 'Meta key _membership_post_id_renew does not exist on subscription item.');
               $membership_post_id = $meta_value;
               $this->assertNotNull(get_post($membership_post_id), 'Membership post does not exist.');
-              $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true));
-              $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true));
-              $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true));
+              $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true), 'Membership tier ID does not match.');
+              $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true), 'User ID does not match.');
+              $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true), 'Membership product ID does not match.');
 
               $todays_date = gmdate('Y-m-d\T00:00:00+00:00');
               $day_15th_of_month = gmdate('Y-m-15\T00:00:00+00:00');
               $ends_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($day_15th_of_month . ' +1 year'));
               $expires_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($ends_at_date . " + {$args['grace_period_days']} days"));
-              $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true));
-              $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true));
-              $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true));
+              $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true), 'Membership start date does not match.');
+              $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true), 'Membership end date does not match.');
+              $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true), 'Membership expire date does not match.');
            }
         }
     }
@@ -202,18 +201,18 @@ class MembershipsCreateTest extends MembershipsBaseTest {
               $this->assertNotNull($meta_value, 'Meta key _membership_post_id_renew does not exist on subscription item.');
               $membership_post_id = $meta_value;
               $this->assertNotNull(get_post($membership_post_id), 'Membership post does not exist.');
-              $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true));
-              $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true));
-              $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true));
+              $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true), 'Membership tier ID does not match.');
+              $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true), 'User ID does not match.');
+              $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true), 'Membership product ID does not match.');
 
               $todays_date = gmdate('Y-m-d\T00:00:00+00:00');
               $last_day_next_year = gmdate('Y-m-t\T00:00:00+00:00', strtotime('+1 year'));
               //we specifically look ahead a year for single case for february leap year handling
               $ends_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($last_day_next_year));
               $expires_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($ends_at_date . " + {$args['grace_period_days']} days"));
-              $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true));
-              $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true));
-              $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true));
+              $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true), 'Membership start date does not match.');
+              $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true), 'Membership end date does not match.');
+              $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true), 'Membership expire date does not match.');
            }
         }
     }
@@ -255,16 +254,16 @@ class MembershipsCreateTest extends MembershipsBaseTest {
               $this->assertNotNull($meta_value, 'Meta key _membership_post_id_renew does not exist on subscription item.');
               $membership_post_id = $meta_value;
               $this->assertNotNull(get_post($membership_post_id), 'Membership post does not exist.');
-              $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true));
-              $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true));
-              $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true));
+              $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true), 'Membership tier ID does not match.');
+              $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true), 'User ID does not match.');
+              $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true), 'Membership product ID does not match.');
 
               $todays_date = gmdate('Y-m-d\T00:00:00+00:00');
               $ends_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($season_end));
               $expires_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($ends_at_date . " + {$args['grace_period_days']} days"));
-              $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true));
-              $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true));
-              $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true));
+              $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true), 'Membership start date does not match.');
+              $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true), 'Membership end date does not match.');
+              $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true), 'Membership expire date does not match.');
            }
         }
     }
@@ -338,6 +337,52 @@ class MembershipsCreateTest extends MembershipsBaseTest {
           $this->assertEquals( $starts_at_date, get_post_meta($membership_post_id, 'membership_starts_at', true));
           $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true));
           $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true));
+        }
+    }
+
+        /**
+     * Summary of test_create_individual_membership_for_anniversary_config
+     * @return void
+     */
+    public function test_create_organization_membership_for_anniversary_config() {
+      $args['config_cycle'] = 'create_anniversary_config';
+      $args['org_uuid'] = wp_generate_uuid4();
+      //$args_array['align-end-dates-enabled'] = false; //default
+      //$args_array['align-end-dates-type'] = 'last-day-of-month'; // 'last-day-of-month' '15th-of-month'
+      //$args['early_renewal_days'] = 30; //default
+      $args['grace_period_days'] = 10; //default
+      [
+        $tier_id,
+        $user_id,
+        $product_id,
+        $subscriptions
+      ] = $this->create_individual_membership_for_config_and_product_on_tier( $args );
+
+        foreach ($subscriptions as $subscription_id => $subscription) {
+          foreach ( $subscription->get_items() as $item_id => $item ) {
+              $org_meta_value = wc_get_order_item_meta( $item_id, '_org_uuid', true );
+              $this->assertNotNull($org_meta_value, 'Meta key _org_uuid_renew does not exist on subscription item.');
+              $membership_org_uuid = $org_meta_value;
+
+              $renew_meta_value = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true );
+              $this->assertNotNull($renew_meta_value, 'Meta key _membership_post_id_renew does not exist on subscription item.');
+              $membership_post_id = $renew_meta_value;
+              $this->assertNotNull(get_post($membership_post_id), 'Membership post does not exist.');
+              $this->assertEquals($tier_id, get_post_meta($membership_post_id, 'membership_tier_post_id', true), 'Membership tier ID does not match.');
+              $this->assertEquals($user_id, get_post_meta($membership_post_id, 'user_id', true), 'User ID does not match.');
+
+              //check organization membership specific meta was attached correctly from subscription item
+              $this->assertEquals($product_id, get_post_meta($membership_post_id, 'membership_product_id', true), 'Membership product ID does not match.');
+              $this->assertEquals('organization', get_post_meta($membership_post_id, 'membership_type', true), 'Membership type is not organization.');
+              $this->assertEquals($membership_org_uuid, get_post_meta($membership_post_id, 'org_uuid', true), 'Organization UUID does not match.');
+
+              $todays_date = gmdate('Y-m-d\T00:00:00+00:00');
+              $ends_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($todays_date . ' +1 year'));
+              $expires_at_date = gmdate('Y-m-d\T00:00:00+00:00', strtotime($ends_at_date . " + {$args['grace_period_days']} days"));
+              $this->assertEquals( $todays_date, get_post_meta($membership_post_id, 'membership_starts_at', true), 'Membership start date does not match.');
+              $this->assertEquals( $ends_at_date, get_post_meta($membership_post_id, 'membership_ends_at', true), 'Membership end date does not match.');
+              $this->assertEquals( $expires_at_date, get_post_meta($membership_post_id, 'membership_expires_at', true), 'Membership expire date does not match.');
+           }
         }
     }
 }
