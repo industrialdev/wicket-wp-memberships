@@ -218,6 +218,8 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
         when('wicket_get_person_membership_exists')->justReturn([]);
         when('wicket_update_membership_external_id')->justReturn([]);
 
+        //setup tier data from supplied args
+        $renewal_type = $args['renewal_type'] ?? 'subscription';
         $membership_type = empty($args['org_uuid']) ? 'individual' : 'organization';
 
         // Create a simple product
@@ -233,7 +235,7 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
         $tier_data = [
             'mdp_tier_name' => 'Tier With Product',
             'mdp_tier_uuid' => uniqid('tier-uuid-'),
-            'renewal_type' => 'subscription',
+            'renewal_type' => $renewal_type,
             'type' => $membership_type,
             'seat_type' => 'per_seat',
             'product_data' => [
@@ -244,7 +246,7 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
                 ]
             ],
         ];
-        $tier_id = $this->custom_factory->wicket_mship_tier->create_tier_with_config($config_id, $tier_data);
+        $tier_id = $this->custom_factory->wicket_mship_tier->create_tier_with_config($config_id, $tier_data, $args);
 
         $order_id = $this->create_subscription_with_product_and_pending_order( $product_id, $args );
         $user_id = get_post_meta( $order_id, '_customer_user', true );
@@ -267,4 +269,29 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
             return [$tier_id, $user_id, $product_id,$subscriptions, $uuid];
         }
     }
+
+    public function return_first_membership_post_id_from_subscription_items($subscriptions) {
+        $membership_post_id = [];
+        foreach ($subscriptions as $subscription_id => $subscription) {
+            foreach ( $subscription->get_items() as $item_id => $item ) {
+                $meta_value = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true );
+                $membership_post_id = $meta_value;
+                break;
+            }
+            break;
+        }
+        return $membership_post_id;
+    }
+
+        public function return_allmembership_post_id_from_subscription_items($subscriptions) {
+        $membership_post_id = [];
+        foreach ($subscriptions as $subscription_id => $subscription) {
+            foreach ( $subscription->get_items() as $item_id => $item ) {
+                $meta_value = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true );
+                $membership_post_id[] = $meta_value;
+            }
+        }
+        return $membership_post_id;
+    }
+
 }

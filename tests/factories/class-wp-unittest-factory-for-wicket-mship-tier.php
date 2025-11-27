@@ -45,9 +45,9 @@ class WP_UnitTest_Factory_For_Wicket_Mship_Tier extends WP_UnitTest_Factory_For_
                     'max_seats' => -1,
                 ]
             ],
-            'approval_required' => 0,
+            'approval_required' => $post_args['approval_required'] ?? 0,
             'grant_owner_assignment' => 0,
-            'approval_email_recipient' => '',
+            'approval_email_recipient' => $post_args['approval_email_recipient'] ?? '',
             'approval_callout_data' => [
                 'locales' => [
                     'en' => [
