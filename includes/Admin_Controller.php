@@ -132,7 +132,6 @@ class Admin_Controller {
 
       $user = get_user_by( 'id', $membership['user_id'] );
       $membership['person_uuid'] = $user->data->user_login;
-
       //create the mdp record we skipped before
       if( empty( $membership['membership_wicket_uuid'] ) ) {
         $membership_data = $membership;
@@ -153,6 +152,13 @@ class Admin_Controller {
       //set the renewal scheduler dates
       $Membership_Controller->scheduler_dates_for_expiry( $membership );
 
+      //set subscription active
+      $Membership_Controller->update_subscription_status(
+        $membership['membership_subscription_id'],
+        'active',
+        'Membership approved and dates updated.'
+      );
+
       //update subscription dates
       $date_flags_array = [ 'start_date', 'end_date' ];
       if( $has_next_payment_date = Helper::has_next_payment_date( $membership )) {
@@ -161,14 +167,8 @@ class Admin_Controller {
 
       $Membership_Controller->update_membership_subscription( $membership, $date_flags_array );
       $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
-      //set subscription active
-      $Membership_Controller->update_subscription_status(
-        $membership['membership_subscription_id'],
-        'active',
-        'Membership approved and dates updated.'
-      );
       $membership_post_data = Helper::get_post_meta( $membership_post_id );
-      
+
       //update wicket wxternal_id
       $wicket_membership_type = 'person_memberships';
       if($membership_post_data['membership_type'] == 'organization') {
@@ -273,7 +273,7 @@ class Admin_Controller {
     //update membership dates in MDP
     if( !empty( $updated ) && ! $Membership_Controller->bypass_wicket ) {
       $response = $Membership_Controller->update_mdp_record( $membership_new, $meta_data );
-      if ( strstr( $response['error'], '404 Not Found') !== false && ! empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
+      if ( !empty($response['error']) && strstr( $response['error'], '404 Not Found') !== false && ! empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
         $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
         Utilities::wc_log_mship_error(['success' => 'Status Changed. NOTE: No mdp record exists for this membership.']);
         return new \WP_REST_Response(['success' => 'Status Changed. NOTE: No mdp record exists for this membership.'], 200);
