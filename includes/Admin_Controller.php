@@ -472,22 +472,22 @@ class Admin_Controller {
           $membership_item['order']['date_created'] =  $order->get_date_created()->format('Y-m-d');
           if(!empty( $order->get_date_completed() )) {
             $membership_item['order']['date_completed'] = $order->get_date_completed()->format('Y-m-d');
-          }
-          if( function_exists( 'wcs_get_subscription' )) {
-            $sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
-            if(!empty( $sub )) {
-              $membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
-              $membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
-              $membership_item['subscription']['status'] = $sub->get_status();
-              $sub_next_payment_date = $sub->get_time('next_payment');
-              if( empty($sub_next_payment_date_set ) && !empty($sub_next_payment_date ) && ($meta['membership_status'] == 'delayed' || $meta['membership_status'] == 'active')) {
-                $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub_next_payment_date), wp_timezone() ))->format('Y-m-d');
-                $sub_next_payment_date_set = true;
-              } else {
-                $membership_item['subscription']['next_payment_date'] = 'N/A';
-              }
-            }
           }  
+        }
+      }
+      if( function_exists( 'wcs_get_subscription' )) {
+        $sub = wcs_get_subscription( $membership_item['data']['membership_subscription_id'] );
+        if(!empty( $sub )) {
+          $membership_item['subscription']['id'] = $membership_item['data']['membership_subscription_id'];
+          $membership_item['subscription']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_subscription_id'] );
+          $membership_item['subscription']['status'] = $sub->get_status();
+          $sub_next_payment_date = $sub->get_time('next_payment');
+          if( empty($sub_next_payment_date_set ) && !empty($sub_next_payment_date ) && ($meta['membership_status'] == 'delayed' || $meta['membership_status'] == 'active')) {
+            $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub_next_payment_date), wp_timezone() ))->format('Y-m-d');
+            $sub_next_payment_date_set = true;
+          } else {
+            $membership_item['subscription']['next_payment_date'] = 'N/A';
+          }
         }
       }
       $membership_items[] = $membership_item;
