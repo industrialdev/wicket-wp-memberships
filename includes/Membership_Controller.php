@@ -1535,15 +1535,17 @@ function add_order_item_meta ( $item_id, $values ) {
 
       if(!empty($membership_data['meta']['membership_subscription_id'])) {
         $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
-        $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
-        $subscription_status = $sub->get_status();
-        $next_payment_date = $sub->get_time( 'next_payment' );
-        if( $is_autopay_enabled && !empty($next_payment_date) && $subscription_status != 'on-hold' && $subscription_status != 'expired' && $subscription_status != 'cancelled' && $subscription_status != 'switched' && $subscription_status != 'trash' && (current_time( 'timestamp' ) < $next_payment_date)) {
-          echo "<$debug_comment_hide--";
-          echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
-          echo '|'.( strtotime($next_payment_date) - current_time( 'timestamp' ) );
-          echo "//-->$debug_comment_eol";
-          continue;
+        if(!empty($sub)) {
+          $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
+          $subscription_status = $sub->get_status();
+          $next_payment_date = $sub->get_time( 'next_payment' );
+          if( $is_autopay_enabled && !empty($next_payment_date) && $subscription_status != 'on-hold' && $subscription_status != 'expired' && $subscription_status != 'cancelled' && $subscription_status != 'switched' && $subscription_status != 'trash' && (current_time( 'timestamp' ) < $next_payment_date)) {
+            echo "<$debug_comment_hide--";
+            echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
+            echo '|'.( strtotime($next_payment_date) - current_time( 'timestamp' ) );
+            echo "//-->$debug_comment_eol";
+            continue;
+          }
         }
       }
 
