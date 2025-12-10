@@ -2057,7 +2057,62 @@ function add_order_item_meta ( $item_id, $values ) {
   public static function daily_membership_expiry_hook() {
     $self = new self();
     $yesterday_timestamp = current_time('timestamp') - 86400;
-    $membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
+    //$membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
+    $membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d\TH:i:sP');
+    //lookup all memberships expired yesterday
+    $args = array(
+      'post_type' => $self->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query'     => array(
+        'relation' => 'AND',
+        array(
+          'relation' => 'OR',
+          array(
+            'key'     => 'membership_status',
+            'value'   => Wicket_Memberships::STATUS_ACTIVE,
+            'compare' => '='
+          ),
+          array(
+            'key'     => 'membership_status',
+            'value'   => Wicket_Memberships::STATUS_GRACE,
+            'compare' => '='
+          ),
+        ),
+        array(
+          'key'     => 'membership_status',
+          'value'   => Wicket_Memberships::STATUS_EXPIRED,
+          'compare' => '!='
+        ),
+        array(
+          'key'     => 'membership_expires_at',
+          'value'   => $membership_expires_at,
+          'compare' => '<',
+          'type'    => 'CHAR',
+        ),
+      )
+    );
+
+    //change status to expired
+    $memberships = get_posts( $args );
+    foreach( $memberships as $membership) {
+      $memberships_updated[] = [$membership->ID, $membership->membership_status, $membership->membership_expires_at ];
+      update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_EXPIRED);
+    }
+    Utilities::wc_log_mship_error( [ 'daily_membership_expiry_hook', $membership_expires_at, $memberships_updated ] );
+    return count($memberships);
+  }
+
+  /**
+   * Change status of Membership to Grace Period
+   * @return int
+   */
+
+  public static function daily_membership_grace_period_hook() {
+    $self = new self();
+    $yesterday_timestamp = current_time('timestamp') - 86400;
+    //$membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
+    $membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d\TH:i:sP');
     //lookup all memberships expired yesterday
     $args = array(
       'post_type' => $self->membership_cpt_slug,
@@ -2072,48 +2127,13 @@ function add_order_item_meta ( $item_id, $values ) {
         array(
           'key'     => 'membership_status',
           'value'   => Wicket_Memberships::STATUS_GRACE,
-          'compare' => '='
-        ),
-        array(
-          'key'     => 'membership_expires_at',
-          'value'   => $membership_expires_at,
-          'compare' => 'LIKE'
-        ),
-      )
-    );
-
-    //change status to expired
-    $memberships = get_posts( $args );
-    foreach( $memberships as $membership) {
-      update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_EXPIRED);
-    }
-    return count($memberships);
-  }
-
-  /**
-   * Change status of Membership to Grace Period
-   * @return int
-   */
-
-  public static function daily_membership_grace_period_hook() {
-    $self = new self();
-    $yesterday_timestamp = current_time('timestamp') - 86400;
-    $membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
-    //lookup all memberships expired yesterday
-    $args = array(
-      'post_type' => $self->membership_cpt_slug,
-      'post_status' => 'publish',
-      'posts_per_page' => -1,
-      'meta_query'     => array(
-        array(
-          'key'     => 'membership_status',
-          'value'   => Wicket_Memberships::STATUS_ACTIVE,
-          'compare' => '='
+          'compare' => '!='
         ),
         array(
           'key'     => 'membership_ends_at',
           'value'   => $membership_ends_at,
-          'compare' => 'LIKE'
+          'compare' => '<',
+          'type'    => 'CHAR',
         ),
       )
     );
@@ -2121,8 +2141,10 @@ function add_order_item_meta ( $item_id, $values ) {
     //change status to expired
     $memberships = get_posts( $args );
     foreach( $memberships as $membership) {
+      $memberships_updated[] = [$membership->ID, $membership->membership_status, $membership->membership_ends_at ];
       update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_GRACE);
     }
+    Utilities::wc_log_mship_error( [ 'daily_membership_grace_period_hook', $membership_ends_at, $memberships_updated ] );
     return count($memberships);
   }
 }
