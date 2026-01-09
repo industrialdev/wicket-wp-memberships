@@ -6,6 +6,7 @@ class FactoryTest extends WP_UnitTestCase {
 
     public function setUp(): void {
         parent::setUp();
+        $this->requireWordPress(); // Skip if WordPress not available
         $factory = isset($GLOBALS['factory']) ? $GLOBALS['factory'] : $this->factory;
         $this->custom_factory = (object) [
             'wicket_mship_tier' => new WP_UnitTest_Factory_For_Wicket_Mship_Tier($factory),

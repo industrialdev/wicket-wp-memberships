@@ -13,6 +13,7 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
 
     public function setUp(): void {
         parent::setUp();
+        $this->requireWordPress(); // Skip if WordPress not available
         error_reporting(E_ALL & ~E_WARNING);
         setUp();
         $factory = isset($GLOBALS['factory']) ? $GLOBALS['factory'] : $this->factory;
@@ -32,6 +33,11 @@ class MembershipsBaseTest extends WP_UnitTestCase_NoDeprecationFail {
     }
 
     private function local_teardown() {
+        // Skip cleanup if WordPress is not available
+        if (!defined('WP_TESTS_MODE') || WP_TESTS_MODE !== true) {
+            return;
+        }
+
         // Cleanup posts
         $post_types = [
             'wicket_mship_membership',
