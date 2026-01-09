@@ -67,12 +67,16 @@ composer test:unit
 # Run tests with coverage report
 composer test:coverage
 
-# Run browser tests
+# Run browser tests (requires local WordPress instance with Wicket Docker setup)
 composer test:browser
 
 # Run specific test file
 ./vendor/bin/pest tests/YourTest.php
 ```
+
+**Note:** Browser tests require a local WordPress instance running with the Wicket Docker setup. Ensure you have a site (e.g., PACE or any other) running locally before executing browser tests.
+
+**Playwright Setup:** Install Playwright globally if desired: `npm install -g playwright@latest && npx playwright install`
 
 ### Writing New Tests
 
