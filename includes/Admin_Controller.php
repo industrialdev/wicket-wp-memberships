@@ -189,8 +189,8 @@ class Admin_Controller {
       else {
         $meta_data = [
           'membership_status' => $new_post_status,
-          'membership_ends_at' => $tomorrow_iso_date,
-          'membership_expires_at' => $tomorrow_iso_date,
+          'membership_ends_at' => $now_iso_date,
+          'membership_expires_at' => $now_iso_date,
           'membership_grace_period_days' => 0
         ];
       }
