@@ -920,7 +920,9 @@ function add_order_item_meta ( $item_id, $values ) {
     if(!empty($membership['previous_membership_post_id'])) {
       $previous_membership_wicket_uuid = get_post_meta( $membership['previous_membership_post_id'], 'membership_wicket_uuid', true);
     }
-    $membership_wicket_uuid = $this->check_mdp_membership_record_exists( $membership );
+    if($membership['membership_type'] == 'individual') {
+      $membership_wicket_uuid = $this->check_mdp_membership_record_exists( $membership );
+    }
 
     if( empty( $membership_wicket_uuid ) ) {
       if( $membership['membership_type'] == 'individual' ) {

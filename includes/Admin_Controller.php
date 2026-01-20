@@ -129,9 +129,10 @@ class Admin_Controller {
         'membership_grace_period_days' => $config->get_late_fee_window_days()
       ];
       $membership = array_merge( $membership_new, $meta_data );
-
       $user = get_user_by( 'id', $membership['user_id'] );
       $membership['person_uuid'] = $user->data->user_login;
+      $membership['membership_wicket_uuid'] = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
+
       //create the mdp record we skipped before
       if( empty( $membership['membership_wicket_uuid'] ) ) {
         $membership_data = $membership;
