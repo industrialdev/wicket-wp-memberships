@@ -109,6 +109,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
               const newSearchParams = {
                 ...searchParams,
                 search: tempSearchParams.search,
+                page: 1,
               };
               setSearchParams(newSearchParams);
               getMembers(newSearchParams);
