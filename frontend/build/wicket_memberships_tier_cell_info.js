@@ -18,12 +18,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   WC_API_V3_URL: () => (/* binding */ WC_API_V3_URL),
 /* harmony export */   WC_PRODUCT_TYPES: () => (/* binding */ WC_PRODUCT_TYPES)
 /* harmony export */ });
-const API_URL = '/wp/v2';
-const WC_API_V3_URL = '/wc/v3';
-const PLUGIN_API_URL = '/wicket_member/v1';
-const TIER_CPT_SLUG = 'wicket_mship_tier';
-const DEFAULT_DATE_FORMAT = 'yyyy-MM-dd';
-const WC_PRODUCT_TYPES = ['subscription', 'variable-subscription'];
+const API_URL = "/wp/v2";
+const WC_API_V3_URL = "/wc/v3";
+const PLUGIN_API_URL = "/wicket_member/v1";
+const TIER_CPT_SLUG = "wicket_mship_tier";
+const DEFAULT_DATE_FORMAT = "yyyy-MM-dd";
+const WC_PRODUCT_TYPES = ["subscription", "variable-subscription"];
 const PLUGIN_SETTINGS = wicketMembershipsSettings;
 
 /***/ }),
@@ -66,7 +66,7 @@ __webpack_require__.r(__webpack_exports__);
 const fetchTiers = () => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.API_URL}/${_constants__WEBPACK_IMPORTED_MODULE_2__.TIER_CPT_SLUG}`, {
-      status: 'publish',
+      status: "publish",
       per_page: 99
     })
   });
@@ -78,7 +78,7 @@ const fetchTiers = () => {
 const updateMembership = (membershipId, data) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_entity/${membershipId}/update`,
-    method: 'POST',
+    method: "POST",
     data: data
   });
 };
@@ -89,7 +89,7 @@ const updateMembership = (membershipId, data) => {
 const updateMembershipStatus = (membershipId, status) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/admin/manage_status`,
-    method: 'POST',
+    method: "POST",
     data: {
       post_id: membershipId,
       status: status
@@ -185,7 +185,7 @@ const fetchMdpPersons = (queryParams = {}) => {
   const url = (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/mdp_person/search`, queryParams);
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: url,
-    method: 'POST'
+    method: "POST"
   });
 };
 
@@ -227,7 +227,7 @@ const fetchProductVariations = (productId, queryParams = {}) => {
 const createRenewalOrder = (membershipId, productId, variationId) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership/${membershipId}/create_renewal_order`,
-    method: 'POST',
+    method: "POST",
     data: {
       membership_post_id: membershipId,
       product_id: productId,
@@ -430,10 +430,10 @@ const MembershipTierCellInfo = ({
         id: [tierUuid]
       }
     }).then(tiers => {
-      const value = tiers[0][tierField] === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_4__.__)('N/A', 'wicket-memberships') : tiers[0][tierField];
+      const value = tiers[0][tierField] === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_4__.__)("N/A", "wicket-memberships") : tiers[0][tierField];
       setStatus(value);
     }).catch(error => {
-      console.log('Tier Info Error:');
+      console.log("Tier Info Error:");
       console.log(error);
     });
   }, []);
@@ -441,7 +441,7 @@ const MembershipTierCellInfo = ({
 };
 
 // init multiple instances
-const app = document.querySelectorAll('.wicket_memberships_tier_cell_info');
+const app = document.querySelectorAll(".wicket_memberships_tier_cell_info");
 if (app) {
   app.forEach(el => {
     (0,react_dom_client__WEBPACK_IMPORTED_MODULE_1__.createRoot)(el).render((0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MembershipTierCellInfo, {

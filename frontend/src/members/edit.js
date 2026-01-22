@@ -795,7 +795,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         dropdownMode="select"
                                         selected={ membership.data.membership_starts_at }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment(value).toISOString() /*TODO: format date and apply TZ offset*/);
+                                          handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment(value).toISOString( /*TODO: format date and apply TZ offset*/));
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>

@@ -1,12 +1,15 @@
-import { __ } from '@wordpress/i18n';
-import { createRoot } from 'react-dom/client';
-import { useState, useEffect } from 'react';
-import { addQueryArgs } from '@wordpress/url';
-import { Spinner, Icon } from '@wordpress/components';
-import { fetchMembers, fetchTiersInfo, fetchMembershipFilters } from '../services/api';
+import { __ } from "@wordpress/i18n";
+import { createRoot } from "react-dom/client";
+import { useState, useEffect } from "react";
+import { addQueryArgs } from "@wordpress/url";
+import { Spinner, Icon } from "@wordpress/components";
+import {
+  fetchMembers,
+  fetchTiersInfo,
+  fetchMembershipFilters,
+} from "../services/api";
 
 const MemberList = ({ memberType, editMemberUrl }) => {
-
   const [isLoading, setIsLoading] = useState(true);
 
   const [members, setMembers] = useState([]);
@@ -21,14 +24,14 @@ const MemberList = ({ memberType, editMemberUrl }) => {
     type: memberType,
     page: 1,
     posts_per_page: 10,
-    status: '',
-    order_col: 'start_date',
-    order_dir: 'ASC',
+    status: "",
+    order_col: "start_date",
+    order_dir: "ASC",
     // filter: {
     //   membership_status: '',
     //   membership_tier: '',
     // },
-    search: '',
+    search: "",
   });
 
   const [tempSearchParams, setTempSearchParams] = useState(searchParams);
@@ -48,39 +51,52 @@ const MemberList = ({ memberType, editMemberUrl }) => {
         setTotalPages(Math.ceil(response.count / params.posts_per_page));
         setIsLoading(false);
 
-        const tierIds = response.results.map((member) => member.meta.membership_tier_uuid);
+        const tierIds = response.results.map(
+          (member) => member.meta.membership_tier_uuid,
+        );
         if (tiersInfo === null) {
           getTiersInfo(tierIds);
         }
-      }).catch((error) => {
+      })
+      .catch((error) => {
         console.error(error);
       });
   };
 
   const getTiersInfo = (tierIds) => {
-    if ( tierIds.length === 0 ) { return }
+    if (tierIds.length === 0) {
+      return;
+    }
 
-    fetchTiersInfo(tierIds).then((tiersInfo) => {
-      setTiersInfo(tiersInfo);
-		}).catch((error) => {
-      console.log('Tiers Info Error:');
-      console.log(error);
-		});
-  }
+    fetchTiersInfo(tierIds)
+      .then((tiersInfo) => {
+        setTiersInfo(tiersInfo);
+      })
+      .catch((error) => {
+        console.log("Tiers Info Error:");
+        console.log(error);
+      });
+  };
 
   const getMembershipFilters = () => {
     fetchMembershipFilters(memberType)
       .then((filters) => {
         setMembershipFilters(filters);
-      }).catch((error) => {
+      })
+      .catch((error) => {
         console.error(error);
       });
   };
 
   const getTierInfo = (tierId) => {
-    if ( tiersInfo === null ) { return null }
+    if (tiersInfo === null) {
+      return null;
+    }
 
-    if ( ! tiersInfo.hasOwnProperty('tier_data') || ! tiersInfo.tier_data.hasOwnProperty(tierId) ) {
+    if (
+      !tiersInfo.hasOwnProperty("tier_data") ||
+      !tiersInfo.tier_data.hasOwnProperty(tierId)
+    ) {
       return null;
     }
 
@@ -94,68 +110,71 @@ const MemberList = ({ memberType, editMemberUrl }) => {
     getMembers(searchParams);
   }, []);
 
-	return (
-		<>
-			<div className="wrap" >
-				<h1 className="wp-heading-inline">
-					{memberType === 'individual' ? __('Individual Members', 'wicket-memberships') : __('Organization Members', 'wicket-memberships')}
-				</h1>
-				<hr className="wp-header-end"></hr>
+  return (
+    <>
+      <div className="wrap">
+        <h1 className="wp-heading-inline">
+          {memberType === "individual"
+            ? __("Individual Members", "wicket-memberships")
+            : __("Organization Members", "wicket-memberships")}
+        </h1>
+        <hr className="wp-header-end"></hr>
 
         <form
-          onSubmit={
-            (e) => {
-              e.preventDefault();
-              const newSearchParams = {
-                ...searchParams,
-                search: tempSearchParams.search,
-              };
-              setSearchParams(newSearchParams);
-              getMembers(newSearchParams);
-            }
-          }
+          onSubmit={(e) => {
+            e.preventDefault();
+            const newSearchParams = {
+              ...searchParams,
+              search: tempSearchParams.search,
+            };
+            setSearchParams(newSearchParams);
+            getMembers(newSearchParams);
+          }}
         >
           <p className="search-box">
             <label className="screen-reader-text" htmlFor="post-search-input">
-              {__('Search Member', 'wicket-memberships')}
+              {__("Search Member", "wicket-memberships")}
             </label>
             <input
               type="search"
               id="post-search-input"
               value={tempSearchParams.search}
-              onChange={(e) => setTempSearchParams({ ...tempSearchParams, search: e.target.value })}
+              onChange={(e) =>
+                setTempSearchParams({
+                  ...tempSearchParams,
+                  search: e.target.value,
+                })
+              }
             />
             <input
               type="submit"
               className="button"
-              value={__('Search Member', 'wicket-memberships')}
+              value={__("Search Member", "wicket-memberships")}
             />
           </p>
         </form>
 
         <div className="tablenav top">
           <form
-            onSubmit={
-              (e) => {
-                e.preventDefault();
-                const newSearchParams = {
-                  ...searchParams,
-                  filter: {
-                    membership_status: tempSearchParams.filter.membership_status,
-                    membership_tier: tempSearchParams.filter.membership_tier,
-                  }
-                };
-                // remove if empty filter values
-                if (newSearchParams.filter.membership_status === '') {
-                  delete newSearchParams.filter.membership_status;
-                }
-                if (newSearchParams.filter.membership_tier === '') {
-                  delete newSearchParams.filter.membership_tier;
-                }
-                setSearchParams(newSearchParams);
-                getMembers(newSearchParams);
+            onSubmit={(e) => {
+              e.preventDefault();
+              const newSearchParams = {
+                ...searchParams,
+                filter: {
+                  membership_status: tempSearchParams.filter.membership_status,
+                  membership_tier: tempSearchParams.filter.membership_tier,
+                },
+              };
+              // remove if empty filter values
+              if (newSearchParams.filter.membership_status === "") {
+                delete newSearchParams.filter.membership_status;
               }
-            }
+              if (newSearchParams.filter.membership_tier === "") {
+                delete newSearchParams.filter.membership_tier;
+              }
+              setSearchParams(newSearchParams);
+              getMembers(newSearchParams);
+            }}
           >
             <div className="alignleft actions">
               <select
@@ -171,10 +190,13 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                   });
                 }}
               >
-                <option value="">{__('Status', 'wicket-memberships')}</option>
-                {membershipFilters !== null && membershipFilters.membership_status.map((status, index) => (
-                  <option key={index} value={status.name}>{status.value}</option>
-                ))}
+                <option value="">{__("Status", "wicket-memberships")}</option>
+                {membershipFilters !== null &&
+                  membershipFilters.membership_status.map((status, index) => (
+                    <option key={index} value={status.name}>
+                      {status.value}
+                    </option>
+                  ))}
               </select>
 
               <select
@@ -190,17 +212,26 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                   });
                 }}
               >
-                <option value="">{__('All Tiers', 'wicket-memberships')}</option>
-                {membershipFilters !== null && membershipFilters.tiers.map((tier, index) => (
-                  getTierInfo(tier.value) !== null && (
-                    <option key={index} value={tier.value}>
-                      {getTierInfo(tier.value).name}
-                    </option>
-                  )
-                ))}
+                <option value="">
+                  {__("All Tiers", "wicket-memberships")}
+                </option>
+                {membershipFilters !== null &&
+                  membershipFilters.tiers.map(
+                    (tier, index) =>
+                      getTierInfo(tier.value) !== null && (
+                        <option key={index} value={tier.value}>
+                          {getTierInfo(tier.value).name}
+                        </option>
+                      ),
+                  )}
               </select>
 
-              <input type="submit" id="post-query-submit" className="button" value={__('Filter', 'wicket-memberships')} />
+              <input
+                type="submit"
+                id="post-query-submit"
+                className="button"
+                value={__("Filter", "wicket-memberships")}
+              />
             </div>
           </form>
         </div>
@@ -208,23 +239,35 @@ const MemberList = ({ memberType, editMemberUrl }) => {
         <table className="wp-list-table widefat fixed striped table-view-list posts">
           <thead>
             <tr>
-              { memberType === 'organization' && (
+              {memberType === "organization" && (
                 <>
                   <th scope="col" className="manage-column">
-                    { __('Organization Name', 'wicket-memberships') }
+                    {__("Organization Name", "wicket-memberships")}
                   </th>
-                  <th scope="col" className="manage-column">{ __('Location', 'wicket-memberships') }</th>
+                  <th scope="col" className="manage-column">
+                    {__("Location", "wicket-memberships")}
+                  </th>
                 </>
               )}
               <th scope="col" className="manage-column">
-                { memberType === 'individual' ? __( 'Individual Member Name', 'wicket-memberships' ) : __( 'Contact', 'wicket-memberships' ) }
+                {memberType === "individual"
+                  ? __("Individual Member Name", "wicket-memberships")
+                  : __("Contact", "wicket-memberships")}
               </th>
               <th scope="col" className="manage-column">
-                { memberType === 'individual' ? __( 'Email', 'wicket-memberships' ) : __( 'Contact Email', 'wicket-memberships' ) }
+                {memberType === "individual"
+                  ? __("Email", "wicket-memberships")
+                  : __("Contact Email", "wicket-memberships")}
               </th>
-              <th scope="col" className="manage-column">{ __( 'Status', 'wicket-memberships' ) }</th>
-              <th scope="col" className="manage-column">{ __( 'Tier', 'wicket-memberships' ) }</th>
-              <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
+              <th scope="col" className="manage-column">
+                {__("Status", "wicket-memberships")}
+              </th>
+              <th scope="col" className="manage-column">
+                {__("Tier", "wicket-memberships")}
+              </th>
+              <th scope="col" className="manage-column">
+                {__("Link to MDP", "wicket-memberships")}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -232,7 +275,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
               <tr className="alternate">
                 <td
                   className="column-columnname"
-                  colSpan={memberType === 'organization' ? 6 : 4}
+                  colSpan={memberType === "organization" ? 6 : 4}
                 >
                   <Spinner />
                 </td>
@@ -241,92 +284,110 @@ const MemberList = ({ memberType, editMemberUrl }) => {
             {!isLoading && members.length === 0 && (
               <tr className="alternate">
                 <td className="column-columnname" colSpan={4}>
-                  { __( 'No members found.', 'wicket-memberships' ) }
+                  {__("No members found.", "wicket-memberships")}
                 </td>
               </tr>
             )}
-            {!isLoading && members.length > 0 && (
+            {!isLoading &&
+              members.length > 0 &&
               members.map((member, index) => (
                 <tr key={index}>
-                  { memberType === 'organization' && (
+                  {memberType === "organization" && (
                     <>
                       <td>
                         <strong>
-                          <a href={addQueryArgs(editMemberUrl, { id: member.meta.org_uuid })}
-                            className='row-title'
-                          >{member.meta.org_name}</a>
+                          <a
+                            href={addQueryArgs(editMemberUrl, {
+                              id: member.meta.org_uuid,
+                            })}
+                            className="row-title"
+                          >
+                            {member.meta.org_name}
+                          </a>
                         </strong>
 
                         <div className="row-actions">
                           <span className="edit">
-                            <a href={addQueryArgs(editMemberUrl, { id: member.meta.org_uuid })} aria-label={ __('Edit', 'wicket-memberships') }>
-                              { __('Edit', 'wicket-memberships') }
+                            <a
+                              href={addQueryArgs(editMemberUrl, {
+                                id: member.meta.org_uuid,
+                              })}
+                              aria-label={__("Edit", "wicket-memberships")}
+                            >
+                              {__("Edit", "wicket-memberships")}
                             </a>
                           </span>
                         </div>
                       </td>
-                      <td>
-                        {member.meta.org_location}
-                      </td>
+                      <td>{member.meta.org_location}</td>
                     </>
                   )}
                   <td>
-                    {memberType === 'individual' && (
+                    {memberType === "individual" && (
                       <>
                         <strong>
-                          <a href={addQueryArgs(editMemberUrl, { id: member.user.user_login })}
-                            className='row-title'
-                          >{member.user.display_name}</a>
+                          <a
+                            href={addQueryArgs(editMemberUrl, {
+                              id: member.user.user_login,
+                            })}
+                            className="row-title"
+                          >
+                            {member.user.display_name}
+                          </a>
                         </strong>
                         <div className="row-actions">
                           <span className="edit">
-                            <a href={addQueryArgs(editMemberUrl, { id: member.user.user_login })} aria-label={ __('Edit', 'wicket-memberships') }>
-                              { __('Edit', 'wicket-memberships') }
+                            <a
+                              href={addQueryArgs(editMemberUrl, {
+                                id: member.user.user_login,
+                              })}
+                              aria-label={__("Edit", "wicket-memberships")}
+                            >
+                              {__("Edit", "wicket-memberships")}
                             </a>
                           </span>
                         </div>
                       </>
                     )}
-                    {memberType === 'organization' && (
-                      <>
-                        {member.user.display_name}
-                      </>
+                    {memberType === "organization" && (
+                      <>{member.user.display_name}</>
                     )}
                   </td>
+                  <td>{member.user.user_email}</td>
                   <td>
-                    { member.user.user_email }
-                  </td>
-                  <td>
-                    <span style={{
-                          color: (member.meta.membership_status === 'active' ? 'green' : ''),
-                          textTransform: 'capitalize'
-                        }}>
-                      { member.meta.membership_status }
+                    <span
+                      style={{
+                        color:
+                          member.meta.membership_status === "active"
+                            ? "green"
+                            : "",
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {member.meta.membership_status}
                     </span>
                   </td>
                   <td>
                     {tiersInfo === null && <Spinner />}
-                    {getTierInfo(member.meta.membership_tier_uuid) !== null && getTierInfo(member.meta.membership_tier_uuid).name}
+                    {getTierInfo(member.meta.membership_tier_uuid) !== null &&
+                      getTierInfo(member.meta.membership_tier_uuid).name}
                   </td>
                   <td>
-                    <a
-                      target="_blank"
-                      href={member.user.mdp_link}
-                    >
-                      {__('View', 'wicket-memberships')}
-                      &nbsp;<Icon icon="external" />
+                    <a target="_blank" href={member.user.mdp_link}>
+                      {__("View", "wicket-memberships")}
+                      &nbsp;
+                      <Icon icon="external" />
                     </a>
                   </td>
                 </tr>
-              ))
-            )}
+              ))}
           </tbody>
         </table>
 
         <div className="tablenav bottom">
           <div className="tablenav-pages">
             <span className="displaying-num">
-              {totalMembers} {__('items', 'wicket-memberships')}
+              {totalMembers} {__("items", "wicket-memberships")}
             </span>
 
             {/* Pagination */}
@@ -343,12 +404,19 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                     setSearchParams(newSearchParams);
                     getMembers(newSearchParams);
                   }}
-                >‹</button>
+                >
+                  ‹
+                </button>
 
-                <span className="screen-reader-text">{__('Current Page', 'wicket-memberships')}</span>
+                <span className="screen-reader-text">
+                  {__("Current Page", "wicket-memberships")}
+                </span>
                 <span id="table-paging" className="paging-input">
                   &nbsp;
-                  <span className="tablenav-paging-text">{searchParams.page} {__('of', 'wicket-memberships')} <span className="total-pages">{totalPages}</span></span>
+                  <span className="tablenav-paging-text">
+                    {searchParams.page} {__("of", "wicket-memberships")}{" "}
+                    <span className="total-pages">{totalPages}</span>
+                  </span>
                   &nbsp;
                 </span>
 
@@ -363,19 +431,20 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                     setSearchParams(newSearchParams);
                     getMembers(newSearchParams);
                   }}
-                >›</button>
+                >
+                  ›
+                </button>
               </span>
             )}
           </div>
           <br className="clear" />
         </div>
-
-			</div>
-		</>
-	);
+      </div>
+    </>
+  );
 };
 
-const app = document.getElementById('member_list');
+const app = document.getElementById("member_list");
 if (app) {
-	createRoot(app).render(<MemberList {...app.dataset} />);
+  createRoot(app).render(<MemberList {...app.dataset} />);
 }

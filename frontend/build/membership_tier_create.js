@@ -2307,12 +2307,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   WC_API_V3_URL: () => (/* binding */ WC_API_V3_URL),
 /* harmony export */   WC_PRODUCT_TYPES: () => (/* binding */ WC_PRODUCT_TYPES)
 /* harmony export */ });
-const API_URL = '/wp/v2';
-const WC_API_V3_URL = '/wc/v3';
-const PLUGIN_API_URL = '/wicket_member/v1';
-const TIER_CPT_SLUG = 'wicket_mship_tier';
-const DEFAULT_DATE_FORMAT = 'yyyy-MM-dd';
-const WC_PRODUCT_TYPES = ['subscription', 'variable-subscription'];
+const API_URL = "/wp/v2";
+const WC_API_V3_URL = "/wc/v3";
+const PLUGIN_API_URL = "/wicket_member/v1";
+const TIER_CPT_SLUG = "wicket_mship_tier";
+const DEFAULT_DATE_FORMAT = "yyyy-MM-dd";
+const WC_PRODUCT_TYPES = ["subscription", "variable-subscription"];
 const PLUGIN_SETTINGS = wicketMembershipsSettings;
 
 /***/ }),
@@ -2347,16 +2347,16 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_6__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex))`
-	margin: 15px 0;
+  margin: 15px 0;
 `;
 const ManageTierProducts = ({
   saveProductChanges,
   maxRangeEnabled = false,
   products = [],
   limit = -1,
-  productsInUse = '',
+  productsInUse = "",
   productVariationsInUse = [],
-  productListLabel = ''
+  productListLabel = ""
 }) => {
   const componentId = (0,react__WEBPACK_IMPORTED_MODULE_0__.useId)();
   const [tempProduct, setTempProduct] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
@@ -2369,7 +2369,7 @@ const ManageTierProducts = ({
 
   const getAllWcProducts = async () => {
     const promises = _constants__WEBPACK_IMPORTED_MODULE_5__.WC_PRODUCT_TYPES.map(type => (0,_services_api__WEBPACK_IMPORTED_MODULE_4__.fetchWcProducts)({
-      status: 'publish',
+      status: "publish",
       per_page: 100,
       exclude: productsInUse,
       type: type
@@ -2418,7 +2418,7 @@ const ManageTierProducts = ({
       });
     } else {
       // Editing existing product
-      console.log('Editing existing product');
+      console.log("Editing existing product");
       const product = products[productIndex];
       setTempProduct(product);
     }
@@ -2436,7 +2436,7 @@ const ManageTierProducts = ({
     }
     (0,_services_api__WEBPACK_IMPORTED_MODULE_4__.fetchProductVariations)(productId, {
       per_page: 100,
-      status: 'publish',
+      status: "publish",
       exclude: productVariationsInUse
     }).then(variations => {
       setProductVariations({
@@ -2453,22 +2453,22 @@ const ManageTierProducts = ({
     let isValid = true;
     const newErrors = [];
     if (tempProduct.product_id === null) {
-      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Product is required', 'wicket-memberships'));
+      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Product is required", "wicket-memberships"));
       isValid = false;
     } else {
       // check if the selected product is a variable subscription
       const product = wcProductOptions.find(option => option.value === tempProduct.product_id);
-      if (product.type === 'variable-subscription' && tempProduct.variation_id === null) {
-        newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Variation is required', 'wicket-memberships'));
+      if (product.type === "variable-subscription" && tempProduct.variation_id === null) {
+        newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Variation is required", "wicket-memberships"));
         isValid = false;
       }
     }
     if (tempProduct.max_seats < 0) {
-      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range maximum value cannot be less than 0', 'wicket-memberships'));
+      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Range maximum value cannot be less than 0", "wicket-memberships"));
       isValid = false;
     }
     if (parseInt(tempProduct.max_seats) === NaN) {
-      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range maximum value must be a number', 'wicket-memberships'));
+      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Range maximum value must be a number", "wicket-memberships"));
       isValid = false;
     }
     setTempProductErrors(newErrors);
@@ -2524,7 +2524,7 @@ const ManageTierProducts = ({
     if (!validateProduct()) {
       return;
     }
-    console.log('currentProductIndex');
+    console.log("currentProductIndex");
     console.log(currentProductIndex);
     let newProducts;
     if (currentProductIndex === null) {
@@ -2548,28 +2548,28 @@ const ManageTierProducts = ({
     if (productListLabel) {
       return productListLabel;
     }
-    return limit === 1 ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Product', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Products', 'wicket-memberships');
+    return limit === 1 ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Product", "wicket-memberships") : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Products", "wicket-memberships");
   };
   const allRemoteDataLoaded = () => {
     return wcProductOptions.length > 0;
   };
-  console.log('limit:');
+  console.log("limit:");
   console.log(limit);
-  console.log('--------------');
-  console.log('Subcomponent Products:');
+  console.log("--------------");
+  console.log("Subcomponent Products:");
   console.log(products);
-  console.log('--------------');
-  console.log('WC Products:');
+  console.log("--------------");
+  console.log("WC Products:");
   console.log(wcProductOptions);
-  console.log('--------------');
-  console.log('Product Variations:');
+  console.log("--------------");
+  console.log("Product Variations:");
   console.log(productVariations);
-  console.log('--------------');
+  console.log("--------------");
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, !allRemoteDataLoaded() && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Spinner, null), allRemoteDataLoaded() && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, {
     align: "end",
     justify: "start",
     gap: 5,
-    direction: ['column', 'row']
+    direction: ["column", "row"]
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
     variant: "secondary",
     onClick: () => {
@@ -2578,7 +2578,7 @@ const ManageTierProducts = ({
     disabled: limit !== -1 && products.length >= limit
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Icon, {
     icon: "plus"
-  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Product', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.__experimentalHeading, {
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Add Product", "wicket-memberships")))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.__experimentalHeading, {
     level: "4",
     weight: "300"
   }, getProductListLabel())), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
@@ -2587,37 +2587,37 @@ const ManageTierProducts = ({
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     className: "manage-column column-columnname",
     scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Product Name', 'wicket-memberships')), maxRangeEnabled && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Product Name", "wicket-memberships")), maxRangeEnabled && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     className: "manage-column column-columnname",
     scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range Max', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Range Max", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     className: "manage-column column-columnname",
     scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Variation', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Variation", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     className: "check-column"
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, products.map((product, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
     key: index,
-    className: index % 2 === 0 ? 'alternate' : ''
+    className: index % 2 === 0 ? "alternate" : ""
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
-  }, wcProductOptions.find(option => option.value === product.product_id) === undefined ? '-' : wcProductOptions.find(option => option.value === product.product_id).label), maxRangeEnabled && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+  }, wcProductOptions.find(option => option.value === product.product_id) === undefined ? "-" : wcProductOptions.find(option => option.value === product.product_id).label), maxRangeEnabled && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
   }, product.max_seats), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
-  }, product.variation_id ? `#${product.variation_id}` : '-'), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+  }, product.variation_id ? `#${product.variation_id}` : "-"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
     onClick: () => {
       initProductModal(index);
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     className: "dashicons dashicons-edit"
   })))))))), isModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.ModalStyled, {
-    title: currentProductIndex === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Product', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Edit Product', 'wicket-memberships'),
+    title: currentProductIndex === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Add Product", "wicket-memberships") : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Edit Product", "wicket-memberships"),
     onRequestClose: () => {
       setIsModalOpen(false);
     },
     style: {
-      maxWidth: '840px',
-      width: '100%'
+      maxWidth: "840px",
+      width: "100%"
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, tempProductErrors.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.ErrorsRow, null, tempProductErrors.map((errorMessage, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
     isDismissible: false,
@@ -2625,7 +2625,7 @@ const ManageTierProducts = ({
     status: "warning"
   }, errorMessage))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, {
     htmlFor: `${componentId}_product_id`
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Product', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.SelectWpStyled, {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Product", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.SelectWpStyled, {
     id: `${componentId}_product_id`,
     classNamePrefix: "select",
     value: wcProductOptions.find(option => option.value === tempProduct.product_id),
@@ -2648,13 +2648,13 @@ const ManageTierProducts = ({
 
       // Load variations if the selected product is a variable subscription
       const product = wcProductOptions.find(option => option.value === selected.value);
-      if (product.type === 'variable-subscription') {
+      if (product.type === "variable-subscription") {
         getProductVariations(selected.value);
       }
     }
-  }), getSelectedProductType() === 'variable-subscription' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, {
+  }), getSelectedProductType() === "variable-subscription" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, {
     htmlFor: `${componentId}_variation_id`
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Variable', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.SelectWpStyled, {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Variable", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.SelectWpStyled, {
     id: `${componentId}_variation_id`,
     classNamePrefix: "select",
     value: getSelectedVariationOption(),
@@ -2674,7 +2674,7 @@ const ManageTierProducts = ({
       });
     }
   }))), maxRangeEnabled && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Range Maximum (USE 0 FOR UNLIMITED)', 'wicket-memberships'),
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Range Maximum (USE 0 FOR UNLIMITED)", "wicket-memberships"),
     type: "number",
     min: 0,
     onChange: value => {
@@ -2687,7 +2687,7 @@ const ManageTierProducts = ({
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex, {
     align: "end",
     gap: 5,
-    direction: ['column', 'row']
+    direction: ["column", "row"]
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, currentProductIndex !== null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
     isDestructive: true,
     onClick: () => {
@@ -2697,10 +2697,10 @@ const ManageTierProducts = ({
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Icon, {
     icon: "archive"
-  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Delete', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Delete", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
     variant: "primary",
     onClick: handleSave
-  }, currentProductIndex === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Add Product', 'wicket-memberships') : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Update Product', 'wicket-memberships')))))))));
+  }, currentProductIndex === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Add Product", "wicket-memberships") : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Update Product", "wicket-memberships")))))))));
 };
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (ManageTierProducts);
 
@@ -2745,7 +2745,7 @@ __webpack_require__.r(__webpack_exports__);
 const fetchTiers = () => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.API_URL}/${_constants__WEBPACK_IMPORTED_MODULE_2__.TIER_CPT_SLUG}`, {
-      status: 'publish',
+      status: "publish",
       per_page: 99
     })
   });
@@ -2757,7 +2757,7 @@ const fetchTiers = () => {
 const updateMembership = (membershipId, data) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_entity/${membershipId}/update`,
-    method: 'POST',
+    method: "POST",
     data: data
   });
 };
@@ -2768,7 +2768,7 @@ const updateMembership = (membershipId, data) => {
 const updateMembershipStatus = (membershipId, status) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/admin/manage_status`,
-    method: 'POST',
+    method: "POST",
     data: {
       post_id: membershipId,
       status: status
@@ -2864,7 +2864,7 @@ const fetchMdpPersons = (queryParams = {}) => {
   const url = (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/mdp_person/search`, queryParams);
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: url,
-    method: 'POST'
+    method: "POST"
   });
 };
 
@@ -2906,7 +2906,7 @@ const fetchProductVariations = (productId, queryParams = {}) => {
 const createRenewalOrder = (membershipId, productId, variationId) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership/${membershipId}/create_renewal_order`,
-    method: 'POST',
+    method: "POST",
     data: {
       membership_post_id: membershipId,
       product_id: productId,
@@ -2951,7 +2951,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 const AppWrap = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].div`
-	${_raw_loader_react_datepicker_dist_react_datepicker_css__WEBPACK_IMPORTED_MODULE_2__["default"]}
+  ${_raw_loader_react_datepicker_dist_react_datepicker_css__WEBPACK_IMPORTED_MODULE_2__["default"]}
 
   .react-datepicker__current-month {
     display: none;
@@ -2973,120 +2973,121 @@ const AppWrap = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].div`
   }
 `;
 const CustomDisabled = (0,styled_components__WEBPACK_IMPORTED_MODULE_3__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_0__.Disabled))`
-	opacity: .5;
+  opacity: 0.5;
 `;
 const Wrap = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].div`
-	max-width: 600px;
+  max-width: 600px;
 `;
 const ActionRow = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].div`
-	margin-top: 30px;
+  margin-top: 30px;
 `;
 const FormFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_3__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_0__.Flex))`
-	margin-top: 15px;
+  margin-top: 15px;
 
-	@media screen and (max-width: 767px) {
-		align-items: normal !important;
-	}
+  @media screen and (max-width: 767px) {
+    align-items: normal !important;
+  }
 `;
 const ErrorsRow = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].div`
-	padding: 10px 0;
-	// margin-left: -15px;
+  padding: 10px 0;
+  // margin-left: -15px;
 `;
 const BorderedBox = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].div`
-	border: 1px solid #c3c4c7;
-	padding: 15px;
-	margin-top: 15px;
+  border: 1px solid #c3c4c7;
+  padding: 15px;
+  margin-top: 15px;
 `;
 const SelectWpStyled = (0,styled_components__WEBPACK_IMPORTED_MODULE_3__["default"])((0,react_select__WEBPACK_IMPORTED_MODULE_4__["default"]))`
-	.select__input-container {
-		margin: 0;
-		padding: 0;
-	}
+  .select__input-container {
+    margin: 0;
+    padding: 0;
+  }
 
-	.select__dropdown-indicator {
-		padding: 0 4px;
-	}
+  .select__dropdown-indicator {
+    padding: 0 4px;
+  }
 
-	.select__control {
-		border: 1px solid #949494;
+  .select__control {
+    border: 1px solid #949494;
     border-radius: 2px;
-		min-height: 28px;
-	}
+    min-height: 28px;
+  }
 
-	.select__input {
-		min-height: 28px;
-		box-shadow: none !important;
-	}
+  .select__input {
+    min-height: 28px;
+    box-shadow: none !important;
+  }
 
-	.select__value-container {
-		padding: 0 8px;
-	}
+  .select__value-container {
+    padding: 0 8px;
+  }
 
-	.select__value-container--is-multi {
-		padding: 6px 8px;
-	}
+  .select__value-container--is-multi {
+    padding: 6px 8px;
+  }
 `;
 const AsyncSelectWpStyled = (0,styled_components__WEBPACK_IMPORTED_MODULE_3__["default"])((0,react_select_async__WEBPACK_IMPORTED_MODULE_1__["default"]))`
-	.select__input-container {
-		margin: 0;
-		padding: 0;
-	}
+  .select__input-container {
+    margin: 0;
+    padding: 0;
+  }
 
-	.select__dropdown-indicator {
-		padding: 0 4px;
-	}
+  .select__dropdown-indicator {
+    padding: 0 4px;
+  }
 
-	.select__control {
-		border: 1px solid #949494;
+  .select__control {
+    border: 1px solid #949494;
     border-radius: 2px;
-		min-height: 28px;
-	}
+    min-height: 28px;
+  }
 
-	.select__input {
-		min-height: 28px;
-		box-shadow: none !important;
-	}
+  .select__input {
+    min-height: 28px;
+    box-shadow: none !important;
+  }
 
-	.select__value-container {
-		padding: 0 8px;
-	}
+  .select__value-container {
+    padding: 0 8px;
+  }
 
-	.select__value-container--is-multi {
-		padding: 6px 8px;
-	}
+  .select__value-container--is-multi {
+    padding: 6px 8px;
+  }
 `;
 const ReactDatePickerStyledWrap = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].div`
-	.react-datepicker-wrapper {
-		width: 100%;
-	}
+  .react-datepicker-wrapper {
+    width: 100%;
+  }
 
-	.react-datepicker-popper {
-		z-index: 21;
-	}
+  .react-datepicker-popper {
+    z-index: 21;
+  }
 
-	.react-datepicker__input-container input {
-		border: 1px solid #949494;
-		border-radius: 2px;
-		min-height: 28px;
-		padding: 6px 8px;
-		margin-bottom: calc(8px);
-		width: 100%;
-	}
+  .react-datepicker__input-container input {
+    border: 1px solid #949494;
+    border-radius: 2px;
+    min-height: 28px;
+    padding: 6px 8px;
+    margin-bottom: calc(8px);
+    width: 100%;
+  }
 `;
 const LabelWpStyled = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].label`
-	display: inline-flex;
-	align-items: center;
-	font-size: 11px;
-	font-weight: 500;
-	line-height: 1.4;
-	text-transform: uppercase;
-	margin-bottom: 8px;
-	padding: 0px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  padding: 0px;
 `;
 const ModalStyled = (0,styled_components__WEBPACK_IMPORTED_MODULE_3__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_0__.Modal))`
-	&, .components-modal__content {
-		overflow: visible;
-	}
+  &,
+  .components-modal__content {
+    overflow: visible;
+  }
 `;
 
 /***/ }),

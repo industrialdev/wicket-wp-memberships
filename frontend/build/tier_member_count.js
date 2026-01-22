@@ -18,12 +18,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   WC_API_V3_URL: () => (/* binding */ WC_API_V3_URL),
 /* harmony export */   WC_PRODUCT_TYPES: () => (/* binding */ WC_PRODUCT_TYPES)
 /* harmony export */ });
-const API_URL = '/wp/v2';
-const WC_API_V3_URL = '/wc/v3';
-const PLUGIN_API_URL = '/wicket_member/v1';
-const TIER_CPT_SLUG = 'wicket_mship_tier';
-const DEFAULT_DATE_FORMAT = 'yyyy-MM-dd';
-const WC_PRODUCT_TYPES = ['subscription', 'variable-subscription'];
+const API_URL = "/wp/v2";
+const WC_API_V3_URL = "/wc/v3";
+const PLUGIN_API_URL = "/wicket_member/v1";
+const TIER_CPT_SLUG = "wicket_mship_tier";
+const DEFAULT_DATE_FORMAT = "yyyy-MM-dd";
+const WC_PRODUCT_TYPES = ["subscription", "variable-subscription"];
 const PLUGIN_SETTINGS = wicketMembershipsSettings;
 
 /***/ }),
@@ -212,12 +212,12 @@ const MembershipTierCount = ({
         filter: {
           tier_uuid: [tierUuid]
         },
-        'properties[]': 'count'
+        "properties[]": "count"
       })
     }).then(tiersInfo => {
       setMemberCount(tiersInfo.tier_data[tierUuid].count);
     }).catch(error => {
-      console.log('Tier Info Error:');
+      console.log("Tier Info Error:");
       console.log(error);
     });
   }, []);
@@ -225,7 +225,7 @@ const MembershipTierCount = ({
 };
 
 // init multiple instances
-const app = document.querySelectorAll('.wicket_memberships_tier_cell_member_count');
+const app = document.querySelectorAll(".wicket_memberships_tier_cell_member_count");
 if (app) {
   app.forEach(el => {
     (0,react_dom_client__WEBPACK_IMPORTED_MODULE_1__.createRoot)(el).render((0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MembershipTierCount, {
