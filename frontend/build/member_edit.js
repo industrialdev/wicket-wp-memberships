@@ -43145,8 +43145,8 @@ const MemberEdit = ({
         setMemberships(memberships.map(m => {
           if (m.ID == manageStatusFormData.postId) {
             m.data.membership_status = manageStatusFormData.newStatus;
-            m.data.membership_ends_at = moment__WEBPACK_IMPORTED_MODULE_10___default()(response.response.membership_ends_at).toISOString() /*TODO: format date and apply TZ offset*/;
-            m.data.membership_expires_at = moment__WEBPACK_IMPORTED_MODULE_10___default()(response.response.membership_expires_at).toISOString() /*TODO: format date and apply TZ offset*/;
+            m.data.membership_ends_at = moment__WEBPACK_IMPORTED_MODULE_10___default().utc(response.response.membership_ends_at).startOf('day').toISOString();
+            m.data.membership_expires_at = moment__WEBPACK_IMPORTED_MODULE_10___default().utc(response.response.membership_expires_at).startOf('day').toISOString();
             m.updatedNow = true;
           }
           return m;
@@ -43281,13 +43281,24 @@ const MemberEdit = ({
     const formData = new FormData(form);
     const data = {};
     const membershipId = form.dataset.membershipId;
-    console.log(form);
     if (memberships.find(m => m.ID == membershipId).updatingNow) {
       return;
     }
+
+    // Get the membership object to access React state values
+    const membership = memberships.find(m => m.ID == membershipId);
     for (let [key, value] of formData.entries()) {
       data[key] = value;
     }
+
+    // DateTime fields: use values from React state to preserve time and timezone
+    // Form fields only capture YMD, but React state has full ISO 8601 datetime with time and TZ
+    const dateTimeFields = ['membership_starts_at', 'membership_ends_at', 'membership_expires_at'];
+    dateTimeFields.forEach(field => {
+      if (membership.data[field]) {
+        data[field] = membership.data[field];
+      }
+    });
 
     // remove empty values
     Object.keys(data).forEach(key => {
@@ -43303,6 +43314,8 @@ const MemberEdit = ({
       }
       return m;
     }));
+    console.log("Updating with");
+    console.log(data);
     (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.updateMembership)(membershipId, data).then(response => {
       console.log(response);
       let updateMessage = '';
@@ -43325,13 +43338,30 @@ const MemberEdit = ({
     });
   };
 
+  // Helper: Convert UTC ISO string to local Date for date picker display
+  const getDatePickerValue = isoString => {
+    if (!isoString) return null;
+    const utcMoment = moment__WEBPACK_IMPORTED_MODULE_10___default().utc(isoString);
+    return new Date(utcMoment.year(), utcMoment.month(), utcMoment.date());
+  };
+
+  // Helper: Convert local Date to UTC midnight ISO string
+  const convertToUtcMidnight = dateValue => {
+    const utcDate = moment__WEBPACK_IMPORTED_MODULE_10___default().utc([dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()]);
+    return utcDate.toISOString();
+  };
+
   // on membership field change
   const handleMembershipFieldChange = (membershipId, field, value) => {
     console.log('handleMembershipFieldChange');
     console.log(membershipId, field, value);
+
+    // DateTime fields: convert Date object to UTC midnight ISO string
+    const dateTimeFields = ['membership_starts_at', 'membership_ends_at', 'membership_expires_at'];
+    const processedValue = dateTimeFields.includes(field) ? convertToUtcMidnight(value) : value;
     setMemberships(memberships.map(m => {
       if (m.ID == membershipId) {
-        m.data[field] = value;
+        m.data[field] = processedValue;
       }
       return m;
     }));
@@ -43566,11 +43596,12 @@ const MemberEdit = ({
     name: "membership_starts_at",
     dateFormat: _constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
     showMonthDropdown: true,
+    locale: "UTC",
     showYearDropdown: true,
     dropdownMode: "select",
-    selected: membership.data.membership_starts_at,
+    selected: getDatePickerValue(membership.data.membership_starts_at),
     onChange: value => {
-      handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment__WEBPACK_IMPORTED_MODULE_10___default()(value).toISOString( /*TODO: format date and apply TZ offset*/));
+      handleMembershipFieldChange(membership.ID, 'membership_starts_at', value);
     }
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
     htmlFor: "membership_ends_at"
@@ -43581,9 +43612,9 @@ const MemberEdit = ({
     showMonthDropdown: true,
     showYearDropdown: true,
     dropdownMode: "select",
-    selected: membership.data.membership_ends_at,
+    selected: getDatePickerValue(membership.data.membership_ends_at),
     onChange: value => {
-      handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment__WEBPACK_IMPORTED_MODULE_10___default()(value).toISOString() /*TODO: format date and apply TZ offset*/);
+      handleMembershipFieldChange(membership.ID, 'membership_ends_at', value);
     }
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
     htmlFor: "membership_expires_at"
@@ -43594,9 +43625,9 @@ const MemberEdit = ({
     showMonthDropdown: true,
     showYearDropdown: true,
     dropdownMode: "select",
-    selected: membership.data.membership_expires_at,
+    selected: getDatePickerValue(membership.data.membership_expires_at),
     onChange: value => {
-      handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment__WEBPACK_IMPORTED_MODULE_10___default()(value).toISOString() /*TODO: format date and apply TZ offset*/);
+      handleMembershipFieldChange(membership.ID, 'membership_expires_at', value);
     }
   })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
     htmlFor: "renewal_type"

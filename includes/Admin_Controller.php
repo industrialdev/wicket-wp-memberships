@@ -499,6 +499,7 @@ class Admin_Controller {
   }
 
   public static function update_membership_entity_record( $data ) {
+    // TODO: Parse this and make sure dates are all UTC
     $date_update_response = '';
     $ownership_change_response = '';
 
@@ -617,11 +618,11 @@ class Admin_Controller {
         $data['membership_next_tier_subscription_renewal'] = $membership_tier->is_renewal_subscription();
       }
 
-      $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", $membership_starts_at_seconds), wp_timezone() ))->format('c');
-      $data[ 'membership_early_renew_at' ]  = (new \DateTime( date("Y-m-d", $membership_early_renew_at_seconds ), wp_timezone() ))->format('c');
-      $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", $membership_ends_at_seconds ), wp_timezone() ))->format('c');
-      $data[ 'membership_expires_at' ]  = (new \DateTime( date("Y-m-d", $membership_expires_at_seconds ), wp_timezone() ))->format('c');
-      $data[ 'membership_grace_period_days' ] = $grace_period_days;
+      $data['membership_starts_at'] = Utilities::get_utc_datetime($data['membership_starts_at'])->format('c');
+      $data['membership_early_renew_at'] = Utilities::get_utc_datetime($data['membership_early_renew_at'])->format('c');
+      $data['membership_ends_at'] = Utilities::get_utc_datetime($data['membership_ends_at'])->format('c');
+      $data['membership_expires_at'] = Utilities::get_utc_datetime($data['membership_expires_at'])->format('c');
+      $data['membership_grace_period_days'] = Utilities::get_utc_datetime($data['membership_grace_period_days'])->format('c');
     }
 
     $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );

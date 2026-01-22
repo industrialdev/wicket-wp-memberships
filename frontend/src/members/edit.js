@@ -173,8 +173,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             memberships.map((m) => {
               if (m.ID == manageStatusFormData.postId) {
                 m.data.membership_status = manageStatusFormData.newStatus;
-                m.data.membership_ends_at = moment(response.response.membership_ends_at).toISOString() /*TODO: format date and apply TZ offset*/;
-                m.data.membership_expires_at = moment(response.response.membership_expires_at).toISOString() /*TODO: format date and apply TZ offset*/;
+                m.data.membership_ends_at = moment.utc(response.response.membership_ends_at).startOf('day').toISOString();
+                m.data.membership_expires_at = moment.utc(response.response.membership_expires_at).startOf('day').toISOString();
                 m.updatedNow = true;
               }
               return m;
@@ -331,15 +331,26 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     const formData = new FormData(form);
     const data = {};
     const membershipId = form.dataset.membershipId;
-    console.log(form);
 
     if ( memberships.find((m) => m.ID == membershipId).updatingNow ) {
       return;
     }
 
+    // Get the membership object to access React state values
+    const membership = memberships.find((m) => m.ID == membershipId);
+
     for (let [key, value] of formData.entries()) {
       data[key] = value;
     }
+
+    // DateTime fields: use values from React state to preserve time and timezone
+    // Form fields only capture YMD, but React state has full ISO 8601 datetime with time and TZ
+    const dateTimeFields = ['membership_starts_at', 'membership_ends_at', 'membership_expires_at'];
+    dateTimeFields.forEach((field) => {
+      if (membership.data[field]) {
+        data[field] = membership.data[field];
+      }
+    });
 
     // remove empty values
     Object.keys(data).forEach((key) => {
@@ -357,6 +368,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
         return m;
       })
     );
+
+    console.log("Updating with");
+    console.log(data);
 
     updateMembership(membershipId, data)
       .then((response) => {
@@ -385,14 +399,32 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       });
   }
 
+  // Helper: Convert UTC ISO string to local Date for date picker display
+  const getDatePickerValue = (isoString) => {
+    if (!isoString) return null;
+    const utcMoment = moment.utc(isoString);
+    return new Date(utcMoment.year(), utcMoment.month(), utcMoment.date());
+  };
+
+  // Helper: Convert local Date to UTC midnight ISO string
+  const convertToUtcMidnight = (dateValue) => {
+    const utcDate = moment.utc([dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()]);
+    return utcDate.toISOString();
+  };
+
   // on membership field change
   const handleMembershipFieldChange = (membershipId, field, value) => {
     console.log('handleMembershipFieldChange');
     console.log(membershipId, field, value);
+    
+    // DateTime fields: convert Date object to UTC midnight ISO string
+    const dateTimeFields = ['membership_starts_at', 'membership_ends_at', 'membership_expires_at'];
+    const processedValue = dateTimeFields.includes(field) ? convertToUtcMidnight(value) : value;
+    
     setMemberships(
       memberships.map((m) => {
         if (m.ID == membershipId) {
-          m.data[field] = value;
+          m.data[field] = processedValue;
         }
         return m;
       })
@@ -791,11 +823,12 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         name='membership_starts_at'
                                         dateFormat={DEFAULT_DATE_FORMAT}
                                         showMonthDropdown
+                                        locale="UTC"
                                         showYearDropdown
                                         dropdownMode="select"
-                                        selected={ membership.data.membership_starts_at }
+                                        selected={ getDatePickerValue(membership.data.membership_starts_at) }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment(value).toISOString( /*TODO: format date and apply TZ offset*/));
+                                          handleMembershipFieldChange(membership.ID, 'membership_starts_at', value);
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>
@@ -812,9 +845,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         showMonthDropdown
                                         showYearDropdown
                                         dropdownMode="select"
-                                        selected={ membership.data.membership_ends_at }
+                                        selected={ getDatePickerValue(membership.data.membership_ends_at) }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment(value).toISOString() /*TODO: format date and apply TZ offset*/);
+                                          handleMembershipFieldChange(membership.ID, 'membership_ends_at', value);
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>
@@ -831,9 +864,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         showMonthDropdown
                                         showYearDropdown
                                         dropdownMode="select"
-                                        selected={ membership.data.membership_expires_at }
+                                        selected={ getDatePickerValue(membership.data.membership_expires_at) }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment(value).toISOString() /*TODO: format date and apply TZ offset*/);
+                                          handleMembershipFieldChange(membership.ID, 'membership_expires_at', value);
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>
