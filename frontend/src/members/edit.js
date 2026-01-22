@@ -173,8 +173,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             memberships.map((m) => {
               if (m.ID == manageStatusFormData.postId) {
                 m.data.membership_status = manageStatusFormData.newStatus;
-                m.data.membership_ends_at = moment(response.response.membership_ends_at).format('YYYY-MM-DD');
-                m.data.membership_expires_at = moment(response.response.membership_expires_at).format('YYYY-MM-DD');
+                m.data.membership_ends_at = moment(response.response.membership_ends_at).toISOString() /*TODO: format date and apply TZ offset*/;
+                m.data.membership_expires_at = moment(response.response.membership_expires_at).toISOString() /*TODO: format date and apply TZ offset*/;
                 m.updatedNow = true;
               }
               return m;
@@ -604,13 +604,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                             {membership.data.membership_status}
                           </td>
                           <td className="column-columnname">
-                            { moment(membership.data.membership_starts_at).format('YYYY-MM-DD') }
+                            { moment(membership.data.membership_starts_at).toISOString() /*TODO: format date and apply TZ offset*/ }
                           </td>
                           <td className="column-columnname">
-                            { moment(membership.data.membership_ends_at).format('YYYY-MM-DD') }
+                            { moment(membership.data.membership_ends_at).toISOString() /*TODO: format date and apply TZ offset*/ }
                           </td>
                           <td className="column-columnname">
-                            { moment(membership.data.membership_expires_at).format('YYYY-MM-DD') }
+                            { moment(membership.data.membership_expires_at).toISOString() /*TODO: format date and apply TZ offset*/ }
                           </td>
                           <td>
                             <Button
@@ -693,7 +693,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                     </a>
                                   </td>
                                   <td className="column-columnname">
-                                    { moment(membership.order.date_created).format('YYYY-MM-DD') }
+                                    { moment(membership.order.date_created).toISOString() /*TODO: format date and apply TZ offset*/ }
                                   </td>
                                   <td className="column-columnname">
                                     {membership.order.total}
@@ -795,7 +795,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         dropdownMode="select"
                                         selected={ membership.data.membership_starts_at }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment(value).format('YYYY-MM-DD'));
+                                          handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment(value).toISOString() /*TODO: format date and apply TZ offset*/);
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>
@@ -814,7 +814,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         dropdownMode="select"
                                         selected={ membership.data.membership_ends_at }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment(value).format('YYYY-MM-DD'));
+                                          handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment(value).toISOString() /*TODO: format date and apply TZ offset*/);
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>
@@ -833,7 +833,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         dropdownMode="select"
                                         selected={ membership.data.membership_expires_at }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment(value).format('YYYY-MM-DD'));
+                                          handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment(value).toISOString() /*TODO: format date and apply TZ offset*/);
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>

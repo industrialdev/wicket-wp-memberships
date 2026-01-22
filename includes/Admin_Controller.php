@@ -447,10 +447,10 @@ class Admin_Controller {
         $membership_item['data'] = $membership_data;
         $membership_item['data']['membership_status_slug'] = $meta['membership_status'];
         $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['name'];
-        $membership_item['data']['membership_starts_at'] = date( "m/d/Y", strtotime( $meta['membership_starts_at'] ) );
-        $membership_item['data']['membership_ends_at'] = date( "m/d/Y", strtotime( $meta['membership_ends_at'] ) );
-        $membership_item['data']['membership_expires_at'] = date( "m/d/Y", strtotime( $meta['membership_expires_at'] ) );
-        $membership_item['data']['membership_early_renew_at'] = date( "m/d/Y", strtotime( $meta['membership_early_renew_at'] ) );
+        $membership_item['data']['membership_starts_at'] = $meta['membership_starts_at'];
+        $membership_item['data']['membership_ends_at'] = $meta['membership_ends_at'];
+        $membership_item['data']['membership_expires_at'] = $meta['membership_expires_at'];
+        $membership_item['data']['membership_early_renew_at'] = $meta['membership_early_renew_at'];
       } else {
         $membership_item['data'] = [];
       }
@@ -470,6 +470,7 @@ class Admin_Controller {
           $membership_item['order']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_parent_order_id'] );
           $membership_item['order']['total'] = $order->get_total();
           $membership_item['order']['status'] = $order->get_status();
+          // TODO:
           $membership_item['order']['date_created'] =  $order->get_date_created()->format('Y-m-d');
           if(!empty( $order->get_date_completed() )) {
             $membership_item['order']['date_completed'] = $order->get_date_completed()->format('Y-m-d');
@@ -484,6 +485,7 @@ class Admin_Controller {
           $membership_item['subscription']['status'] = $sub->get_status();
           $sub_next_payment_date = $sub->get_time('next_payment');
           if( empty($sub_next_payment_date_set ) && !empty($sub_next_payment_date ) && ($meta['membership_status'] == 'delayed' || $meta['membership_status'] == 'active')) {
+            // TODO: Confirm the timezone is correct
             $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub_next_payment_date), wp_timezone() ))->format('Y-m-d');
             $sub_next_payment_date_set = true;
           } else {
@@ -580,6 +582,9 @@ class Admin_Controller {
       $renewal_window_days = $config->get_renewal_window_days();
       $membership_early_renew_at_seconds = strtotime("-$renewal_window_days days", strtotime($data[ 'membership_ends_at' ]));
 
+      $membership_starts_at_seconds = strtotime( $data[ 'membership_starts_at' ] );
+      $membership_ends_at_seconds = strtotime( $data[ 'membership_ends_at' ] );
+      $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
       $grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
 
         $data['membership_next_tier_id'] = $membership_post['membership_next_tier_id'][0];
