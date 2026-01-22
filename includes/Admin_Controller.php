@@ -500,6 +500,19 @@ class Admin_Controller {
     $date_update_response = '';
     $ownership_change_response = '';
 
+    $membership_starts_at_seconds = strtotime( $data[ 'membership_starts_at' ] );
+    $membership_ends_at_seconds = strtotime( $data[ 'membership_ends_at' ] );
+    $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
+
+    // Allow setting correct dates only: Start Date < End Date < Expiry Date
+    if( ! ( $membership_starts_at_seconds < $membership_ends_at_seconds && $membership_ends_at_seconds <= $membership_expires_at_seconds ) ) {
+      $response_array['error'] = 'Error: Membership update failed. Invalid date sequence.';
+      $response_array['response'] = Helper::get_post_meta( $data['membership_post_id'] );
+      Utilities::wc_log_mship_error($response_array);
+      $response_code = 200;
+      return new \WP_REST_Response($response_array, $response_code);
+    }
+
     $Membership_Controller = new Membership_Controller();
     $membership_post_id = $data['membership_post_id'];
 
@@ -567,9 +580,6 @@ class Admin_Controller {
       $renewal_window_days = $config->get_renewal_window_days();
       $membership_early_renew_at_seconds = strtotime("-$renewal_window_days days", strtotime($data[ 'membership_ends_at' ]));
 
-      $membership_starts_at_seconds = strtotime( $data[ 'membership_starts_at' ] );
-      $membership_ends_at_seconds = strtotime( $data[ 'membership_ends_at' ] );
-      $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
       $grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
 
         $data['membership_next_tier_id'] = $membership_post['membership_next_tier_id'][0];
