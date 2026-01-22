@@ -780,4 +780,17 @@ function wicket_sub_org_select_callback( $subscription ) {
         'user_id' => get_current_user_id()
     ]);
   }
+
+
+  /**
+   * Get a DateTime object in UTC timezone.
+   * This is used to provide consistent time handling across different server configurations.
+   *
+   * @param string $date_string Optional date string to initialize the DateTime object. Defaults to 'now'.
+   * @return \DateTime DateTime object set to UTC timezone.
+   */
+  public static function get_utc_datetime($date_string = 'now')
+  {
+    return new \DateTime($date_string, new \DateTimeZone('UTC'));
+  }
 }

@@ -1051,7 +1051,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $status = Wicket_Memberships::STATUS_ACTIVE;
     }
 
-    $current_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+    $current_date = Utilities::get_utc_datetime()->setTime(0, 0, 0)->format('c'); // TODO: This needs to be localized to the MDP timezone, 
     if( ! $this->processing_renewal && ! $skip_approval && (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
       $status = Wicket_Memberships::STATUS_PENDING;
     } else if( strtotime( $membership['membership_starts_at'] ) > strtotime( $current_date ) ) {
