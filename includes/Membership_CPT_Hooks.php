@@ -194,6 +194,15 @@ class Membership_CPT_Hooks {
       $this->status_names = Helper::get_all_status_names();
     }
     $meta = get_post_meta( $post_id );
+    
+    // Date columns that need formatting
+    $date_columns = [
+      'membership_starts_at',
+      'membership_early_renew_at', 
+      'membership_ends_at',
+      'membership_expires_at'
+    ];
+    
     if( $column_name == 'membership_status' ) {
       echo $this->status_names[ $meta[$column_name][0] ][ 'name' ];
     } else if( $column_name == 'membership_type' ) {
@@ -205,8 +214,28 @@ class Membership_CPT_Hooks {
         echo '<br>Seats: ' . $meta['org_seats'][0];
         echo '-->';
       }
+    } else if( in_array( $column_name, $date_columns ) && !empty( $meta[$column_name][0] ) ) {
+      // Format date columns - convert ISO 8601 datetime to readable format with MDP timezone
+      $date_value = $meta[$column_name][0];
+      try {
+        // Parse the ISO 8601 date (stored in UTC)
+        $datetime = new \DateTime( $date_value, new \DateTimeZone('UTC') );
+        
+        // Apply MDP timezone if configured
+        if ( !empty( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ) ) {
+          $datetime->setTimezone( new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ) );
+        }
+        
+        // Display date with full ISO 8601 datetime in tooltip
+        $date_display = $datetime->format( 'Y-m-d' );
+        $datetime_full = $datetime->format( 'c' ); // ISO 8601 format: 2025-12-31T06:00:00-05:00
+        echo '<span title="' . esc_attr( $datetime_full ) . '">' . $date_display . '</span>';
+      } catch ( \Exception $e ) {
+        // If date parsing fails, show raw value
+        echo $date_value;
+      }
     } else {
-      echo $meta[$column_name][0];
+      echo $meta[$column_name][0] ?? '';
     }
   }
 

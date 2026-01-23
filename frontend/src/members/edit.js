@@ -3,14 +3,14 @@ import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
 import apiFetch from '@wordpress/api-fetch';
 import { addQueryArgs } from '@wordpress/url';
-import { DEFAULT_DATE_FORMAT, API_URL } from '../constants';
+import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_SETTINGS } from '../constants';
 import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../styled_elements';
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
 import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo, fetchMdpPersons } from '../services/api';
 import he from 'he';
-import moment from 'moment';
+import moment from 'moment-timezone';
 import CreateRenewalOrder from './create_renewal_order';
 
 export const EditWrap = styled.div`
@@ -88,6 +88,15 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 		{ label: __('Subscription Renewal', 'wicket-memberships'), value: 'subscription' },
 		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' }
 	];
+
+	// Helper: Format date as Y-m-d with ISO 8601 tooltip
+	const formatDateWithTooltip = (isoString) => {
+		if (!isoString) return '';
+		const m = moment(isoString);
+		const dateDisplay = m.format('YYYY-MM-DD'); // Y-m-d format
+		const isoFull = m.format(); // ISO 8601 with timezone: 2025-12-31T06:00:00-05:00
+		return <span title={isoFull}>{dateDisplay}</span>;
+	};
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -399,17 +408,21 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       });
   }
 
-  // Helper: Convert UTC ISO string to local Date for date picker display
+  // Helper: Convert ISO string to MDP timezone date for date picker display
   const getDatePickerValue = (isoString) => {
     if (!isoString) return null;
-    const utcMoment = moment.utc(isoString);
-    return new Date(utcMoment.year(), utcMoment.month(), utcMoment.date());
+    const mdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+    const mdpMoment = moment.tz(isoString, mdpTimezone);
+    return new Date(mdpMoment.year(), mdpMoment.month(), mdpMoment.date());
   };
 
-  // Helper: Convert local Date to UTC midnight ISO string
+  // Helper: Convert date picker Date to UTC midnight ISO string (from MDP timezone)
   const convertToUtcMidnight = (dateValue) => {
-    const utcDate = moment.utc([dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()]);
-    return utcDate.toISOString();
+    const mdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+    // Create midnight in MDP timezone
+    const mdpDate = moment.tz([dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()], mdpTimezone);
+    // Convert to UTC and return ISO string
+    return mdpDate.utc().toISOString();
   };
 
   // on membership field change
@@ -636,13 +649,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                             {membership.data.membership_status}
                           </td>
                           <td className="column-columnname">
-                            { moment(membership.data.membership_starts_at).toISOString() /*TODO: format date and apply TZ offset*/ }
+                            { formatDateWithTooltip(membership.data.membership_starts_at) }
                           </td>
                           <td className="column-columnname">
-                            { moment(membership.data.membership_ends_at).toISOString() /*TODO: format date and apply TZ offset*/ }
+                            { formatDateWithTooltip(membership.data.membership_ends_at) }
                           </td>
                           <td className="column-columnname">
-                            { moment(membership.data.membership_expires_at).toISOString() /*TODO: format date and apply TZ offset*/ }
+                            { formatDateWithTooltip(membership.data.membership_expires_at) }
                           </td>
                           <td>
                             <Button
@@ -725,7 +738,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                     </a>
                                   </td>
                                   <td className="column-columnname">
-                                    { moment(membership.order.date_created).toISOString() /*TODO: format date and apply TZ offset*/ }
+                                    { formatDateWithTooltip(membership.order.date_created) }
                                   </td>
                                   <td className="column-columnname">
                                     {membership.order.total}
