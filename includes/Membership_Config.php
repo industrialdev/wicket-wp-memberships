@@ -355,7 +355,7 @@ class Membership_Config {
     }
 
     // Normalize to midnight UTC
-    return $selected_end_midnight->setTime(0, 0, 0)->format('c'); // TODO: This needs to be localized to the MDP timezone
+    return $selected_end_dt->setTime(0, 0, 0)->format('c'); // TODO: This needs to be localized to the MDP timezone
   }
 
   public function is_valid_renewal_date( $membership, $date = null ) {
