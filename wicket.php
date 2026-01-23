@@ -82,7 +82,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
           $_ENV['WICKET_BASE_PLUGIN_VERSION'] = $plugin_data['Version'];
           $options = get_option( 'wicket_membership_plugin_options' );
 
-    if (isset($options['wicket_mship_subscription_renew'])) {
+          if (isset($options['wicket_mship_subscription_renew'])) {
             if($options['wicket_mship_subscription_renew']) {
               $_ENV['WICKET_MSHIP_SUBSCRIPTION_RENEW']=true;
             }
@@ -155,6 +155,12 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_AUTORENEW_TOGGLE']=true;
             }
           }
+          if (isset($options['wicket_mship_mdp_timezone'])) {
+            if ($options['wicket_mship_mdp_timezone']) {
+              $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] = $options['wicket_mship_mdp_timezone'];
+            }
+          }
+
           require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/membership-code-hooks.php' );
         }
 
@@ -186,6 +192,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       new Utilities;
 
 			register_activation_hook( WICKET_MEMBERSHIP_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
+      
+      // Initialize MDP timezone after all plugins and helpers are fully loaded
+      add_action('init', array( __NAMESPACE__.'\\Settings', 'ensure_timezone_default' ), 100);
       add_action('init', array($this, 'load_textdomain'));
       add_action('init', array($this, 'register_automatewoo_triggers'));
 
@@ -382,6 +391,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
         deactivate_plugins( plugin_basename( __FILE__ ) );
         wp_die( 'Wicket Membership plugin requires "Wicket Base" version 2.0 or higher. You have version ' . $_ENV['WICKET_BASE_PLUGIN_VERSION'] . '.' );
       }
+      
+      // Initialize MDP timezone on plugin activation
+      Settings::ensure_timezone_default();
 		}
 
 		public function load_textdomain() {

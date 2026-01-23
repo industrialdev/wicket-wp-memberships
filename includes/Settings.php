@@ -67,6 +67,7 @@ class Settings {
     add_settings_field( 'wicket_mship_assign_subscription', '<p>Membership Subscription Assignment</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_assign_subscription'], 'wicket_membership_plugin', 'functional_settings' );
     //add_settings_field( 'wicket_mship_subscription_renew', '<p>Use Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_subscription_renew'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_autorenew_toggle', '<p>Enable User Autorenew Subscription Toggle</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_toggle'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field('wicket_mship_mdp_timezone', '<p>MDP Timezone</p>', [__NAMESPACE__ . '\\Settings', 'wicket_mship_mdp_timezone'], 'wicket_membership_plugin', 'functional_settings');
     
     //debug
     add_settings_section( 'debug_settings', 'Debug Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_debug_text'], 'wicket_membership_plugin' );
@@ -147,6 +148,25 @@ class Settings {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_mship_autorenew_toggle' name='wicket_membership_plugin_options[wicket_mship_autorenew_toggle]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_autorenew_toggle']), false). " />"
       .'Enable the use of the Wicket Autorenew Checkbox Toggle anywhere on the front-end and in Gravity Forms with the shortcode <code>[wicket_autorenew_toggle_shortcode]</code><br><span style="color:red;">Note:</span> When toggled will set persistent user meta that causes all a user\'s membership subscription purchases to auto-renew when payment method allows.';
+  }
+
+  public static function wicket_mship_mdp_timezone()
+  {
+    $options = get_option('wicket_membership_plugin_options');
+        ?>
+        <select class="" name="wicket_membership_plugin_options[wicket_mship_mdp_timezone]">
+            <?php
+            $timezones = timezone_identifiers_list();
+            $selected_timezone = isset($options['wicket_mship_mdp_timezone']) ? $options['wicket_mship_mdp_timezone'] : '';
+            foreach ($timezones as $timezone) {
+                $selected = ($timezone === $selected_timezone) ? ' selected="selected"' : '';
+                echo "<option value=\"" . esc_attr($timezone) . "\"" . $selected . ">" . esc_html($timezone) . "</option>";
+            }
+            ?>
+        </select><br>
+        Use this to define what timezone the MDP is operating in. This will adjust the rendered values and membership times to match the MDP timezone rather than the WP site timezone. <br><span style="color:red;">Note:</span> By default, this will preload the MDP timezone, this shouldn't need to be changed.
+<?php
+
   }
   
   public static function wicket_mship_subscription_renew() {
@@ -241,7 +261,8 @@ class Settings {
     $newinput['wicket_memberships_debug_cart_ids'] = trim($input['wicket_memberships_debug_cart_ids']);
     $newinput['wicket_memberships_debug_renew'] = trim($input['wicket_memberships_debug_renew']);
     $newinput['bypass_wicket'] = trim($input['bypass_wicket']);
-    $newinput['wicket_mship_subscription_renew'] = trim($input['wicket_mship_subscription_renew']);
+    $newinput['wicket_mship_subscription_renew'] = trim($input['wicket_mship_subscription_renew']); 
+    $newinput['wicket_mship_mdp_timezone'] = trim($input['wicket_mship_mdp_timezone']);
     $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
     if(!empty($_REQUEST['schedule_daily_membership_expiry_hook'])) {
       $count = Membership_Controller::daily_membership_expiry_hook();
@@ -286,6 +307,79 @@ class Settings {
         (new Helper)->add_slug_on_mship_tier_create( $tier->ID, $tier, true);
       }
     }
+  }
+
+  /**
+   * Initialize default timezone if not set
+   * Called during init hook to ensure all helper functions are available
+   * 
+   * @param bool $force_api_call Force an API call even if timezone is already set
+   */
+  public static function ensure_timezone_default($force_api_call = false)
+  {
+    $options = get_option('wicket_membership_plugin_options');
+
+    // Only proceed if timezone is empty or force is requested
+    if (empty($options['wicket_mship_mdp_timezone']) || $force_api_call) {
+      
+      if (!is_array($options)) {
+        $options = [];
+      }
+
+      // Try to fetch from API first
+      $api_timezone = self::fetch_mdp_timezone_from_api();
+
+      // Use API timezone if available, otherwise default to UTC
+      $options['wicket_mship_mdp_timezone'] = !empty($api_timezone) ? $api_timezone : 'UTC';
+      update_option('wicket_membership_plugin_options', $options);
+
+      // Log the timezone setting
+      if (!empty($api_timezone)) {
+        Utilities::wc_log_mship_error(['MDP Timezone set from API', 'Timezone: ' . $api_timezone]);
+      }
+    }
+  }
+
+  /**
+   * Fetch timezone from MDP API
+   * Override this method or use a filter to customize the API call
+   * 
+   * @return string|null Timezone identifier or null if API call fails
+   */
+  public static function fetch_mdp_timezone_from_api()
+  {
+    // Check if the wicket_api_client helper function exists
+    if (!function_exists('wicket_api_client')) {
+      return apply_filters('wicket_mship_mdp_timezone_from_api', null);
+    }
+
+    try {
+      // Initialize the Wicket API client using helper function
+      $client = wicket_api_client();
+      
+      if (!$client) {
+        return apply_filters('wicket_mship_mdp_timezone_from_api', null);
+      }
+
+      // Fetch the app_config from MDP
+      $response = $client->get('app_config');
+
+      // Extract timezone from the response
+      if (!empty($response['data']['attributes']['time_zone'])) {
+        $timezone = $response['data']['attributes']['time_zone'];
+        
+        // Validate the timezone is valid
+        if (in_array($timezone, timezone_identifiers_list())) {
+          return apply_filters('wicket_mship_mdp_timezone_from_api', $timezone);
+        }
+      }
+    } catch (\Exception $e) {
+      // Log the error but don't fail - fallback to UTC
+      Utilities::wc_log_mship_error(['MDP Timezone API Error', 'Error: ' . $e->getMessage()]);
+    }
+
+    // Allow developers to filter/override the timezone
+    return apply_filters('wicket_mship_mdp_timezone_from_api', null);
   }
 }
 
