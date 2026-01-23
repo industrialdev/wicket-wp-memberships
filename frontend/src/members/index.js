@@ -121,15 +121,18 @@ const MemberList = ({ memberType, editMemberUrl }) => {
         <hr className="wp-header-end"></hr>
 
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const newSearchParams = {
-              ...searchParams,
-              search: tempSearchParams.search,
-            };
-            setSearchParams(newSearchParams);
-            getMembers(newSearchParams);
-          }}
+          onSubmit={
+            (e) => {
+              e.preventDefault();
+              const newSearchParams = {
+                ...searchParams,
+                search: tempSearchParams.search,
+                page: 1,
+              };
+              setSearchParams(newSearchParams);
+              getMembers(newSearchParams);
+            }
+          }
         >
           <p className="search-box">
             <label className="screen-reader-text" htmlFor="post-search-input">
