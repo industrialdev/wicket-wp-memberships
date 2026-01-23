@@ -91,9 +91,12 @@ class Admin_Controller {
    * @return \WP_REST_Response
    */
   public static function admin_manage_status( $membership_post_id, $new_post_status ) {
-    $tomorrow_iso_date = (new \DateTime( date("Y-m-d", strtotime( "+1 day" )), wp_timezone() ))->format('c');
-    $yesterday_iso_date = (new \DateTime( date("Y-m-d", strtotime( "-1 day" )), wp_timezone() ))->format('c');
-    $now_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+
+    $tomorrow_iso_date = Utilities::get_utc_datetime("+1 day")->setTime(0,0,0)->format('c');
+    $yesterday_iso_date = Utilities::get_utc_datetime("-1 day")->setTime(0, 0, 0)->format('c');
+    $now_iso_date = Utilities::get_utc_datetime()->setTime(0, 0, 0)->format('c');
+
+
     //get membership records
     $current_post_status = get_post_meta( $membership_post_id, 'membership_status', true );
     $previous_membership_post_id = get_post_meta( $membership_post_id, 'previous_membership_post_id', true );
@@ -619,10 +622,10 @@ class Admin_Controller {
       }
 
       $data['membership_starts_at'] = Utilities::get_utc_datetime($data['membership_starts_at'])->format('c');
-      $data['membership_early_renew_at'] = Utilities::get_utc_datetime($data['membership_early_renew_at'])->format('c');
+      $data['membership_early_renew_at'] = Utilities::get_utc_datetime(date("Y-m-d H:i:s", $membership_early_renew_at_seconds))->format('c');
       $data['membership_ends_at'] = Utilities::get_utc_datetime($data['membership_ends_at'])->format('c');
       $data['membership_expires_at'] = Utilities::get_utc_datetime($data['membership_expires_at'])->format('c');
-      $data['membership_grace_period_days'] = Utilities::get_utc_datetime($data['membership_grace_period_days'])->format('c');
+      $data['membership_grace_period_days'] = $grace_period_days;
     }
 
     $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
