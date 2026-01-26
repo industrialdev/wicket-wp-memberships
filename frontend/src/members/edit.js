@@ -596,16 +596,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                     {__('Membership Records', 'wicket-memberships')}
                   </Heading>
                 </FlexBlock>
-                <FlexItem>
-                  <CustomDisabled>
-                    <Button
-                      variant='secondary'
-                    >
-                      <Icon icon='plus' />&nbsp;
-                      {__('Add New Membership', 'wicket-memberships')}
-                    </Button>
-                  </CustomDisabled>
-                </FlexItem>
               </Flex>
               {/* Membership List */}
               <MembershipTable>
