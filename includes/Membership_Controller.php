@@ -738,37 +738,30 @@ function add_order_item_meta ( $item_id, $values ) {
       //$start_date   = $membership['membership_starts_at'];
       $end_date     = $membership['membership_ends_at'];
       $expire_date  = $membership['membership_expires_at'];
-      $timezone_string = get_option('timezone_string');
-      if( empty($timezone_string) ) {
-        $timezone_string = 'UTC';
-      }
+      
       /*
       if( in_array ( 'start_date', $fields ) ) {
-        $date = new \DateTime(substr($start_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
-        $date->setTimezone(new \DateTimeZone('UTC'));
-        $dates_to_update['start_date']    = $date->format('Y-m-d H:i:s');
+        $start_date_obj = Utilities::get_mdp_day_start($start_date);
+        $dates_to_update['start_date'] = $start_date_obj->format('Y-m-d H:i:s');
       }
       */
       if( in_array ( 'end_date', $fields ) ) {
         if(!empty($membership['membership_next_tier_subscription_renewal']) && !empty($sub) && ($sub->get_billing_period() == 'month' && $sub->get_billing_interval() == 1)) {
           //subscription renewal flow MONTHLY RENEWAL uses end_date for subscription_end_date
-          $date = new \DateTime(substr($end_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
+          $end_date_obj = Utilities::get_mdp_day_end($end_date);
           $expire_or_end_date = $end_date; //for order note context
-          $date->setTimezone(new \DateTimeZone('UTC'));
-          $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
+          $dates_to_update['end'] = $end_date_obj->format('Y-m-d H:i:s');
           Utilities::wicket_logger( 'Setting Subscription END date', $dates_to_update['end']);
         } else {
-          $date = new \DateTime(substr($expire_date,0,10)." 00:00:01", new \DateTimeZone($timezone_string));
+          $expire_date_obj = Utilities::get_mdp_day_end($expire_date);
           $expire_or_end_date = $expire_date; //for order note context
-          $date->setTimezone(new \DateTimeZone('UTC'));
-          $dates_to_update['end']           = $date->format('Y-m-d H:i:s');
+          $dates_to_update['end'] = $expire_date_obj->format('Y-m-d H:i:s');
           Utilities::wicket_logger( 'Setting Subscription END date', $dates_to_update['end']);
         }
       }
       if( in_array ( 'next_payment_date', $fields ) && !empty($sub) && !($sub->get_billing_period() == 'month' && $sub->get_billing_interval() == 1)) {
-        $date = new \DateTime(substr($end_date,0,10)." 00:00:00", new \DateTimeZone($timezone_string));
-        $date->setTimezone(new \DateTimeZone('UTC'));
-        $dates_to_update['next_payment']  = $date->format('Y-m-d H:i:s');
+        $next_payment_obj = Utilities::get_mdp_day_start($end_date);
+        $dates_to_update['next_payment'] = $next_payment_obj->format('Y-m-d H:i:s');
         Utilities::wicket_logger( 'Setting Subscription NEXT_PAYMENT date', $dates_to_update['next_payment']);
       }
 
@@ -1051,7 +1044,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $status = Wicket_Memberships::STATUS_ACTIVE;
     }
 
-    $current_date = Utilities::get_utc_datetime()->setTime(0, 0, 0)->format('c'); // TODO: This needs to be localized to the MDP timezone, 
+    $current_date = Utilities::get_utc_datetime()->format('c');
     if( ! $this->processing_renewal && ! $skip_approval && (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
       $status = Wicket_Memberships::STATUS_PENDING;
     } else if( strtotime( $membership['membership_starts_at'] ) > strtotime( $current_date ) ) {
@@ -1491,9 +1484,19 @@ function add_order_item_meta ( $item_id, $values ) {
       //We are calculating the early renew date globally from the config assigned to the tier
       //$membership_early_renew_at = strtotime( $membership->membership_early_renew_at ); //this was old way was set per membership
       $membership_early_renew_days = $Membership_Config->get_renewal_window_days();
-      $membership_early_renew_at = ( strtotime($membership->membership_ends_at ) - ($membership_early_renew_days * 86400));
+      
+      // Calculate early renewal date using same pattern as membership_config
+      $early_renew_utc = new \DateTime($membership->membership_ends_at, new \DateTimeZone('UTC'));
+      $early_renew_date_string = $early_renew_utc->modify('-'.$membership_early_renew_days.' days')->format('Y-m-d');
+      $early_renew_at = Utilities::get_mdp_day_start($early_renew_date_string);
+      
+      // For backwards compatibility with timestamp-based comparisons below
+      $membership_early_renew_at = $early_renew_at->getTimestamp();
+      
+      // Get MDP timezone for display formatting
+      $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
       //set the meta for debug only / below we determine mship is in early_renewal/grace_period and add to response sent to ACC plugin
-      $membership_data['meta']['membership_early_renew_at'] = (new \DateTime( '@' . $membership_early_renew_at))->setTimezone(wp_timezone())->format('Y-m-d\TH:i:sP');
+      $membership_data['meta']['membership_early_renew_at'] = $early_renew_at->setTimezone($mdp_timezone)->format('Y-m-d\TH:i:sP');
 
       $membership_ends_at = strtotime( $membership->membership_ends_at );
       $membership_expires_at = strtotime( $membership->membership_expires_at );
@@ -2062,7 +2065,7 @@ function add_order_item_meta ( $item_id, $values ) {
     $self = new self();
     $yesterday_timestamp = current_time('timestamp') - 86400;
     //$membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
-    $membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d\TH:i:sP');
+    $membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, new \DateTimeZone('UTC') ))->format('Y-m-d\TH:i:sP');
     //lookup all memberships expired yesterday
     $args = array(
       'post_type' => $self->membership_cpt_slug,
@@ -2116,7 +2119,7 @@ function add_order_item_meta ( $item_id, $values ) {
     $self = new self();
     $yesterday_timestamp = current_time('timestamp') - 86400;
     //$membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
-    $membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d\TH:i:sP');
+    $membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, new \DateTimeZone('UTC') ))->format('Y-m-d\TH:i:sP');
     //lookup all memberships expired yesterday
     $args = array(
       'post_type' => $self->membership_cpt_slug,

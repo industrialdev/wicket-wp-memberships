@@ -93,9 +93,9 @@ class Admin_Controller {
    */
   public static function admin_manage_status( $membership_post_id, $new_post_status ) {
 
-    $tomorrow_iso_date = Utilities::get_utc_datetime("+1 day")->setTime(0,0,0)->format('c');
-    $yesterday_iso_date = Utilities::get_utc_datetime("-1 day")->setTime(0, 0, 0)->format('c');
-    $now_iso_date = Utilities::get_utc_datetime()->setTime(0, 0, 0)->format('c');
+    $tomorrow_iso_date = Utilities::get_mdp_day_end("+1 day")->format('c');
+    $yesterday_iso_date = Utilities::get_mdp_day_start("-1 day")->format('c');
+    $now_iso_date = Utilities::get_mdp_day_end()->format('c');
 
 
     //get membership records
@@ -503,16 +503,16 @@ class Admin_Controller {
   }
 
   public static function update_membership_entity_record( $data ) {
-    // TODO: Parse this and make sure dates are all UTC
     $date_update_response = '';
     $ownership_change_response = '';
 
-    $membership_starts_at_seconds = strtotime( $data[ 'membership_starts_at' ] );
-    $membership_ends_at_seconds = strtotime( $data[ 'membership_ends_at' ] );
-    $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
+    // Normalize dates to MDP timezone (start at midnight, end at 23:59:59) then convert to UTC
+    $membership_starts_at = Utilities::get_mdp_day_start( $data[ 'membership_starts_at' ] );
+    $membership_ends_at = Utilities::get_mdp_day_end( $data[ 'membership_ends_at' ] );
+    $membership_expires_at = Utilities::get_mdp_day_end( $data[ 'membership_expires_at' ] );
 
     // Allow setting correct dates only: Start Date < End Date < Expiry Date
-    if( ! ( $membership_starts_at_seconds < $membership_ends_at_seconds && $membership_ends_at_seconds <= $membership_expires_at_seconds ) ) {
+    if( ! ( $membership_starts_at < $membership_ends_at && $membership_ends_at <= $membership_expires_at ) ) {
       $response_array['error'] = 'Error: Membership update failed. Invalid date sequence.';
       $response_array['response'] = Helper::get_post_meta( $data['membership_post_id'] );
       Utilities::wc_log_mship_error($response_array);
@@ -585,12 +585,14 @@ class Admin_Controller {
       $membership_tier = new Membership_Tier( $membership_tier_id );
       $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
       $renewal_window_days = $config->get_renewal_window_days();
-      $membership_early_renew_at_seconds = strtotime("-$renewal_window_days days", strtotime($data[ 'membership_ends_at' ]));
+      
+      // Calculate early renew date by subtracting renewal window days from end date
+      $membership_early_renew_at = clone $membership_ends_at;
+      $membership_early_renew_at->modify("-$renewal_window_days days");
+      $membership_early_renew_at = Utilities::get_mdp_day_start($membership_early_renew_at->format('Y-m-d'));
 
-      $membership_starts_at_seconds = strtotime( $data[ 'membership_starts_at' ] );
-      $membership_ends_at_seconds = strtotime( $data[ 'membership_ends_at' ] );
-      $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
-      $grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
+      // Calculate grace period days using DateTime diff
+      $grace_period_days = abs($membership_ends_at->diff($membership_expires_at)->days);
 
         $data['membership_next_tier_id'] = $membership_post['membership_next_tier_id'][0];
         $data['membership_next_tier_form_page_id'] = $membership_post['membership_next_tier_form_page_id'][0];
@@ -622,10 +624,11 @@ class Admin_Controller {
         $data['membership_next_tier_subscription_renewal'] = $membership_tier->is_renewal_subscription();
       }
 
-      $data['membership_starts_at'] = Utilities::get_utc_datetime($data['membership_starts_at'])->format('c');
-      $data['membership_early_renew_at'] = Utilities::get_utc_datetime(date("Y-m-d H:i:s", $membership_early_renew_at_seconds))->format('c');
-      $data['membership_ends_at'] = Utilities::get_utc_datetime($data['membership_ends_at'])->format('c');
-      $data['membership_expires_at'] = Utilities::get_utc_datetime($data['membership_expires_at'])->format('c');
+      // Dates are already normalized DateTime objects, format them as ISO 8601 UTC
+      $data['membership_starts_at'] = $membership_starts_at->format('c');
+      $data['membership_early_renew_at'] = $membership_early_renew_at->format('c');
+      $data['membership_ends_at'] = $membership_ends_at->format('c');
+      $data['membership_expires_at'] = $membership_expires_at->format('c');
       $data['membership_grace_period_days'] = $grace_period_days;
     }
 
