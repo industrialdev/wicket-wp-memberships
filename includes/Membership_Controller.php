@@ -729,6 +729,7 @@ function add_order_item_meta ( $item_id, $values ) {
    */
   public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ], $subcription_created = false ) {
     if( function_exists( 'wcs_get_subscription' )) {
+      $subscription_id = $membership['membership_subscription_id'];
       $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
       if(!empty($subcription_created)) {
         Utilities::wicket_logger( 'A MEMBERSHIP SUBSCRIPTION WAS CREATED', $fields);
@@ -820,7 +821,11 @@ function add_order_item_meta ( $item_id, $values ) {
         $sub_renew = $sub->get_meta('_requires_manual_renewal');
         //var_dump([$sub->get_id(),$sub_renew, $sub->get_requires_manual_renewal(), $is_autopay_enabled, $autorenew_user_meta]);exit;
 
-        if(! $is_autopay_enabled && $autorenew_user_meta == 'no') {
+        if(
+            (! $is_autopay_enabled && $autorenew_user_meta == 'no') 
+            || (!empty($fields['next_payment_date']) && ( !is_bool($fields['next_payment_date']) && $fields['next_payment_date'] == 'clear'))
+          ) {
+          Utilities::wc_log_mship_error( ['FINAL STAGE CLEARING of NEXT_PAYMENT:', [$subscription_id, $is_autopay_enabled, $autorenew_user_meta, (! $is_autopay_enabled && $autorenew_user_meta == 'no')]]);
           add_action('woocommerce_subscription_status_updated', function( $subscription_id )  {
             $sub = wcs_get_subscription( $subscription_id );
             $sub->update_dates(['next_payment' => 0]);
