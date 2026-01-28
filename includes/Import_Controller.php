@@ -64,17 +64,22 @@ class Import_Controller {
           $membership_post_mapping['membership_tier_cat'] = $record['Membership_Tier_Category'];
           $membership_post_mapping['membership_tier_post_id'] = $membership_tier_post_id;
           
-          $membership_post_mapping['membership_starts_at'] = $record['Starts_At'];
-          $membership_post_mapping['membership_ends_at'] = $record['Ends_At'];
-          $membership_post_mapping['membership_expires_at'] = $record['Expires_At'];
-          if(empty( $membership_post_mapping['membership_expires_at'] )) {
-            $membership_post_mapping['membership_expires_at'] =
-                  (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " + {$membership_tier_array['grace_period_days']} days")), wp_timezone() ))->format("c");
-            $membership_post_mapping['membership_expires_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_expires_at']).':00Z';
+          // Localize timestamps to MDP timezone with appropriate start/end of day
+          $membership_post_mapping['membership_starts_at'] = Utilities::get_mdp_day_start( $record['Starts_At'] )->format('c');
+          $membership_post_mapping['membership_ends_at'] = Utilities::get_mdp_day_end( $record['Ends_At'] )->format('c');
+          
+          if( empty( $record['Expires_At'] ) ) {
+            // Calculate expires_at from ends_at + grace period, set to end of day
+            $expires_date = date('Y-m-d', strtotime( $record['Ends_At'] . " + {$membership_tier_array['grace_period_days']} days" ));
+            $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $expires_date )->format('c');
+          } else {
+            $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $record['Expires_At'] )->format('c');
           }
-          $membership_post_mapping['membership_early_renew_at'] = 
-                (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " - {$membership_tier_array['early_renew_days']} days")), wp_timezone() ))->format("c");
-          $membership_post_mapping['membership_early_renew_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_early_renew_at']).':00Z';
+          
+          // Calculate early_renew_at from ends_at - early renew days, set to start of day
+          $early_renew_date = date('Y-m-d', strtotime( $record['Ends_At'] . " - {$membership_tier_array['early_renew_days']} days" ));
+          $membership_post_mapping['membership_early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date )->format('c');
+          
           $membership_post_mapping['membership_seats'] = 1;
           $membership_post_mapping['membership_wicket_uuid'] = $record['Person_Membership_UUID'];
           $membership_post_mapping['membership_tier_uuid'] = $membership_tier_array['tier_uuid'];
@@ -161,17 +166,22 @@ class Import_Controller {
           $membership_post_mapping['membership_tier_cat'] = $record['Membership_Tier_Category'];
           $membership_post_mapping['membership_tier_post_id'] = $membership_tier_post_id;
 
-          $membership_post_mapping['membership_starts_at'] = $record['Starts_At'];
-          $membership_post_mapping['membership_ends_at'] = $record['Ends_At'];
-          $membership_post_mapping['membership_expires_at'] = $record['Expires_At'];
-          if(empty( $membership_post_mapping['membership_expires_at'] )) {
-            $membership_post_mapping['membership_expires_at'] =
-                  (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " + {$membership_tier_array['grace_period_days']} days")), wp_timezone() ))->format("c");
-            $membership_post_mapping['membership_expires_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_expires_at']).':00Z';
+          // Localize timestamps to MDP timezone with appropriate start/end of day
+          $membership_post_mapping['membership_starts_at'] = Utilities::get_mdp_day_start( $record['Starts_At'] )->format('c');
+          $membership_post_mapping['membership_ends_at'] = Utilities::get_mdp_day_end( $record['Ends_At'] )->format('c');
+          
+          if( empty( $record['Expires_At'] ) ) {
+            // Calculate expires_at from ends_at + grace period, set to end of day
+            $expires_date = date('Y-m-d', strtotime( $record['Ends_At'] . " + {$membership_tier_array['grace_period_days']} days" ));
+            $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $expires_date )->format('c');
+          } else {
+            $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $record['Expires_At'] )->format('c');
           }
-          $membership_post_mapping['membership_early_renew_at'] = 
-                (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " - {$membership_tier_array['early_renew_days']} days")), wp_timezone() ))->format("c");
-          $membership_post_mapping['membership_early_renew_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_early_renew_at']).':00Z';
+          
+          // Calculate early_renew_at from ends_at - early renew days, set to start of day
+          $early_renew_date = date('Y-m-d', strtotime( $record['Ends_At'] . " - {$membership_tier_array['early_renew_days']} days" ));
+          $membership_post_mapping['membership_early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date )->format('c');
+          
           $membership_post_mapping['org_name'] = $record['Organization'];
           $membership_post_mapping['organization_uuid'] = $record['Organization_UUID'];
           $membership_post_mapping['membership_seats'] = $record['Max_assignments'];
@@ -326,7 +336,7 @@ class Import_Controller {
     }
   }
 
-    public function local_membership_exists($wicket_uuid) {
+  public function local_membership_exists($wicket_uuid) {
     $args = [
       'post_type' => $this->membership_cpt_slug,
       'meta_query' => [
