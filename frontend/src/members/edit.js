@@ -89,12 +89,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' }
 	];
 
-	// Helper: Format date as Y-m-d with ISO 8601 tooltip
+	// Helper: Format date as Y-m-d with ISO 8601 tooltip (in MDP timezone)
 	const formatDateWithTooltip = (isoString) => {
 		if (!isoString) return '';
-		const m = moment(isoString);
-		const dateDisplay = m.format('YYYY-MM-DD'); // Y-m-d format
-		const isoFull = m.format(); // ISO 8601 with timezone: 2025-12-31T06:00:00-05:00
+		const mdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+		const m = moment.tz(isoString, mdpTimezone);
+		const dateDisplay = m.format('YYYY-MM-DD'); // Y-m-d format in MDP timezone
+		const isoFull = m.format(); // ISO 8601 with MDP timezone: 2025-12-31T00:00:00-05:00
 		return <span title={isoFull}>{dateDisplay}</span>;
 	};
 
