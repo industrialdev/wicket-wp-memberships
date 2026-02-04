@@ -240,10 +240,24 @@ class Utilities {
   }
 
   function wicket_sub_org_select_metabox( $post_type, $post ) {
-    $sub = wcs_get_subscription($post->ID);
+    if ( $post_type !== 'shop_subscription' || ! is_object( $post ) || empty( $post->ID ) ) {
+      return;
+    }
+
+    if ( ! function_exists( 'wcs_get_subscription' ) ) {
+      return;
+    }
+
+    if ( function_exists( 'wcs_is_subscription' ) && ! wcs_is_subscription( $post->ID ) ) {
+      return;
+    }
+
+    $sub = wcs_get_subscription( $post->ID );
+
     if(empty($sub)) {
       return;
     }
+
     $options = get_option( 'wicket_membership_plugin_options' );
     $categories_selected = $options['wicket_show_mship_order_org_search']['categorychoice'];
     $subscription_products = $sub->get_items();
@@ -278,7 +292,32 @@ class Utilities {
 
 function wicket_sub_org_select_callback( $subscription ) {
       $org_uuid = '';
-      $sub = wcs_get_subscription($subscription);
+      if ( ! function_exists( 'wcs_get_subscription' ) ) {
+        return;
+      }
+
+      if ( $subscription instanceof WC_Subscription ) {
+        $sub = $subscription;
+      } elseif ( $subscription instanceof WP_Post ) {
+        if ( empty( $subscription->ID ) || $subscription->post_type !== 'shop_subscription' ) {
+          return;
+        }
+        if ( function_exists( 'wcs_is_subscription' ) && ! wcs_is_subscription( $subscription->ID ) ) {
+          return;
+        }
+        $sub = wcs_get_subscription( $subscription->ID );
+      } elseif ( is_numeric( $subscription ) ) {
+        $subscription_id = absint( $subscription );
+        if ( ! $subscription_id ) {
+          return;
+        }
+        if ( function_exists( 'wcs_is_subscription' ) && ! wcs_is_subscription( $subscription_id ) ) {
+          return;
+        }
+        $sub = wcs_get_subscription( $subscription_id );
+      } else {
+        return;
+      }
       if(empty($sub)) {
         return;
       }
