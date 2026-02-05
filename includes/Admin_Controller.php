@@ -447,14 +447,21 @@ class Admin_Controller {
       $membership_data['membership_next_tier_id'] = (int) $membership_data['membership_next_tier_id'];
       $membership_data['membership_next_tier_form_page_id'] = (int) $membership_data['membership_next_tier_form_page_id'];
       $membership_item['mdp_person_link'] = $wicket_settings['wicket_admin'] . '/people/' . $membership_data['membership_user_uuid'];
+
+      // To add better support for legacy data, we will parse the database times into PHP objects, as not all database objects are in ISO 8601 format
+      $membership_starts_at = new \DateTime($meta['membership_starts_at']);
+      $membership_ends_at = new \DateTime($meta['membership_ends_at']);
+      $membership_expires_at = new \DateTime($meta['membership_expires_at']);
+      $membership_early_renew_at = new \DateTime($meta['membership_early_renew_at']);
+
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
         $membership_item['data']['membership_status_slug'] = $meta['membership_status'];
         $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['name'];
-        $membership_item['data']['membership_starts_at'] = $meta['membership_starts_at'];
-        $membership_item['data']['membership_ends_at'] = $meta['membership_ends_at'];
-        $membership_item['data']['membership_expires_at'] = $meta['membership_expires_at'];
-        $membership_item['data']['membership_early_renew_at'] = $meta['membership_early_renew_at'];
+        $membership_item['data']['membership_starts_at'] = $membership_starts_at->format('c');
+        $membership_item['data']['membership_ends_at'] = $membership_ends_at->format('c');
+        $membership_item['data']['membership_expires_at'] = $membership_expires_at->format('c');
+        $membership_item['data']['membership_early_renew_at'] = $membership_early_renew_at->format('c');
       } else {
         $membership_item['data'] = [];
       }
