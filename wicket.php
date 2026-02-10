@@ -111,7 +111,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
             if($options['allow_local_imports']) {
               $_ENV['ALLOW_LOCAL_IMPORTS']=true;
             }
-            require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/membership-sync.php' );
+            require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/memberships-sync.php' );
           }
           if(isset($options['wicket_memberships_debug_cart_ids'])) {
             if($options['wicket_memberships_debug_cart_ids']) {
