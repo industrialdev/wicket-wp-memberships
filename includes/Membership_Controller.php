@@ -452,6 +452,20 @@ function add_order_item_meta ( $item_id, $values ) {
     }
   }
 
+  public function schedule_force_set_next_payment_date( $subscription_id, $next_payment_date ) {
+    if(!empty($subscription_id) && !empty($next_payment_date)) {
+      as_schedule_single_action( time() + 90, 'wicket_force_set_next_payment_date', ['membership_subscription_id' => $subscription_id, 'next_payment_date' => $next_payment_date], 'wicket-membership-plugin', false );
+    }
+  }
+
+  public static function catch_wicket_force_set_next_payment_date($sub_id, $next_payment_date) {
+    $sub = wcs_get_subscription( $sub_id );
+    if(! empty($sub) && !empty($next_payment_date)) {
+      $sub->update_dates(['next_payment' => $next_payment_date]);
+      $sub->add_order_note( 'Wicket forced next payment date to: ' . $next_payment_date );
+    }
+  }
+
   public function schedule_wicket_wipe_next_payment_date( $subscription_id ) {
     if(!empty($subscription_id)) {
       as_schedule_single_action( time() + 90, 'wicket_wipe_next_payment_date', ['membership_subscription_id' => $subscription_id], 'wicket-membership-plugin', false );
@@ -799,6 +813,7 @@ function add_order_item_meta ( $item_id, $values ) {
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
           if(!empty($dates_to_update['next_payment'])) {
             $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date)).'('.$dates_to_update['next_payment'].')';
+            $this->schedule_force_set_next_payment_date( $subscription_id, $dates_to_update['next_payment']);
           }
           $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_or_end_date)).'('.$dates_to_update['end'].')';
           $sub->add_order_note($order_note);
