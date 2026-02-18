@@ -1601,7 +1601,7 @@ function add_order_item_meta ( $item_id, $values ) {
           }
           $renewal_link_url = '/cart/?' . $query_string;
           $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
-        } elseif( empty($renewal_link_url) && !empty( $the_order) /*&& $the_order->ID != $membership_data['meta']['membership_parent_order_id']*/) {
+        } elseif( empty($renewal_link_url) && $current_time < strtotime($membership_data['meta']['membership_expires_at']) /* !empty( $the_order) /*&& $the_order->ID != $membership_data['meta']['membership_parent_order_id']*/) {
           //$the_order->update_status('on-hold', __('Order status changed generating a pending renewal order.'));
           $current_subscription->update_status('on-hold', __('Membership plugin set subscription on-hold generating a pending renewal order.'));
           wcs_create_renewal_order($current_subscription);
