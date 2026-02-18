@@ -1,7 +1,10 @@
 {
   "name": "industrialdev/wicket-wp-memberships",
   "description": "Wicket Memberships",
-  "keywords": ["wordpress", "plugin"],
+  "keywords": [
+    "wordpress",
+    "plugin"
+  ],
   "homepage": "https://github.com/industrialdev/wicket-wp-memberships",
   "authors": [
     {
@@ -40,8 +43,8 @@
     "lint": "php-cs-fixer fix --dry-run --diff",
     "format": "php-cs-fixer fix",
     "check": [
-        "@lint",
-        "@test"
+      "@lint",
+      "@test"
     ],
     "cs:fix": "php-cs-fixer fix"
   },
