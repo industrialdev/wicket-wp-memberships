@@ -532,7 +532,14 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
           </WhiteBorderedBox>
 
           {isLoading && <Spinner />}
-          {!isLoading && (
+
+          {!isLoading && memberships.length === 0 && (
+            <WhiteBorderedBox>
+              {__('No membership records found.', 'wicket-memberships')}
+            </WhiteBorderedBox>
+          )}
+
+          {!isLoading && memberships.length > 0 && (
             <WhiteBorderedBox>
               <Flex
                 align='end'

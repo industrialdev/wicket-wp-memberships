@@ -409,6 +409,7 @@ class Admin_Controller {
       );
     }
     $memberships = get_posts( $args );
+    $membership_items = [];
     foreach( $memberships as &$membership) {
       $meta_data = get_post_meta( $membership->ID );
       $meta = [];
