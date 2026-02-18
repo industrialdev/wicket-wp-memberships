@@ -36,7 +36,7 @@
   "scripts": {
     "production": "rm -rf vendor && composer install --no-dev --optimize-autoloader",
     "setup-hooks": "mkdir -p .git/hooks && cp .ci/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push && echo 'Git hooks installed to .git/hooks/pre-push'",
-    "test": "pest",
+    "test": "[ -f vendor/bin/pest ] || composer update && pest",
     "test:unit": "pest --testsuite unit",
     "test:coverage": "pest --coverage-html coverage",
     "test:browser": "WICKET_BROWSER_BASE_URL=https://localhost ./vendor/bin/pest tests/Browser",
