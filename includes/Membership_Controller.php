@@ -452,6 +452,20 @@ function add_order_item_meta ( $item_id, $values ) {
     }
   }
 
+  public function schedule_force_set_next_payment_date( $subscription_id, $next_payment_date ) {
+    if(!empty($subscription_id) && !empty($next_payment_date)) {
+      as_schedule_single_action( time() + 90, 'wicket_force_set_next_payment_date', ['membership_subscription_id' => $subscription_id, 'next_payment_date' => $next_payment_date], 'wicket-membership-plugin', false );
+    }
+  }
+
+  public static function catch_wicket_force_set_next_payment_date($sub_id, $next_payment_date) {
+    $sub = wcs_get_subscription( $sub_id );
+    if(! empty($sub) && !empty($next_payment_date)) {
+      $sub->update_dates(['next_payment' => $next_payment_date]);
+      $sub->add_order_note( 'Wicket forced next payment date to: ' . $next_payment_date );
+    }
+  }
+
   public function schedule_wicket_wipe_next_payment_date( $subscription_id ) {
     if(!empty($subscription_id)) {
       as_schedule_single_action( time() + 90, 'wicket_wipe_next_payment_date', ['membership_subscription_id' => $subscription_id], 'wicket-membership-plugin', false );
@@ -792,6 +806,7 @@ function add_order_item_meta ( $item_id, $values ) {
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
           if(!empty($dates_to_update['next_payment'])) {
             $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date)).'('.$dates_to_update['next_payment'].')';
+            $this->schedule_force_set_next_payment_date( $subscription_id, $dates_to_update['next_payment']);
           }
           $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_or_end_date)).'('.$dates_to_update['end'].')';
           $sub->add_order_note($order_note);
@@ -1589,7 +1604,7 @@ function add_order_item_meta ( $item_id, $values ) {
           }
           $renewal_link_url = '/cart/?' . $query_string;
           $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
-        } elseif( empty($renewal_link_url) && !empty( $the_order) /*&& $the_order->ID != $membership_data['meta']['membership_parent_order_id']*/) {
+        } elseif( empty($renewal_link_url) && $current_time < strtotime($membership_data['meta']['membership_expires_at']) /* !empty( $the_order) /*&& $the_order->ID != $membership_data['meta']['membership_parent_order_id']*/) {
           //$the_order->update_status('on-hold', __('Order status changed generating a pending renewal order.'));
           $current_subscription->update_status('on-hold', __('Membership plugin set subscription on-hold generating a pending renewal order.'));
           wcs_create_renewal_order($current_subscription);

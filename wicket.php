@@ -111,6 +111,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
             if($options['allow_local_imports']) {
               $_ENV['ALLOW_LOCAL_IMPORTS']=true;
             }
+            //require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/memberships-sync.php' );
           }
           if(isset($options['wicket_memberships_debug_cart_ids'])) {
             if($options['wicket_memberships_debug_cart_ids']) {
@@ -211,6 +212,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'add_membership_ends_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_ends_at' ), 10, 2 );
       add_action( 'add_membership_expires_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_expires_at' ), 10, 2 );
       add_action( 'wicket_wipe_next_payment_date', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_wicket_wipe_next_payment_date' ), 10, 2 );
+      add_action( 'wicket_force_set_next_payment_date', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_wicket_force_set_next_payment_date' ), 10, 2 );
 
       //expire current membership when new one starts
       add_action( 'expire_old_membership_on_new_starts_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_expire_current_membership' ), 10, 2 );
