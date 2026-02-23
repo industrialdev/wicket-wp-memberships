@@ -27,10 +27,27 @@ class Helper {
       } );
       add_action('save_post_wicket_mship_tier', [$this, 'add_slug_on_mship_tier_create'], 10, 3);
     }
-    add_action( 'woocommerce_subscription_renewal_payment_complete', [$this, 'adjust_next_payment_date_after_renewal'], 10, 2 );
+    //add_action( 'woocommerce_subscription_renewal_payment_complete', [$this, 'adjust_next_payment_date_after_renewal'], 10, 2 );
+    add_filter('wcs_calculate_next_payment_from_last_payment', [$this, 'preserve_billing_schedule_for_monthly'], 10, 2);
   }
 
   /**
+   * Summary of preserve_billing_schedule_for_monthly
+   * We want to prevent next_payment drift for monthly subscriptions so that if a subscription is renewed early or late 
+   * the billing schedule is preserved and next_payment_time is always based on the original billing date and not the last 
+   * payment date which is woocommerce's default behavior
+   * @param mixed $use_last_payment
+   * @param mixed $subscription
+   */
+  function preserve_billing_schedule_for_monthly($use_last_payment, $subscription) {
+    if ($subscription->get_billing_period() === 'month' && $subscription->get_billing_interval() == 1) {
+        return false; // Use next_payment_time as from_timestamp (preserves billing schedule)
+    }
+    return $use_last_payment;
+  }
+
+  /**
+   * DEPRECATED - See preserve_billing_schedule_for_monthly
    * Subscription Next Payment Date Adjustment
    * When the subscription is renewed manually we want the next payment date change to follow the membership cycle
    * This overrides woocommerce default behavior to set the next payment date to the current date + 1 billing cycle
