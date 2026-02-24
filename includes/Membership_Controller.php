@@ -1377,7 +1377,10 @@ function add_order_item_meta ( $item_id, $values ) {
             if(!$is_autopay_enabled) {
               $callout['type'] = 'early_renewal';
               $callout['header'] = $Membership_Config->get_renewal_window_callout_header( $iso_code );
-              $callout['content'] = $Membership_Config->get_renewal_window_callout_content( $iso_code );
+              $callout['content'] = $this->replace_membership_callout_tokens(
+                $Membership_Config->get_renewal_window_callout_content( $iso_code ),
+                $membership_data
+              );
               $callout['button_label'] = $Membership_Config->get_renewal_window_callout_button_label( $iso_code );
               $early_renewal[] = [
                 'membership' => $membership_data,
@@ -1390,7 +1393,10 @@ function add_order_item_meta ( $item_id, $values ) {
       } else if ( $current_time >= $membership_ends_at && $current_time <= $membership_expires_at ) {
         $callout['type'] = 'grace_period';
         $callout['header'] = $Membership_Config->get_late_fee_window_callout_header( $iso_code );
-        $callout['content'] = $Membership_Config->get_late_fee_window_callout_content( $iso_code );
+        $callout['content'] = $this->replace_membership_callout_tokens(
+          $Membership_Config->get_late_fee_window_callout_content( $iso_code ),
+          $membership_data
+        );
         $callout['button_label'] = $Membership_Config->get_late_fee_window_callout_button_label( $iso_code );
         $grace_period[] = [
           'membership' => $membership_data,
@@ -1409,6 +1415,61 @@ function add_order_item_meta ( $item_id, $values ) {
       return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
     }
     return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'debug' => $debug, 'membership_exists' => $membership_exists ];
+  }
+
+  /**
+   * Replace supported callout tokens with membership-specific values.
+   * Backwards-compatible: if no tokens are present, text is returned unchanged.
+   */
+  private function replace_membership_callout_tokens( $content, $membership_data ) {
+    if ( ! is_string( $content ) || $content === '' ) {
+      return $content;
+    }
+
+    if ( ! preg_match( '/\{\{\s*membership_end_date\s*\}\}/i', $content ) ) {
+      return $content;
+    }
+
+    $membership_end_date = '';
+    if (
+      is_array( $membership_data )
+      && ! empty( $membership_data['meta'] )
+      && is_array( $membership_data['meta'] )
+      && ! empty( $membership_data['meta']['membership_ends_at'] )
+    ) {
+      $membership_end_date = $this->format_membership_callout_date( $membership_data['meta']['membership_ends_at'] );
+    }
+
+    if ( $membership_end_date === '' ) {
+      return $content;
+    }
+
+    return preg_replace( '/\{\{\s*membership_end_date\s*\}\}/i', $membership_end_date, $content );
+  }
+
+  /**
+   * Format membership dates for user-facing callout text using site locale/date format.
+   */
+  private function format_membership_callout_date( $raw_date ) {
+    if ( empty( $raw_date ) || ! is_string( $raw_date ) ) {
+      return '';
+    }
+
+    $timestamp = strtotime( $raw_date );
+    if ( empty( $timestamp ) ) {
+      return '';
+    }
+
+    $date_format = get_option( 'date_format' );
+    if ( empty( $date_format ) || ! is_string( $date_format ) ) {
+      $date_format = 'F j, Y';
+    }
+
+    if ( function_exists( 'wp_date' ) ) {
+      return wp_date( $date_format, $timestamp, wp_timezone() );
+    }
+
+    return date_i18n( $date_format, $timestamp );
   }
 
   public function get_members_list_group_by_filter($groupby){
