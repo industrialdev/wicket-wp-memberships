@@ -1222,9 +1222,25 @@ function add_order_item_meta ( $item_id, $values ) {
       $membership_ends_at = strtotime( $membership->membership_ends_at );
       $membership_expires_at = strtotime( $membership->membership_expires_at );
       $current_time =  current_time( 'timestamp' );
-      $membership_data['ends_in_days'] = ceil( ( $membership_ends_at - $current_time ) / 86400 );
       if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && !empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
         $current_time =  strtotime ( date( "Y-m-d") . '+' . $_REQUEST['wicket_wp_membership_debug_days'] . ' days');
+      }
+      $membership_data['ends_in_days'] = ceil( ( $membership_ends_at - $current_time ) / 86400 );
+
+      // Grace callout windows should follow configured grace days when available, not stale stored expiry values.
+      $grace_period_days = null;
+      $configured_grace_days = $Membership_Config->get_late_fee_window_days();
+      if ( is_numeric( $configured_grace_days ) ) {
+        $grace_period_days = intval( $configured_grace_days );
+      } else if ( isset( $membership_data['meta']['membership_grace_period_days'] ) && is_numeric( $membership_data['meta']['membership_grace_period_days'] ) ) {
+        $grace_period_days = intval( $membership_data['meta']['membership_grace_period_days'] );
+      }
+
+      if ( $membership_ends_at && $grace_period_days !== null && $grace_period_days >= 0 ) {
+        $membership_expires_at = strtotime( $membership->membership_ends_at . " +{$grace_period_days} days" );
+        if ( ! empty( $membership_expires_at ) ) {
+          $membership_data['meta']['membership_expires_at'] = ( new \DateTime( '@' . $membership_expires_at ) )->setTimezone( wp_timezone() )->format( 'c' );
+        }
       }
 
       //always check the membership record ($membership_json_data) for next tier / never look at tier data values
