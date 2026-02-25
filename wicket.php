@@ -230,8 +230,12 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //these will expire memberships that have not been renewed at end of grace period
       add_action('wp', array( $this, 'schedule_daily_membership_expiry'), 10, 2);
       add_action('schedule_daily_membership_expiry_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_expiry_hook'), 10, 2);
-      //these will set to garce_period memberships that have not been renewed at membership_ends_at date
+      //these will set to grace_period memberships that have not been renewed at membership_ends_at date
       add_action('wp', array($this, 'schedule_daily_membership_grace_period'), 10, 2);
+      add_action('schedule_daily_membership_grace_period_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_grace_period_hook'), 10, 2);
+      //these will activate delayed memberships once their membership_starts_at date has been reached
+      add_action('wp', array($this, 'schedule_daily_membership_activation'), 10, 2);
+      add_action('schedule_daily_membership_activation_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_activation_hook'), 10, 2);
       
       //checkbox toggle - can be used for view subscriptions
       add_action('init', [__NAMESPACE__.'\\Utilities', 'autorenew_checkbox_toggle_switch']);
@@ -252,6 +256,15 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
         $next_run_time = new \DateTime('tomorrow 3:30', $timezone);
         $next_run_time->setTimezone(new \DateTimeZone('UTC'));
         as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_grace_period_hook');
+      }
+    }
+
+    public static function schedule_daily_membership_activation() {
+      if (!as_next_scheduled_action('schedule_daily_membership_activation_hook')) {
+        $timezone = wp_timezone();
+        $next_run_time = new \DateTime('tomorrow 4:00', $timezone);
+        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
+        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_activation_hook');
       }
     }
 
