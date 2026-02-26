@@ -328,6 +328,28 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       ),
       //'schema' => array( $this, '' ),
     ) );
+
+    /**
+     * Transfer Membership
+     */
+    register_rest_route( $this->namespace, '/membership/(?P<membership_post_id>\d+)/transfer_membership', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'transfer_membership' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+      ),
+    ) );
+
+    /**
+     * Awitch Membership
+     */
+    register_rest_route( $this->namespace, '/membership/(?P<membership_post_id>\d+)/switch_membership', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'switch_membership' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+      ),
+    ) );
   }
 
   public function memberships_merge_webhook_consumer( \WP_REST_Request $request ) {
@@ -593,5 +615,28 @@ public function get_membership_dates( \WP_REST_Request $request ) {
       $status = 403;
     }
     return $status;
+  }
+
+   /**
+   * Transfer Membership handler
+   */
+  public function transfer_membership( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    if ( empty( $params['membership_post_id'] ) || empty( $params['new_owner_uuid'] ) ) {
+      return new \WP_REST_Response( [ 'success' => false, 'error' => ['Missing required parameters.', $params] ], 400 );
+    }
+    $result = Admin_Controller::transfer_membership( $params['membership_post_id'], $params['new_owner_uuid'] );
+    return new \WP_REST_Response( [ 'success' => $result ], 200 );
+  }
+
+  /**
+   * Switch Membership handler
+   */
+  public function switch_membership( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    if ( empty( $params['membership_post_id'] ) || empty( $params['switch_post_id'] ) || empty( $params['switch_type'] ) ) {
+      return new \WP_REST_Response( [ 'success' => false, 'error' => ['Missing required parameters.', $params] ], 400 );
+    }
+    return Admin_Controller::switch_membership_request( $params );
   }
 }

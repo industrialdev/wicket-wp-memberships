@@ -614,4 +614,6 @@ class Helper {
     }    
     return $has_next_payment_date;
   }
+
+  
 }

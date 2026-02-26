@@ -153,3 +153,27 @@ export const createRenewalOrder = (membershipId, productId, variationId) => {
     }
   });
 }
+
+/**
+ * Transfer Membership
+ */
+export const transferMembership = ({ new_owner_uuid, membership_post_id }) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/membership/${membership_post_id}/transfer_membership`,
+    method: 'POST',
+    data: {
+      new_owner_uuid
+    }
+  });
+}
+
+/**
+ * Switch Membership Product
+ */
+export const switchMembership = (membershipId, switchPostID, switchType) => {
+  if (!membershipId || !switchPostID || !switchType) return Promise.reject('Missing membershipId, switchPostID, or switchType');
+  return apiFetch({
+    path: addQueryArgs(`${PLUGIN_API_URL}/membership/${membershipId}/switch_membership`, { switch_post_id: switchPostID, switch_type: switchType }),
+    method: 'POST',
+  });
+};
