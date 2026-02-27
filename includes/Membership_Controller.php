@@ -1867,17 +1867,18 @@ function add_order_item_meta ( $item_id, $values ) {
             'meta_query'     => array(
               array(
                 'key'     => 'user_id',
-                'value'   => $tier->meta['user_id'][0],
+                'value'   => $tier->meta['user_id'],
                 'compare' => '='
               )
             )
           );
           $user_tiers = new \WP_Query( $args );
           foreach( $user_tiers->posts as $user_tier ) {
-            $user_tier_uuid = get_post_meta( $user_tier->ID, 'membership_tier_uuid', true );
+            $user_tier_uuid   = get_post_meta( $user_tier->ID, 'membership_tier_uuid', true );
+            $user_tier_status = get_post_meta( $user_tier->ID, 'membership_status', true );
             $tier->user->all_membership_tiers[] =  [
-              'uuid' => $user_tier_uuid,
-              //'name' => $tiers_by_uuid['tier_data'][ $user_tier_uuid ]['name'] ,
+              'uuid'   => $user_tier_uuid,
+              'status' => $user_tier_status,
             ];
           }
         } else {

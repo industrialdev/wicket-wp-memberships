@@ -48,7 +48,11 @@ const MemberList = ({ memberType, editMemberUrl }) => {
         setTotalPages(Math.ceil(response.count / params.posts_per_page));
         setIsLoading(false);
 
-        const tierIds = response.results.map((member) => member.meta.membership_tier_uuid);
+        const tierIds = [...new Set(
+          response.results.flatMap((member) =>
+            (member.user.all_membership_tiers || [{ uuid: member.meta.membership_tier_uuid }]).map((t) => t.uuid)
+          )
+        )];
         if (tiersInfo === null) {
           getTiersInfo(tierIds);
         }
@@ -238,7 +242,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                 { memberType === 'individual' ? __( 'Email', 'wicket-memberships' ) : __( 'Contact Email', 'wicket-memberships' ) }
               </th>
               <th scope="col" className="manage-column">{ __( 'Status', 'wicket-memberships' ) }</th>
-              <th scope="col" className="manage-column">{ __( 'Tier', 'wicket-memberships' ) }</th>
+              <th scope="col" className="manage-column">{ __( 'Tier(s)', 'wicket-memberships' ) }</th>
               <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
             </tr>
           </thead>
@@ -324,7 +328,31 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                   </td>
                   <td>
                     {tiersInfo === null && <Spinner />}
-                    {getTierInfo(member.meta.membership_tier_uuid) !== null && getTierInfo(member.meta.membership_tier_uuid).name}
+                    {tiersInfo !== null && (() => {
+                      const ACTIVE_STATUSES = ['active', 'delayed', 'grace_period', 'pending'];
+                      const STATUS_LABELS = {
+                        active:       __('Active', 'wicket-memberships'),
+                        delayed:      __('Delayed', 'wicket-memberships'),
+                        grace_period: __('Grace Period', 'wicket-memberships'),
+                        pending:      __('Pending', 'wicket-memberships'),
+                      };
+                      const allTiers = member.user.all_membership_tiers || [{ uuid: member.meta.membership_tier_uuid, status: member.meta.membership_status }];
+                      const activeTiers = allTiers.filter((t) => ACTIVE_STATUSES.includes(t.status));
+                      if (activeTiers.length === 0) {
+                        return <span>{__('Inactive', 'wicket-memberships')}</span>;
+                      }
+                      return activeTiers.map((t, i) => {
+                        const info = getTierInfo(t.uuid);
+                        const name = info ? info.name : t.uuid;
+                        const statusLabel = STATUS_LABELS[t.status] || t.status;
+                        return (
+                          <span key={i}>
+                            {i > 0 && ', '}
+                            {name} ({statusLabel})
+                          </span>
+                        );
+                      });
+                    })()}
                   </td>
                   <td>
                     <a
