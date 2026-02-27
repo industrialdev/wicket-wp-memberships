@@ -217,9 +217,23 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                   <th scope="col" className="manage-column">{ __('Location', 'wicket-memberships') }</th>
                 </>
               )}
-              <th scope="col" className="manage-column">
-                { memberType === 'individual' ? __( 'Individual Member Name', 'wicket-memberships' ) : __( 'Contact', 'wicket-memberships' ) }
-              </th>
+              { memberType === 'individual' && (
+                <>
+                  <th scope="col" className="manage-column column-author">
+                    { __('First Name', 'wicket-memberships') }
+                  </th>
+                  <th scope="col" className="manage-column column-author">
+                    { __('Last Name', 'wicket-memberships') }
+                  </th>
+                </>
+              )}
+              { memberType === 'organization' && (
+                <>
+                  <th scope="col" className="manage-column column-author">
+                    { __('Contact', 'wicket-memberships') }
+                  </th>
+                </>
+              )}
               <th scope="col" className="manage-column">
                 { memberType === 'individual' ? __( 'Email', 'wicket-memberships' ) : __( 'Contact Email', 'wicket-memberships' ) }
               </th>
@@ -271,13 +285,13 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                       </td>
                     </>
                   )}
-                  <td>
-                    {memberType === 'individual' && (
-                      <>
+                  {memberType === 'individual' && (
+                    <>
+                      <td>
                         <strong>
                           <a href={addQueryArgs(editMemberUrl, { id: member.user.user_login })}
                             className='row-title'
-                          >{member.user.display_name}</a>
+                          >{member.user.first_name}</a>
                         </strong>
                         <div className="row-actions">
                           <span className="edit">
@@ -286,14 +300,17 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                             </a>
                           </span>
                         </div>
-                      </>
-                    )}
-                    {memberType === 'organization' && (
-                      <>
-                        {member.user.display_name}
-                      </>
-                    )}
-                  </td>
+                      </td>
+                      <td>
+                        {member.user.last_name}
+                      </td>
+                    </>
+                  )}
+                  {memberType === 'organization' && (
+                    <td>
+                      {member.user.display_name}
+                    </td>
+                  )}
                   <td>
                     { member.user.user_email }
                   </td>
