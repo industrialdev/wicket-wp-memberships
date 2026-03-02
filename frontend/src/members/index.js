@@ -17,6 +17,9 @@ const MemberList = ({ memberType, editMemberUrl }) => {
   const [tiersInfo, setTiersInfo] = useState(null);
   const [membershipFilters, setMembershipFilters] = useState(null);
 
+  const [activeTab, setActiveTab] = useState('all');
+  const [tabCounts, setTabCounts] = useState({ all: 0, pending: 0, grace_period: 0 });
+
   const [searchParams, setSearchParams] = useState({
     type: memberType,
     page: 1,
@@ -77,6 +80,32 @@ const MemberList = ({ memberType, editMemberUrl }) => {
       });
   };
 
+  const getTabCounts = () => {
+    fetchMembers({ type: memberType, page: 1, posts_per_page: 1 })
+      .then((r) => setTabCounts(prev => ({ ...prev, all: r.count })))
+      .catch(console.error);
+
+    fetchMembers({ type: memberType, page: 1, posts_per_page: 1, filter: { membership_status: 'pending' } })
+      .then((r) => setTabCounts(prev => ({ ...prev, pending: r.count })))
+      .catch(console.error);
+
+    fetchMembers({ type: memberType, page: 1, posts_per_page: 1, filter: { membership_status: 'grace_period' } })
+      .then((r) => setTabCounts(prev => ({ ...prev, grace_period: r.count })))
+      .catch(console.error);
+  };
+
+  const handleTabClick = (tab) => {
+    setActiveTab(tab);
+    const newSearchParams = { ...searchParams, page: 1 };
+    if (tab === 'all') {
+      delete newSearchParams.filter;
+    } else {
+      newSearchParams.filter = { membership_status: tab };
+    }
+    setSearchParams(newSearchParams);
+    getMembers(newSearchParams);
+  };
+
   const getTierInfo = (tierId) => {
     if ( tiersInfo === null ) { return null }
 
@@ -92,6 +121,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
     // https://localhost/wp-json/wicket_member/v1/memberships?order_col=start_date&order_dir=ASC&filter[membership_status]=expired&filter[membership_tier]=88d6a08a-ab3c-4f01-93d7-ddf07995ab25&search=Veterinary&type=individual
     getMembershipFilters();
     getMembers(searchParams);
+    getTabCounts();
   }, []);
 
 	return (
@@ -101,6 +131,39 @@ const MemberList = ({ memberType, editMemberUrl }) => {
 					{memberType === 'individual' ? __('Individual Members', 'wicket-memberships') : __('Organization Members', 'wicket-memberships')}
 				</h1>
 				<hr className="wp-header-end"></hr>
+
+        <ul className="subsubsub">
+          <li className="all">
+            <a
+              href="#"
+              onClick={(e) => { e.preventDefault(); handleTabClick('all'); }}
+              className={activeTab === 'all' ? 'current' : ''}
+              aria-current={activeTab === 'all' ? 'page' : undefined}
+            >
+              {__('All', 'wicket-memberships')} <span className="count">({tabCounts.all})</span>
+            </a> |
+          </li>
+          <li className="pending">
+            <a
+              href="#"
+              onClick={(e) => { e.preventDefault(); handleTabClick('pending'); }}
+              className={activeTab === 'pending' ? 'current' : ''}
+              aria-current={activeTab === 'pending' ? 'page' : undefined}
+            >
+              {__('Pending', 'wicket-memberships')} <span className="count">({tabCounts.pending})</span>
+            </a> |
+          </li>
+          <li className="grace_period">
+            <a
+              href="#"
+              onClick={(e) => { e.preventDefault(); handleTabClick('grace_period'); }}
+              className={activeTab === 'grace_period' ? 'current' : ''}
+              aria-current={activeTab === 'grace_period' ? 'page' : undefined}
+            >
+              {__('Grace Period', 'wicket-memberships')} <span className="count">({tabCounts.grace_period})</span>
+            </a>
+          </li>
+        </ul>
 
         <form
           onSubmit={
