@@ -5,6 +5,23 @@ import { addQueryArgs } from '@wordpress/url';
 import { Spinner, Icon } from '@wordpress/components';
 import { fetchMembers, fetchTiersInfo, fetchMembershipFilters } from '../services/api';
 
+const SortableHeader = ({ label, col, currentCol, currentDir, onSort }) => {
+  const isActive = currentCol === col;
+  const className = `manage-column sortable ${isActive ? `sorted ${currentDir === 'ASC' ? 'asc' : 'desc'}` : ''}`;
+
+  return (
+    <th scope="col" className={className}>
+      <a href="#" onClick={(e) => { e.preventDefault(); onSort(col); }}>
+        <span>{label}</span>
+        <span className="sorting-indicators">
+          <span className="sorting-indicator asc" aria-hidden="true"></span>
+          <span className="sorting-indicator desc" aria-hidden="true"></span>
+        </span>
+      </a>
+    </th>
+  );
+};
+
 const MemberList = ({ memberType, editMemberUrl }) => {
 
   const [isLoading, setIsLoading] = useState(true);
@@ -25,8 +42,8 @@ const MemberList = ({ memberType, editMemberUrl }) => {
     page: 1,
     posts_per_page: 10,
     status: '',
-    order_col: 'start_date',
-    order_dir: 'ASC',
+    order_col: 'post_modified',
+    order_dir: 'DESC',
     // filter: {
     //   membership_status: '',
     //   membership_tier: '',
@@ -92,6 +109,13 @@ const MemberList = ({ memberType, editMemberUrl }) => {
     fetchMembers({ type: memberType, page: 1, posts_per_page: 1, filter: { membership_status: 'grace_period' } })
       .then((r) => setTabCounts(prev => ({ ...prev, grace_period: r.count })))
       .catch(console.error);
+  };
+
+  const handleSort = (col) => {
+    const newDir = searchParams.order_col === col && searchParams.order_dir === 'ASC' ? 'DESC' : 'ASC';
+    const newSearchParams = { ...searchParams, order_col: col, order_dir: newDir, page: 1 };
+    setSearchParams(newSearchParams);
+    getMembers(newSearchParams);
   };
 
   const handleTabClick = (tab) => {
@@ -274,19 +298,50 @@ const MemberList = ({ memberType, editMemberUrl }) => {
             <tr>
               { memberType === 'organization' && (
                 <>
-                  <th scope="col" className="manage-column">
-                    { __('Organization Name', 'wicket-memberships') }
-                  </th>
-                  <th scope="col" className="manage-column">{ __('Location', 'wicket-memberships') }</th>
+                  <SortableHeader
+                    label={ __('Organization Name', 'wicket-memberships') }
+                    col="org_name"
+                    currentCol={searchParams.order_col}
+                    currentDir={searchParams.order_dir}
+                    onSort={handleSort}
+                  />
+                  <SortableHeader
+                    label={ __('Location', 'wicket-memberships') }
+                    col="org_location"
+                    currentCol={searchParams.order_col}
+                    currentDir={searchParams.order_dir}
+                    onSort={handleSort}
+                  />
                 </>
               )}
-              <th scope="col" className="manage-column">
-                { memberType === 'individual' ? __( 'Individual Member Name', 'wicket-memberships' ) : __( 'Contact', 'wicket-memberships' ) }
-              </th>
-              <th scope="col" className="manage-column">
-                { memberType === 'individual' ? __( 'Email', 'wicket-memberships' ) : __( 'Contact Email', 'wicket-memberships' ) }
-              </th>
-              <th scope="col" className="manage-column">{ __( 'Status', 'wicket-memberships' ) }</th>
+              <SortableHeader
+                label={ memberType === 'individual' ? __( 'Individual Member Name', 'wicket-memberships' ) : __( 'Contact', 'wicket-memberships' ) }
+                col="user_name"
+                currentCol={searchParams.order_col}
+                currentDir={searchParams.order_dir}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label={ memberType === 'individual' ? __( 'Email', 'wicket-memberships' ) : __( 'Contact Email', 'wicket-memberships' ) }
+                col="user_email"
+                currentCol={searchParams.order_col}
+                currentDir={searchParams.order_dir}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label={ __( 'Status', 'wicket-memberships' ) }
+                col="membership_status"
+                currentCol={searchParams.order_col}
+                currentDir={searchParams.order_dir}
+                onSort={handleSort}
+              />
+              <SortableHeader
+                label={ __( 'Last Updated', 'wicket-memberships' ) }
+                col="post_modified"
+                currentCol={searchParams.order_col}
+                currentDir={searchParams.order_dir}
+                onSort={handleSort}
+              />
               <th scope="col" className="manage-column">{ __( 'Tier', 'wicket-memberships' ) }</th>
               <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
             </tr>
@@ -296,7 +351,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
               <tr className="alternate">
                 <td
                   className="column-columnname"
-                  colSpan={memberType === 'organization' ? 6 : 4}
+                  colSpan={memberType === 'organization' ? 7 : 5}
                 >
                   <Spinner />
                 </td>
@@ -304,7 +359,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
             )}
             {!isLoading && members.length === 0 && (
               <tr className="alternate">
-                <td className="column-columnname" colSpan={4}>
+                <td className="column-columnname" colSpan={memberType === 'organization' ? 7 : 5}>
                   { __( 'No members found.', 'wicket-memberships' ) }
                 </td>
               </tr>
@@ -367,6 +422,9 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                         }}>
                       { member.meta.membership_status }
                     </span>
+                  </td>
+                  <td>
+                    { member.post_modified ? moment(member.post_modified).format('MMMM D, YYYY') : '-' }
                   </td>
                   <td>
                     {tiersInfo === null && <Spinner />}

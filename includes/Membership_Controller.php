@@ -1770,10 +1770,7 @@ function add_order_item_meta ( $item_id, $values ) {
       'post_status' => 'publish',
       'posts_per_page' => $posts_per_page,
       'paged' => $page,
-      'meta_key' => $order_col,
-      'orderby'   => 'meta_value',
-      'order' => $order_dir,
-      'meta_query'     => array(
+      'meta_query' => array(
         array(
           'key'     => 'membership_type',
           'value'   => $type,
@@ -1781,6 +1778,18 @@ function add_order_item_meta ( $item_id, $values ) {
         )
       )
     );
+
+    $sort_dir = ! empty( $order_dir ) ? strtoupper( $order_dir ) : 'DESC';
+    if ( empty( $order_col ) || $order_col === 'post_modified' ) {
+      $args['orderby'] = 'modified';
+      $args['order']   = $sort_dir;
+    } else {
+      $args['meta_query']['sort_meta'] = array(
+        'key'     => $order_col,
+        'compare' => 'EXISTS',
+      );
+      $args['orderby'] = array( 'sort_meta' => $sort_dir );
+    }
 
     if( ! empty( $search ) ) {
       $args['meta_query'][] = array(
