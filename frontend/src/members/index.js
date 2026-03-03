@@ -241,7 +241,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
               <th scope="col" className="manage-column">
                 { memberType === 'individual' ? __( 'Email', 'wicket-memberships' ) : __( 'Contact Email', 'wicket-memberships' ) }
               </th>
-              <th scope="col" className="manage-column">{ __( 'Status', 'wicket-memberships' ) }</th>
+              <th scope="col" className="manage-column">{ __( 'Last Updated Date', 'wicket-memberships' ) }</th>
               <th scope="col" className="manage-column">{ __( 'Tier(s)', 'wicket-memberships' ) }</th>
               <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
             </tr>
@@ -251,7 +251,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
               <tr className="alternate">
                 <td
                   className="column-columnname"
-                  colSpan={memberType === 'organization' ? 6 : 4}
+                  colSpan={memberType === 'organization' ? 7 : 6}
                 >
                   <Spinner />
                 </td>
@@ -319,12 +319,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                     { member.user.user_email }
                   </td>
                   <td>
-                    <span style={{
-                          color: (member.meta.membership_status === 'active' ? 'green' : ''),
-                          textTransform: 'capitalize'
-                        }}>
-                      { member.meta.membership_status }
-                    </span>
+                    { member.post_modified ? moment(member.post_modified).format('MMMM D, YYYY') : '-' }
                   </td>
                   <td>
                     {tiersInfo === null && <Spinner />}
