@@ -308,17 +308,19 @@ class Admin_Controller {
   public static function get_edit_page_info( $id ) {
     $self = new self();
     $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] );
-    if( is_numeric( $id ) ) {
+    if( is_numeric( $id ) ) { // Individual member
       $user = get_user_by( 'id', $id );
       $person_uuid = $user->user_login;
       $response = wicket_get_person_by_id( $person_uuid );
+      $switch_to_url = Helper::get_user_switch_to_url( $id );
       return [
         'identifying_number' => $response->getAttribute('identifying_number'),
         'data' => $user->user_email,
         'mdp_link' => $wicket_settings['wicket_admin'] . '/people/' . $person_uuid,
         'org_name' => '',
+        'switch_to_url' => $switch_to_url,
       ];
-    } else if(preg_match('/^[a-f\d]{8}(-[a-f\d]{4}){4}[a-f\d]{8}$/i', $id)) {
+    } else if(preg_match('/^[a-f\d]{8}(-[a-f\d]{4}){4}[a-f\d]{8}$/i', $id)) { // Org member
       $response = wicket_get_organization( $id );
       $org_data_old = Helper::get_org_data( $id, false, false );
       $org_data =   Helper::get_org_data( $id, false, true );
@@ -443,6 +445,14 @@ class Admin_Controller {
       $membership_data['membership_next_tier_id'] = (int) $membership_data['membership_next_tier_id'];
       $membership_data['membership_next_tier_form_page_id'] = (int) $membership_data['membership_next_tier_form_page_id'];
       $membership_item['mdp_person_link'] = $wicket_settings['wicket_admin'] . '/people/' . $membership_data['membership_user_uuid'];
+
+      if (!empty($membership_data['membership_user_uuid'])) {
+        $user = get_user_by( 'login', $membership_data['membership_user_uuid'] );
+        if(!empty($user)) {
+          $membership_item['switch_to_url'] = Helper::get_user_switch_to_url( $user->ID );
+        }
+      }
+
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
         $membership_item['data']['membership_status_slug'] = $meta['membership_status'];

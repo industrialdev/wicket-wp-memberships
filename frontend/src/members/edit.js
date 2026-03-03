@@ -483,18 +483,33 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 </Heading>
               </FlexBlock>
               <FlexItem>
-                <CustomDisabled
-                  isDisabled={memberInfo === null}
-                >
-                  <Button
-                    variant='secondary'
-                    href={memberInfo === null ? '' : memberInfo.mdp_link}
-                    target='_blank'
+                <Flex gap={3}>
+                  {memberType === 'individual' && (
+                    <CustomDisabled
+                      isDisabled={memberInfo === null || memberInfo.switch_to_url === ''}
+                    >
+                      <Button
+                        variant='secondary'
+                        href={memberInfo === null ? '' : memberInfo.switch_to_url.replaceAll("&amp;", "&")}
+                      >
+                        <Icon icon='update' />&nbsp;
+                        {__('Switch to', 'wicket-memberships')}
+                      </Button>
+                    </CustomDisabled>
+                  )}
+                  <CustomDisabled
+                    isDisabled={memberInfo === null}
                   >
-                    <Icon icon='external' />&nbsp;
-                    {__('View in MDP', 'wicket-memberships')}
-                  </Button>
-                </CustomDisabled>
+                    <Button
+                      variant='secondary'
+                      href={memberInfo === null ? '' : memberInfo.mdp_link}
+                      target='_blank'
+                    >
+                      <Icon icon='external' />&nbsp;
+                      {__('View in MDP', 'wicket-memberships')}
+                    </Button>
+                  </CustomDisabled>
+                </Flex>
               </FlexItem>
             </Flex>
             <RecordTopInfo>
@@ -953,14 +968,26 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       </div>
                                     </FlexBlock>
                                     <FlexBlock>
-                                      <LabelWpStyled style={{ height: '20px' }} >
-                                        {__('Membership Owner', 'wicket-memberships')}&nbsp;
-                                        <Tooltip
-                                          text="Represents the Customer responsible for managing and Renewing the Organization Membership."
-                                        >
-                                          <div><Icon icon='info' /></div>
-                                        </Tooltip>
-                                      </LabelWpStyled>
+                                      <Flex>
+                                        <LabelWpStyled style={{ height: '20px' }} >
+                                          {__('Membership Owner', 'wicket-memberships')}&nbsp;
+                                          <Tooltip
+                                            text="Represents the Customer responsible for managing and Renewing the Organization Membership."
+                                          >
+                                            <div><Icon icon='info' /></div>
+                                          </Tooltip>
+                                        </LabelWpStyled>
+                                        <FlexItem>
+                                          <Button
+                                            href={membership.switch_to_url.replaceAll("&amp;", "&")}
+                                            variant='link'
+                                            style={{ textTransform: 'initial', marginLeft: '20px' }}
+                                          >
+                                            {__('Switch to', 'wicket-memberships')}
+                                          </Button>
+                                          &nbsp;<Icon icon='update' style={{ color: 'var(--wp-admin-theme-color)' }} />
+                                        </FlexItem>
+                                      </Flex>
                                       <AsyncSelectWpStyled
                                         id="membership_owner_id"
                                         classNamePrefix="select"

@@ -614,4 +614,32 @@ class Helper {
     }    
     return $has_next_payment_date;
   }
+
+  public static function get_user_switch_to_url($user_id) {
+    if ( method_exists( 'user_switching', 'maybe_switch_url' ) ) {
+      $target_user = get_user_by( 'id', $user_id );
+
+      if ( ! $target_user ) {
+        return '';
+      }
+
+      $url = \user_switching::maybe_switch_url( $target_user );
+
+      $redirect_to_url = home_url();
+
+      if ( function_exists( 'WACC' ) ) {
+        $redirect_to_url = WACC()->get_account_page_url();
+      }
+
+      if ( $url ) {
+        return esc_url_raw( add_query_arg(
+              'redirect_to',
+              rawurlencode( $redirect_to_url ),
+              $url
+            ) );
+      }
+    }
+
+    return '';
+  }
 }
