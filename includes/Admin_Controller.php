@@ -372,6 +372,15 @@ class Admin_Controller {
     $statuses = Helper::get_all_status_names();
     $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] );
 
+    // Build MDP tier sort weight map for secondary (tie-breaker) sorting
+    $tier_sort_weights = [];
+    $mdp_tiers_response = get_individual_memberships();
+    if (!empty($mdp_tiers_response['data'])) {
+      foreach ($mdp_tiers_response['data'] as $mdp_tier) {
+        $tier_sort_weights[$mdp_tier['id']] = $mdp_tier['attributes']['weight'] ?? 0;
+      }
+    }
+
     $args = array(
       'post_type' => $self->membership_cpt_slug,
       'post_status' => 'publish',
@@ -501,8 +510,26 @@ class Admin_Controller {
           }
         }
       }
+      $membership_item['_sort_start_ts'] = strtotime($meta['membership_starts_at'] ?? '');
+      $membership_item['_sort_tier_weight'] = $tier_sort_weights[$meta['membership_tier_uuid'] ?? ''] ?? 0;
       $membership_items[] = $membership_item;
     }
+
+    // Sort by start date DESC, then by MDP tier category sort weight ASC as tie-breaker
+    if (!empty($membership_items)) {
+      usort($membership_items, function($a, $b) {
+        $date_diff = $b['_sort_start_ts'] - $a['_sort_start_ts'];
+        if ($date_diff !== 0) {
+          return $date_diff;
+        }
+        return $a['_sort_tier_weight'] - $b['_sort_tier_weight'];
+      });
+      foreach ($membership_items as &$item) {
+        unset($item['_sort_start_ts'], $item['_sort_tier_weight']);
+      }
+      unset($item);
+    }
+
     return $membership_items;
   }
 
