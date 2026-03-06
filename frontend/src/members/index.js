@@ -1,3 +1,4 @@
+import moment from 'moment';
 import { __ } from '@wordpress/i18n';
 import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
@@ -68,7 +69,11 @@ const MemberList = ({ memberType, editMemberUrl }) => {
         setTotalPages(Math.ceil(response.count / params.posts_per_page));
         setIsLoading(false);
 
-        const tierIds = response.results.map((member) => member.meta.membership_tier_uuid);
+        const tierIds = [...new Set(
+          response.results.flatMap((member) =>
+            (member.user.all_membership_tiers || [{ uuid: member.meta.membership_tier_uuid }]).map((t) => t.uuid)
+          )
+        )];
         if (tiersInfo === null) {
           getTiersInfo(tierIds);
         }
@@ -314,23 +319,30 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                   />
                 </>
               )}
-              <SortableHeader
-                label={ memberType === 'individual' ? __( 'Individual Member Name', 'wicket-memberships' ) : __( 'Contact', 'wicket-memberships' ) }
-                col="user_name"
-                currentCol={searchParams.order_col}
-                currentDir={searchParams.order_dir}
-                onSort={handleSort}
-              />
+              { memberType === 'individual' && (
+                <>
+                  <SortableHeader
+                    label={ __( 'First Name', 'wicket-memberships' ) }
+                    col="user_name"
+                    currentCol={searchParams.order_col}
+                    currentDir={searchParams.order_dir}
+                    onSort={handleSort}
+                  />
+                  <th scope="col" className="manage-column">{ __( 'Last Name', 'wicket-memberships' ) }</th>
+                </>
+              )}
+              { memberType === 'organization' && (
+                <SortableHeader
+                  label={ __( 'Contact', 'wicket-memberships' ) }
+                  col="user_name"
+                  currentCol={searchParams.order_col}
+                  currentDir={searchParams.order_dir}
+                  onSort={handleSort}
+                />
+              )}
               <SortableHeader
                 label={ memberType === 'individual' ? __( 'Email', 'wicket-memberships' ) : __( 'Contact Email', 'wicket-memberships' ) }
                 col="user_email"
-                currentCol={searchParams.order_col}
-                currentDir={searchParams.order_dir}
-                onSort={handleSort}
-              />
-              <SortableHeader
-                label={ __( 'Status', 'wicket-memberships' ) }
-                col="membership_status"
                 currentCol={searchParams.order_col}
                 currentDir={searchParams.order_dir}
                 onSort={handleSort}
@@ -342,7 +354,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                 currentDir={searchParams.order_dir}
                 onSort={handleSort}
               />
-              <th scope="col" className="manage-column">{ __( 'Tier', 'wicket-memberships' ) }</th>
+              <th scope="col" className="manage-column">{ __( 'Tier(s)', 'wicket-memberships' ) }</th>
               <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
             </tr>
           </thead>
@@ -351,7 +363,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
               <tr className="alternate">
                 <td
                   className="column-columnname"
-                  colSpan={memberType === 'organization' ? 7 : 5}
+                  colSpan={memberType === 'organization' ? 7 : 6}
                 >
                   <Spinner />
                 </td>
@@ -389,13 +401,13 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                       </td>
                     </>
                   )}
-                  <td>
-                    {memberType === 'individual' && (
-                      <>
+                  {memberType === 'individual' && (
+                    <>
+                      <td>
                         <strong>
                           <a href={addQueryArgs(editMemberUrl, { id: member.user.user_login })}
                             className='row-title'
-                          >{member.user.display_name}</a>
+                          >{member.user.first_name}</a>
                         </strong>
                         <div className="row-actions">
                           <span className="edit">
@@ -404,31 +416,50 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                             </a>
                           </span>
                         </div>
-                      </>
-                    )}
-                    {memberType === 'organization' && (
-                      <>
-                        {member.user.display_name}
-                      </>
-                    )}
-                  </td>
+                      </td>
+                      <td>
+                        {member.user.last_name}
+                      </td>
+                    </>
+                  )}
+                  {memberType === 'organization' && (
+                    <td>
+                      {member.user.display_name}
+                    </td>
+                  )}
                   <td>
                     { member.user.user_email }
-                  </td>
-                  <td>
-                    <span style={{
-                          color: (member.meta.membership_status === 'active' ? 'green' : ''),
-                          textTransform: 'capitalize'
-                        }}>
-                      { member.meta.membership_status }
-                    </span>
                   </td>
                   <td>
                     { member.post_modified ? moment(member.post_modified).format('MMMM D, YYYY') : '-' }
                   </td>
                   <td>
                     {tiersInfo === null && <Spinner />}
-                    {getTierInfo(member.meta.membership_tier_uuid) !== null && getTierInfo(member.meta.membership_tier_uuid).name}
+                    {tiersInfo !== null && (() => {
+                      const ACTIVE_STATUSES = ['active', 'delayed', 'grace_period', 'pending'];
+                      const STATUS_LABELS = {
+                        active:       __('Active', 'wicket-memberships'),
+                        delayed:      __('Delayed', 'wicket-memberships'),
+                        grace_period: __('Grace Period', 'wicket-memberships'),
+                        pending:      __('Pending', 'wicket-memberships'),
+                      };
+                      const allTiers = member.user.all_membership_tiers || [{ uuid: member.meta.membership_tier_uuid, status: member.meta.membership_status }];
+                      const activeTiers = allTiers.filter((t) => ACTIVE_STATUSES.includes(t.status));
+                      if (activeTiers.length === 0) {
+                        return <span>{__('Inactive', 'wicket-memberships')}</span>;
+                      }
+                      return activeTiers.map((t, i) => {
+                        const info = getTierInfo(t.uuid);
+                        const name = info ? info.name : t.uuid;
+                        const statusLabel = STATUS_LABELS[t.status] || t.status;
+                        return (
+                          <span key={i}>
+                            {i > 0 && ', '}
+                            {name} ({statusLabel})
+                          </span>
+                        );
+                      });
+                    })()}
                   </td>
                   <td>
                     <a

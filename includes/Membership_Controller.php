@@ -1861,6 +1861,8 @@ function add_order_item_meta ( $item_id, $values ) {
       $tier->meta = $tier_new_meta;
         if( $user->display_name == $user->user_login ) {
           $user->display_name = $user->first_name . ' ' . $user->last_name;
+          $user->data->first_name = $user->first_name;
+          $user->data->last_name  = $user->last_name;
         }
         unset( $user->user_pass );
         $tier->user = $user->data;
@@ -1874,17 +1876,18 @@ function add_order_item_meta ( $item_id, $values ) {
             'meta_query'     => array(
               array(
                 'key'     => 'user_id',
-                'value'   => $tier->meta['user_id'][0],
+                'value'   => $tier->meta['user_id'],
                 'compare' => '='
               )
             )
           );
           $user_tiers = new \WP_Query( $args );
           foreach( $user_tiers->posts as $user_tier ) {
-            $user_tier_uuid = get_post_meta( $user_tier->ID, 'membership_tier_uuid', true );
+            $user_tier_uuid   = get_post_meta( $user_tier->ID, 'membership_tier_uuid', true );
+            $user_tier_status = get_post_meta( $user_tier->ID, 'membership_status', true );
             $tier->user->all_membership_tiers[] =  [
-              'uuid' => $user_tier_uuid,
-              //'name' => $tiers_by_uuid['tier_data'][ $user_tier_uuid ]['name'] ,
+              'uuid'   => $user_tier_uuid,
+              'status' => $user_tier_status,
             ];
           }
         } else {
