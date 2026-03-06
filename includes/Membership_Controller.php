@@ -1859,10 +1859,13 @@ function add_order_item_meta ( $item_id, $values ) {
         }
       );
       $tier->meta = $tier_new_meta;
+
+        // Always copy meta fields onto data before assigning
+        $user->data->first_name = $user->first_name;
+        $user->data->last_name  = $user->last_name;
+
         if( $user->display_name == $user->user_login ) {
           $user->display_name = $user->first_name . ' ' . $user->last_name;
-          $user->data->first_name = $user->first_name;
-          $user->data->last_name  = $user->last_name;
         }
         unset( $user->user_pass );
         $tier->user = $user->data;
