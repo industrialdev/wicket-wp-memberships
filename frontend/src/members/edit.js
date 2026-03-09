@@ -183,8 +183,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             memberships.map((m) => {
               if (m.ID == manageStatusFormData.postId) {
                 m.data.membership_status = manageStatusFormData.newStatus;
-                m.data.membership_ends_at = moment.utc(response.response.membership_ends_at).startOf('day').toISOString();
-                m.data.membership_expires_at = moment.utc(response.response.membership_expires_at).startOf('day').toISOString();
+                m.data.membership_ends_at = moment.utc(response.response.membership_ends_at).endOf('day').toISOString();
+                m.data.membership_expires_at = moment.utc(response.response.membership_expires_at).endOf('day').toISOString();
                 m.updatedNow = true;
               }
               return m;
@@ -417,11 +417,17 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     return new Date(mdpMoment.year(), mdpMoment.month(), mdpMoment.date());
   };
 
-  // Helper: Convert date picker Date to UTC midnight ISO string (from MDP timezone)
-  const convertToUtcMidnight = (dateValue) => {
+  // Helper: Convert a date picker Date to UTC ISO string in the MDP timezone.
+  // Start date stays at start-of-day; end/expiry dates are stored at end-of-day.
+  const convertDateForField = (dateValue, field) => {
+    if (!dateValue) return dateValue;
     const mdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
-    // Create midnight in MDP timezone
     const mdpDate = moment.tz([dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()], mdpTimezone);
+    if (['membership_ends_at', 'membership_expires_at'].includes(field)) {
+      mdpDate.endOf('day');
+    } else {
+      mdpDate.startOf('day');
+    }
     // Convert to UTC and return ISO string
     return mdpDate.utc().toISOString();
   };
@@ -431,9 +437,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     console.log('handleMembershipFieldChange');
     console.log(membershipId, field, value);
     
-    // DateTime fields: convert Date object to UTC midnight ISO string
+    // DateTime fields: convert Date object to UTC ISO string (field-specific day boundary)
     const dateTimeFields = ['membership_starts_at', 'membership_ends_at', 'membership_expires_at'];
-    const processedValue = dateTimeFields.includes(field) ? convertToUtcMidnight(value) : value;
+    const processedValue = dateTimeFields.includes(field) ? convertDateForField(value, field) : value;
     
     setMemberships(
       memberships.map((m) => {
