@@ -795,6 +795,22 @@ function wicket_sub_org_select_callback( $subscription ) {
   }
 
   /**
+   * Get the current datetime in UTC, based on the configured MDP timezone.
+   *
+   * @return \DateTime DateTime object representing "now", normalized to UTC.
+   */
+  public static function get_mdp_now()
+  {
+    // Get MDP timezone from environment variable, fallback to UTC
+    $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+
+    // Build "now" in MDP timezone, then normalize output to UTC
+    $mdp_now = new \DateTime('now', $mdp_timezone);
+
+    return $mdp_now->setTimezone(new \DateTimeZone('UTC'));
+  }
+
+  /**
    * Get the start of an MDP day (midnight) in UTC timezone.
    * This converts a date to the start of the day in the MDP timezone, then converts to UTC.
    *

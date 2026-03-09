@@ -95,8 +95,7 @@ class Admin_Controller {
 
     $tomorrow_iso_date = Utilities::get_mdp_day_end("+1 day")->format('c');
     $yesterday_iso_date = Utilities::get_mdp_day_start("-1 day")->format('c');
-    $now_iso_date = Utilities::get_mdp_day_end()->format('c');
-
+    $now_iso_date = Utilities::get_mdp_now()->format('c');
 
     //get membership records
     $current_post_status = get_post_meta( $membership_post_id, 'membership_status', true );
@@ -195,6 +194,8 @@ class Admin_Controller {
       return new \WP_REST_Response($response_array, $response_code);
     } else if( $new_post_status == Wicket_Memberships::STATUS_CANCELLED ) {
       //apply the rules
+
+      // If the membership is a future membership, set ends and expires at to now
       if( $current_post_status == Wicket_Memberships::STATUS_PENDING  || $current_post_status == Wicket_Memberships::STATUS_DELAYED) {
         $meta_data = [
           'membership_status' => $new_post_status,
@@ -204,6 +205,8 @@ class Admin_Controller {
           'membership_grace_period_days' => 0
         ];
       }
+      
+      // If the membership is in grace period, set the expiry to now
       else if( $current_post_status == Wicket_Memberships::STATUS_GRACE) {
         //var_dump($membership_current);exit;
         $meta_data = [
@@ -213,14 +216,17 @@ class Admin_Controller {
           'membership_grace_period_days' => 0
         ];
       }
+
+      // Standard cancellation, set the end date to now.
       else {
         $meta_data = [
           'membership_status' => $new_post_status,
-          'membership_ends_at' => $tomorrow_iso_date,
-          'membership_expires_at' => $tomorrow_iso_date,
+          'membership_ends_at' => $now_iso_date,
+          'membership_expires_at' => $now_iso_date,
           'membership_grace_period_days' => 0
         ];
       }
+
       // cancel the associated subscription
       if( function_exists( 'wcs_get_subscription' )) {
         $sub = wcs_get_subscription( $membership_new['membership_subscription_id'] );
