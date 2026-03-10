@@ -374,10 +374,11 @@ class Admin_Controller {
 
     // Build MDP tier sort weight map for secondary (tie-breaker) sorting
     $tier_sort_weights = [];
-    $mdp_tiers_response = get_individual_memberships();
+    $mdp_tiers_response = get_individual_memberships('', [ 'sort' => '-category_weight' ]);
+
     if (!empty($mdp_tiers_response['data'])) {
-      foreach ($mdp_tiers_response['data'] as $mdp_tier) {
-        $tier_sort_weights[$mdp_tier['id']] = $mdp_tier['attributes']['weight'] ?? 0;
+      foreach ($mdp_tiers_response['data'] as $index => $mdp_tier) {
+        $tier_sort_weights[$mdp_tier['id']] = $index; // position 0 = highest category_weight
       }
     }
 
@@ -517,6 +518,12 @@ class Admin_Controller {
 
     // Sort by start date DESC, then by MDP tier category sort weight ASC as tie-breaker
     if (!empty($membership_items)) {
+      error_log('DEBUG sort input: ' . json_encode(array_map(fn($m) => [
+        'ID' => $m['ID'],
+        'starts_at_raw' => $m['_sort_start_ts'],
+        'tier_weight' => $m['_sort_tier_weight'],
+        'tier_uuid' => $m['data']['membership_tier_uuid'] ?? '',
+      ], $membership_items)));
       usort($membership_items, function($a, $b) {
         $date_diff = $b['_sort_start_ts'] - $a['_sort_start_ts'];
         if ($date_diff !== 0) {
@@ -524,6 +531,8 @@ class Admin_Controller {
         }
         return $a['_sort_tier_weight'] - $b['_sort_tier_weight'];
       });
+
+      // Remove the temporary sorting fields before returning the response
       foreach ($membership_items as &$item) {
         unset($item['_sort_start_ts'], $item['_sort_tier_weight']);
       }
