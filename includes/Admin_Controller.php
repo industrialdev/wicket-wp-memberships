@@ -318,17 +318,19 @@ class Admin_Controller {
   public static function get_edit_page_info( $id ) {
     $self = new self();
     $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] );
-    if( is_numeric( $id ) ) {
+    if( is_numeric( $id ) ) { // Individual member
       $user = get_user_by( 'id', $id );
       $person_uuid = $user->user_login;
       $response = wicket_get_person_by_id( $person_uuid );
+      $switch_to_url = Helper::get_user_switch_to_url( $id );
       return [
         'identifying_number' => $response->getAttribute('identifying_number'),
         'data' => $user->user_email,
         'mdp_link' => $wicket_settings['wicket_admin'] . '/people/' . $person_uuid,
         'org_name' => '',
+        'switch_to_url' => $switch_to_url,
       ];
-    } else if(preg_match('/^[a-f\d]{8}(-[a-f\d]{4}){4}[a-f\d]{8}$/i', $id)) {
+    } else if(preg_match('/^[a-f\d]{8}(-[a-f\d]{4}){4}[a-f\d]{8}$/i', $id)) { // Org member
       $response = wicket_get_organization( $id );
       $org_data_old = Helper::get_org_data( $id, false, false );
       $org_data =   Helper::get_org_data( $id, false, true );
@@ -379,6 +381,16 @@ class Admin_Controller {
     $self = new self();
     $statuses = Helper::get_all_status_names();
     $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] );
+
+    // Build MDP tier sort weight map for secondary (tie-breaker) sorting
+    $tier_sort_weights = [];
+    $mdp_tiers_response = get_individual_memberships('', [ 'sort' => '-category_weight' ]);
+
+    if (!empty($mdp_tiers_response['data'])) {
+      foreach ($mdp_tiers_response['data'] as $index => $mdp_tier) {
+        $tier_sort_weights[$mdp_tier['id']] = $index; // position 0 = highest category_weight
+      }
+    }
 
     $args = array(
       'post_type' => $self->membership_cpt_slug,
@@ -459,6 +471,13 @@ class Admin_Controller {
       $membership_ends_at = new \DateTime($meta['membership_ends_at']);
       $membership_expires_at = new \DateTime($meta['membership_expires_at']);
       $membership_early_renew_at = new \DateTime($meta['membership_early_renew_at']);
+      
+      if (!empty($membership_data['membership_user_uuid'])) {
+        $user = get_user_by( 'login', $membership_data['membership_user_uuid'] );
+        if(!empty($user)) {
+          $membership_item['switch_to_url'] = Helper::get_user_switch_to_url( $user->ID );
+        }
+      }
 
       if( !empty( $membership_data ) ) {
         $membership_item['data'] = $membership_data;
@@ -510,8 +529,28 @@ class Admin_Controller {
           }
         }
       }
+      $membership_item['_sort_start_ts'] = strtotime($meta['membership_starts_at'] ?? '');
+      $membership_item['_sort_tier_weight'] = $tier_sort_weights[$meta['membership_tier_uuid'] ?? ''] ?? 0;
       $membership_items[] = $membership_item;
     }
+
+    // Sort by start date DESC, then by MDP tier category sort weight ASC as tie-breaker
+    if (!empty($membership_items)) {
+      usort($membership_items, function($a, $b) {
+        $date_diff = $b['_sort_start_ts'] - $a['_sort_start_ts'];
+        if ($date_diff !== 0) {
+          return $date_diff;
+        }
+        return $a['_sort_tier_weight'] - $b['_sort_tier_weight'];
+      });
+
+      // Remove the temporary sorting fields before returning the response
+      foreach ($membership_items as &$item) {
+        unset($item['_sort_start_ts'], $item['_sort_tier_weight']);
+      }
+      unset($item);
+    }
+
     return $membership_items;
   }
 

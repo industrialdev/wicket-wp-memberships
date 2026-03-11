@@ -1773,10 +1773,7 @@ function add_order_item_meta ( $item_id, $values ) {
       'post_status' => 'publish',
       'posts_per_page' => $posts_per_page,
       'paged' => $page,
-      'meta_key' => $order_col,
-      'orderby'   => 'meta_value',
-      'order' => $order_dir,
-      'meta_query'     => array(
+      'meta_query' => array(
         array(
           'key'     => 'membership_type',
           'value'   => $type,
@@ -1784,6 +1781,25 @@ function add_order_item_meta ( $item_id, $values ) {
         )
       )
     );
+
+    $sort_dir = ! empty( $order_dir ) ? strtoupper( $order_dir ) : 'DESC';
+    $order_col_map = [
+      'start_date' => 'membership_starts_at',
+      'end_date'   => 'membership_ends_at',
+    ];
+    if ( isset( $order_col_map[ $order_col ] ) ) {
+      $order_col = $order_col_map[ $order_col ];
+    }
+    if ( empty( $order_col ) || $order_col === 'post_modified' ) {
+      $args['orderby'] = 'modified';
+      $args['order']   = $sort_dir;
+    } else {
+      $args['meta_query']['sort_meta'] = array(
+        'key'     => $order_col,
+        'compare' => 'EXISTS',
+      );
+      $args['orderby'] = array( 'sort_meta' => $sort_dir );
+    }
 
     if( ! empty( $search ) ) {
       $args['meta_query'][] = array(
@@ -1853,6 +1869,11 @@ function add_order_item_meta ( $item_id, $values ) {
         }
       );
       $tier->meta = $tier_new_meta;
+
+        // Always copy meta fields onto data before assigning
+        $user->data->first_name = $user->first_name;
+        $user->data->last_name  = $user->last_name;
+
         if( $user->display_name == $user->user_login ) {
           $user->display_name = $user->first_name . ' ' . $user->last_name;
         }
@@ -1868,17 +1889,18 @@ function add_order_item_meta ( $item_id, $values ) {
             'meta_query'     => array(
               array(
                 'key'     => 'user_id',
-                'value'   => $tier->meta['user_id'][0],
+                'value'   => $tier->meta['user_id'],
                 'compare' => '='
               )
             )
           );
           $user_tiers = new \WP_Query( $args );
           foreach( $user_tiers->posts as $user_tier ) {
-            $user_tier_uuid = get_post_meta( $user_tier->ID, 'membership_tier_uuid', true );
+            $user_tier_uuid   = get_post_meta( $user_tier->ID, 'membership_tier_uuid', true );
+            $user_tier_status = get_post_meta( $user_tier->ID, 'membership_status', true );
             $tier->user->all_membership_tiers[] =  [
-              'uuid' => $user_tier_uuid,
-              //'name' => $tiers_by_uuid['tier_data'][ $user_tier_uuid ]['name'] ,
+              'uuid'   => $user_tier_uuid,
+              'status' => $user_tier_status,
             ];
           }
         } else {
@@ -2131,6 +2153,42 @@ function add_order_item_meta ( $item_id, $values ) {
   }
 
   /**
+   * Change status of Membership to Active (from Delayed)
+   * @return int
+   */
+  public static function daily_membership_activation_hook() {
+    $self = new self();
+    $yesterday_timestamp = current_time('timestamp') - 86400;
+    $membership_starts_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d\TH:i:sP');
+    $args = array(
+      'post_type' => $self->membership_cpt_slug,
+      'post_status' => 'publish',
+      'posts_per_page' => -1,
+      'meta_query'     => array(
+        array(
+          'key'     => 'membership_status',
+          'value'   => Wicket_Memberships::STATUS_DELAYED,
+          'compare' => '='
+        ),
+        array(
+          'key'     => 'membership_starts_at',
+          'value'   => $membership_starts_at,
+          'compare' => '<',
+          'type'    => 'CHAR',
+        ),
+      )
+    );
+
+    $memberships = get_posts( $args );
+    foreach( $memberships as $membership ) {
+      $memberships_updated[] = [$membership->ID, $membership->membership_status, $membership->membership_starts_at];
+      update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_ACTIVE );
+    }
+    Utilities::wc_log_mship_error( [ 'daily_membership_activation_hook', $membership_starts_at, $memberships_updated ] );
+    return count($memberships);
+  }
+
+  /**
    * Change status of Membership to Grace Period
    * @return int
    */
@@ -2150,11 +2208,6 @@ function add_order_item_meta ( $item_id, $values ) {
           'key'     => 'membership_status',
           'value'   => Wicket_Memberships::STATUS_ACTIVE,
           'compare' => '='
-        ),
-        array(
-          'key'     => 'membership_status',
-          'value'   => Wicket_Memberships::STATUS_GRACE,
-          'compare' => '!='
         ),
         array(
           'key'     => 'membership_ends_at',

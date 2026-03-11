@@ -271,6 +271,8 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
+
+  if( ! empty( $_ENV['ALLOW_LOCAL_IMPORTS'] )) {
     //DEBUG
     register_rest_route( $this->namespace, '/import/person_memberships', array(
       array(
@@ -291,7 +293,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
-
+  }
     //lookahead person name search
     register_rest_route( $this->namespace, '/mdp_person/search', array(
       array(
