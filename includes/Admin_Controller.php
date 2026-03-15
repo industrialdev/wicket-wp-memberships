@@ -869,6 +869,12 @@ class Admin_Controller {
     $order = new \WC_Order();
     $order->set_created_via( 'admin' );
     $order->set_customer_id( $customer_wp_id );
+
+    // Populate billing and shipping addresses from the customer's saved defaults
+    $customer = new \WC_Customer( $customer_wp_id );
+    $order->set_address( $customer->get_billing(), 'billing' );
+    $order->set_address( $customer->get_shipping(), 'shipping' );
+
     $order->add_product( $wc_product );
     $order->calculate_totals(); // Without this order total will be zero
     $order->set_status( 'checkout-draft' );
