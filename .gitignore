@@ -2,6 +2,7 @@
 /frontend/node_modules
 .phpunit.result.cache
 *.bak
+<<<<<<< HEAD
 
 # Yarn PnP and cache artifacts
 .pnp.cjs
@@ -9,3 +10,5 @@
 .yarn/releases/
 .yarn/install-state.gz
 .yarn/unplugged/
+=======
+>>>>>>> 73893d9 (Update .gitignore)
