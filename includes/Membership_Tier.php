@@ -511,6 +511,17 @@ class Membership_Tier {
     return false;
   }
 
+  /**
+   * Check if approval is required for this tier
+   */
+  public function is_renew_approval_required() {
+    if ( isset( $this->tier_data['renew_approval_required'] ) && $this->tier_data['renew_approval_required'] == 1 ) {
+      return $this->tier_data['renew_approval_required'];
+    }
+
+    return false;
+  }
+
     /**
    * Check if grant_owner_assignment is required for this tier
    */
