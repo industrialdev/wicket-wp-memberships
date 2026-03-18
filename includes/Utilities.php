@@ -1066,4 +1066,83 @@ function wicket_sub_org_select_callback( $subscription ) {
         'user_id' => get_current_user_id()
     ]);
   }
+
+
+  /**
+   * Get a DateTime object in UTC timezone.
+   * This is used to provide consistent time handling across different server configurations.
+   *
+   * @param string $date_string Optional date string to initialize the DateTime object. Defaults to 'now'.
+   * @return \DateTime DateTime object set to UTC timezone.
+   */
+  public static function get_utc_datetime($date_string = 'now')
+  {
+    return new \DateTime($date_string, new \DateTimeZone('UTC'));
+  }
+
+  /**
+   * Get the current datetime in UTC, based on the configured MDP timezone.
+   *
+   * @return \DateTime DateTime object representing "now", normalized to UTC.
+   */
+  public static function get_mdp_now()
+  {
+    // Get MDP timezone from environment variable, fallback to UTC
+    $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+
+    // Build "now" in MDP timezone, then normalize output to UTC
+    $mdp_now = new \DateTime('now', $mdp_timezone);
+
+    return $mdp_now->setTimezone(new \DateTimeZone('UTC'));
+  }
+
+  /**
+   * Get the start of an MDP day (midnight) in UTC timezone.
+   * This converts a date to the start of the day in the MDP timezone, then converts to UTC.
+   *
+   * @param string $date_string Optional date string to initialize. Defaults to 'now' for today.
+   * @return \DateTime DateTime object set to the start of the MDP day in UTC timezone.
+   */
+  public static function get_mdp_day_start($date_string = 'now')
+  {
+    // Get MDP timezone from environment variable, fallback to UTC
+    $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+    
+    // Create DateTime (timezone in string may override $mdp_timezone parameter)
+    $mdp_date = new \DateTime($date_string);
+    
+    // Force timezone to MDP (handles cases where input string contains timezone info)
+    $mdp_date->setTimezone($mdp_timezone);
+    
+    // Set to start of day (midnight) in MDP timezone
+    $mdp_date->setTime(0, 0, 0);
+    
+    // Convert to UTC and return
+    return $mdp_date->setTimezone(new \DateTimeZone('UTC'));
+  }
+
+  /**
+   * Get the end of an MDP day (23:59:59) in UTC timezone.
+   * This converts a date to the end of the day in the MDP timezone, then converts to UTC.
+   *
+   * @param string $date_string Optional date string to initialize. Defaults to 'now' for today.
+   * @return \DateTime DateTime object set to the end of the MDP day in UTC timezone.
+   */
+  public static function get_mdp_day_end($date_string = 'now')
+  {
+    // Get MDP timezone from environment variable, fallback to UTC
+    $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+    
+    // Create DateTime (timezone in string may override $mdp_timezone parameter)
+    $mdp_date = new \DateTime($date_string);
+    
+    // Force timezone to MDP (handles cases where input string contains timezone info)
+    $mdp_date->setTimezone($mdp_timezone);
+    
+    // Set to end of day (23:59:59) in MDP timezone
+    $mdp_date->setTime(23, 59, 59);
+    
+    // Convert to UTC and return
+    return $mdp_date->setTimezone(new \DateTimeZone('UTC'));
+  }
 }
