@@ -38,9 +38,16 @@ class Utilities {
     add_action( 'wp_ajax_woocommerce_remove_variations', [$this, 'intercept_variation_removal'], 1 );
     // Render a notice on the product edit page when a variation removal is blocked.
     add_action( 'admin_enqueue_scripts', [$this, 'enqueue_variation_protection_js'] );
-    add_action('admin_notices', [$this, 'show_membership_product_delete_error'], 1);
     add_action('admin_notices', [$this, 'show_membership_delete_error'], 1);
     add_action('template_redirect', [$this, 'wicket_membership_clear_the_cart'], 10);
+    // Register and handle custom bulk actions for product trash protection
+    add_filter('bulk_actions-edit-product', [$this, 'register_bulk_trash_protection'], 20, 1);
+    add_filter('handle_bulk_actions-edit-product', [$this, 'handle_bulk_trash_protection'], 20, 3);
+    // Unified error notice for membership product delete protection
+    add_action('admin_notices', [$this, 'show_combined_membership_product_delete_error'], 1);
+    // Enqueue JS for admin error notice on AJAX trash block
+    add_action('admin_enqueue_scripts', [$this, 'enqueue_trash_block_notice_js']);
+
     //allows connect a subscription to a membership on subscription edit page
     if(isset($_ENV['WICKET_MSHIP_ASSIGN_SUBSCRIPTION']) && $_ENV['WICKET_MSHIP_ASSIGN_SUBSCRIPTION']) {
       add_action('woocommerce_admin_order_data_after_order_details', [$this, 'wicket_display_membership_id_input_on_order'], 10, 1);
@@ -49,6 +56,108 @@ class Utilities {
     add_action('woocommerce_admin_order_data_after_order_details', [$this, 'display_autopay_status_row_admin'], 15, 1);
   }
 
+   /**
+   * Enqueue JS to display admin notice if AJAX trash is blocked.
+   */
+  public function enqueue_trash_block_notice_js() {
+    $screen = get_current_screen();
+    if ($screen && $screen->base === 'post' && $screen->post_type === 'product') {
+      ?>
+      <script>
+      jQuery(document).ajaxError(function(event, jqxhr, settings, thrownError) {
+        if (settings && settings.data && settings.data.indexOf('action=trash-post') !== -1) {
+          let response = {};
+          try { response = JSON.parse(jqxhr.responseText); } catch (e) {}
+          if (response && response.data && response.data.wicket_mship_block_message) {
+            // Remove any existing notices
+            jQuery('.wicket-mship-trash-block-notice').remove();
+            // Add new notice
+            jQuery('<div class="notice notice-error wicket-mship-trash-block-notice is-dismissible" style="border-color: red; background-color: #ff000024;"><p><strong>WICKET MEMBERSHIP ERROR:</strong> ' + response.data.wicket_mship_block_message + '</p></div>').prependTo('#wpbody-content');
+          }
+        }
+      });
+      </script>
+      <?php
+    }
+  }
+
+
+  /**
+   * Show a single error notice for membership product delete protection (bulk, quick, or single).
+   * Prefers the most specific message available.
+   */
+  public function show_combined_membership_product_delete_error() {
+    $transient_key = '_wicket_product_delete_error_' . get_current_user_id();
+    $message = get_transient($transient_key);
+    // If this is an AJAX trash request, return JSON error and block reload
+    if (defined('DOING_AJAX') && DOING_AJAX && isset($_POST['action']) && $_POST['action'] === 'trash-post') {
+      if ($message) {
+        wp_send_json_error([
+          'wicket_mship_block_message' => $message
+        ], 403);
+      } else {
+        wp_send_json_error([
+          'wicket_mship_block_message' => __('This product cannot be trashed or deleted because it is assigned to a membership. Remove the assignment first.', 'wicket-memberships')
+        ], 403);
+      }
+      exit;
+    }
+    if ($message) {
+      echo '<div class="notice notice-error error is-dismissible" style="border-color: red; background-color: #ff000024;"><p><strong>WICKET MEMBERSHIP ERROR:</strong> ' . esc_html($message) . '</p></div>';
+      delete_transient($transient_key);
+      if (isset($_GET['show_membership_product_delete_error'])) {
+        unset($_GET['show_membership_product_delete_error']);
+      }
+      return;
+    }
+    if (isset($_GET['show_membership_product_delete_error'])) {
+      echo '<div class="notice notice-error error is-dismissible" style="border-color: red; background-color: #ff000024;"><p><strong>WICKET MEMBERSHIP ERROR:</strong> THE PRODUCT YOU ATTEMPTED TO DELETE IS ASSIGNED TO A MEMBERSHIP. It must first be removed from the Membership Tier or Config. You cannot trash or delete a product before removing your membership plugin assignment(s).</p></div>';
+      return;
+    }
+  }
+
+  /**
+   * Register custom bulk actions for product trash protection (no-op, but required for handle_bulk_actions).
+   *
+   * @param array $bulk_actions
+   * @return array
+   */
+  public function register_bulk_trash_protection($bulk_actions) {
+    // No changes needed, just ensure our handler runs for the default 'trash' action
+    return $bulk_actions;
+  }
+
+  /**
+   * Handle bulk trash actions for products to enforce membership protection.
+   *
+   * @param string $redirect_to
+   * @param string $doaction
+   * @param array $post_ids
+   * @return string
+   */
+  public function handle_bulk_trash_protection($redirect_to, $doaction, $post_ids) {
+    if ($doaction !== 'trash') {
+      return $redirect_to;
+    }
+    $blocked = [];
+    foreach ($post_ids as $post_id) {
+      $post = get_post($post_id);
+      $message = $this->get_membership_product_block_message($post_id);
+      if ($post && $post->post_type === 'product' && $message !== null) {
+        $blocked[] = $post_id;
+        set_transient('_wicket_product_delete_error_' . get_current_user_id(), $message, 120);
+      }
+    }
+    if (!empty($blocked)) {
+      $redirect_to = add_query_arg('show_membership_product_delete_error', '1', $redirect_to);
+    }
+    return $redirect_to;
+  }
+
+  /**
+   * Show error notice for bulk product trash protection on the product list page.
+   */
+  
   public function display_autopay_status_row_admin($order) {
     if (!is_object($order) || !method_exists($order, 'get_type')) {
       return;
@@ -151,23 +260,6 @@ class Utilities {
     }
   }
 
-  function show_membership_product_delete_error() {
-    // Path A: URL parameter – set by the full-page redirect in prevent_trash_linked_product().
-    if ( isset( $_GET['show_membership_product_delete_error'] ) ) {
-      echo '<div class="notice notice-error error is-dismissible" style="border-color: red; background-color: #ff000024;"><p><strong>WICKET MEMBERSHIP ERROR:</strong> THE PRODUCT YOU ATTEMPTED TO DELETE IS ASSIGNED TO A MEMBERSHIP. It must first be removed from the Membership Tier or Config. You cannot trash or delete a product before removing your membership plugin assignment(s).</p></div>';
-      return;
-    }
-
-    // Path B: transient – set when the block occurs inside an AJAX request
-    // (e.g. future REST/Block-Editor trash flows) where a redirect is not possible,
-    // or as a fallback for variation-removal blocks.
-    $transient_key = '_wicket_product_delete_error_' . get_current_user_id();
-    $message       = get_transient( $transient_key );
-    if ( $message ) {
-      delete_transient( $transient_key );
-      echo '<div class="notice notice-error error is-dismissible" style="border-color: red; background-color: #ff000024;"><p><strong>WICKET MEMBERSHIP ERROR:</strong> ' . esc_html( $message ) . '</p></div>';
-    }
-  }
 
   /**
    * Returns the block-reason message if a product is currently assigned to a
