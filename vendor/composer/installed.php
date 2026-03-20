@@ -1,9 +1,9 @@
 <?php return array(
     'root' => array(
         'name' => 'industrialdev/wicket-wp-memberships',
-        'pretty_version' => '1.0.107',
-        'version' => '1.0.107.0',
-        'reference' => null,
+        'pretty_version' => 'dev-main',
+        'version' => 'dev-main',
+        'reference' => '82dd3ed6cde573a3a12fc9e860be7f5a9183e3c4',
         'type' => 'wordpress-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -11,9 +11,9 @@
     ),
     'versions' => array(
         'industrialdev/wicket-wp-memberships' => array(
-            'pretty_version' => '1.0.107',
-            'version' => '1.0.107.0',
-            'reference' => null,
+            'pretty_version' => 'dev-main',
+            'version' => 'dev-main',
+            'reference' => '82dd3ed6cde573a3a12fc9e860be7f5a9183e3c4',
             'type' => 'wordpress-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
