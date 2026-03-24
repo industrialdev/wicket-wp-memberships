@@ -1842,75 +1842,114 @@ function add_order_item_meta ( $item_id, $values ) {
       }
     }
 
-    add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
-    if( $type == 'organization' ) {
-      $args['meta_key'] = 'org_uuid';
-    } else {
-      $args['meta_key'] = 'user_id';
+    // Fetch all matching posts ordered by the requested column, then deduplicate
+    // per user/org in PHP. This avoids SQL GROUP BY's arbitrary representative row
+    // selection which causes non-deterministic sort order.
+    $args['posts_per_page'] = -1;
+    unset( $args['paged'] );
+
+    $all_posts    = new \WP_Query( $args );
+    $group_key    = ( $type === 'organization' ) ? 'org_uuid' : 'user_id';
+    $seen_keys    = [];
+    $deduplicated = [];
+    foreach ( $all_posts->posts as $post ) {
+      $key = get_post_meta( $post->ID, $group_key, true );
+      if ( $key !== '' && ! isset( $seen_keys[ $key ] ) ) {
+        $seen_keys[ $key ] = true;
+        $deduplicated[]    = $post;
+      }
     }
-    $tiers = new \WP_Query( $args );
-    remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
-    foreach( $tiers->posts as $tier ) {
+
+    $total_unique = count( $deduplicated );
+    $page_posts   = array_slice( $deduplicated, ( $page - 1 ) * $posts_per_page, $posts_per_page );
+
+    foreach ( $page_posts as $tier ) {
       $tier_meta = get_post_meta( $tier->ID );
-      $user_id = $tier_meta['user_id'][0];
-      $user = get_userdata( $user_id );
-      if(empty($user) || is_bool($user)) {
-        continue;
+      $user_id   = $tier_meta['user_id'][0];
+      $user      = get_userdata( $user_id );
+      if ( empty( $user ) || is_bool( $user ) ) {
+        if ( $type !== 'organization' ) {
+          continue;
+        }
+        // Org memberships without a valid WP contact user still need to appear.
+        $user               = new \stdClass();
+        $user->data         = new \stdClass();
+        $user->first_name   = '';
+        $user->last_name    = '';
+        $user->display_name = '';
+        $user->user_login   = '';
+        $user->data->display_name = '';
+        $user->data->user_email   = '';
+        $user->data->user_login   = '';
       }
       $tier_new_meta = [];
       array_walk(
         $tier_meta,
-        function(&$val, $key) use ( &$tier_new_meta )
-        {
-          if( $key == 'membership_tier_name' || str_starts_with( $key, '_' ) ) {
+        function( &$val, $key ) use ( &$tier_new_meta ) {
+          if ( $key == 'membership_tier_name' || str_starts_with( $key, '_' ) ) {
             return;
           }
-          $tier_new_meta[$key] = $val[0];
+          $tier_new_meta[ $key ] = $val[0];
         }
       );
       $tier->meta = $tier_new_meta;
 
-        // Always copy meta fields onto data before assigning
-        $user->data->first_name = $user->first_name;
-        $user->data->last_name  = $user->last_name;
+      // Always copy meta fields onto data before assigning
+      $user->data->first_name = $user->first_name;
+      $user->data->last_name  = $user->last_name;
 
-        if( $user->display_name == $user->user_login ) {
-          $user->display_name = $user->first_name . ' ' . $user->last_name;
-        }
-        unset( $user->user_pass );
-        $tier->user = $user->data;
-        if( $type != 'organization' ) {
-          $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/people/'.$user->data->user_login;
-          //$tiers_by_uuid = $this->get_tier_info(null);
-          $args = array(
-            'post_type' => $this->membership_cpt_slug,
-            'post_status' => 'publish',
-            'posts_per_page' => -1,
-            'meta_query'     => array(
-              array(
-                'key'     => 'user_id',
-                'value'   => $tier->meta['user_id'],
-                'compare' => '='
-              )
-            )
-          );
-          $user_tiers = new \WP_Query( $args );
-          foreach( $user_tiers->posts as $user_tier ) {
-            $user_tier_uuid   = get_post_meta( $user_tier->ID, 'membership_tier_uuid', true );
-            $user_tier_status = get_post_meta( $user_tier->ID, 'membership_status', true );
-            $tier->user->all_membership_tiers[] =  [
-              'uuid'   => $user_tier_uuid,
-              'status' => $user_tier_status,
-            ];
-          }
-        } else {
-          if(! empty($tier->user ) ) {
-            $tier->user->mdp_link = $wicket_settings['wicket_admin'].'/organizations/' . $tier->meta['org_uuid'];
-          }
-        }
-        $members_list[] = $tier;
+      if ( $user->display_name == $user->user_login ) {
+        $user->display_name = $user->first_name . ' ' . $user->last_name;
       }
-    return [ 'results' => $members_list, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => $tiers->found_posts ];
+      unset( $user->user_pass );
+      $tier->user = $user->data;
+
+      if ( $type != 'organization' ) {
+        $tier->user->mdp_link = $wicket_settings['wicket_admin'] . '/people/' . $user->data->user_login;
+        $user_tiers = new \WP_Query( array(
+          'post_type'      => $this->membership_cpt_slug,
+          'post_status'    => 'publish',
+          'posts_per_page' => -1,
+          'meta_query'     => array(
+            array(
+              'key'     => 'user_id',
+              'value'   => $tier->meta['user_id'],
+              'compare' => '='
+            )
+          )
+        ) );
+        foreach ( $user_tiers->posts as $user_tier ) {
+          $tier->user->all_membership_tiers[] = [
+            'uuid'   => get_post_meta( $user_tier->ID, 'membership_tier_uuid', true ),
+            'status' => get_post_meta( $user_tier->ID, 'membership_status', true ),
+          ];
+        }
+      } else {
+        $org_tiers = new \WP_Query( array(
+          'post_type'      => $this->membership_cpt_slug,
+          'post_status'    => 'publish',
+          'posts_per_page' => -1,
+          'meta_query'     => array(
+            array(
+              'key'     => 'org_uuid',
+              'value'   => $tier->meta['org_uuid'],
+              'compare' => '='
+            )
+          )
+        ) );
+        foreach ( $org_tiers->posts as $org_tier ) {
+          $tier->user->all_membership_tiers[] = [
+            'uuid'   => get_post_meta( $org_tier->ID, 'membership_tier_uuid', true ),
+            'status' => get_post_meta( $org_tier->ID, 'membership_status', true ),
+          ];
+        }
+        if ( ! empty( $tier->user ) ) {
+          $tier->user->mdp_link = $wicket_settings['wicket_admin'] . '/organizations/' . $tier->meta['org_uuid'];
+        }
+      }
+      $members_list[] = $tier;
+    }
+    return [ 'results' => $members_list, 'page' => $page, 'posts_per_page' => $posts_per_page, 'count' => $total_unique ];
   }
 
   public static function get_tier_info( $tier_uuids, $properties = [] ) {
