@@ -1583,7 +1583,7 @@ function add_order_item_meta ( $item_id, $values ) {
           $the_order = wc_get_order($order_id);
           $order_status = $the_order->get_status();
           $subscription_status = $current_subscription->get_status();
-          if($order_status == 'pending' && $subscription_status == 'on-hold') {
+          if(($order_status == 'pending' || $order_status == 'failed') && $subscription_status == 'on-hold') {
             $renewal_link_url = $the_order->get_checkout_payment_url();
             break;
           }
