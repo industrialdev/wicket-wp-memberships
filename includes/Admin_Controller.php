@@ -32,6 +32,7 @@ class Admin_Controller {
       var wicketMembershipsSettings = {
         'WICKET_MSHIP_MERGE_TOOLS': '<?php echo $_ENV['WICKET_MSHIP_MERGE_TOOLS']; ?>',
         'WICKET_MSHIP_MULTI_TIER_RENEWALS': '<?php echo $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS']; ?>',
+        'WICKET_MSHIP_MDP_TIMEZONE': '<?php echo $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC'; ?>',
       };
     </script>
     <?php
@@ -91,9 +92,11 @@ class Admin_Controller {
    * @return \WP_REST_Response
    */
   public static function admin_manage_status( $membership_post_id, $new_post_status ) {
-    $tomorrow_iso_date = (new \DateTime( date("Y-m-d", strtotime( "+1 day" )), wp_timezone() ))->format('c');
-    $yesterday_iso_date = (new \DateTime( date("Y-m-d", strtotime( "-1 day" )), wp_timezone() ))->format('c');
-    $now_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+
+    $tomorrow_iso_date = Utilities::get_mdp_day_end("+1 day")->format('c');
+    $yesterday_iso_date = Utilities::get_mdp_day_start("-1 day")->format('c');
+    $now_iso_date = Utilities::get_mdp_now()->format('c');
+
     //get membership records
     $current_post_status = get_post_meta( $membership_post_id, 'membership_status', true );
     $previous_membership_post_id = get_post_meta( $membership_post_id, 'previous_membership_post_id', true );
@@ -191,6 +194,8 @@ class Admin_Controller {
       return new \WP_REST_Response($response_array, $response_code);
     } else if( $new_post_status == Wicket_Memberships::STATUS_CANCELLED ) {
       //apply the rules
+
+      // If the membership is a future membership, set ends and expires at to now
       if( $current_post_status == Wicket_Memberships::STATUS_PENDING  || $current_post_status == Wicket_Memberships::STATUS_DELAYED) {
         $meta_data = [
           'membership_status' => $new_post_status,
@@ -200,6 +205,8 @@ class Admin_Controller {
           'membership_grace_period_days' => 0
         ];
       }
+      
+      // If the membership is in grace period, set the expiry to now
       else if( $current_post_status == Wicket_Memberships::STATUS_GRACE) {
         //var_dump($membership_current);exit;
         $meta_data = [
@@ -209,14 +216,17 @@ class Admin_Controller {
           'membership_grace_period_days' => 0
         ];
       }
+
+      // Standard cancellation, set the end date to now.
       else {
         $meta_data = [
           'membership_status' => $new_post_status,
-          'membership_ends_at' => $tomorrow_iso_date,
-          'membership_expires_at' => $tomorrow_iso_date,
+          'membership_ends_at' => $now_iso_date,
+          'membership_expires_at' => $now_iso_date,
           'membership_grace_period_days' => 0
         ];
       }
+
       // cancel the associated subscription
       if( function_exists( 'wcs_get_subscription' )) {
         $sub = wcs_get_subscription( $membership_new['membership_subscription_id'] );
@@ -456,6 +466,12 @@ class Admin_Controller {
       $membership_data['membership_next_tier_form_page_id'] = (int) $membership_data['membership_next_tier_form_page_id'];
       $membership_item['mdp_person_link'] = $wicket_settings['wicket_admin'] . '/people/' . $membership_data['membership_user_uuid'];
 
+      // To add better support for legacy data, we will parse the database times into PHP objects, as not all database objects are in ISO 8601 format
+      $membership_starts_at = new \DateTime($meta['membership_starts_at']);
+      $membership_ends_at = new \DateTime($meta['membership_ends_at']);
+      $membership_expires_at = new \DateTime($meta['membership_expires_at']);
+      $membership_early_renew_at = new \DateTime($meta['membership_early_renew_at']);
+      
       if (!empty($membership_data['membership_user_uuid'])) {
         $user = get_user_by( 'login', $membership_data['membership_user_uuid'] );
         if(!empty($user)) {
@@ -467,10 +483,10 @@ class Admin_Controller {
         $membership_item['data'] = $membership_data;
         $membership_item['data']['membership_status_slug'] = $meta['membership_status'];
         $membership_item['data']['membership_status'] = $statuses[ $meta['membership_status'] ]['name'];
-        $membership_item['data']['membership_starts_at'] = date( "m/d/Y", strtotime( $meta['membership_starts_at'] ) );
-        $membership_item['data']['membership_ends_at'] = date( "m/d/Y", strtotime( $meta['membership_ends_at'] ) );
-        $membership_item['data']['membership_expires_at'] = date( "m/d/Y", strtotime( $meta['membership_expires_at'] ) );
-        $membership_item['data']['membership_early_renew_at'] = date( "m/d/Y", strtotime( $meta['membership_early_renew_at'] ) );
+        $membership_item['data']['membership_starts_at'] = $membership_starts_at->format('c');
+        $membership_item['data']['membership_ends_at'] = $membership_ends_at->format('c');
+        $membership_item['data']['membership_expires_at'] = $membership_expires_at->format('c');
+        $membership_item['data']['membership_early_renew_at'] = $membership_early_renew_at->format('c');
       } else {
         $membership_item['data'] = [];
       }
@@ -490,6 +506,7 @@ class Admin_Controller {
           $membership_item['order']['link'] = admin_url( '/post.php?action=edit&post=' . $membership_item['data']['membership_parent_order_id'] );
           $membership_item['order']['total'] = $order->get_total();
           $membership_item['order']['status'] = $order->get_status();
+          // TODO:
           $membership_item['order']['date_created'] =  $order->get_date_created()->format('Y-m-d');
           if(!empty( $order->get_date_completed() )) {
             $membership_item['order']['date_completed'] = $order->get_date_completed()->format('Y-m-d');
@@ -504,6 +521,7 @@ class Admin_Controller {
           $membership_item['subscription']['status'] = $sub->get_status();
           $sub_next_payment_date = $sub->get_time('next_payment');
           if( empty($sub_next_payment_date_set ) && !empty($sub_next_payment_date ) && ($meta['membership_status'] == 'delayed' || $meta['membership_status'] == 'active')) {
+            // TODO: Confirm the timezone is correct
             $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub_next_payment_date), wp_timezone() ))->format('Y-m-d');
             $sub_next_payment_date_set = true;
           } else {
@@ -540,12 +558,13 @@ class Admin_Controller {
     $date_update_response = '';
     $ownership_change_response = '';
 
-    $membership_starts_at_seconds = strtotime( $data[ 'membership_starts_at' ] );
-    $membership_ends_at_seconds = strtotime( $data[ 'membership_ends_at' ] );
-    $membership_expires_at_seconds = strtotime( $data[ 'membership_expires_at' ] );
+    // Normalize dates to MDP timezone (start at midnight, end at 23:59:59) then convert to UTC
+    $membership_starts_at = Utilities::get_mdp_day_start( $data[ 'membership_starts_at' ] );
+    $membership_ends_at = Utilities::get_mdp_day_end( $data[ 'membership_ends_at' ] );
+    $membership_expires_at = Utilities::get_mdp_day_end( $data[ 'membership_expires_at' ] );
 
     // Allow setting correct dates only: Start Date < End Date < Expiry Date
-    if( ! ( $membership_starts_at_seconds < $membership_ends_at_seconds && $membership_ends_at_seconds <= $membership_expires_at_seconds ) ) {
+    if( ! ( $membership_starts_at < $membership_ends_at && $membership_ends_at <= $membership_expires_at ) ) {
       $response_array['error'] = 'Error: Membership update failed. Invalid date sequence.';
       $response_array['response'] = Helper::get_post_meta( $data['membership_post_id'] );
       Utilities::wc_log_mship_error($response_array);
@@ -618,9 +637,14 @@ class Admin_Controller {
       $membership_tier = new Membership_Tier( $membership_tier_id );
       $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
       $renewal_window_days = $config->get_renewal_window_days();
-      $membership_early_renew_at_seconds = strtotime("-$renewal_window_days days", strtotime($data[ 'membership_ends_at' ]));
+      
+      // Calculate early renew date by subtracting renewal window days from end date
+      $membership_early_renew_at = clone $membership_ends_at;
+      $membership_early_renew_at->modify("-$renewal_window_days days");
+      $membership_early_renew_at = Utilities::get_mdp_day_start($membership_early_renew_at->format('Y-m-d'));
 
-      $grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
+      // Calculate grace period days using DateTime diff
+      $grace_period_days = abs($membership_ends_at->diff($membership_expires_at)->days);
 
         $data['membership_next_tier_id'] = $membership_post['membership_next_tier_id'][0];
         $data['membership_next_tier_form_page_id'] = $membership_post['membership_next_tier_form_page_id'][0];
@@ -652,11 +676,12 @@ class Admin_Controller {
         $data['membership_next_tier_subscription_renewal'] = $membership_tier->is_renewal_subscription();
       }
 
-      $data[ 'membership_starts_at' ]  = (new \DateTime( date("Y-m-d", $membership_starts_at_seconds), wp_timezone() ))->format('c');
-      $data[ 'membership_early_renew_at' ]  = (new \DateTime( date("Y-m-d", $membership_early_renew_at_seconds ), wp_timezone() ))->format('c');
-      $data[ 'membership_ends_at' ]  = (new \DateTime( date("Y-m-d", $membership_ends_at_seconds ), wp_timezone() ))->format('c');
-      $data[ 'membership_expires_at' ]  = (new \DateTime( date("Y-m-d", $membership_expires_at_seconds ), wp_timezone() ))->format('c');
-      $data[ 'membership_grace_period_days' ] = $grace_period_days;
+      // Dates are already normalized DateTime objects, format them as ISO 8601 UTC
+      $data['membership_starts_at'] = $membership_starts_at->format('c');
+      $data['membership_early_renew_at'] = $membership_early_renew_at->format('c');
+      $data['membership_ends_at'] = $membership_ends_at->format('c');
+      $data['membership_expires_at'] = $membership_expires_at->format('c');
+      $data['membership_grace_period_days'] = $grace_period_days;
     }
 
     $local_response = $Membership_Controller->update_local_membership_record( $membership_post_id, $data );
@@ -844,6 +869,12 @@ class Admin_Controller {
     $order = new \WC_Order();
     $order->set_created_via( 'admin' );
     $order->set_customer_id( $customer_wp_id );
+
+    // Populate billing and shipping addresses from the customer's saved defaults
+    $customer = new \WC_Customer( $customer_wp_id );
+    $order->set_address( $customer->get_billing(), 'billing' );
+    $order->set_address( $customer->get_shipping(), 'shipping' );
+
     $order->add_product( $wc_product );
     $order->calculate_totals(); // Without this order total will be zero
     $order->set_status( 'checkout-draft' );
