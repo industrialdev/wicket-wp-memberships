@@ -72,11 +72,16 @@ function get_item_data ( $other_data, $cart_item ) {
 }
 
 function add_order_item_meta ( $item_id, $values ) {
-    if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
-      wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
+    if (!is_array($values)) {
+      return;
     }
-    if(empty(wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)) && !empty($values['membership_post_id_renew'])) {
-      wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $values['membership_post_id_renew'] );
+
+    if (empty(wc_get_order_item_meta($item_id, '_org_uuid', true)) && !empty($values['org_uuid'])) {
+      wc_add_order_item_meta($item_id, '_org_uuid', $values['org_uuid']);
+    }
+
+    if (empty(wc_get_order_item_meta($item_id, '_membership_post_id_renew', true)) && !empty($values['membership_post_id_renew'])) {
+      wc_add_order_item_meta($item_id, '_membership_post_id_renew', $values['membership_post_id_renew']);
     }
 }
 
@@ -793,10 +798,12 @@ function add_order_item_meta ( $item_id, $values ) {
       'post_status' => 'publish',
       'meta_input'  => $meta_data
     ]);
-    $customer_meta = get_user_meta( $meta_data['user_id'], '_wicket_membership_'.$membership_post_id );
-    if( empty( $customer_meta ) || empty( $customer_meta[0]['membership_post_id']) ) {
-      $customer_meta_array = Helper::get_post_meta( $membership_post_id );
-      update_user_meta( $meta_data['user_id'], '_wicket_membership_'.$membership_post_id, json_encode( $customer_meta_array) );
+    if (!empty($meta_data['user_id'])) {
+      $customer_meta = get_user_meta($meta_data['user_id'], '_wicket_membership_'.$membership_post_id);
+      if (empty($customer_meta) || empty($customer_meta[0]['membership_post_id'])) {
+        $customer_meta_array = Helper::get_post_meta($membership_post_id);
+        update_user_meta($meta_data['user_id'], '_wicket_membership_'.$membership_post_id, json_encode($customer_meta_array));
+      }
     }
     return $return;
   }
@@ -849,7 +856,7 @@ function add_order_item_meta ( $item_id, $values ) {
       'membership_parent_order_id' => $membership['membership_parent_order_id'],
       'membership_product_id' => $membership['membership_product_id'],
       'membership_subscription_id' => $membership['membership_subscription_id'],
-      'previous_membership_post_id' => $membership['previous_membership_post_id'],
+      'previous_membership_post_id' => $membership['previous_membership_post_id'] ?? 0,
     ];
     if( $membership['membership_type'] == 'organization') {
       $org_data = Helper::get_org_data( $membership['organization_uuid'] );
@@ -901,18 +908,20 @@ function add_order_item_meta ( $item_id, $values ) {
       $this->wicket_update_subscription_meta_membership_post_id( $membership_post, $membership );
     }
 
-    $customer_meta = get_user_meta( $membership['user_id'], '_wicket_membership_'.$membership['membership_post_id'] );
-    if( empty( $customer_meta ) || empty( $customer_meta[0]['membership_post_id']) ) {
-      $customer_meta_array = $meta;
-    } else {
-      $customer_meta_array = json_decode( $customer_meta[0], true);
-      $customer_meta_array = array_merge( $customer_meta_array, $meta );
-    }
+    if (!empty($membership['user_id'])) {
+      $customer_meta = get_user_meta($membership['user_id'], '_wicket_membership_'.$membership_post);
+      if (empty($customer_meta) || empty($customer_meta[0]['membership_post_id'])) {
+        $customer_meta_array = $meta;
+      } else {
+        $customer_meta_array = json_decode($customer_meta[0], true);
+        $customer_meta_array = array_merge($customer_meta_array, $meta);
+      }
 
-    $customer_meta_array['membership_post_id'] = $membership_post;
-    $customer_meta_array['membership_tier_post_id'] = $membership['membership_tier_post_id'];
-    $customer_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
-    update_user_meta( $membership['user_id'], '_wicket_membership_'.$membership_post, json_encode( $customer_meta_array) );
+      $customer_meta_array['membership_post_id'] = $membership_post;
+      $customer_meta_array['membership_tier_post_id'] = $membership['membership_tier_post_id'];
+      $customer_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
+      update_user_meta($membership['user_id'], '_wicket_membership_'.$membership_post, json_encode($customer_meta_array));
+    }
     return $membership_post;
   }
 

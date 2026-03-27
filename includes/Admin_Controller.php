@@ -251,7 +251,7 @@ class Admin_Controller {
     //update membership dates in MDP
     if( !empty( $updated ) && ! $Membership_Controller->bypass_wicket ) {
       $response = $Membership_Controller->update_mdp_record( $membership_new, $meta_data );
-      if ( strstr( $response['error'], '404 Not Found') !== false && ! empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
+      if ( !empty($response['error']) && strstr( $response['error'], '404 Not Found') !== false && ! empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
         $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
         Utilities::wc_log_mship_error(['success' => 'Status Changed. NOTE: No mdp record exists for this membership.']);
         return new \WP_REST_Response(['success' => 'Status Changed. NOTE: No mdp record exists for this membership.'], 200);
