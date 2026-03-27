@@ -101,6 +101,10 @@ class Admin_Controller {
     $Membership_Controller = new Membership_Controller();
     $user_id = $Membership_Controller->get_user_id_from_membership_post( $membership_post_id );
     $membership_new = $Membership_Controller->get_membership_array_from_user_meta_by_post_id( $membership_post_id, $user_id );
+    $membership_post_meta = Helper::get_post_meta( $membership_post_id );
+    if( ! empty( $membership_post_meta ) ) {
+      $membership_new = array_merge( (array) $membership_new, $membership_post_meta );
+    }
 
     if( empty( $new_post_status )) {
       $response_array['error'] = 'Invalid status transition. Requested status was not received.';
@@ -201,10 +205,10 @@ class Admin_Controller {
         ];
       }
       else if( $current_post_status == Wicket_Memberships::STATUS_GRACE) {
-        //var_dump($membership_current);exit;
+        $current_end_date = $membership_post_meta['membership_ends_at'] ?? get_post_meta( $membership_post_id, 'membership_ends_at', true );
         $meta_data = [
           'membership_status' => $new_post_status,
-          //'membership_ends_at' => $membership_current['membership_ends_at'],
+          'membership_ends_at' => $current_end_date,
           'membership_expires_at' => $now_iso_date,
           'membership_grace_period_days' => 0
         ];
@@ -222,6 +226,16 @@ class Admin_Controller {
         $sub = wcs_get_subscription( $membership_new['membership_subscription_id'] );
         if(! empty( $sub )) {
           $sub->update_status( 'cancelled' );
+          if( ! empty( $meta_data['membership_ends_at'] ) && $current_post_status != Wicket_Memberships::STATUS_GRACE ) {
+            $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
+            $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+            $sub->update_dates([
+              'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
+            ]);
+          }
+          $sub->update_dates([
+            'next_payment' => 0,
+          ]);
           $sub->save();
         }
       }
@@ -242,6 +256,16 @@ class Admin_Controller {
         $sub = wcs_get_subscription( $membership_new['membership_subscription_id'] );
         if(! empty( $sub )) {
           $sub->update_status( 'cancelled' );
+          if( ! empty( $meta_data['membership_ends_at'] ) ) {
+            $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
+            $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+            $sub->update_dates([
+              'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
+            ]);
+          }
+          $sub->update_dates([
+            'next_payment' => 0,
+          ]);
           $sub->save();
         }
       }
