@@ -642,7 +642,7 @@ class Helper {
 
     echo '<div class="order_data_column">
       <h4>' . esc_html__( 'Wicket Membership', 'wicket-memberships' ) . '</h4>
-      <p><a style="white-space: nowrap;" href="' . esc_url( $edit_url ) . '">#' . esc_html( $membership_post_id ) . ' ' . esc_html__( 'Edit Membership', 'wicket-memberships' ) . '</a></p>
+      <p><a style="white-space: nowrap;" href="' . esc_url( $edit_url ) . '">#' . esc_html( $membership_post_id ) . ' ' . esc_html__( 'View Membership', 'wicket-memberships' ) . '</a></p>
     </div>';
   }
 
