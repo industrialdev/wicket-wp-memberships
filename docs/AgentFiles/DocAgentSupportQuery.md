@@ -142,7 +142,7 @@ The key principle in all cases is to give the agent an explicit intermediate ste
 
 =================================================
 
-Client Question 2) Eduardo Fonseca Arraes-- Mannanova Solutions Inc currently is an active member however the 'membership under review' call out remains in the profile. Colleague from same organization Bernadette Cardin-Simard-- profile does not have the call out. Please advise.
+Client Question 2) Eduardo currently is an active member however the 'membership under review' call out remains in the profile. Colleague from same organization Bernadette-- profile does not have the call out. Please advise.
 
 Support Query: Why would a Pending Approval callout continue to appear in the account center for a user with a cuurently active membership.
 
