@@ -319,11 +319,8 @@ function wicket_update_membership_json_data( $post_id, $debug = 0, $membership_i
 }
 
  function wicket_wc_log_mship_sync( $data, $append_file_name = '', $level = 'error' ) {
-    if (class_exists('WC_Logger')) {
-      $logger = new \WC_Logger();
-      if(is_array( $data )) {
-        $data = wc_print_r( $data, true );
-      }
-      $logger->log($level, $data, ['source' => 'wicket-membership-sync-'.time().'-'.$append_file_name]);
+    if(is_array( $data )) {
+      $data = wc_print_r( $data, true );
     }
+    Wicket()->log($level, $data, ['source' => 'wicket-membership-sync-'.time().'-'.$append_file_name]);
   }
