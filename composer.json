@@ -9,6 +9,7 @@
       "homepage": "https://wicket.io"
     }
   ],
+  "version": "1.0.107",
   "type": "wordpress-plugin",
   "autoload": {
     "psr-4": {
@@ -17,5 +18,8 @@
   },
   "require": {
     "php": ">=8.0"
+  },
+  "scripts": {
+    "production": "composer install --no-dev --optimize-autoloader"
   }
 }
