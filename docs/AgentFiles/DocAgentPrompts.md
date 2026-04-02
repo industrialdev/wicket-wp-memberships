@@ -7,6 +7,14 @@ Complete phase 3 in DocAgentMembership.md
 Complete Phase 4 in DocAgentMembership.md
 
 Read docs/integrations-index/acc-callout-memberships-info.md and combine it with docs/integrations-index/ac-callout-memberships.md to provide a rounded and robust overview of the renewal callout behavior and functionality in the file docs/integrations-index/ac-memebrship-callout-combined-doc.md
+
+Describe functionality related to Membership Date changes
+- how do manual membership date changes affect subscription dates
+- how does changing membership status affect membership and subscription dates
+- use the code specifically including date and status management in Admin_Controller.php
+- use the code specifically including methods called in Membership_Controller when dates are changed
+- use all the other docs we have created so far to analyse this behavior
+- include the results in the style of a support document in an approriately named new file within docs/AgentFiles/integrations-index
 ---
 
 ## Summary of Work & Results
