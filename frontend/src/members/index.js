@@ -358,7 +358,13 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                     currentDir={searchParams.order_dir}
                     onSort={handleSort}
                   />
-                  <th scope="col" className="manage-column">{ __( 'Last Name', 'wicket-memberships' ) }</th>
+                  <SortableHeader
+                    label={ __( 'Last Name', 'wicket-memberships' ) }
+                    col="user_last_name"
+                    currentCol={searchParams.order_col}
+                    currentDir={searchParams.order_dir}
+                    onSort={handleSort}
+                  />
                 </>
               )}
               { memberType === 'organization' && (
@@ -462,7 +468,23 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                         </div>
                       </td>
                       <td>
-                        {member.user.last_name}
+                        <strong>
+                          <a href={addQueryArgs(editMemberUrl, { id: member.user.user_login })}
+                            className='row-title'
+                          >{member.user.last_name}</a>
+                        </strong>
+                        <div className="row-actions">
+                          <span className="edit">
+                            <a
+                              href={addQueryArgs(editMemberUrl, {
+                                id: member.user.user_login,
+                              })}
+                              aria-label={__("Edit", "wicket-memberships")}
+                            >
+                              {__("Edit", "wicket-memberships")}
+                            </a>
+                          </span>
+                        </div>
                       </td>
                     </>
                   )}

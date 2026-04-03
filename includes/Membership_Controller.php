@@ -18,6 +18,7 @@ class Membership_Controller {
   private $membership_config_cpt_slug = '';
   private $membership_tier_cpt_slug = '';
   private $membership_search_term = '';
+  private $_last_name_sort_dir = 'DESC';
 
   //don't create wicket connection - for testing locally
   public $bypass_wicket;
@@ -263,6 +264,7 @@ function add_order_item_meta ( $item_id, $values ) {
                 'membership_subscription_interval' => get_post_meta( $subscription_id, '_billing_interval')[0],
                 'membership_wp_user_id' => $user_object->ID,
                 'membership_wp_user_display_name' => $user_object->display_name,
+                'membership_wp_user_last_name' => $user_object->last_name,
                 'membership_wp_user_email' => $user_object->user_email,
                 'membership_user_uuid' => $user_object->user_login,
                 'membership_grace_period_days' => $config->get_late_fee_window_days()
@@ -1087,6 +1089,7 @@ function add_order_item_meta ( $item_id, $values ) {
       'membership_next_tier_subscription_renewal' => $membership['membership_next_tier_subscription_renewal'],
       'membership_wicket_uuid' => $membership_wicket_uuid,
       'user_name' => $membership['membership_wp_user_display_name'],
+      'user_last_name' => $membership['membership_wp_user_last_name'] ?? '',
       'user_email' => $membership['membership_wp_user_email'],
       'membership_user_uuid' => $membership['membership_user_uuid'],
       'membership_parent_order_id' => $membership['membership_parent_order_id'],
@@ -1750,7 +1753,16 @@ function add_order_item_meta ( $item_id, $values ) {
   public function get_members_list_group_by_filter($groupby){
     global $wpdb;
     return $wpdb->postmeta . '.meta_value ';
- }
+  }
+
+  public function get_members_list_last_name_orderby( $_orderby ) {
+    global $wpdb;
+    $dir = isset( $this->_last_name_sort_dir ) && $this->_last_name_sort_dir === 'ASC' ? 'ASC' : 'DESC';
+    return "(SELECT um.meta_value FROM {$wpdb->usermeta} um
+             INNER JOIN {$wpdb->postmeta} pm ON pm.meta_value = um.user_id AND pm.meta_key = 'user_id' AND pm.post_id = {$wpdb->posts}.ID
+             WHERE um.meta_key = 'last_name'
+             LIMIT 1) $dir";
+  }
 
   public function get_members_list( $type, $page, $posts_per_page, $status, $search = '', $filter = [], $order_col = null, $order_dir = null ) {
     $members_list = [];
@@ -1793,6 +1805,10 @@ function add_order_item_meta ( $item_id, $values ) {
     if ( empty( $order_col ) || $order_col === 'post_modified' ) {
       $args['orderby'] = 'modified';
       $args['order']   = $sort_dir;
+    } elseif ( $order_col === 'user_last_name' ) {
+      $sort_dir_safe = $sort_dir === 'ASC' ? 'ASC' : 'DESC';
+      $this->_last_name_sort_dir = $sort_dir_safe;
+      add_filter( 'posts_orderby', [ $this, 'get_members_list_last_name_orderby' ] );
     } else {
       $args['meta_query']['sort_meta'] = array(
         'key'     => $order_col,
@@ -1849,6 +1865,7 @@ function add_order_item_meta ( $item_id, $values ) {
     unset( $args['paged'] );
 
     $all_posts    = new \WP_Query( $args );
+    remove_filter( 'posts_orderby', [ $this, 'get_members_list_last_name_orderby' ] );
     $group_key    = ( $type === 'organization' ) ? 'org_uuid' : 'user_id';
     $seen_keys    = [];
     $deduplicated = [];
