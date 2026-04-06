@@ -5,10 +5,11 @@ import apiFetch from '@wordpress/api-fetch';
 import { addQueryArgs } from '@wordpress/url';
 import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_SETTINGS } from '../constants';
 import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../styled_elements';
-import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
+import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon } from '@wordpress/components';
+import ManageStatusModal from './ManageStatusModal';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
-import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo, fetchMdpPersons } from '../services/api';
+import { fetchTiers, fetchMemberships, updateMembership, fetchMemberInfo, fetchMdpPersons } from '../services/api';
 import he from 'he';
 import moment from 'moment-timezone';
 import CreateRenewalOrder from './create_renewal_order';
@@ -107,13 +108,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const [memberships, setMemberships] = useState([]);
   const [membershipOwnerOptions, setMembershipOwnerOptions] = useState([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
-  const [manageStatusErrors, setManageStatusErrors] = useState([]);
-  const [manageStatusFormData, setManageStatusFormData] = useState({
-    postId: null,
-    currentStatus: '',
-    newStatus: '',
-    availableStatuses: []
-  });
+  const [manageStatusTarget, setManageStatusTarget] = useState({ postId: null, currentStatus: '' });
 
   const loadMembershipOwnerOptions = (inputValue, callback) => {
     if (  inputValue.length < 3 ) { return; }
@@ -134,71 +129,30 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       });
   };
 
-  const openManageStatusModalOpen = (membershipIndex) => {
-    setManageStatusFormData({
+  const openManageStatusModal = (membershipIndex) => {
+    setManageStatusTarget({
       postId: memberships[membershipIndex].data.membership_post_id,
       currentStatus: memberships[membershipIndex].data.membership_status,
-      newStatus: '',
-      availableStatuses: []
     });
-    getMembershipStatuses(membershipIndex);
     setIsManageStatusModalOpen(true);
   }
 
-
-  /**
-   * Close the Manage Status Modal
-   */
-  const closeManageStatusModalOpen = () => {
+  const closeManageStatusModal = () => {
     setIsManageStatusModalOpen(false);
   }
 
-  const getMembershipStatusOptions = () => {
-    let statuses = Object.keys(manageStatusFormData.availableStatuses).map((status) => {
-      return {
-        label: manageStatusFormData.availableStatuses[status].name,
-        value: manageStatusFormData.availableStatuses[status].slug
-      };
-    });
-
-    // prepend the empty option
-    statuses.unshift({
-      label: __('Select Status', 'wicket-memberships'),
-      value: ''
-    });
-
-    return statuses;
-  }
-
-  const handleManageStatusModalSubmit = (event) => {
-    event.preventDefault();
-
-    updateMembershipStatus(manageStatusFormData.postId, manageStatusFormData.newStatus)
-      .then((response) => {
-        if (response.success) {
-          closeManageStatusModalOpen();
-
-          // update status for this membership
-          setMemberships(
-            memberships.map((m) => {
-              if (m.ID == manageStatusFormData.postId) {
-                m.data.membership_status = manageStatusFormData.newStatus;
-                m.data.membership_ends_at = moment.utc(response.response.membership_ends_at).endOf('day').toISOString();
-                m.data.membership_expires_at = moment.utc(response.response.membership_expires_at).endOf('day').toISOString();
-                m.updatedNow = true;
-              }
-              return m;
-            })
-          );
-
-        } else {
-          console.log(response);
-          setManageStatusErrors([response.error]);
+  const handleStatusUpdated = (postId, newStatus, responseData) => {
+    setMemberships(
+      memberships.map((m) => {
+        if (m.ID == postId) {
+          m.data.membership_status = newStatus;
+          m.data.membership_ends_at = moment.utc(responseData.membership_ends_at).endOf('day').toISOString();
+          m.data.membership_expires_at = moment.utc(responseData.membership_expires_at).endOf('day').toISOString();
+          m.updatedNow = true;
         }
+        return m;
       })
-      .catch((error) => {
-        console.error(error);
-      });
+    );
   }
 
   const getMemberships = () => {
@@ -265,24 +219,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
         setMemberships(response);
         setIsLoading(false);
       }).catch((error) => {
-        console.error(error);
-      });
-  }
-
-  const getMembershipStatuses = (membershipIndex) => {
-
-    const membership = memberships[membershipIndex];
-
-    fetchMembershipStatuses(membership.data.membership_post_id)
-      .then((response) => {
-        setManageStatusFormData({
-          postId: membership.data.membership_post_id,
-          currentStatus: membership.data.membership_status,
-          newStatus: '',
-          availableStatuses: response
-        });
-      })
-      .catch((error) => {
         console.error(error);
       });
   }
@@ -503,8 +439,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       return subscription.next_payment_date
     }
   }
-
-  console.log('manageStatusFormData', manageStatusFormData);
 
   console.log('MEMBERSHIPS', memberships);
 
@@ -794,7 +728,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                     <Button
                                       variant='secondary'
                                       onClick={() => {
-                                        openManageStatusModalOpen(index);
+                                        openManageStatusModal(index);
                                       }}
                                     >
                                       {__('Manage Status', 'wicket-memberships')}
@@ -1105,99 +1039,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 			</div>
 
 			{/* "Manage Status" Modal */}
-			{isManageStatusModalOpen && (
-				<Modal
-					title={__('Change Status', 'wicket-memberships')}
-					onRequestClose={closeManageStatusModalOpen}
-					style={
-						{
-							maxWidth: '840px',
-							width: '100%'
-						}
-					}
-				>
-					<form onSubmit={handleManageStatusModalSubmit}>
-
-						{manageStatusErrors.length > 0 && (
-							<ErrorsRow>
-								{manageStatusErrors.map((errorMessage, index) => (
-									<Notice isDismissible={false} key={index} status="warning">{errorMessage}</Notice>
-								))}
-							</ErrorsRow>
-						)}
-
-              <MarginedFlex
-                align='end'
-                justify='start'
-                gap={5}
-                direction={[
-                  'column',
-                  'row'
-                ]}
-              >
-							<FlexBlock>
-								<TextControl
-									label={__('Current Status', 'wicket-memberships')}
-                  disabled={true}
-                  style={{
-                    backgroundColor: '#F6F7F7'
-                  }}
-									value={manageStatusFormData.currentStatus}
-                  __nextHasNoMarginBottom={true}
-								/>
-							</FlexBlock>
-              <FlexItem>
-                <div
-                  style={{
-                    fontWeight: 500,
-                    marginBottom: '5px'
-                  }}
-                >
-                  {__('To', 'wicket-memberships')}
-                </div>
-              </FlexItem>
-              <FlexBlock>
-                <SelectControl
-                  label={__('New Status', 'wicket-memberships')}
-                  value={manageStatusFormData.newStatus}
-                  onChange={(value) => {
-                    setManageStatusFormData({
-                      ...manageStatusFormData,
-                      newStatus: value
-                    });
-                  }}
-                  options={
-                    getMembershipStatusOptions()
-                  }
-                  __nextHasNoMarginBottom={true}
-                />
-              </FlexBlock>
-						</MarginedFlex>
-
-						<ActionRow>
-							<Flex
-								align='end'
-								gap={5}
-								direction={[
-									'column',
-									'row'
-								]}
-							>
-								<FlexItem>
-									<Button
-                    variant="primary"
-                    type='submit'
-                    disabled={manageStatusFormData.newStatus === ''}
-                  >
-										{__('Update Status', 'wicket-memberships')}
-									</Button>
-								</FlexItem>
-							</Flex>
-
-						</ActionRow>
-					</form>
-				</Modal>
-			)}
+			<ManageStatusModal
+				isOpen={ isManageStatusModalOpen }
+				onClose={ closeManageStatusModal }
+				membershipPostId={ manageStatusTarget.postId }
+				currentStatus={ manageStatusTarget.currentStatus }
+				onStatusUpdated={ handleStatusUpdated }
+			/>
 
 		</AppWrap>
 	);

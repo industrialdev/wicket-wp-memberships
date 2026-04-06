@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { TextControl, TextareaControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalText as Text } from '@wordpress/components';
+import { TextControl, TextareaControl, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalText as Text } from '@wordpress/components';
+import ApprovalCalloutModal from './ApprovalCalloutModal';
 import styled from 'styled-components';
 import { API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS } from '../constants';
 import he from 'he';
@@ -20,8 +21,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	const languageCodesArray = languageCodes.split(',');
 	const productVariationsInUseArray = productVariationsInUse.split(',');
 
-	const [currentApprovalCalloutLocale, setCurrentApprovalCalloutLocale] = useState(languageCodesArray[0]);
-
 	const renewalTypeOptions = [
 		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' },
 		{ label: __('Sequential Logic', 'wicket-memberships'), value: 'sequential_logic' },
@@ -34,8 +33,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	const closeApprovalCalloutModal = () => setApprovalCalloutModalOpen(false);
 
 	const [tierInfo, setTierInfo] = useState(null);
-
-	const [approvalCalloutErrors, setApprovalCalloutErrors] = useState([]);
 
 	const [isSubmitting, setSubmitting] = useState(false);
 
@@ -75,8 +72,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			locales: default_locales
 		}
 	});
-
-	const [tempForm, setTempForm] = useState(form);
 
 	const getSelectedTierData = () => {
 		if (!form.mdp_tier_uuid) { return null; }
@@ -183,28 +178,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		});
 	}
 
-	const validateApprovalCallout = () => {
-		let isValid = true;
-		const newErrors = [];
-
-		setApprovalCalloutErrors(newErrors);
-
-		return isValid;
-	}
-
-	const handleApprovalCalloutSubmit = (e) => {
-		e.preventDefault();
-
-		setForm({
-			...form,
-			approval_callout_data: tempForm.approval_callout_data
-		});
-
-		if (!validateApprovalCallout()) { return }
-
-		closeApprovalCalloutModal();
-	}
-
 	const getMemberListUrl = () => {
 		if (form.type === 'individual') {
 			return individualListUrl;
@@ -228,7 +201,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	 * Reinitialize the approval callout form with the current form data
 	 */
 	const reInitApprovalCallout = () => {
-		setTempForm(form)
 		openApprovalCalloutModal();
 	}
 
@@ -725,107 +697,13 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			</div>
 
 			{/* Approval - Callout Modal */}
-			{isApprovalCalloutModalOpen && (
-				<Modal
-					title={__('Approval - Callout Configuration', 'wicket-memberships')}
-					onRequestClose={closeApprovalCalloutModal}
-					style={
-						{
-							maxWidth: '840px',
-							width: '100%'
-						}
-					}
-	>
-
-					{approvalCalloutErrors.length > 0 && (
-						<ErrorsRow>
-							{approvalCalloutErrors.map((error) => (
-								<Notice isDismissible={false} key={error} status="warning">{error}</Notice>
-							))}
-						</ErrorsRow>
-					)}
-
-					<form onSubmit={handleApprovalCalloutSubmit}>
-						<SelectControl
-							label={__('Language', 'wicket-memberships')}
-							options={
-								languageCodesArray.map((code) => {
-									return {
-										label: code,
-										value: code
-									}
-								})
-							}
-							value={currentApprovalCalloutLocale}
-							onChange={value => setCurrentApprovalCalloutLocale(value)}
-						/>
-
-						<TextControl
-							label={__('Callout Header', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									approval_callout_data: {
-										...tempForm.approval_callout_data,
-										locales: {
-											...tempForm.approval_callout_data.locales,
-											[currentApprovalCalloutLocale]: {
-												...tempForm.approval_callout_data.locales[currentApprovalCalloutLocale],
-												callout_header: value
-											}
-										}
-									}
-								});
-							}}
-							value={tempForm.approval_callout_data.locales[currentApprovalCalloutLocale].callout_header}
-						/>
-
-						<TextareaControl
-							label={__('Callout Content', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									approval_callout_data: {
-										...tempForm.approval_callout_data,
-										locales: {
-											...tempForm.approval_callout_data.locales,
-											[currentApprovalCalloutLocale]: {
-												...tempForm.approval_callout_data.locales[currentApprovalCalloutLocale],
-												callout_content: value
-											}
-										}
-									}
-								});
-							}}
-							value={tempForm.approval_callout_data.locales[currentApprovalCalloutLocale].callout_content}
-						/>
-
-						<TextControl
-							label={__('Button Label', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									approval_callout_data: {
-										...tempForm.approval_callout_data,
-										locales: {
-											...tempForm.approval_callout_data.locales,
-											[currentApprovalCalloutLocale]: {
-												...tempForm.approval_callout_data.locales[currentApprovalCalloutLocale],
-												callout_button_label: value
-											}
-										}
-									}
-								});
-							}}
-							value={tempForm.approval_callout_data.locales[currentApprovalCalloutLocale].callout_button_label}
-						/>
-
-						<Button variant="primary" type='submit'>
-							{__('Save', 'wicket-memberships')}
-						</Button>
-					</form>
-				</Modal>
-			)}
+			<ApprovalCalloutModal
+				isOpen={ isApprovalCalloutModalOpen }
+				onClose={ closeApprovalCalloutModal }
+				languageCodes={ languageCodesArray }
+				calloutData={ form.approval_callout_data }
+				onSave={ (calloutData) => setForm({ ...form, approval_callout_data: calloutData }) }
+			/>
 
 		</>
 	);
