@@ -18,6 +18,9 @@
 - `set_group_owners(array $user_ids)`
 - `is_group_owner(int $user_id)`
 - `get_group_owners()`
+- `set_organization(string $org_uuid)`
+- `get_org_uuid()`
+- `get_organization()`
 
 ---
 
@@ -43,3 +46,12 @@ Returns `true` if the given user ID is present in the `group_owner_ids` meta, `f
 
 **get_group_owners()**
 Returns the stored `group_owner_ids` meta as an array of integers, or an empty array if none are set.
+
+**get_org_uuid()**
+Returns the `org_uuid` string from post meta, or `false` if not set.
+
+**set_organization(string|null $org_uuid)**
+Pass a UUID to associate an organization: validates with `isValidUuid()`, calls `Helper::get_org_data()`, and stores `org_uuid` and `org_name` (from `legal_name`) as post meta. Returns the org data array (`['name' => ..., 'location' => ...]`) on success, or `false` if the UUID is invalid, the org cannot be retrieved, or the meta save fails. Pass `null` to remove the organization — deletes both meta keys and returns `true`.
+
+**get_organization()**
+Reads `org_uuid` from post meta, validates it with `isValidUuid()`, then calls `Helper::get_org_data()`. Returns `false` if no UUID is stored or it is invalid, otherwise returns the org data array (`['name' => ..., 'location' => ...]`).

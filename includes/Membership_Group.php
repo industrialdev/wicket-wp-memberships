@@ -129,6 +129,82 @@ class Membership_Group {
   }
 
   /**
+   * Set the organization for this membership group.
+   * Stores org_uuid and org_name (from organization_legal_name) as post meta.
+   * Pass null to remove the organization from this group.
+   *
+   * @param string|null $org_uuid The UUID of the MDP organization, or null to remove
+   * @return array|true|false Returns the organization data on success, true when cleared, false on failure
+   */
+  public function set_organization( ?string $org_uuid ) {
+    if ( $org_uuid === null ) {
+      delete_post_meta( $this->post_id, 'org_uuid' );
+      delete_post_meta( $this->post_id, 'org_name' );
+      return true;
+    }
+
+    if ( ! isValidUuid( $org_uuid ) ) {
+      Wicket()->log()->error( 'Membership_Group: Invalid org UUID', [
+        'source'   => 'wicket-memberships',
+        'post_id'  => $this->post_id,
+        'org_uuid' => $org_uuid,
+      ] );
+      return false;
+    }
+
+    $org_data = Helper::get_org_data( $org_uuid );
+
+    if ( empty( $org_data['name'] ) ) {
+      Wicket()->log()->error( 'Membership_Group: Could not retrieve organization data', [
+        'source'   => 'wicket-memberships',
+        'post_id'  => $this->post_id,
+        'org_uuid' => $org_uuid,
+      ] );
+      return false;
+    }
+
+    $uuid_result = update_post_meta( $this->post_id, 'org_uuid', $org_uuid );
+    $name_result = update_post_meta( $this->post_id, 'org_name', $org_data['name'] );
+
+    if ( $uuid_result === false || $name_result === false ) {
+      Wicket()->log()->error( 'Membership_Group: Failed to save organization meta', [
+        'source'   => 'wicket-memberships',
+        'post_id'  => $this->post_id,
+        'org_uuid' => $org_uuid,
+      ] );
+      return false;
+    }
+
+    return $org_data;
+  }
+
+  /**
+   * Get the organization linked to this membership group.
+   * Eventually will call wicket_get_organization() to fetch from the MDP.
+   *
+   * @return string|false Returns the org UUID string, or false if not set
+   */
+  /**
+   * Get the org UUID stored on this membership group.
+   *
+   * @return string|false The org UUID, or false if not set
+   */
+  public function get_org_uuid() {
+    $org_uuid = get_post_meta( $this->post_id, 'org_uuid', true );
+    return ! empty( $org_uuid ) ? $org_uuid : false;
+  }
+
+  public function get_organization() {
+    $org_uuid = $this->get_org_uuid();
+
+    if ( ! $org_uuid || ! isValidUuid( $org_uuid ) ) {
+      return false;
+    }
+
+    return Helper::get_org_data( $org_uuid );
+  }
+
+  /**
    * Get all individual memberships that have this group set as their FK
    *
    * @return array
