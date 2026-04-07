@@ -104,3 +104,9 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 - Did the work reference `wicket-wp-base-plugin` without modifying it?
 - If tests were added or updated, were they placed in `qa/` and run from there when possible?
 - If the change touches group membership logic, was `CURRENT_SCOPE.md` consulted first?
+
+## Current Branch Scope
+
+`AGENTS.md` is defined on the parent branch and describes stable conventions that apply across all work in this plugin.
+
+`CURRENT_SCOPE.md` is the scope-of-work document for the **current branch**. It defines what is being built right now — features, acceptance criteria, and implementation notes specific to this development cycle. Always read `CURRENT_SCOPE.md` before beginning any task on this branch to understand the current goals and constraints.

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import { Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, TextControl } from '@wordpress/components';
 import styled from 'styled-components';
 import { ErrorsRow, ActionRow } from '../styled_elements';
@@ -26,11 +26,13 @@ const ManageStatusModal = ({ isOpen, onClose, membershipPostId, currentStatus, o
 	const [newStatus, setNewStatus] = useState('');
 	const [availableStatuses, setAvailableStatuses] = useState([]);
 	const [errors, setErrors] = useState([]);
+	const [statusChangeConfirmed, setStatusChangeConfirmed] = useState(false);
 
 	useEffect(() => {
 		if ( isOpen && membershipPostId ) {
 			setNewStatus('');
 			setErrors([]);
+			setStatusChangeConfirmed(false);
 			fetchMembershipStatuses(membershipPostId)
 				.then((response) => {
 					setAvailableStatuses(response);
@@ -38,6 +40,10 @@ const ManageStatusModal = ({ isOpen, onClose, membershipPostId, currentStatus, o
 				.catch(console.error);
 		}
 	}, [isOpen, membershipPostId]);
+
+	const statusRequiresConfirmation = (status) => {
+		return ['cancelled', 'expired'].includes(status);
+	};
 
 	const getStatusOptions = () => {
 		const options = Object.keys(availableStatuses).map((status) => ({
@@ -60,6 +66,11 @@ const ManageStatusModal = ({ isOpen, onClose, membershipPostId, currentStatus, o
 				}
 			})
 			.catch(console.error);
+	};
+
+	const handleStatusChange = (value) => {
+		setNewStatus(value);
+		setStatusChangeConfirmed(false);
 	};
 
 	return (
@@ -102,12 +113,33 @@ const ManageStatusModal = ({ isOpen, onClose, membershipPostId, currentStatus, o
 						<SelectControl
 							label={ __('New Status', 'wicket-memberships') }
 							value={ newStatus }
-							onChange={ setNewStatus }
+							onChange={ handleStatusChange }
 							options={ getStatusOptions() }
 							__nextHasNoMarginBottom={ true }
 						/>
 					</FlexBlock>
 				</MarginedFlex>
+
+				{ statusRequiresConfirmation(newStatus) && !statusChangeConfirmed && (
+					<MarginedFlex direction='column' gap={ 3 }>
+						<Notice isDismissible={ false } status="warning">
+							{ sprintf(
+								/* translators: %s: status name (cancelled or expired) */
+								__("Once a membership status is changed to '%s' it cannot be undone. Are you certain you would like to proceed?", 'wicket-memberships'),
+								newStatus
+							) }
+						</Notice>
+						<FlexItem>
+							<Button
+								variant="secondary"
+								isDestructive
+								onClick={ () => setStatusChangeConfirmed(true) }
+							>
+								{ __('Confirm Action', 'wicket-memberships') }
+							</Button>
+						</FlexItem>
+					</MarginedFlex>
+				) }
 
 				<ActionRow>
 					<Flex align='end' gap={ 5 } direction={ ['column', 'row'] }>
@@ -115,7 +147,7 @@ const ManageStatusModal = ({ isOpen, onClose, membershipPostId, currentStatus, o
 							<Button
 								variant="primary"
 								type='submit'
-								disabled={ newStatus === '' }
+								disabled={ newStatus === '' || (statusRequiresConfirmation(newStatus) && !statusChangeConfirmed) }
 							>
 								{ __('Update Status', 'wicket-memberships') }
 							</Button>

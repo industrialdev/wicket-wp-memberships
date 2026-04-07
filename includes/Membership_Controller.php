@@ -74,7 +74,7 @@ function get_item_data ( $other_data, $cart_item ) {
     return $data;
 }
 
-function add_order_item_meta ( $item_id, $values ) {
+  function add_order_item_meta ( $item_id, $values ) {
   if(is_array($values)) {
     if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
       wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
@@ -84,6 +84,63 @@ function add_order_item_meta ( $item_id, $values ) {
     }
   }
 }
+
+  /**
+   * Resolve subscriptions for an order, with a direct child-post fallback for
+   * disposable test environments where parent-order lookup can miss them.
+   *
+   * @param \WC_Abstract_Order|int $order
+   * @param array                  $args
+   * @return array
+   */
+  private static function get_order_subscriptions( $order, array $args = array() ) {
+    $subscriptions = function_exists( 'wcs_get_subscriptions_for_order' )
+      ? wcs_get_subscriptions_for_order( $order, $args )
+      : array();
+
+    if ( ! empty( $subscriptions ) || ! function_exists( 'wcs_get_subscription' ) ) {
+      return $subscriptions;
+    }
+
+    $order_id = $order instanceof \WC_Abstract_Order ? $order->get_id() : (int) $order;
+
+    if ( empty( $order_id ) ) {
+      return $subscriptions;
+    }
+
+    $subscription_ids = get_posts( [
+      'post_type'   => 'shop_subscription',
+      'post_status' => 'any',
+      'post_parent' => $order_id,
+      'numberposts' => -1,
+      'fields'      => 'ids',
+    ] );
+
+    if ( ! is_array( $subscription_ids ) ) {
+      return $subscriptions;
+    }
+
+    foreach ( $subscription_ids as $subscription_id ) {
+      $subscription = wcs_get_subscription( (int) $subscription_id );
+
+      if ( ! $subscription && class_exists( 'WC_Subscription' ) ) {
+        try {
+          $fallback_subscription = new \WC_Subscription( (int) $subscription_id );
+          if ( $fallback_subscription->get_id() ) {
+            $subscription = $fallback_subscription;
+          }
+        } catch ( \Throwable $e ) {
+          $subscription = false;
+        }
+      }
+
+      if ( $subscription ) {
+        $subscriptions[ (int) $subscription_id ] = $subscription;
+      }
+    }
+
+    return $subscriptions;
+  }
 
   ///////////////////////////////////////////////////////////////////////////////////////////////////////
   // Membership_Controller methods start here
@@ -162,8 +219,9 @@ function add_order_item_meta ( $item_id, $values ) {
     $membership_current = null;
     $memberships = [];
     $order_id = $order->get_id();
+    $membership_post_id_renew = null;
 
-    $subscriptions = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
+    $subscriptions = self::get_order_subscriptions( $order_id, ['order_type' => 'any'] );
     //$subscriptions_ids = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
     Utilities::wc_log_mship_error( [ '^get_memberships_data_from_subscription_products orderID', [$order_id]]);
     foreach( $subscriptions as $subscription_id => $subscription ) {
@@ -304,7 +362,7 @@ function add_order_item_meta ( $item_id, $values ) {
               $membership['order_meta_id'] = $order_meta_id;
               $membership['subscription_meta_id'] = $subscription_meta_id;
               $memberships[] = $membership;
-              Utilities::wicket_logger( 'processing order - membership created', [$membership_post_id_renew, $membership]);
+              Utilities::wicket_logger( 'processing order - membership created', [ $membership_post_id_renew ?? null, $membership ]);
           }
         }
       }
@@ -401,7 +459,28 @@ function add_order_item_meta ( $item_id, $values ) {
    * Process the order product(s) memberships
    */
   public static function catch_order_completed( $order_id ) {
-    $order = wc_get_order( $order_id );
+    $order = $order_id instanceof \WC_Abstract_Order ? $order_id : wc_get_order( $order_id );
+
+    if ( $order instanceof \WC_Abstract_Order ) {
+      $order_id = $order->get_id();
+    }
+
+    if ( ! $order && class_exists( 'WC_Order' ) ) {
+      try {
+        $fallback_order = new \WC_Order( $order_id );
+        if ( $fallback_order->get_id() ) {
+          $order = $fallback_order;
+        }
+      } catch ( \Throwable $e ) {
+        $order = false;
+      }
+    }
+
+    if ( ! $order ) {
+      Utilities::wc_log_mship_error( [ 'SKIPPING MEMBERSHIP CREATION - order lookup failed', [ 'order_id' => $order_id ] ] );
+      return;
+    }
+
     $self = new self();
 
     //get_person_uuid
@@ -409,7 +488,7 @@ function add_order_item_meta ( $item_id, $values ) {
     $user = get_user_by( 'id', $user_id );
     $person_uuid = $user->data->user_login;
 
-    $subscriptions = wcs_get_subscriptions( ['order_type' => 'parent', 'order_id' => $order_id] );
+    $subscriptions = self::get_order_subscriptions( $order_id, ['order_type' => 'parent'] );
     if( 0 && empty( $subscriptions ) ) {
       //create subscriptions for non-subscription products tied to tiers
       $MSC = new Membership_Subscription_Controller();
@@ -719,8 +798,17 @@ function add_order_item_meta ( $item_id, $values ) {
         try {
           $sub->update_status( $status, $note );
         } catch (\Exception $e) {
-          $sub->update_status( 'active', 'Subscription temporarily set active.' );
-          $sub->update_status( $status, $note );
+          if( 'active' === $status && $sub->has_status( 'on-hold' ) ) {
+            $sub->update_status( 'pending', 'Subscription temporarily set pending.' );
+            try {
+              $sub->update_status( $status, $note );
+            } catch (\Exception $inner_exception) {
+              $sub->set_status( $status, $note, true );
+              $sub->save();
+            }
+          } else {
+            throw $e;
+          }
         }
       }
     }
@@ -791,7 +879,7 @@ function add_order_item_meta ( $item_id, $values ) {
             $sub->update_dates($clear_dates_to_update);
             unset($dates_to_update['next_payment']);
             $this->schedule_wicket_wipe_next_payment_date( $sub->get_id() );
-            Utilities::wc_log_mship_error( ['CLEARED: NEXT_PAYMENT', [$sub->get_id(), $fields['next_payment_date'],$dates_to_update['next_payment']]]);
+            Utilities::wc_log_mship_error( ['CLEARED: NEXT_PAYMENT', [$sub->get_id(), $fields['next_payment_date'], $dates_to_update['next_payment'] ?? '']]);
           }
           //we need to add the hook after the status update to ensure the dates are set correctly
           //when the subscription status is set to active after this code runs it changes subscription dates
@@ -800,6 +888,9 @@ function add_order_item_meta ( $item_id, $values ) {
             Utilities::wicket_logger( 'SUBSCRIPTION DATES BEING UPDATED MANUALLY: dates_to_update', $dates_to_update);
             add_action('woocommerce_subscription_status_updated', function( $subscription_id ) use ( $dates_to_update ) {
               $sub = wcs_get_subscription( $subscription_id );
+              if( empty( $sub ) ) {
+                return;
+              }
               $sub->update_dates($dates_to_update);
               Utilities::wicket_logger( '---woocommerce_subscription_status_updated--- SUBSCRIPTION DATES BEING UPDATED ', [$sub->get_id(), $dates_to_update ]);
             }, 10, 2 );
@@ -878,10 +969,10 @@ function add_order_item_meta ( $item_id, $values ) {
       $grace_period_days = $meta_data['membership_grace_period_days'];
     }
 
-    $max_assignments =  $membership['org_seats'];
+    $max_assignments =  $membership['org_seats'] ?? 0;
 
     if( ! empty( $meta_data['org_seats'] ) ) {
-      $max_assignments =  $membership['org_seats'] == '0'  ? $meta_data['org_seats'] : 0;
+      $max_assignments =  ($membership['org_seats'] ?? '') == '0'  ? $meta_data['org_seats'] : 0;
     } else if( ! empty( $meta_data['max_assignments'] ) ) {
       $max_assignments = ! empty( $meta_data['max_assignments'] ) ? $meta_data['max_assignments'] : 0;
     } else  if( ! empty( $meta_data['membership_seats'] ) ) {
@@ -961,7 +1052,7 @@ function add_order_item_meta ( $item_id, $values ) {
         }
       } else {
         if(empty($membership['organization_uuid'])) {
-          $membership['organization_uuid'] = $membership['org_uuid'] ;
+          $membership['organization_uuid'] = $membership['org_uuid'] ?? '';
         }
         if(empty($membership['membership_seats']) && !empty($membership['org_seats'])) {
           $membership['membership_seats'] = $membership['org_seats'];
@@ -1036,10 +1127,14 @@ function add_order_item_meta ( $item_id, $values ) {
       'post_status' => 'publish',
       'meta_input'  => $meta_data
     ]);
-    $customer_meta = get_user_meta( $meta_data['user_id'], '_wicket_membership_'.$membership_post_id );
+    $user_id = $meta_data['user_id'] ?? $this->get_user_id_from_membership_post( $membership_post_id );
+    if( empty( $user_id ) ) {
+      return $return;
+    }
+    $customer_meta = get_user_meta( $user_id, '_wicket_membership_'.$membership_post_id );
     if( empty( $customer_meta ) || empty( $customer_meta[0]['membership_post_id']) ) {
       $customer_meta_array = Helper::get_post_meta( $membership_post_id );
-      update_user_meta( $meta_data['user_id'], '_wicket_membership_'.$membership_post_id, json_encode( $customer_meta_array) );
+      update_user_meta( $user_id, '_wicket_membership_'.$membership_post_id, json_encode( $customer_meta_array) );
     }
     return $return;
   }
@@ -1050,8 +1145,17 @@ function add_order_item_meta ( $item_id, $values ) {
   }
 
   public static function get_user_id_from_membership_post( $membership_post_id ) {
+    $user_id = get_post_meta( $membership_post_id, 'user_id', true );
+    if( ! empty( $user_id ) ) {
+      return (int) $user_id;
+    }
+
     $membership_post = get_post( $membership_post_id );
-    return $membership_post->user_id;
+    if( ! empty( $membership_post->post_author ) ) {
+      return (int) $membership_post->post_author;
+    }
+
+    return 0;
   }
 
   /**
@@ -1095,10 +1199,10 @@ function add_order_item_meta ( $item_id, $values ) {
       'membership_parent_order_id' => $membership['membership_parent_order_id'],
       'membership_product_id' => $membership['membership_product_id'],
       'membership_subscription_id' => $membership['membership_subscription_id'],
-      'previous_membership_post_id' => $membership['previous_membership_post_id'],
+      'previous_membership_post_id' => $membership['previous_membership_post_id'] ?? '',
     ];
 
-    if(!empty( $membership['previous_membership_post_id'] )) {
+    if(!empty( $membership['previous_membership_post_id'] ?? '' )) {
       $meta['previous_membership_post_id'] = $membership['previous_membership_post_id'];
     }
 
@@ -1153,7 +1257,7 @@ function add_order_item_meta ( $item_id, $values ) {
       $this->wicket_update_subscription_meta_membership_post_id( $membership_post, $membership, true );
     }
 
-    $customer_meta = get_user_meta( $membership['user_id'], '_wicket_membership_'.$membership['membership_post_id'] );
+    $customer_meta = get_user_meta( $membership['user_id'], '_wicket_membership_'.$membership_post );
     if( empty( $customer_meta ) || empty( $customer_meta[0]['membership_post_id']) ) {
       $customer_meta_array = $meta;
     } else {
@@ -1191,9 +1295,18 @@ function add_order_item_meta ( $item_id, $values ) {
       $item_id = $item->get_id();
       $product = $item->get_product();
       if(empty($product)) {
+        $product_id = $item->get_variation_id();
+        if(empty($product_id)) {
+          $product_id = $item->get_product_id();
+        }
+      } else {
+        $product_id = $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
+      }
+
+      if(empty($product_id)) {
         continue;
       }
-      $product_id = $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
+
       if ( ! has_term( 'Membership', 'product_cat', $product_id) ) {
         continue;
       }
@@ -1205,7 +1318,7 @@ function add_order_item_meta ( $item_id, $values ) {
       } else if ( !empty($renew_post_id) && $renew_post_id != $membership_post_id && empty($new_order_processed)) {
         wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id );
         $renew_order_flag = "Updated on subscription renewal from membership post id $renew_post_id to";
-      } else if(!empty($renew_post_id) && $renew_post_id == $membership['previous_membership_post_id'])  {
+      } else if(!empty($renew_post_id) && $renew_post_id == ($membership['previous_membership_post_id'] ?? ''))  {
         wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $membership_post_id );
         $renew_order_flag = "Updated on subscription renewal order from membership post id $renew_post_id to";
       }
