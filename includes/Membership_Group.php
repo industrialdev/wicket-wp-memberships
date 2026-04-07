@@ -95,6 +95,40 @@ class Membership_Group {
   }
 
   /**
+   * Set the group owners for this membership group.
+   *
+   * @param array $user_ids Array of WP user IDs to set as group owners
+   * @return int[]|false Returns the saved owner IDs on success, false on failure
+   */
+  public function set_group_owners( array $user_ids ) {
+    $owners = array_values( array_map( 'intval', $user_ids ) );
+    if ( update_post_meta( $this->post_id, 'group_owner_ids', $owners ) === false ) {
+      return false;
+    }
+    return $this->get_group_owners();
+  }
+
+  /**
+   * Check if a given user ID is a group owner.
+   *
+   * @param int $user_id
+   * @return bool
+   */
+  public function is_group_owner( int $user_id ): bool {
+    return in_array( $user_id, $this->get_group_owners(), true );
+  }
+
+  /**
+   * Get the array of group owner user IDs.
+   *
+   * @return int[]
+   */
+  public function get_group_owners(): array {
+    $owners = get_post_meta( $this->post_id, 'group_owner_ids', true );
+    return is_array( $owners ) ? $owners : [];
+  }
+
+  /**
    * Get all individual memberships that have this group set as their FK
    *
    * @return array

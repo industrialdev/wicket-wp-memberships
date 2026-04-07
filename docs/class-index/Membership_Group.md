@@ -15,6 +15,9 @@
 - `create($args = [])` (static)
 - `add_individual_membership($membership_post_id)`
 - `get_individual_memberships()`
+- `set_group_owners(array $user_ids)`
+- `is_group_owner(int $user_id)`
+- `get_group_owners()`
 
 ---
 
@@ -31,3 +34,12 @@ TODO: Sets `membership_group_id` meta on the individual membership post to assoc
 
 **get_individual_memberships()**
 Returns all `wicket_membership` posts (any status) whose `membership_group_id` meta value matches `$this->post_id`.
+
+**set_group_owners(array $user_ids)**
+Stores an array of WP user IDs as the `group_owner_ids` post meta on this group. Values are cast to integers and re-indexed before saving. Returns the saved owner IDs (via `get_group_owners()`) on success, or `false` on failure.
+
+**is_group_owner(int $user_id)**
+Returns `true` if the given user ID is present in the `group_owner_ids` meta, `false` otherwise.
+
+**get_group_owners()**
+Returns the stored `group_owner_ids` meta as an array of integers, or an empty array if none are set.
