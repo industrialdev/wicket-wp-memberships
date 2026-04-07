@@ -6,6 +6,7 @@ use Wicket_Memberships\Helper;
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Config;
+use Wicket_Memberships\Membership_Group;
 
 /**
  * Main controller methods
@@ -2395,5 +2396,30 @@ function get_item_data ( $other_data, $cart_item ) {
     }
     Utilities::wc_log_mship_error( [ 'daily_membership_grace_period_hook', $membership_ends_at, $memberships_updated ] );
     return count($memberships);
+  }
+
+  /**
+   * Check if a membership belongs to a membership group.
+   *
+   * @param int $membership_post_id
+   * @return bool
+   */
+  public function is_membership_group( $membership_post_id ) {
+    $group_id = get_post_meta( $membership_post_id, 'membership_group_id', true );
+    return !empty( $group_id );
+  }
+
+  /**
+   * Get the Membership_Group object for a membership, or false if not part of a group.
+   *
+   * @param int $membership_post_id
+   * @return Membership_Group|false
+   */
+  public function get_membership_group( $membership_post_id ) {
+    $group_id = get_post_meta( $membership_post_id, 'membership_group_id', true );
+    if ( empty( $group_id ) ) {
+      return false;
+    }
+    return new Membership_Group( $group_id );
   }
 }

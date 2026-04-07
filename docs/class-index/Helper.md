@@ -17,6 +17,7 @@
 - `get_membership_config_cpt_slug()` (static)
 - `get_membership_cpt_slug()` (static)
 - `get_membership_tier_cpt_slug()` (static)
+- `get_membership_group_cpt_slug()` (static)
 - `is_valid_membership_post($membership_post_id)` (static)
 - `get_all_status_names()` (static)
 - `get_allowed_transition_status($status)` (static)
@@ -66,6 +67,9 @@ Returns the custom post type slug for memberships.
 
 **get_membership_tier_cpt_slug()** (static)
 Returns the custom post type slug for membership tiers.
+
+**get_membership_group_cpt_slug()** (static)
+Returns the custom post type slug for membership groups (`wicket_mship_group`).
 
 **is_valid_membership_post($membership_post_id)** (static)
 Checks if a given post ID is a published membership post.

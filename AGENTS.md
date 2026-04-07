@@ -24,7 +24,7 @@ This file applies to work inside `src/web/app/plugins/wicket-wp-memberships`.
 - `automate-woo/triggers/`: AutomateWoo trigger classes.
 - `csv_import.php`, `csv_import_threads.php`, `csv_post.php`: root-level CSV bulk-import entry points (used by Import_Controller).
 - `bin/`: shell utilities (e.g., `install-wp-tests.sh` for setting up a local PHPUnit environment).
-- `docs/class-index/`: markdown reference docs for the classes in `includes/`.
+- `docs/class-index/`: markdown reference docs for the classes in `includes/`. Every PHP class file in `includes/` must have a corresponding `.md` file here — 1:1 mapping is required.
 - `docs/membership_config_data_structure.md`: membership config data shape reference.
 - `docs/membership_tier_data_structure.md`: membership tier data shape reference.
 - `CURRENT_SCOPE.md`: active product-scope document for features in development. Read this before working on group membership features.
@@ -65,13 +65,21 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 | `wicket_show_order_debug_data` | `WICKET_SHOW_ORDER_DEBUG_DATA` | Renders order debug info in admin |
 | `allow_local_imports` | `ALLOW_LOCAL_IMPORTS` | Enables local CSV import path and memberships-sync.php |
 
+## TODO Tracking
+
+- `TODO.md` in the plugin root is the authoritative list of outstanding work items.
+- Whenever a `// TODO` comment is added to any file in this plugin, add a matching row to `TODO.md` in the same task. Include the file, method, a short note, and an Asana link if one exists.
+- When a TODO is resolved, remove it from `TODO.md` and the code comment in the same change.
+- Do not leave TODO comments in code without a corresponding `TODO.md` entry.
+
 ## Documentation Rules
 
 - The `docs/` folder is part of the maintained source of truth for this plugin.
 - When changing a class in `includes/`, update the matching file in `docs/class-index/`.
-- The class docs currently map 1:1 to the PHP files in `includes/`. Preserve that convention.
+- When adding a new class to `includes/`, create a matching `.md` file in `docs/class-index/` in the same task.
+- The class docs map 1:1 to the PHP files in `includes/`. Preserve that convention — never leave a class undocumented.
 - When changing membership config or tier data structures, also update the related markdown file in `docs/`.
-- Do not leave doc updates for later. Code and docs should change together in the same task whenever behavior, signatures, fields, hooks, or responsibilities change.
+- Do not leave doc updates for later. Code and docs must change together whenever behavior, signatures, properties, fields, hooks, or responsibilities change.
 
 ## External References
 
@@ -98,8 +106,11 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 
 ## Practical Review Checklist
 
+- Were any `// TODO` comments added? If yes, was a matching row added to `TODO.md`?
+- Were any TODOs resolved? If yes, was the row removed from `TODO.md`?
 - Did the PHP implementation change in `includes/`, `custom/`, `frontend/src/`, or bootstrap code?
-- If yes, were the corresponding docs in `docs/` updated in the same change?
+- If yes, were the corresponding docs in `docs/class-index/` updated (or created) in the same change?
+- If a new class was added to `includes/`, was a matching `.md` created in `docs/class-index/`?
 - If a new class was added to `includes/`, was `composer dump-autoload` run?
 - Did the work reference `wicket-wp-base-plugin` without modifying it?
 - If tests were added or updated, were they placed in `qa/` and run from there when possible?

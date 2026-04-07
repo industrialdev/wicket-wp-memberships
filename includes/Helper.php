@@ -178,6 +178,10 @@ class Helper {
     return 'wicket_mship_tier';
   }
 
+  public static function get_membership_group_cpt_slug() {
+    return 'wicket_mship_group';
+  }
+
   public static function is_valid_membership_post( $membership_post_id ) {
     return ( !empty( get_post_status( $membership_post_id ) ) && get_post_status( $membership_post_id ) == 'publish' );
   }

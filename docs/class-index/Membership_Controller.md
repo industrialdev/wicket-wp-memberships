@@ -53,6 +53,8 @@
 - `get_members_filters($type)`
 - `daily_membership_expiry_hook()` (static)
 - `daily_membership_grace_period_hook()` (static)
+- `is_membership_group($membership_post_id)`
+- `get_membership_group($membership_post_id)`
 
 ---
 
@@ -204,3 +206,9 @@ Daily cron hook to expire memberships whose expiration date was yesterday.
 
 **daily_membership_grace_period_hook()** (static)
 Daily cron hook to move memberships to grace period whose end date was yesterday.
+
+**is_membership_group($membership_post_id)**
+Returns true if the membership post has a `membership_group_id` meta value set, false otherwise.
+
+**get_membership_group($membership_post_id)**
+Returns a `Membership_Group` object for the group the membership belongs to, or false if the `membership_group_id` meta is not set.
