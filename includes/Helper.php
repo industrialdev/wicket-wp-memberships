@@ -29,6 +29,7 @@ class Helper {
     }
     //add_action( 'woocommerce_subscription_renewal_payment_complete', [$this, 'adjust_next_payment_date_after_renewal'], 10, 2 );
     add_filter('wcs_calculate_next_payment_from_last_payment', [$this, 'preserve_billing_schedule_for_monthly'], 10, 2);
+    add_action('woocommerce_admin_order_data_after_order_details', [$this, 'display_membership_edit_link_on_order'], 20, 1);
   }
 
   /**
@@ -615,5 +616,84 @@ class Helper {
     return $has_next_payment_date;
   }
 
-  
+  /**
+   * Display a membership edit link in the WooCommerce admin order details panel.
+   *
+   * @param \WC_Order $order
+   * @return void
+   */
+  public function display_membership_edit_link_on_order( $order ) {
+    $membership_post_id = self::get_membership_post_id_by_order_id( $order->get_id() );
+    if ( ! $membership_post_id ) {
+      return;
+    }
+
+    // Now check if it's org or individual membership and get the generate correct edit page link.
+    $membership_type = get_post_meta( $membership_post_id, 'membership_type', true ); // 'individual' or 'organization'
+    $membership_wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
+
+    if ( $membership_type === 'organization' ) {
+      $org_uuid = get_post_meta( $membership_post_id, 'org_uuid', true );
+      $edit_url = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_ORG_MEMBER_PAGE_SLUG . '&id=' . $org_uuid . '&membership_uuid=' . $membership_wicket_uuid );
+    } else {
+      $user_uuid = get_post_meta( $membership_post_id, 'membership_user_uuid', true );
+      $edit_url = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG . '&id=' . $user_uuid . '&membership_uuid=' . $membership_wicket_uuid );
+    }
+
+    echo '<div class="order_data_column">
+      <h4>' . esc_html__( 'Wicket Membership', 'wicket-memberships' ) . '</h4>
+      <p><a style="white-space: nowrap;" href="' . esc_url( $edit_url ) . '">#' . esc_html( $membership_post_id ) . ' ' . esc_html__( 'View Membership', 'wicket-memberships' ) . '</a></p>
+    </div>';
+  }
+
+  /**
+   * Get membership post ID by order ID
+   *
+   * @param int $order_id WooCommerce order ID
+   * @return int|null Membership post ID, or null if not found
+   */
+  public static function get_membership_post_id_by_order_id( $order_id ) {
+    $posts = get_posts( [
+      'post_type'      => self::get_membership_cpt_slug(),
+      'post_status'    => 'any',
+      'posts_per_page' => 1,
+      'fields'         => 'ids',
+      'meta_query'     => [
+        [
+          'key'   => 'membership_parent_order_id',
+          'value' => $order_id,
+        ],
+      ],
+    ] );
+
+    return ! empty( $posts ) ? (int) $posts[0] : null;
+  }
+
+  public static function get_user_switch_to_url($user_id) {
+    if ( method_exists( 'user_switching', 'maybe_switch_url' ) ) {
+      $target_user = get_user_by( 'id', $user_id );
+
+      if ( ! $target_user ) {
+        return '';
+      }
+
+      $url = \user_switching::maybe_switch_url( $target_user );
+
+      $redirect_to_url = home_url();
+
+      if ( function_exists( 'WACC' ) ) {
+        $redirect_to_url = WACC()->get_account_page_url();
+      }
+
+      if ( $url ) {
+        return esc_url_raw( add_query_arg(
+              'redirect_to',
+              rawurlencode( $redirect_to_url ),
+              $url
+            ) );
+      }
+    }
+
+    return '';
+  }
 }

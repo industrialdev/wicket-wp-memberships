@@ -130,11 +130,13 @@ function wicket_get_product_by_tier_reference_with_slug($membership_tier_slug) {
       return [$parent_product_id,$variation_id];
     }
 
-add_filter( 'woocommerce_add_to_cart_redirect', function( $url ) {
-  if( !empty($_GET['membership_post_id_renew']) ) {
-    return wc_get_checkout_url();
-  }
-});
+    /*
+    add_filter( 'woocommerce_add_to_cart_redirect', function( $url ) {
+      if( !empty($_GET['membership_post_id_renew']) ) {
+        return wc_get_checkout_url();
+      }
+    });
+    */
 
 /******************************************************************
  * For adding tier_reference meta to the product pages

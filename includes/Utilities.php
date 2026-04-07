@@ -29,11 +29,25 @@ class Utilities {
     add_filter( 'woocommerce_cart_item_quantity', [$this, 'disable_cart_item_quantity'], 10, 3);
     add_filter( 'woocommerce_cart_item_remove_link', [$this, 'hide_cart_item_remove_link'], 10, 3);
     add_action( 'wp_trash_post', [$this, 'delete_wicket_membership_in_mdp' ], 10, 2);
-    add_action( 'wp_trash_post', [$this, 'prevent_delete_linked_product' ], 10, 2);
-    add_action( 'woocommerce_before_delete_product_variation', [$this, 'prevent_delete_linked_product' ], 10, 2);
-    add_action('admin_notices', [$this, 'show_membership_product_delete_error'], 1);
+    // Use the pre_trash_post FILTER (not the wp_trash_post action) so we can
+    // abort the trash before WordPress changes the post status, and redirect
+    // cleanly rather than calling wp_die().
+    add_filter( 'pre_trash_post', [$this, 'prevent_trash_linked_product'], 10, 3 );
+    // Intercept the WooCommerce variation-removal AJAX at priority 1, before WC's
+    // own handler registers at default priority 10.
+    add_action( 'wp_ajax_woocommerce_remove_variations', [$this, 'intercept_variation_removal'], 1 );
+    // Render a notice on the product edit page when a variation removal is blocked.
+    add_action( 'admin_enqueue_scripts', [$this, 'enqueue_variation_protection_js'] );
     add_action('admin_notices', [$this, 'show_membership_delete_error'], 1);
     add_action('template_redirect', [$this, 'wicket_membership_clear_the_cart'], 10);
+    // Register and handle custom bulk actions for product trash protection
+    add_filter('bulk_actions-edit-product', [$this, 'register_bulk_trash_protection'], 20, 1);
+    add_filter('handle_bulk_actions-edit-product', [$this, 'handle_bulk_trash_protection'], 20, 3);
+    // Unified error notice for membership product delete protection
+    add_action('admin_notices', [$this, 'show_combined_membership_product_delete_error'], 1);
+    // Enqueue JS for admin error notice on AJAX trash block
+    add_action('admin_enqueue_scripts', [$this, 'enqueue_trash_block_notice_js']);
+
     //allows connect a subscription to a membership on subscription edit page
     if(isset($_ENV['WICKET_MSHIP_ASSIGN_SUBSCRIPTION']) && $_ENV['WICKET_MSHIP_ASSIGN_SUBSCRIPTION']) {
       add_action('woocommerce_admin_order_data_after_order_details', [$this, 'wicket_display_membership_id_input_on_order'], 10, 1);
@@ -42,6 +56,108 @@ class Utilities {
     add_action('woocommerce_admin_order_data_after_order_details', [$this, 'display_autopay_status_row_admin'], 15, 1);
   }
 
+   /**
+   * Enqueue JS to display admin notice if AJAX trash is blocked.
+   */
+  public function enqueue_trash_block_notice_js() {
+    $screen = get_current_screen();
+    if ($screen && $screen->base === 'post' && $screen->post_type === 'product') {
+      ?>
+      <script>
+      jQuery(document).ajaxError(function(event, jqxhr, settings, thrownError) {
+        if (settings && settings.data && settings.data.indexOf('action=trash-post') !== -1) {
+          let response = {};
+          try { response = JSON.parse(jqxhr.responseText); } catch (e) {}
+          if (response && response.data && response.data.wicket_mship_block_message) {
+            // Remove any existing notices
+            jQuery('.wicket-mship-trash-block-notice').remove();
+            // Add new notice
+            jQuery('<div class="notice notice-error wicket-mship-trash-block-notice is-dismissible" style="border-color: red; background-color: #ff000024;"><p><strong>WICKET MEMBERSHIP ERROR:</strong> ' + response.data.wicket_mship_block_message + '</p></div>').prependTo('#wpbody-content');
+          }
+        }
+      });
+      </script>
+      <?php
+    }
+  }
+
+
+  /**
+   * Show a single error notice for membership product delete protection (bulk, quick, or single).
+   * Prefers the most specific message available.
+   */
+  public function show_combined_membership_product_delete_error() {
+    $transient_key = '_wicket_product_delete_error_' . get_current_user_id();
+    $message = get_transient($transient_key);
+    // If this is an AJAX trash request, return JSON error and block reload
+    if (defined('DOING_AJAX') && DOING_AJAX && isset($_POST['action']) && $_POST['action'] === 'trash-post') {
+      if ($message) {
+        wp_send_json_error([
+          'wicket_mship_block_message' => $message
+        ], 403);
+      } else {
+        wp_send_json_error([
+          'wicket_mship_block_message' => __('This product cannot be trashed or deleted because it is assigned to a membership. Remove the assignment first.', 'wicket-memberships')
+        ], 403);
+      }
+      exit;
+    }
+    if ($message) {
+      echo '<div class="notice notice-error error is-dismissible" style="border-color: red; background-color: #ff000024;"><p><strong>WICKET MEMBERSHIP ERROR:</strong> ' . esc_html($message) . '</p></div>';
+      delete_transient($transient_key);
+      if (isset($_GET['show_membership_product_delete_error'])) {
+        unset($_GET['show_membership_product_delete_error']);
+      }
+      return;
+    }
+    if (isset($_GET['show_membership_product_delete_error'])) {
+      echo '<div class="notice notice-error error is-dismissible" style="border-color: red; background-color: #ff000024;"><p><strong>WICKET MEMBERSHIP ERROR:</strong> THE PRODUCT YOU ATTEMPTED TO DELETE IS ASSIGNED TO A MEMBERSHIP. It must first be removed from the Membership Tier or Config. You cannot trash or delete a product before removing your membership plugin assignment(s).</p></div>';
+      return;
+    }
+  }
+
+  /**
+   * Register custom bulk actions for product trash protection (no-op, but required for handle_bulk_actions).
+   *
+   * @param array $bulk_actions
+   * @return array
+   */
+  public function register_bulk_trash_protection($bulk_actions) {
+    // No changes needed, just ensure our handler runs for the default 'trash' action
+    return $bulk_actions;
+  }
+
+  /**
+   * Handle bulk trash actions for products to enforce membership protection.
+   *
+   * @param string $redirect_to
+   * @param string $doaction
+   * @param array $post_ids
+   * @return string
+   */
+  public function handle_bulk_trash_protection($redirect_to, $doaction, $post_ids) {
+    if ($doaction !== 'trash') {
+      return $redirect_to;
+    }
+    $blocked = [];
+    foreach ($post_ids as $post_id) {
+      $post = get_post($post_id);
+      $message = $this->get_membership_product_block_message($post_id);
+      if ($post && $post->post_type === 'product' && $message !== null) {
+        $blocked[] = $post_id;
+        set_transient('_wicket_product_delete_error_' . get_current_user_id(), $message, 120);
+      }
+    }
+    if (!empty($blocked)) {
+      $redirect_to = add_query_arg('show_membership_product_delete_error', '1', $redirect_to);
+    }
+    return $redirect_to;
+  }
+
+  /**
+   * Show error notice for bulk product trash protection on the product list page.
+   */
+  
   public function display_autopay_status_row_admin($order) {
     if (!is_object($order) || !method_exists($order, 'get_type')) {
       return;
@@ -141,32 +257,294 @@ class Utilities {
     }
   }
 
-  function show_membership_product_delete_error() {
-    if (isset($_GET['show_membership_product_delete_error'])) {
-        echo '<div class="notice notice-error error is-dismissible" style="border-color: red; background-color: #ff000024;"><p><strong>WICKET MEMBERSHIP ERROR:</strong> THE PRODUCT YOU ATTEMPTED TO DELETE IS ASSIGNED TO A MEMBERSHIP. It must first be removed from the Membership Tier or Config. You cannot trash or delete a product before removing your membership plugin assignment(s).</p></div>';
-    }
-  }
 
-  function prevent_delete_linked_product($post_id, $post_status){
-    $late_fee_product = false;
-    $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
-    if (get_post_type($post_id) === 'product_variation') {
-      $post_id = wp_get_post_parent_id($post_id);
+  /**
+   * Returns the block-reason message if a product is currently assigned to a
+   * Membership Tier or used as a late-fee product in a Membership Config.
+   * Returns null when the product is not protected and deletion may proceed.
+   *
+   * This is a private helper called by both prevent_trash_linked_product() and
+   * intercept_variation_removal() so the business logic lives in one place.
+   *
+   * @param  int         $product_id  WooCommerce product post ID (parent, not variation).
+   * @return string|null  Human-readable reason string, or null if unprotected.
+   */
+  private function get_membership_product_block_message( int $product_id ): ?string {
+    $membership_categories = wicket_get_option( 'wicket_admin_settings_membership_categories' );
+
+    if ( ! has_term( $membership_categories, 'product_cat', $product_id ) ) {
+      return null;
     }
 
-    if ( has_term( $membership_categories, 'product_cat', $post_id) ) {
-      $membership_tier = Membership_Tier::get_tier_by_product_id( $post_id );
-      $config_posts = get_posts(['post_type' => Helper::get_membership_config_cpt_slug(), 'numberposts' => -1]);
-      foreach($config_posts as $config) {
-        if( ( new Membership_Config($config->ID) )->get_late_fee_window_product_id() == $post_id) {
-          $late_fee_product = true;
+    $is_late_fee_product = false;
+    $membership_tier     = Membership_Tier::get_tier_by_product_id( $product_id );
+
+    if ( empty( $membership_tier ) ) {
+      $config_posts = get_posts( [
+        'post_type'   => Helper::get_membership_config_cpt_slug(),
+        'numberposts' => -1,
+      ] );
+      foreach ( $config_posts as $config ) {
+        if ( ( new Membership_Config( $config->ID ) )->get_late_fee_window_product_id() == $product_id ) {
+          $is_late_fee_product = true;
+          break;
         }
       }
-      if( $late_fee_product || !empty($membership_tier)) {
-        wp_redirect(get_admin_url() . "/edit.php?post_type=product&all_posts=1&show_membership_product_delete_error=1");
-        exit;
+    }
+
+    if ( ! $is_late_fee_product && empty( $membership_tier ) ) {
+      // In the membership category but not actually assigned anywhere — allow deletion.
+      return null;
+    }
+
+    // get_the_title() returns HTML-encoded entities (e.g. &#8211; for –).
+    // Decode to plain text first; esc_html() below will then re-encode only
+    // actual HTML-special chars, so the message is clean in both JSON and HTML contexts.
+    $product_title = html_entity_decode( get_the_title( $product_id ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+    $assignment    = ! empty( $membership_tier )
+      ? 'Membership Tier'
+      : 'Membership Config (late fee product)';
+
+    return sprintf(
+      /* translators: 1: product title  2: assignment type (Membership Tier / Membership Config) */
+      __( '"%s" cannot be trashed or deleted — it is currently assigned to a %s. Remove the product assignment first, then try again.', 'wicket-memberships' ),
+      esc_html( $product_title ),
+      $assignment
+    );
+  }
+
+  /**
+   * Pre-trash filter — aborts trashing a WooCommerce product that is still
+   * assigned to a Membership Tier or used as a late-fee product in a Config.
+   *
+   * WHY pre_trash_post (filter) instead of wp_trash_post (action):
+   *   wp_trash_post fires INSIDE wp_trash_post() after the filter, but before
+   *   the post status changes.  Calling wp_die() from that action produces a
+   *   raw error page and leaves the request in an inconsistent state.  The
+   *   pre_trash_post filter fires first; returning any non-null value causes
+   *   wp_trash_post() to return that value immediately without changing any
+   *   post status — a clean, no-side-effect abort.
+   *
+   * Product variations are NOT checked here; they are protected by
+   * intercept_variation_removal() which intercepts at the AJAX layer.
+   *
+   * @param  bool|null  $abort           Existing filter value (null = proceed).
+   * @param  \WP_Post   $post            The post about to be trashed.
+   * @param  string     $previous_status Current post status before trash.
+   * @return bool|null  false to abort; null to pass through unchanged.
+   */
+  function prevent_trash_linked_product( $abort, $post, $previous_status ) {
+    // Only gate top-level WooCommerce products. Skip variations so that
+    // cascading variation trashes (triggered by trashing the parent) are not
+    // double-intercepted.  All other post types pass through unchanged.
+    if ( get_post_type( $post->ID ) !== 'product' ) {
+      return $abort;
+    }
+
+    $message = $this->get_membership_product_block_message( $post->ID );
+    if ( null === $message ) {
+      return $abort; // not a protected product
+    }
+
+    Utilities::wicket_logger( 'prevent_trash_linked_product: BLOCKING trash', [
+      'post_id'    => $post->ID,
+      'post_title' => get_the_title( $post->ID ),
+    ] );
+
+    // Persist the message so admin_notices can display it on the next page view.
+    set_transient( '_wicket_product_delete_error_' . get_current_user_id(), $message, 120 );
+
+    if ( wp_doing_ajax() ) {
+      // Returning false causes wp_trash_post() to return false, which in turn
+      // causes wp_ajax_trash_post() to call wp_die(0) — a clean AJAX failure.
+      // The transient message will surface on the next admin page load.
+      return false;
+    }
+
+    // Full-page request (standard product-list "Trash" inline action).
+    // Redirect cleanly to the product list with an error flag so the
+    // admin_notices hook can render a proper inline notice.
+    wp_safe_redirect(
+      esc_url_raw(
+        add_query_arg(
+          'show_membership_product_delete_error', '1',
+          admin_url( 'edit.php?post_type=product' )
+        )
+      )
+    );
+    exit;
+  }
+
+  /**
+   * Early AJAX interceptor for WooCommerce's variation-removal request.
+   *
+   * WHY hook at priority 1 on wp_ajax_woocommerce_remove_variations:
+   *   WooCommerce registers its own handler for this action at default
+   *   priority 10.  Its handler iterates the submitted variation IDs, calls
+   *   $variation->delete(true), and always ends with wp_die(-1) regardless
+   *   of outcome.  WC's JS callback (`$.post(..., function() {...})`) takes
+   *   no parameters and removes the variation from the UI unconditionally
+   *   after any 2xx response.
+   *
+   *   By firing at priority 1 we run first.  If any variation belongs to a
+   *   protected parent product we send an HTTP 403 JSON error and exit —
+   *   WC's handler never executes, the variation is NOT deleted.
+   *
+   *   HTTP 403 means jQuery's success callback does not fire, so WC's JS
+   *   does NOT remove the variation from the UI.  The companion JS added
+   *   by enqueue_variation_protection_js() listens on ajaxComplete (which
+   *   fires on 4xx as well as 2xx) and renders a visible admin notice.
+   *
+   * @return void  Exits via wp_send_json_error() when a protected variation is found.
+   */
+  function intercept_variation_removal() {
+    // Missing or empty variation_ids — nothing to validate; let WC handle it.
+    if ( empty( $_POST['variation_ids'] ) || ! is_array( $_POST['variation_ids'] ) ) {
+      return;
+    }
+
+    $variation_ids = array_map( 'absint', (array) wp_unslash( $_POST['variation_ids'] ) );
+
+    foreach ( $variation_ids as $variation_id ) {
+      if ( 'product_variation' !== get_post_type( $variation_id ) ) {
+        continue;
+      }
+
+      $parent_id = wp_get_post_parent_id( $variation_id );
+      if ( ! $parent_id ) {
+        continue;
+      }
+
+      $message = $this->get_membership_product_block_message( $parent_id );
+      if ( null !== $message ) {
+        Utilities::wicket_logger( 'intercept_variation_removal: BLOCKING removal', [
+          'variation_id' => $variation_id,
+          'parent_id'    => $parent_id,
+        ] );
+
+        // Set transient as a fallback in case the JS notice mechanism fails.
+        set_transient( '_wicket_product_delete_error_' . get_current_user_id(), $message, 120 );
+
+        // HTTP 403: jQuery's $.post() success callback will NOT fire, so WC's JS
+        // will NOT remove the variation row from the UI.  The wicket_blocked flag
+        // lets our ajaxComplete JS listener distinguish this from other 403s.
+        wp_send_json_error( [ 'message' => $message, 'wicket_blocked' => true ], 403 );
+        // wp_send_json_error() calls wp_die() — execution terminates here.
       }
     }
+
+    // No protected variations found — fall through so WC's handler (priority 10) runs.
+  }
+
+  /**
+   * Enqueue a small inline JS snippet on the WooCommerce product edit page.
+   *
+   * The snippet attaches a jQuery ajaxComplete listener scoped to the
+   * woocommerce_remove_variations action.  When our intercept_variation_removal()
+   * blocks a deletion it returns HTTP 403.  jQuery's ajaxComplete event fires on
+   * all completed AJAX requests, including 4xx errors, so we can read the JSON
+   * payload, check for the wicket_blocked flag, and render an inline WP admin
+   * notice without touching WooCommerce's core JS.
+   *
+   * @param string $hook Current admin page hook suffix.
+   * @return void
+   */
+  function enqueue_variation_protection_js( $hook ) {
+    if ( 'post.php' !== $hook && 'post-new.php' !== $hook ) {
+      return;
+    }
+    global $post;
+    if ( ! $post || get_post_type( $post->ID ) !== 'product' ) {
+      return;
+    }
+
+    // Print at admin_footer so jQuery and all WC scripts are guaranteed loaded
+    // and the product-data DOM is fully rendered before the listener attaches.
+    add_action( 'admin_footer', [ $this, 'print_variation_protection_js' ] );
+  }
+
+  /**
+   * Print the inline ajaxComplete listener in the admin footer.
+   * Called only on the product edit page via enqueue_variation_protection_js().
+   *
+   * KEY FIXES over the original approach:
+   *  - xhr.responseJSON is undefined (not null) on 4xx in many jQuery builds;
+   *    we fall back to JSON.parse(xhr.responseText) with a try/catch.
+   *  - We only test for the wicket_blocked flag rather than also asserting
+   *    response.success === false, so a slightly malformed payload still works.
+   *  - Insertion uses #wpbody-content (always present in WP admin) then scrolls
+   *    the window to the top so the notice is immediately visible.
+   */
+  function print_variation_protection_js() {
+    $dismiss_label = esc_js( __( 'Dismiss this notice.', 'wicket-memberships' ) );
+    ?>
+    <script>
+    (function($){
+      /**
+       * Use ajaxError (not ajaxComplete) — it fires only on failed/4xx requests,
+       * which is exactly what our priority-1 intercept returns (HTTP 403).
+       *
+       * Two things must happen on a blocked variation removal:
+       *   1. Unblock the WC product-data panel — WC calls .unblock() only inside
+       *      its success callback, which never fires on 4xx, leaving the spinner
+       *      indefinitely.
+       *   2. Insert a visible error notice — placed directly before
+       *      #woocommerce-product-data (the variations panel) so it appears in
+       *      context, then scroll to it.
+       */
+      $(document).ajaxError(function(event, xhr, settings) {
+        // Scope to variation-removal requests only.
+        var params = (typeof settings.data === 'string')
+          ? settings.data
+          : $.param(settings.data || {});
+        if (params.indexOf('woocommerce_remove_variations') === -1) { return; }
+
+        // Parse from responseText directly — more reliable than xhr.responseJSON
+        // which is not populated by jQuery on 4xx responses in all versions.
+        var response;
+        try { response = JSON.parse(xhr.responseText); } catch(e) {}
+
+        // Only act when our PHP interceptor explicitly set wicket_blocked.
+        if (!response || !response.data || !response.data.wicket_blocked) { return; }
+
+        // 1. Clear the WC spinner — blockUI is used by WC on the product-data
+        //    metabox; calling .unblock() restores the UI regardless of nesting.
+        $('#woocommerce-product-data').unblock();
+
+        // 2. Build and show a dismissible admin notice.
+        var msg = $('<div>').text(response.data.message).html();
+
+        // Remove any stacked notice from a rapid retry.
+        $('.wicket-variation-block-notice').remove();
+
+        var notice = $(
+          '<div class="notice notice-error is-dismissible wicket-variation-block-notice" style="margin:10px 20px 10px 2px;">'
+          + '<p><strong>Wicket Memberships:</strong> ' + msg + '</p>'
+          + '<button type="button" class="notice-dismiss">'
+          + '<span class="screen-reader-text"><?php echo $dismiss_label; ?></span>'
+          + '</button>'
+          + '</div>'
+        );
+
+        notice.find('.notice-dismiss').on('click', function() {
+          notice.fadeOut(200, function() { notice.remove(); });
+        });
+
+        // Insert immediately before the WC product-data metabox — always present
+        // on the product edit page and already in the visible viewport area.
+        var $anchor = $('#woocommerce-product-data');
+        if ($anchor.length) {
+          $anchor.before(notice);
+          $('html, body').animate({ scrollTop: notice.offset().top - 80 }, 300);
+        } else {
+          // Fallback: top of the admin content area.
+          $('#wpbody-content').prepend(notice);
+          $('html, body').animate({ scrollTop: 0 }, 300);
+        }
+      });
+    }(jQuery));
+    </script>
+    <?php
   }
 
   /**
@@ -776,5 +1154,84 @@ function wicket_sub_org_select_callback( $subscription ) {
         'ajaxurl' => admin_url('admin-ajax.php'),
         'user_id' => get_current_user_id()
     ]);
+  }
+
+
+  /**
+   * Get a DateTime object in UTC timezone.
+   * This is used to provide consistent time handling across different server configurations.
+   *
+   * @param string $date_string Optional date string to initialize the DateTime object. Defaults to 'now'.
+   * @return \DateTime DateTime object set to UTC timezone.
+   */
+  public static function get_utc_datetime($date_string = 'now')
+  {
+    return new \DateTime($date_string, new \DateTimeZone('UTC'));
+  }
+
+  /**
+   * Get the current datetime in UTC, based on the configured MDP timezone.
+   *
+   * @return \DateTime DateTime object representing "now", normalized to UTC.
+   */
+  public static function get_mdp_now()
+  {
+    // Get MDP timezone from environment variable, fallback to UTC
+    $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+
+    // Build "now" in MDP timezone, then normalize output to UTC
+    $mdp_now = new \DateTime('now', $mdp_timezone);
+
+    return $mdp_now->setTimezone(new \DateTimeZone('UTC'));
+  }
+
+  /**
+   * Get the start of an MDP day (midnight) in UTC timezone.
+   * This converts a date to the start of the day in the MDP timezone, then converts to UTC.
+   *
+   * @param string $date_string Optional date string to initialize. Defaults to 'now' for today.
+   * @return \DateTime DateTime object set to the start of the MDP day in UTC timezone.
+   */
+  public static function get_mdp_day_start($date_string = 'now')
+  {
+    // Get MDP timezone from environment variable, fallback to UTC
+    $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+    
+    // Create DateTime (timezone in string may override $mdp_timezone parameter)
+    $mdp_date = new \DateTime($date_string);
+    
+    // Force timezone to MDP (handles cases where input string contains timezone info)
+    $mdp_date->setTimezone($mdp_timezone);
+    
+    // Set to start of day (midnight) in MDP timezone
+    $mdp_date->setTime(0, 0, 0);
+    
+    // Convert to UTC and return
+    return $mdp_date->setTimezone(new \DateTimeZone('UTC'));
+  }
+
+  /**
+   * Get the end of an MDP day (23:59:59) in UTC timezone.
+   * This converts a date to the end of the day in the MDP timezone, then converts to UTC.
+   *
+   * @param string $date_string Optional date string to initialize. Defaults to 'now' for today.
+   * @return \DateTime DateTime object set to the end of the MDP day in UTC timezone.
+   */
+  public static function get_mdp_day_end($date_string = 'now')
+  {
+    // Get MDP timezone from environment variable, fallback to UTC
+    $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+    
+    // Create DateTime (timezone in string may override $mdp_timezone parameter)
+    $mdp_date = new \DateTime($date_string);
+    
+    // Force timezone to MDP (handles cases where input string contains timezone info)
+    $mdp_date->setTimezone($mdp_timezone);
+    
+    // Set to end of day (23:59:59) in MDP timezone
+    $mdp_date->setTime(23, 59, 59);
+    
+    // Convert to UTC and return
+    return $mdp_date->setTimezone(new \DateTimeZone('UTC'));
   }
 }
