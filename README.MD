@@ -10,6 +10,10 @@ This plugin is a part of the Wicket ecosystem and is used to manage memberships 
 
 This readme will be updated as the project evolves.
 
+## Documentation
+
+For complete documentation, see **[docs/index.md](docs/index.md)**.
+
 ## Testing
 * Install development packages if you haven't with: `docker compose exec php bash -c "cd /var/www/html/web/app/plugins/wicket-wp-memberships && composer install"`
 * Install WordPress testing instance with: `docker compose exec php bash -c "cd /var/www/html/web/app/plugins/wicket-wp-memberships && bin/install-wp-tests.sh wordpress_test root 'root' mariadb latest"`
