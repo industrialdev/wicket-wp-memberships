@@ -11,6 +11,7 @@
 - `register_membership_config_post_type()`
 - `register_membership_tier_post_type()`
 - `register_membership_group_post_type()`
+- `register_membership_group_config_post_type()`
 
 ### Inline/Anonymous Functions
 
