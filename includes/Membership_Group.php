@@ -21,10 +21,7 @@ class Membership_Group {
 
     // Ensure the post exists in the database before proceeding
     if ( ! get_post( $post_id ) ) {
-      Wicket()->log()->error( 'Membership_Group: Invalid post ID', [
-        'source'  => 'wicket-memberships',
-        'post_id' => $post_id,
-      ] );
+      Wicket()->log()->error( 'Membership_Group: Invalid post ID', ['source' => 'wicket-memberships', 'post_id' => $post_id] );
       $this->post_id   = 0;
       $this->meta_data = [];
       return;
@@ -32,11 +29,7 @@ class Membership_Group {
 
     // Ensure the post is actually a membership group CPT, not some other post type
     if ( get_post_type( $post_id ) !== Helper::get_membership_group_cpt_slug() ) {
-      Wicket()->log()->error( 'Membership_Group: Invalid post type', [
-        'source'    => 'wicket-memberships',
-        'post_id'   => $post_id,
-        'post_type' => get_post_type( $post_id ),
-      ] );
+      Wicket()->log()->error( 'Membership_Group: Invalid post type', ['source' => 'wicket-memberships', 'post_id' => $post_id, 'post_type' => get_post_type( $post_id )] );
       $this->post_id   = 0;
       $this->meta_data = [];
       return;
@@ -63,19 +56,12 @@ class Membership_Group {
     ], true );
 
     if ( is_wp_error( $post_id ) ) {
-      Wicket()->log()->error( 'Membership_Group: Failed to create post', [
-        'source' => 'wicket-memberships',
-        'error'  => $post_id->get_error_message(),
-        'args'   => $args,
-      ] );
+      Wicket()->log()->error( 'Membership_Group: Failed to create post', ['source' => 'wicket-memberships', 'error' => $post_id->get_error_message(), 'args' => $args] );
       return false;
     }
 
     if ( empty( $post_id ) ) {
-      Wicket()->log()->error( 'Membership_Group: wp_insert_post returned empty ID', [
-        'source' => 'wicket-memberships',
-        'args'   => $args,
-      ] );
+      Wicket()->log()->error( 'Membership_Group: wp_insert_post returned empty ID', ['source' => 'wicket-memberships', 'args' => $args] );
       return false;
     }
 
@@ -144,22 +130,14 @@ class Membership_Group {
     }
 
     if ( ! isValidUuid( $org_uuid ) ) {
-      Wicket()->log()->error( 'Membership_Group: Invalid org UUID', [
-        'source'   => 'wicket-memberships',
-        'post_id'  => $this->post_id,
-        'org_uuid' => $org_uuid,
-      ] );
+      Wicket()->log()->error( 'Membership_Group: Invalid org UUID', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'org_uuid' => $org_uuid] );
       return false;
     }
 
     $org_data = Helper::get_org_data( $org_uuid );
 
     if ( empty( $org_data['name'] ) ) {
-      Wicket()->log()->error( 'Membership_Group: Could not retrieve organization data', [
-        'source'   => 'wicket-memberships',
-        'post_id'  => $this->post_id,
-        'org_uuid' => $org_uuid,
-      ] );
+      Wicket()->log()->error( 'Membership_Group: Could not retrieve organization data', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'org_uuid' => $org_uuid] );
       return false;
     }
 
@@ -167,11 +145,7 @@ class Membership_Group {
     $name_result = update_post_meta( $this->post_id, 'org_name', $org_data['name'] );
 
     if ( $uuid_result === false || $name_result === false ) {
-      Wicket()->log()->error( 'Membership_Group: Failed to save organization meta', [
-        'source'   => 'wicket-memberships',
-        'post_id'  => $this->post_id,
-        'org_uuid' => $org_uuid,
-      ] );
+      Wicket()->log()->error( 'Membership_Group: Failed to save organization meta', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'org_uuid' => $org_uuid] );
       return false;
     }
 
@@ -202,6 +176,38 @@ class Membership_Group {
     }
 
     return Helper::get_org_data( $org_uuid );
+  }
+
+  /**
+   * Get the membership status for this group.
+   *
+   * @return string|false The status string, or false if not set
+   */
+  public function get_membership_status() {
+    $status = get_post_meta( $this->post_id, 'membership_status', true );
+    return ! empty( $status ) ? $status : false;
+  }
+
+  /**
+   * Set the membership status for this group.
+   *
+   * @param string $status One of the slugs returned by Helper::get_all_status_names()
+   * @return bool True on success, false if the status is invalid or the update fails
+   */
+  public function set_membership_status( string $status ): bool {
+    if ( ! in_array( $status, array_keys( Helper::get_all_status_names() ), true ) ) {
+      Wicket()->log()->error( 'Membership_Group: Invalid membership status', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'status' => $status] );
+      return false;
+    }
+
+    $result = update_post_meta( $this->post_id, 'membership_status', $status );
+
+    if ( $result === false ) {
+      Wicket()->log()->error( 'Membership_Group: Failed to save membership status', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'status' => $status] );
+      return false;
+    }
+
+    return true;
   }
 
   /**

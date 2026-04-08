@@ -1,57 +1,93 @@
+# Membership_Group
 
-# Membership_Group Class Index
+**File:** `includes/Membership_Group.php`
+**Namespace:** `Wicket_Memberships`
 
-**File:** includes/Membership_Group.php
-
-## Properties
-
-- `$post_id` (public readonly int) — the WP post ID of this membership group; set once on construction, cannot be modified
-- `$meta_data` (public) — all post meta for this group, populated on construction
-- `$bypass_wicket` (public) — skips MDP API calls when `$_ENV['BYPASS_WICKET']` is set
-
-## Methods
-
-- `__construct($post_id)`
-- `create($args = [])` (static)
-- `add_individual_membership($membership_post_id)`
-- `get_individual_memberships()`
-- `set_group_owners(array $user_ids)`
-- `is_group_owner(int $user_id)`
-- `get_group_owners()`
-- `set_organization(string $org_uuid)`
-- `get_org_uuid()`
-- `get_organization()`
+Represents a single Membership Group CPT record. Wraps post meta access and provides the canonical API for reading and writing group-level data.
 
 ---
 
-## Method Descriptions
+## Constructor
 
-**__construct($post_id)**
-Validates the post exists and is a `wicket_mship_group`. On success, sets `$post_id` and hydrates `$meta_data` from post meta. On failure, logs an error and sets `$post_id` to 0 with an empty `$meta_data`.
+### `__construct( int $post_id )`
 
-**create($args = [])** (static)
-TODO: Creates a new `wicket_mship_group` post using `$args` and returns a new `Membership_Group` instance, or false on failure.
+Loads the group by post ID. Sets `$post_id = 0` and `$meta_data = []` if the post does not exist or is not the membership group CPT type. Errors are logged via `Wicket()->log()`.
 
-**add_individual_membership($membership_post_id)**
-TODO: Sets `membership_group_id` meta on the individual membership post to associate it with this group.
+---
 
-**get_individual_memberships()**
-Returns all `wicket_membership` posts (any status) whose `membership_group_id` meta value matches `$this->post_id`.
+## Static Methods
 
-**set_group_owners(array $user_ids)**
-Stores an array of WP user IDs as the `group_owner_ids` post meta on this group. Values are cast to integers and re-indexed before saving. Returns the saved owner IDs (via `get_group_owners()`) on success, or `false` on failure.
+### `create( array $args = [] ): static|false`
 
-**is_group_owner(int $user_id)**
-Returns `true` if the given user ID is present in the `group_owner_ids` meta, `false` otherwise.
+Creates a new membership group post via `wp_insert_post`. Accepts `title` and `status` keys in `$args`. Returns a new `Membership_Group` instance on success, `false` on failure.
 
-**get_group_owners()**
-Returns the stored `group_owner_ids` meta as an array of integers, or an empty array if none are set.
+> **TODO:** Implementation should be reviewed before production use. See Asana task linked in source.
 
-**get_org_uuid()**
-Returns the `org_uuid` string from post meta, or `false` if not set.
+---
 
-**set_organization(string|null $org_uuid)**
-Pass a UUID to associate an organization: validates with `isValidUuid()`, calls `Helper::get_org_data()`, and stores `org_uuid` and `org_name` (from `legal_name`) as post meta. Returns the org data array (`['name' => ..., 'location' => ...]`) on success, or `false` if the UUID is invalid, the org cannot be retrieved, or the meta save fails. Pass `null` to remove the organization — deletes both meta keys and returns `true`.
+## Instance Methods
 
-**get_organization()**
-Reads `org_uuid` from post meta, validates it with `isValidUuid()`, then calls `Helper::get_org_data()`. Returns `false` if no UUID is stored or it is invalid, otherwise returns the org data array (`['name' => ..., 'location' => ...]`).
+### `add_individual_membership( int $membership_post_id ): void`
+
+Sets `membership_group_id` meta on an individual membership post to link it to this group.
+
+> **TODO:** Pending review. See Asana task linked in source.
+
+---
+
+### `set_group_owners( array $user_ids ): int[]|false`
+
+Replaces the stored `group_owner_ids` meta with the provided array of user IDs. Returns the saved owner array on success, `false` on failure.
+
+### `get_group_owners(): int[]`
+
+Returns the array of group owner user IDs stored in `group_owner_ids` meta. Returns an empty array if not set.
+
+### `is_group_owner( int $user_id ): bool`
+
+Returns `true` if the given user ID is in the group owners list.
+
+---
+
+### `set_organization( ?string $org_uuid ): array|true|false`
+
+Associates an MDP organization with this group. Fetches the org via `Helper::get_org_data()` and stores `org_uuid` and `org_name` as post meta. Pass `null` to remove the organization. Returns the org data array on success, `true` when cleared, `false` on failure.
+
+### `get_org_uuid(): string|false`
+
+Returns the `org_uuid` meta value, or `false` if not set.
+
+### `get_organization(): array|false`
+
+Returns the full organization data array from `Helper::get_org_data()` for the stored UUID, or `false` if not set or UUID is invalid.
+
+---
+
+### `get_membership_status(): string|false`
+
+Returns the `membership_status` meta value for this group, or `false` if not set.
+
+### `set_membership_status( string $status ): bool`
+
+Sets the `membership_status` meta value. The value must be one of the slugs returned by `Helper::get_all_status_names()`. Returns `true` on success. Logs an error and returns `false` if the status is not in the allowed list or if the meta update fails.
+
+---
+
+### `get_individual_memberships(): array`
+
+Returns all individual membership CPT posts that have `membership_group_id` set to this group's post ID.
+
+---
+
+## Meta Keys
+
+| Key | Type | Description |
+|---|---|---|
+| `group_owner_ids` | `int[]` | WP user IDs of group owners |
+| `org_uuid` | `string` | MDP organisation UUID |
+| `org_name` | `string` | MDP organisation legal name (cached) |
+| `membership_status` | `string` | Group membership status (see vocabulary above) |
+| `membership_group_id` | `int` | Set on individual membership posts to link them to this group |
+
+---
+
