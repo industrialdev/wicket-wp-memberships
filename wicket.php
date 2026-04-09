@@ -186,6 +186,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 			new Membership_CPT_Hooks;
 			new Membership_Controller;
 			new Membership_Config_CPT_Hooks;
+			new Membership_Group_Config_CPT_Hooks;
 			new Membership_Tier_CPT_Hooks;
       new Membership_WP_REST_Controller;
       new Membership_Group_Config_WP_REST_Controller;

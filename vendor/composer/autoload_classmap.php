@@ -7,4 +7,22 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',
+    'Wicket_Memberships\\Admin_Controller' => $baseDir . '/includes/Admin_Controller.php',
+    'Wicket_Memberships\\Helper' => $baseDir . '/includes/Helper.php',
+    'Wicket_Memberships\\Import_Controller' => $baseDir . '/includes/Import_Controller.php',
+    'Wicket_Memberships\\Membership_CPT_Hooks' => $baseDir . '/includes/Membership_CPT_Hooks.php',
+    'Wicket_Memberships\\Membership_Config' => $baseDir . '/includes/Membership_Config.php',
+    'Wicket_Memberships\\Membership_Config_CPT_Hooks' => $baseDir . '/includes/Membership_Config_CPT_Hooks.php',
+    'Wicket_Memberships\\Membership_Controller' => $baseDir . '/includes/Membership_Controller.php',
+    'Wicket_Memberships\\Membership_Group' => $baseDir . '/includes/Membership_Group.php',
+    'Wicket_Memberships\\Membership_Group_Config' => $baseDir . '/includes/Membership_Group_Config.php',
+    'Wicket_Memberships\\Membership_Group_Config_CPT_Hooks' => $baseDir . '/includes/Membership_Group_Config_CPT_Hooks.php',
+    'Wicket_Memberships\\Membership_Group_Config_WP_REST_Controller' => $baseDir . '/includes/Membership_Group_Config_WP_REST_Controller.php',
+    'Wicket_Memberships\\Membership_Post_Types' => $baseDir . '/includes/Membership_Post_Types.php',
+    'Wicket_Memberships\\Membership_Subscription_Controller' => $baseDir . '/includes/Membership_Subscription_Controller.php',
+    'Wicket_Memberships\\Membership_Tier' => $baseDir . '/includes/Membership_Tier.php',
+    'Wicket_Memberships\\Membership_Tier_CPT_Hooks' => $baseDir . '/includes/Membership_Tier_CPT_Hooks.php',
+    'Wicket_Memberships\\Membership_WP_REST_Controller' => $baseDir . '/includes/Membership_WP_REST_Controller.php',
+    'Wicket_Memberships\\Settings' => $baseDir . '/includes/Settings.php',
+    'Wicket_Memberships\\Utilities' => $baseDir . '/includes/Utilities.php',
 );

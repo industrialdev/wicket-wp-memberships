@@ -14,6 +14,7 @@ module.exports = {
 	entry: {
 		...defaultConfig.entry(),
 		membership_config_create: './src/membership_configs/edit.js',
+		membership_group_config_create: './src/membership_group_configs/edit.js',
 		membership_tier_create: './src/membership_tiers/edit.js',
 		member_list: './src/members/index.js',
 		member_edit: './src/members/edit.js',
