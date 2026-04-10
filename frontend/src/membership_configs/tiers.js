@@ -9,9 +9,9 @@ import {
   FlexItem,
   Button,
 } from "@wordpress/components";
-import { PLUGIN_API_URL } from "../constants";
-import { FormFlex, BorderedBox } from "../styled_elements";
-import { fetchMembershipTiers } from "../services/api";
+import { PLUGIN_API_URL } from "../shared/constants";
+import { FormFlex, BorderedBox } from "../shared/styled_elements";
+import { fetchMembershipTiers } from "../shared/services/api";
 
 const MembershipConfigTiers = ({
   configPostId,

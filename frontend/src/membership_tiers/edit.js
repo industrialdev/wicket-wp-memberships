@@ -6,10 +6,10 @@ import { addQueryArgs } from '@wordpress/url';
 import { TextControl, TextareaControl, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalText as Text } from '@wordpress/components';
 import ApprovalCalloutModal from './ApprovalCalloutModal';
 import styled from 'styled-components';
-import { API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS } from '../constants';
+import { API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS } from '../shared/constants';
 import he from 'he';
-import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, CustomDisabled } from '../styled_elements';
-import { fetchMembershipTiers } from '../services/api';
+import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, CustomDisabled } from '../shared/styled_elements';
+import { fetchMembershipTiers } from '../shared/services/api';
 import ManageTierProducts from './manage_products';
 
 const MarginedFlex = styled(Flex)`

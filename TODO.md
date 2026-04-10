@@ -13,6 +13,12 @@ Remove the entry when the work is completed.
 | `includes/Membership_Group.php` | `create()` | Review bare-bones implementation before use in production | [task](https://app.asana.com/1/1138832104141584/project/1213403241762018/task/1213775558142167) |
 | `includes/Membership_Group.php` | `add_individual_membership()` | Review implementation | [task](https://app.asana.com/1/1138832104141584/project/1213403241762018/task/1213781837058525) |
 
+## Frontend Tests
+
+| File | Method | Note | Asana |
+|---|---|---|---|
+| `frontend/src/` | — | Build frontend tests for shared components and membership group config UI (GroupConfigForm, SeasonConfigModal, GracePeriodSection, RenewalWindowSection, etc.) | — |
+
 ## Membership_Group_Config — Product ID concerns
 
 | File | Method | Note | Asana |

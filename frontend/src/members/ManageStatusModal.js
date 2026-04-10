@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { __, sprintf } from '@wordpress/i18n';
 import { Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, TextControl } from '@wordpress/components';
 import styled from 'styled-components';
-import { ErrorsRow, ActionRow } from '../styled_elements';
-import WicketModal from '../components/WicketModal';
-import { fetchMembershipStatuses, updateMembershipStatus } from '../services/api';
+import { ErrorsRow, ActionRow } from '../shared/styled_elements';
+import WicketModal from '../shared/components/WicketModal';
+import { fetchMembershipStatuses, updateMembershipStatus } from '../shared/services/api';
 
 const MarginedFlex = styled(Flex)`
 	margin-top: 15px;

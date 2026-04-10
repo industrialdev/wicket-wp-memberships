@@ -1,4 +1,4 @@
-import { Modal } from '@wordpress/components';
+import { ModalStyled } from '../styled_elements';
 
 /**
  * WicketModal
@@ -19,14 +19,14 @@ const WicketModal = ({ isOpen, title, onRequestClose, children, ...rest }) => {
 	}
 
 	return (
-		<Modal
+		<ModalStyled
 			title={ title }
 			onRequestClose={ onRequestClose }
 			style={ { maxWidth: '840px', width: '100%' } }
 			{ ...rest }
 		>
 			{ children }
-		</Modal>
+		</ModalStyled>
 	);
 };
 

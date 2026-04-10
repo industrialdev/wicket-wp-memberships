@@ -1,13 +1,13 @@
 import { __ } from "@wordpress/i18n";
 import { useState } from "react";
-import { WC_PRODUCT_TYPES } from "../constants";
+import { WC_PRODUCT_TYPES } from "../shared/constants";
 import {
   ErrorsRow,
   BorderedBox,
   ActionRow,
   LabelWpStyled,
   SelectWpStyled,
-} from "../styled_elements";
+} from "../shared/styled_elements";
 import {
   Button,
   Flex,
@@ -22,7 +22,7 @@ import {
   fetchWcProducts,
   fetchProductVariations,
   createRenewalOrder,
-} from "../services/api";
+} from "../shared/services/api";
 
 const MarginedFlex = styled(Flex)`
   margin-top: 15px;

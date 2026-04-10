@@ -7,7 +7,7 @@ import {
   fetchMembers,
   fetchTiersInfo,
   fetchMembershipFilters,
-} from "../services/api";
+} from "../shared/services/api";
 
 const SortableHeader = ({ label, col, currentCol, currentDir, onSort }) => {
   const isActive = currentCol === col;

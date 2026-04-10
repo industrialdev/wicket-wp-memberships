@@ -3,7 +3,7 @@ import apiFetch from "@wordpress/api-fetch";
 import { useState, useEffect } from "react";
 import { addQueryArgs } from "@wordpress/url";
 import { Spinner } from "@wordpress/components";
-import { PLUGIN_API_URL } from "../constants";
+import { PLUGIN_API_URL } from "../shared/constants";
 
 const MembershipTierCount = ({ tierUuid }) => {
   const [memberCount, setMemberCount] = useState(null);

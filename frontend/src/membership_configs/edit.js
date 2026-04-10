@@ -22,7 +22,7 @@ import {
   DEFAULT_DATE_FORMAT,
   PLUGIN_SETTINGS,
   WC_PRODUCT_TYPES,
-} from "../constants";
+} from "../shared/constants";
 import he from "he";
 import {
   Wrap,
@@ -35,10 +35,10 @@ import {
   LabelWpStyled,
   ReactDatePickerStyledWrap,
   AppWrap,
-} from "../styled_elements";
+} from "../shared/styled_elements";
 import DatePicker from "react-datepicker";
 import MembershipConfigTiers from "./tiers";
-import { fetchWcProducts } from "../services/api";
+import { fetchWcProducts } from "../shared/services/api";
 import { Tooltip } from "react-tooltip";
 //import 'react-tooltip/dist/react-tooltip.css';
 

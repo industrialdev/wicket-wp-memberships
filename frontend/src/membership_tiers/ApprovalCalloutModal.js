@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { __ } from '@wordpress/i18n';
 import { TextControl, TextareaControl, Button, SelectControl, Notice } from '@wordpress/components';
-import { ErrorsRow } from '../styled_elements';
-import WicketModal from '../components/WicketModal';
+import { ErrorsRow } from '../shared/styled_elements';
+import WicketModal from '../shared/components/WicketModal';
 
 /**
  * ApprovalCalloutModal
