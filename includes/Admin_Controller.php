@@ -32,6 +32,7 @@ class Admin_Controller {
       var wicketMembershipsSettings = {
         'WICKET_MSHIP_MERGE_TOOLS': '<?php echo $_ENV['WICKET_MSHIP_MERGE_TOOLS']; ?>',
         'WICKET_MSHIP_MULTI_TIER_RENEWALS': '<?php echo $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS']; ?>',
+        'adminUrl': '<?php echo esc_url( admin_url() ); ?>',
       };
     </script>
     <?php

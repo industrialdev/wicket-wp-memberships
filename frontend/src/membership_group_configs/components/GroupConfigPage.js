@@ -41,13 +41,11 @@ const GroupConfigPageContent = ({
     form,
     setForm,
     recordRequest,
-    pagesRequest,
-    productsRequest,
-    wpPagesOptions,
+    wpPostsOptions,
     wcProductOptions,
     retryRecord,
-    retryPages,
-    retryProducts,
+    loadPostOptions,
+    loadProductOptions,
     isRecordReady,
   } = useGroupConfigBootstrap({
     postId,
@@ -139,15 +137,13 @@ const GroupConfigPageContent = ({
         isRecordReady={isRecordReady}
         isSubmitting={isSubmitting}
         languageCodes={languageCodesArray}
+        loadPostOptions={loadPostOptions}
+        loadProductOptions={loadProductOptions}
         onSubmit={handleSubmit}
-        pagesRequest={pagesRequest}
         postId={postId}
-        productsRequest={productsRequest}
-        retryPages={retryPages}
-        retryProducts={retryProducts}
         setForm={setForm}
         wcProductOptions={wcProductOptions}
-        wpPagesOptions={wpPagesOptions}
+        wpPostsOptions={wpPostsOptions}
       />
     </Wrap>
   );

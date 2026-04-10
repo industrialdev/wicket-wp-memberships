@@ -3,24 +3,23 @@ import {
   Flex,
   FlexBlock,
   FlexItem,
-  Notice,
   TextControl,
 } from "@wordpress/components";
 import WicketButton from "./WicketButton";
 import AdminLoadingSkeleton from "./AdminLoadingSkeleton";
-import { BorderedBox, LabelWpStyled, SelectWpStyled } from "../styled_elements";
+import ModalPostSelector from "./ModalPostSelector";
+import { BorderedBox } from "../styled_elements";
 
 const GracePeriodSection = ({
   daysCount,
   selectedProductOption,
-  wcProductOptions,
-  productsRequest,
   disabled,
   isLoading,
+  isLoadingValue,
   onDaysCountChange,
   onProductChange,
   onConfigureCallout,
-  retryProducts,
+  loadProductOptions,
 }) => {
   if (isLoading) {
     return (
@@ -33,23 +32,6 @@ const GracePeriodSection = ({
 
   return (
     <BorderedBox>
-      {productsRequest.status === "error" ? (
-        <Notice isDismissible={false} status="warning">
-          <div>
-            {productsRequest.errorMessage ||
-              __(
-                "Products could not be loaded. You can retry this section without leaving the page.",
-                "wicket-memberships",
-              )}
-          </div>
-          <div>
-            <WicketButton onClick={retryProducts} variant="link">
-              {__("Retry products", "wicket-memberships")}
-            </WicketButton>
-          </div>
-        </Notice>
-      ) : null}
-
       <Flex align="end" direction={["column", "row"]} gap={5}>
         <FlexBlock>
           <TextControl
@@ -63,19 +45,20 @@ const GracePeriodSection = ({
           />
         </FlexBlock>
         <FlexBlock>
-          <LabelWpStyled htmlFor="late_fee_product_id">
-            {__("Product", "wicket-memberships")}
-          </LabelWpStyled>
-          <SelectWpStyled
-            classNamePrefix="select"
+          <ModalPostSelector
             id="late_fee_product_id"
-            isClearable={true}
-            isDisabled={disabled || productsRequest.status === "error"}
-            isLoading={productsRequest.status === "loading"}
-            isSearchable={true}
-            onChange={onProductChange}
-            options={wcProductOptions}
+            label={__("Product", "wicket-memberships")}
+            placeholder={__("Select a product…", "wicket-memberships")}
+            modalTitle={__("Select a Product", "wicket-memberships")}
             value={selectedProductOption}
+            onChange={onProductChange}
+            disabled={disabled}
+            isLoadingValue={isLoadingValue}
+            loadOptions={loadProductOptions}
+            columnLabels={{
+              id: __("ID", "wicket-memberships"),
+              name: __("Product Name", "wicket-memberships"),
+            }}
           />
         </FlexBlock>
         <FlexItem>

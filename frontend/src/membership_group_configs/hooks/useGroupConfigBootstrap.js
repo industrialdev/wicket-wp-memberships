@@ -10,16 +10,20 @@ const REQUEST_IDLE = { status: "idle", error: null };
 const REQUEST_LOADING = { status: "loading", error: null };
 const REQUEST_SUCCESS = { status: "success", error: null };
 
-const mapPagesToOptions = (pages = []) =>
-  pages.map((page) => ({
-    label: `${he.decode(page.title.rendered)} | ID: ${page.id}`,
-    value: page.id,
+const mapPostsToOptions = (posts = []) =>
+  posts.map((post) => ({
+    title: he.decode(post.title.rendered),
+    value: post.id,
+    modified: post.modified,
+    published: post.date,
   }));
 
 const mapProductsToOptions = (products = []) =>
   products.map((product) => ({
-    label: `${product.name} | ID: ${product.id}`,
+    title: product.name,
     value: product.id,
+    sku: product.sku,
+    price: product.price,
   }));
 
 const getInitialRecordRequest = (hasPostId) =>
@@ -36,9 +40,9 @@ export const useGroupConfigBootstrap = ({
   const [recordRequest, setRecordRequest] = useState(
     getInitialRecordRequest(hasPostId),
   );
-  const [pagesRequest, setPagesRequest] = useState(REQUEST_IDLE);
+  const [postsRequest, setPostsRequest] = useState(REQUEST_IDLE);
   const [productsRequest, setProductsRequest] = useState(REQUEST_IDLE);
-  const [wpPagesOptions, setWpPagesOptions] = useState([]);
+  const [wpPostsOptions, setWpPostsOptions] = useState([]);
   const [wcProductOptions, setWcProductOptions] = useState([]);
 
   const loadRecord = useCallback(async () => {
@@ -61,22 +65,25 @@ export const useGroupConfigBootstrap = ({
     }
   }, [groupConfigCptSlug, hasPostId, languageCodes, postId]);
 
-  const loadPages = useCallback(async () => {
-    setPagesRequest(REQUEST_LOADING);
+  const loadPosts = useCallback(async (restSlug = "pages") => {
+    setPostsRequest(REQUEST_LOADING);
 
     try {
-      const pages = await apiFetch({
-        path: addQueryArgs(`${API_URL}/pages`, {
-          _fields: "id,title",
+      const posts = await apiFetch({
+        path: addQueryArgs(`${API_URL}/${restSlug}`, {
+          _fields: "id,title,date,modified",
           status: "publish",
           per_page: -1,
         }),
       });
 
-      setWpPagesOptions(mapPagesToOptions(pages));
-      setPagesRequest(REQUEST_SUCCESS);
+      const options = mapPostsToOptions(posts);
+      setWpPostsOptions(options);
+      setPostsRequest(REQUEST_SUCCESS);
+      return options;
     } catch (error) {
-      setPagesRequest({ status: "error", error });
+      setPostsRequest({ status: "error", error });
+      throw error;
     }
   }, []);
 
@@ -86,43 +93,45 @@ export const useGroupConfigBootstrap = ({
     try {
       const products = await fetchWcProducts({
         status: "publish",
-        per_page: 100,
+        per_page: -1,
       });
 
-      setWcProductOptions(mapProductsToOptions(products));
+      const options = mapProductsToOptions(products);
+      setWcProductOptions(options);
       setProductsRequest(REQUEST_SUCCESS);
+      return options;
     } catch (error) {
       setProductsRequest({ status: "error", error });
+      throw error;
     }
   }, []);
 
   useEffect(() => {
     setForm(defaultForm);
     setRecordRequest(getInitialRecordRequest(hasPostId));
-    setPagesRequest(REQUEST_IDLE);
+    setPostsRequest(REQUEST_IDLE);
     setProductsRequest(REQUEST_IDLE);
-    setWpPagesOptions([]);
+    setWpPostsOptions([]);
     setWcProductOptions([]);
-
-    loadPages();
-    loadProducts();
 
     if (hasPostId) {
       loadRecord();
     }
-  }, [defaultForm, hasPostId, loadPages, loadProducts, loadRecord]);
+  }, [defaultForm, hasPostId, loadRecord]);
 
   return {
     form,
     setForm,
     recordRequest,
-    pagesRequest,
+    postsRequest,
     productsRequest,
-    wpPagesOptions,
+    wpPostsOptions,
     wcProductOptions,
     retryRecord: loadRecord,
-    retryPages: loadPages,
+    retryPosts: loadPosts,
     retryProducts: loadProducts,
+    loadPostOptions: loadPosts,
+    loadProductOptions: loadProducts,
     isRecordReady: !hasPostId || recordRequest.status === "success",
   };
 };

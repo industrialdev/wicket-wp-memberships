@@ -5,3 +5,4 @@ export const TIER_CPT_SLUG = "wicket_mship_tier";
 export const DEFAULT_DATE_FORMAT = "yyyy-MM-dd";
 export const WC_PRODUCT_TYPES = ["subscription", "variable-subscription"];
 export const PLUGIN_SETTINGS = wicketMembershipsSettings;
+export const WP_ADMIN_URL = wicketMembershipsSettings.adminUrl;

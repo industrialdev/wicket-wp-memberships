@@ -1,7 +1,7 @@
 import { __ } from "@wordpress/i18n";
-import { FlexBlock, Notice } from "@wordpress/components";
-import WicketButton from "./WicketButton";
+import { FlexBlock } from "@wordpress/components";
 import AdminLoadingSkeleton from "./AdminLoadingSkeleton";
+import ModalPostSelector from "./ModalPostSelector";
 import { LabelWpStyled, SelectWpStyled } from "../styled_elements";
 
 const RENEWAL_TYPE_OPTIONS = [
@@ -11,14 +11,14 @@ const RENEWAL_TYPE_OPTIONS = [
 
 const RenewalTypeSection = ({
   renewalType,
-  selectedPageOption,
-  wpPagesOptions,
-  pagesRequest,
+  selectedPostOption,
   disabled,
   isLoading,
+  isLoadingValue,
   onRenewalTypeChange,
-  onRenewalFormPageIdChange,
-  retryPages,
+  onRenewalFormPostIdChange,
+  loadPostOptions,
+  postTypeLabel = "Post",
 }) => {
   if (isLoading) {
     return (
@@ -52,37 +52,21 @@ const RenewalTypeSection = ({
 
       {renewalType === "form_page" ? (
         <div style={{ marginTop: "15px" }}>
-          {pagesRequest.status === "error" ? (
-            <Notice isDismissible={false} status="warning">
-              <div>
-                {pagesRequest.errorMessage ||
-                  __(
-                    "Pages could not be loaded. You can retry this section without leaving the page.",
-                    "wicket-memberships",
-                  )}
-              </div>
-              <div>
-                <WicketButton onClick={retryPages} variant="link">
-                  {__("Retry pages", "wicket-memberships")}
-                </WicketButton>
-              </div>
-            </Notice>
-          ) : null}
-
           <FlexBlock>
-            <LabelWpStyled htmlFor="renewal_form_page">
-              {__("Renewal Form Page", "wicket-memberships")}
-            </LabelWpStyled>
-            <SelectWpStyled
-              classNamePrefix="select"
-              id="renewal_form_page"
-              isDisabled={disabled || pagesRequest.status === "error"}
-              isLoading={pagesRequest.status === "loading"}
-              isSearchable={true}
-              onChange={onRenewalFormPageIdChange}
-              options={wpPagesOptions}
-              placeholder={__("Select a page…", "wicket-memberships")}
-              value={selectedPageOption}
+            <ModalPostSelector
+              id="renewal_form_post"
+              label={`${__("Renewal Form", "wicket-memberships")} ${postTypeLabel}`}
+              placeholder={`${__("Select a", "wicket-memberships")} ${postTypeLabel}…`}
+              modalTitle={`${__("Select a", "wicket-memberships")} ${postTypeLabel}`}
+              value={selectedPostOption}
+              onChange={onRenewalFormPostIdChange}
+              disabled={disabled}
+              isLoadingValue={isLoadingValue}
+              loadOptions={loadPostOptions}
+              columnLabels={{
+                id: __("ID", "wicket-memberships"),
+                name: __("Title", "wicket-memberships"),
+              }}
             />
           </FlexBlock>
         </div>

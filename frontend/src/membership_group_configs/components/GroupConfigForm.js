@@ -26,12 +26,10 @@ const GroupConfigForm = ({
   languageCodes,
   isRecordReady,
   isEditing,
-  pagesRequest,
-  productsRequest,
-  wpPagesOptions,
+  wpPostsOptions,
   wcProductOptions,
-  retryPages,
-  retryProducts,
+  loadPostOptions,
+  loadProductOptions,
 }) => {
   const [activeCalloutModal, setActiveCalloutModal] = useState(null);
   const [seasonModalState, setSeasonModalState] = useState({
@@ -129,9 +127,8 @@ const GroupConfigForm = ({
           isRecordReady={isRecordReady}
           onChange={setForm}
           onOpenCallout={() => setActiveCalloutModal("late_fee_window_data")}
-          productsRequest={productsRequest}
-          retryProducts={retryProducts}
           wcProductOptions={wcProductOptions}
+          loadProductOptions={loadProductOptions}
         />
 
         <CycleSection
@@ -163,9 +160,8 @@ const GroupConfigForm = ({
           isEditing={isEditing}
           isRecordReady={isRecordReady}
           onChange={setForm}
-          pagesRequest={pagesRequest}
-          retryPages={retryPages}
-          wpPagesOptions={wpPagesOptions}
+          wpPostsOptions={wpPostsOptions}
+          loadPostOptions={loadPostOptions}
         />
 
         <ActionRow>

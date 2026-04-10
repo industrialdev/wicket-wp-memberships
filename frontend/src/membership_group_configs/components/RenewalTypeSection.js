@@ -1,5 +1,5 @@
 import SharedRenewalTypeSection from "../../shared/components/RenewalTypeSection";
-import { findOptionByValue, getPrimaryErrorMessage } from "../utils/formUtils";
+import useResolvedOption from "../../shared/hooks/useResolvedOption";
 
 const RenewalTypeSection = ({
   form,
@@ -7,25 +7,21 @@ const RenewalTypeSection = ({
   isEditing,
   isRecordReady,
   isDisabled,
-  wpPagesOptions,
-  pagesRequest,
-  retryPages,
+  loadPostOptions,
 }) => {
-  const selectedRenewalPageId = form.group_config_data.renewal_form_page_id;
-  const selectedPageOption =
-    findOptionByValue(wpPagesOptions, selectedRenewalPageId) ||
-    (selectedRenewalPageId
-      ? {
-          label: `Saved Page | ID: ${selectedRenewalPageId}`,
-          value: selectedRenewalPageId,
-        }
-      : null);
+  const selectedRenewalPostId = form.group_config_data.renewal_form_page_id;
+
+  const { option: selectedPostOption, isLoading: isLoadingPostOption } =
+    useResolvedOption(selectedRenewalPostId, "post", "pages");
 
   return (
     <SharedRenewalTypeSection
       disabled={isDisabled}
       isLoading={isEditing && !isRecordReady}
-      onRenewalFormPageIdChange={(selected) =>
+      isLoadingValue={isLoadingPostOption}
+      loadPostOptions={() => loadPostOptions("pages")}
+      postTypeLabel="Page"
+      onRenewalFormPostIdChange={(selected) =>
         onChange((currentForm) => ({
           ...currentForm,
           group_config_data: {
@@ -44,17 +40,8 @@ const RenewalTypeSection = ({
           },
         }))
       }
-      pagesRequest={{
-        ...pagesRequest,
-        errorMessage: getPrimaryErrorMessage(
-          pagesRequest.error,
-          "Pages could not be loaded. You can retry this section without leaving the page.",
-        ),
-      }}
       renewalType={form.group_config_data.renewal_type}
-      retryPages={retryPages}
-      selectedPageOption={selectedPageOption}
-      wpPagesOptions={wpPagesOptions}
+      selectedPostOption={selectedPostOption}
     />
   );
 };
