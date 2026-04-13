@@ -6964,7 +6964,9 @@ const ManageStatusModal = ({
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */   CreateRenewalOrderModal: () => (/* binding */ CreateRenewalOrderModal),
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__),
+/* harmony export */   getRenewalOrderAction: () => (/* binding */ getRenewalOrderAction)
 /* harmony export */ });
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
@@ -6987,10 +6989,24 @@ __webpack_require__.r(__webpack_exports__);
 const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_6__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Flex))`
   margin-top: 15px;
 `;
-const CreateRenewalOrder = ({
-  membership
+
+/**
+ * CreateRenewalOrderModal
+ *
+ * Renders only the modal (and its state/logic) for creating a renewal order.
+ * Use this when you want an external trigger (e.g. a dropdown action) to open
+ * the modal — pass `isOpen` and `onClose` from the parent.
+ *
+ * Props:
+ *   membership {object}   - The membership object.
+ *   isOpen     {boolean}  - Whether the modal is open.
+ *   onClose    {function} - Called when the modal should close.
+ */
+const CreateRenewalOrderModal = ({
+  membership,
+  isOpen,
+  onClose
 }) => {
-  const [isCreateRenewalOrderModalOpen, setIsCreateRenewalOrderModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   const [createRenewalOrderErrors, setCreateRenewalOrderErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [createRenewalOrderFormData, setCreateRenewalOrderFormData] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     product_id: null,
@@ -7002,27 +7018,19 @@ const CreateRenewalOrder = ({
 
   const [productVariations, setProductVariations] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { product_id: [] }
 
-  /**
-   * Open the Create Renewal Order Modal
-   */
-  const openCreateRenewalOrderModal = () => {
-    // If there are no WooCommerce products, fetch them
-    if (wcProductOptions.length === 0) {
+  // Fetch products the first time the modal opens
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    if (isOpen && wcProductOptions.length === 0) {
       getAllWcProducts();
     }
-    setIsCreateRenewalOrderModalOpen(true);
-  };
-
-  /**
-   * Close the Create Renewal Order Modal
-   */
-  const closeCreateRenewalOrderModalOpen = () => {
+  }, [isOpen]);
+  const closeModal = () => {
     setCreateRenewalOrderFormData({
       product_id: null,
       variation_id: null,
       order_link: null
     });
-    setIsCreateRenewalOrderModalOpen(false);
+    onClose();
   };
 
   /**
@@ -7051,7 +7059,6 @@ const CreateRenewalOrder = ({
    * Get the product id of the selected product (in the modal)
    */
   const getSelectedProductId = () => {
-    // return null if there is no product
     if (createRenewalOrderFormData.product_id === null) {
       return null;
     }
@@ -7062,7 +7069,6 @@ const CreateRenewalOrder = ({
    * Get the variation id of the selected product (in the modal)
    */
   const getSelectedProductVariationId = () => {
-    // return null if there are no products
     if (createRenewalOrderFormData.variation_id === null) {
       return null;
     }
@@ -7090,7 +7096,6 @@ const CreateRenewalOrder = ({
    * Fetch variations for the selected product id
    */
   const getProductVariations = productId => {
-    // check if we already have variations for this product
     if (productId === null || productVariations[productId]) {
       return;
     }
@@ -7128,7 +7133,7 @@ const CreateRenewalOrder = ({
   };
 
   /**
-   * Get the product id of the selected product
+   * Get the product type of the selected product
    */
   const getSelectedCreateRenewalOrderProductType = () => {
     if (createRenewalOrderFormData.product_id === null) {
@@ -7137,24 +7142,12 @@ const CreateRenewalOrder = ({
     const product = wcProductOptions.find(option => option.value === createRenewalOrderFormData.product_id);
     return product.type;
   };
-  console.log(createRenewalOrderFormData);
-  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_3__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
-    style: {
-      textAlign: "left"
-    }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Renewal", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Button, {
-    variant: "secondary"
-    // Disable the button if the membership is not "Active, Grace Period, or Delayed"
-    ,
-    disabled: membership.data.membership_status_slug !== "active" && membership.data.membership_status_slug !== "grace_period" && membership.data.membership_status_slug !== "delayed",
-    onClick: () => {
-      openCreateRenewalOrderModal();
-    }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Icon, {
-    icon: "update"
-  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Create Renewal Order", "wicket-memberships"))))), isCreateRenewalOrderModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Modal, {
+  if (!isOpen) {
+    return null;
+  }
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Modal, {
     title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Create Renewal Order", "wicket-memberships"),
-    onRequestClose: closeCreateRenewalOrderModalOpen,
+    onRequestClose: closeModal,
     style: {
       maxWidth: "650px",
       width: "100%"
@@ -7249,9 +7242,171 @@ const CreateRenewalOrder = ({
     type: "submit",
     isBusy: isLoading,
     disabled: getSelectedProductId() === null || getSelectedCreateRenewalOrderProductType() === "variable-subscription" && getSelectedProductVariationId() === null || isLoading || createRenewalOrderFormData.order_link !== null
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Create Order", "wicket-memberships"))))))));
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Create Order", "wicket-memberships")))))));
 };
+
+/**
+ * CreateRenewalOrder (default export)
+ *
+ * The original standalone component — renders the trigger button in a
+ * BorderedBox plus the CreateRenewalOrderModal. Kept for backward
+ * compatibility; new usage should prefer MembershipActionsDropdown +
+ * CreateRenewalOrderModal directly.
+ */
+const CreateRenewalOrder = ({
+  membership
+}) => {
+  const [isCreateRenewalOrderModalOpen, setIsCreateRenewalOrderModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const openCreateRenewalOrderModal = () => {
+    setIsCreateRenewalOrderModalOpen(true);
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_3__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      textAlign: "left"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Renewal", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Button, {
+    variant: "secondary"
+    // Disable the button if the membership is not "Active, Grace Period, or Delayed"
+    ,
+    disabled: membership.data.membership_status_slug !== "active" && membership.data.membership_status_slug !== "grace_period" && membership.data.membership_status_slug !== "delayed",
+    onClick: () => {
+      openCreateRenewalOrderModal();
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Icon, {
+    icon: "update"
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Create Renewal Order", "wicket-memberships"))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(CreateRenewalOrderModal, {
+    membership: membership,
+    isOpen: isCreateRenewalOrderModalOpen,
+    onClose: () => setIsCreateRenewalOrderModalOpen(false)
+  }));
+};
+
+/**
+ * Returns an action object for use with MembershipActionsDropdown.
+ * Keeps the disabled condition colocated with the feature that owns it.
+ *
+ * @param {object}   membership - The membership object.
+ * @param {function} onOpen     - Called when the action is clicked.
+ * @returns {{ label: string, disabled: boolean, onClick: function }}
+ */
+const getRenewalOrderAction = (membership, onOpen) => ({
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Create Renewal Order", "wicket-memberships"),
+  disabled: membership.data.membership_status_slug !== "active" && membership.data.membership_status_slug !== "grace_period" && membership.data.membership_status_slug !== "delayed",
+  onClick: onOpen
+});
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (CreateRenewalOrder);
+
+/***/ }),
+
+/***/ "./src/shared/components/MembershipActionsDropdown.js":
+/*!************************************************************!*\
+  !*** ./src/shared/components/MembershipActionsDropdown.js ***!
+  \************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+
+
+
+
+
+
+const DropdownWrap = (0,styled_components__WEBPACK_IMPORTED_MODULE_4__["default"])((0,_styled_elements__WEBPACK_IMPORTED_MODULE_3__.BorderedBox))`
+  position: relative;
+  display: inline-block;
+`;
+const DropdownMenu = styled_components__WEBPACK_IMPORTED_MODULE_4__["default"].div`
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  margin-top: 4px;
+`;
+const DropdownItem = styled_components__WEBPACK_IMPORTED_MODULE_4__["default"].button`
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1e1e1e;
+
+  &:hover:not(:disabled) {
+    background: #f0f0f1;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+/**
+ * MembershipActionsDropdown
+ *
+ * A dropdown button that reveals a list of actions.
+ *
+ * Props:
+ *   label   {string}   - Button label. Defaults to "Membership Actions".
+ *   actions {Array}    - Array of action objects:
+ *                          { label: string, onClick: function, disabled?: boolean }
+ */
+const MembershipActionsDropdown = ({
+  label,
+  actions = []
+}) => {
+  const [isOpen, setIsOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const wrapRef = (0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(null);
+  const buttonLabel = label || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership Actions", "wicket-memberships");
+
+  // Close dropdown when clicking outside
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    const handleClickOutside = event => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+  const handleActionClick = action => {
+    setIsOpen(false);
+    action.onClick();
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(DropdownWrap, {
+    ref: wrapRef
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Actions", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    variant: "secondary",
+    onClick: () => setIsOpen(prev => !prev)
+  }, buttonLabel, "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Icon, {
+    icon: isOpen ? "arrow-up-alt2" : "arrow-down-alt2"
+  }))), isOpen && actions.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(DropdownMenu, null, actions.map((action, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(DropdownItem, {
+    key: index,
+    disabled: !!action.disabled,
+    onClick: () => handleActionClick(action)
+  }, action.label))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipActionsDropdown);
 
 /***/ }),
 
@@ -43940,15 +44095,16 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__);
 /* harmony import */ var _ManageStatusModal__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ./ManageStatusModal */ "./src/members/ManageStatusModal.js");
-/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! react-datepicker */ "./node_modules/react-datepicker/dist/react-datepicker.min.js");
-/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_14___default = /*#__PURE__*/__webpack_require__.n(react_datepicker__WEBPACK_IMPORTED_MODULE_14__);
-/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! react-datepicker */ "./node_modules/react-datepicker/dist/react-datepicker.min.js");
+/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_15___default = /*#__PURE__*/__webpack_require__.n(react_datepicker__WEBPACK_IMPORTED_MODULE_15__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
 /* harmony import */ var _shared_services_api__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../shared/services/api */ "./src/shared/services/api.js");
 /* harmony import */ var he__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! he */ "./node_modules/he/he.js");
 /* harmony import */ var he__WEBPACK_IMPORTED_MODULE_10___default = /*#__PURE__*/__webpack_require__.n(he__WEBPACK_IMPORTED_MODULE_10__);
 /* harmony import */ var moment_timezone__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! moment-timezone */ "./node_modules/moment-timezone/index.js");
 /* harmony import */ var moment_timezone__WEBPACK_IMPORTED_MODULE_11___default = /*#__PURE__*/__webpack_require__.n(moment_timezone__WEBPACK_IMPORTED_MODULE_11__);
 /* harmony import */ var _create_renewal_order__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ./create_renewal_order */ "./src/members/create_renewal_order.js");
+/* harmony import */ var _shared_components_MembershipActionsDropdown__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ../shared/components/MembershipActionsDropdown */ "./src/shared/components/MembershipActionsDropdown.js");
 
 
 
@@ -43965,16 +44121,17 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-const EditWrap = styled_components__WEBPACK_IMPORTED_MODULE_13__["default"].div`
+
+const EditWrap = styled_components__WEBPACK_IMPORTED_MODULE_14__["default"].div`
 	max-width: 1000px;
 `;
-const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_13__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex))`
+const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_14__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex))`
 	margin-top: 15px;
 `;
-const WhiteBorderedBox = (0,styled_components__WEBPACK_IMPORTED_MODULE_13__["default"])((0,_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.BorderedBox))`
+const WhiteBorderedBox = (0,styled_components__WEBPACK_IMPORTED_MODULE_14__["default"])((0,_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.BorderedBox))`
   background: #fff;
 `;
-const MembershipTable = styled_components__WEBPACK_IMPORTED_MODULE_13__["default"].div`
+const MembershipTable = styled_components__WEBPACK_IMPORTED_MODULE_14__["default"].div`
   margin-top: 20px;
 
   .membership_details {
@@ -43999,7 +44156,7 @@ const MembershipTable = styled_components__WEBPACK_IMPORTED_MODULE_13__["default
     }
   }
 `;
-const SeatsBox = styled_components__WEBPACK_IMPORTED_MODULE_13__["default"].div`
+const SeatsBox = styled_components__WEBPACK_IMPORTED_MODULE_14__["default"].div`
   border: 1px solid #949494;
   display: flex;
 
@@ -44019,7 +44176,7 @@ const SeatsBox = styled_components__WEBPACK_IMPORTED_MODULE_13__["default"].div`
     }
   }
 `;
-const RecordTopInfo = styled_components__WEBPACK_IMPORTED_MODULE_13__["default"].div`
+const RecordTopInfo = styled_components__WEBPACK_IMPORTED_MODULE_14__["default"].div`
   background: #F0F6FC;
   margin-top: 15px;
   padding: 15px;
@@ -44521,8 +44678,18 @@ const MemberEdit = ({
       onClick: () => {
         openManageStatusModal(index);
       }
-    }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Manage Status', 'wicket-memberships'))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_create_renewal_order__WEBPACK_IMPORTED_MODULE_12__["default"], {
-      membership: membership
+    }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Manage Status', 'wicket-memberships'))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipActionsDropdown__WEBPACK_IMPORTED_MODULE_13__["default"], {
+      actions: [(0,_create_renewal_order__WEBPACK_IMPORTED_MODULE_12__.getRenewalOrderAction)(membership, () => {
+        membership.isRenewalModalOpen = true;
+        setMemberships([...memberships]);
+      })]
+    }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_create_renewal_order__WEBPACK_IMPORTED_MODULE_12__.CreateRenewalOrderModal, {
+      membership: membership,
+      isOpen: !!membership.isRenewalModalOpen,
+      onClose: () => {
+        membership.isRenewalModalOpen = false;
+        setMemberships([...memberships]);
+      }
     })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.BorderedBox, null, membership.updateResult.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ErrorsRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Notice, {
       isDismissible: true,
       onDismiss: () => {
@@ -44544,7 +44711,7 @@ const MemberEdit = ({
       direction: ['column', 'row']
     }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
       htmlFor: "membership_starts_at"
-    }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_14___default()), {
+    }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_15___default()), {
       "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships'),
       name: "membership_starts_at",
       dateFormat: _shared_constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
@@ -44558,7 +44725,7 @@ const MemberEdit = ({
       }
     }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
       htmlFor: "membership_ends_at"
-    }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_14___default()), {
+    }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_15___default()), {
       "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships'),
       name: "membership_ends_at",
       dateFormat: _shared_constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
@@ -44571,7 +44738,7 @@ const MemberEdit = ({
       }
     }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
       htmlFor: "membership_expires_at"
-    }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Expiration Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_14___default()), {
+    }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Expiration Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_15___default()), {
       "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Expiration Date', 'wicket-memberships'),
       name: "membership_expires_at",
       dateFormat: _shared_constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,

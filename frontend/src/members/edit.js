@@ -12,7 +12,8 @@ import styled from 'styled-components';
 import { fetchTiers, fetchMemberships, updateMembership, fetchMemberInfo, fetchMdpPersons } from '../shared/services/api';
 import he from 'he';
 import moment from 'moment-timezone';
-import CreateRenewalOrder from './create_renewal_order';
+import { CreateRenewalOrderModal, getRenewalOrderAction } from './create_renewal_order';
+import MembershipActionsDropdown from '../shared/components/MembershipActionsDropdown';
 
 export const EditWrap = styled.div`
 	max-width: 1000px;
@@ -737,7 +738,23 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                 </Flex>
                               </BorderedBox>
 
-                              <CreateRenewalOrder membership={membership} />
+                              <MembershipActionsDropdown
+                                actions={[
+                                  getRenewalOrderAction(membership, () => {
+                                    membership.isRenewalModalOpen = true;
+                                    setMemberships([...memberships]);
+                                  }),
+                                ]}
+                              />
+
+                              <CreateRenewalOrderModal
+                                membership={membership}
+                                isOpen={!!membership.isRenewalModalOpen}
+                                onClose={() => {
+                                  membership.isRenewalModalOpen = false;
+                                  setMemberships([...memberships]);
+                                }}
+                              />
                             </Flex>
 
                             <BorderedBox>

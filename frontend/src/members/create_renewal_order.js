@@ -1,5 +1,5 @@
 import { __ } from "@wordpress/i18n";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { WC_PRODUCT_TYPES } from "../shared/constants";
 import {
   ErrorsRow,
@@ -28,10 +28,19 @@ const MarginedFlex = styled(Flex)`
   margin-top: 15px;
 `;
 
-const CreateRenewalOrder = ({ membership }) => {
-  const [isCreateRenewalOrderModalOpen, setIsCreateRenewalOrderModalOpen] =
-    useState(false);
-
+/**
+ * CreateRenewalOrderModal
+ *
+ * Renders only the modal (and its state/logic) for creating a renewal order.
+ * Use this when you want an external trigger (e.g. a dropdown action) to open
+ * the modal — pass `isOpen` and `onClose` from the parent.
+ *
+ * Props:
+ *   membership {object}   - The membership object.
+ *   isOpen     {boolean}  - Whether the modal is open.
+ *   onClose    {function} - Called when the modal should close.
+ */
+export const CreateRenewalOrderModal = ({ membership, isOpen, onClose }) => {
   const [createRenewalOrderErrors, setCreateRenewalOrderErrors] = useState([]);
 
   const [createRenewalOrderFormData, setCreateRenewalOrderFormData] = useState({
@@ -46,27 +55,20 @@ const CreateRenewalOrder = ({ membership }) => {
 
   const [productVariations, setProductVariations] = useState([]); // { product_id: [] }
 
-  /**
-   * Open the Create Renewal Order Modal
-   */
-  const openCreateRenewalOrderModal = () => {
-    // If there are no WooCommerce products, fetch them
-    if (wcProductOptions.length === 0) {
+  // Fetch products the first time the modal opens
+  useEffect(() => {
+    if (isOpen && wcProductOptions.length === 0) {
       getAllWcProducts();
     }
-    setIsCreateRenewalOrderModalOpen(true);
-  };
+  }, [isOpen]);
 
-  /**
-   * Close the Create Renewal Order Modal
-   */
-  const closeCreateRenewalOrderModalOpen = () => {
+  const closeModal = () => {
     setCreateRenewalOrderFormData({
       product_id: null,
       variation_id: null,
       order_link: null,
     });
-    setIsCreateRenewalOrderModalOpen(false);
+    onClose();
   };
 
   /**
@@ -99,7 +101,6 @@ const CreateRenewalOrder = ({ membership }) => {
    * Get the product id of the selected product (in the modal)
    */
   const getSelectedProductId = () => {
-    // return null if there is no product
     if (createRenewalOrderFormData.product_id === null) {
       return null;
     }
@@ -111,7 +112,6 @@ const CreateRenewalOrder = ({ membership }) => {
    * Get the variation id of the selected product (in the modal)
    */
   const getSelectedProductVariationId = () => {
-    // return null if there are no products
     if (createRenewalOrderFormData.variation_id === null) {
       return null;
     }
@@ -145,7 +145,6 @@ const CreateRenewalOrder = ({ membership }) => {
    * Fetch variations for the selected product id
    */
   const getProductVariations = (productId) => {
-    // check if we already have variations for this product
     if (productId === null || productVariations[productId]) {
       return;
     }
@@ -194,7 +193,7 @@ const CreateRenewalOrder = ({ membership }) => {
   };
 
   /**
-   * Get the product id of the selected product
+   * Get the product type of the selected product
    */
   const getSelectedCreateRenewalOrderProductType = () => {
     if (createRenewalOrderFormData.product_id === null) {
@@ -208,7 +207,180 @@ const CreateRenewalOrder = ({ membership }) => {
     return product.type;
   };
 
-  console.log(createRenewalOrderFormData);
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <Modal
+      title={__("Create Renewal Order", "wicket-memberships")}
+      onRequestClose={closeModal}
+      style={{
+        maxWidth: "650px",
+        width: "100%",
+      }}
+    >
+      {createRenewalOrderErrors.length > 0 && (
+        <ErrorsRow>
+          {createRenewalOrderErrors.map((errorMessage, index) => (
+            <Notice isDismissible={false} key={index} status="warning">
+              {errorMessage}
+            </Notice>
+          ))}
+        </ErrorsRow>
+      )}
+
+      {createRenewalOrderFormData.order_link !== null && (
+        <Notice isDismissible={false} status="success">
+          {__("Renewal Order created successfully.", "wicket-memberships")}{" "}
+          <Button
+            variant="link"
+            href={createRenewalOrderFormData.order_link}
+            target="_blank"
+          >
+            {__("View Order", "wicket-memberships")}
+          </Button>
+          &nbsp;
+          <Icon
+            icon="external"
+            style={{ color: "var(--wp-admin-theme-color)" }}
+          />
+        </Notice>
+      )}
+
+      <form onSubmit={handleCreateRenewalOrderModalSubmit}>
+        <MarginedFlex
+          align="end"
+          justify="start"
+          gap={5}
+          direction={["column", "row"]}
+        >
+          <FlexBlock>
+            <LabelWpStyled htmlFor={"create_renewal_order_product_id"}>
+              {__("Product", "wicket-memberships")}
+            </LabelWpStyled>
+            <SelectWpStyled
+              id={"create_renewal_order_product_id"}
+              classNamePrefix="select"
+              value={wcProductOptions.find(
+                (option) =>
+                  option.value === createRenewalOrderFormData.product_id,
+              )}
+              isClearable={false}
+              isSearchable={true}
+              isLoading={wcProductOptions.length === 0}
+              options={wcProductOptions}
+              menuPortalTarget={document.body}
+              styles={{
+                menuPortal: (provided) => ({ ...provided, zIndex: 100001 }),
+              }}
+              onChange={(selected) => {
+                setCreateRenewalOrderFormData({
+                  ...createRenewalOrderFormData,
+                  product_id: selected.value,
+                  variation_id: null,
+                });
+
+                // Fetch variations if the selected product is a variable subscription
+                const product = wcProductOptions.find(
+                  (option) => option.value === selected.value,
+                );
+
+                if (product.type === "variable-subscription") {
+                  getProductVariations(selected.value);
+                }
+              }}
+            />
+          </FlexBlock>
+        </MarginedFlex>
+
+        {getSelectedCreateRenewalOrderProductType() ===
+          "variable-subscription" && (
+          <MarginedFlex>
+            <FlexBlock>
+              <LabelWpStyled htmlFor={"create_order_renewal_variation_id"}>
+                {__("Variable", "wicket-memberships")}
+              </LabelWpStyled>
+              <SelectWpStyled
+                id={"create_order_renewal_variation_id"}
+                classNamePrefix="select"
+                value={getSelectedVariationOption()}
+                isClearable={false}
+                isSearchable={true}
+                isLoading={
+                  productVariations[getSelectedProductId()] === undefined
+                }
+                menuPortalTarget={document.body}
+                styles={{
+                  menuPortal: (provided) => ({
+                    ...provided,
+                    zIndex: 100001,
+                  }),
+                }}
+                options={
+                  productVariations[getSelectedProductId()]
+                    ? productVariations[getSelectedProductId()].map(
+                        (variation) => {
+                          return {
+                            label: `${variation.name} (#${variation.id})`,
+                            value: variation.id,
+                          };
+                        },
+                      )
+                    : []
+                }
+                onChange={(selected) => {
+                  setCreateRenewalOrderFormData({
+                    ...createRenewalOrderFormData,
+                    variation_id: selected.value,
+                  });
+                }}
+              />
+            </FlexBlock>
+          </MarginedFlex>
+        )}
+
+        <ActionRow>
+          <Flex align="end" gap={5} direction={["column", "row"]}>
+            <FlexItem>
+              <Button
+                variant="primary"
+                type="submit"
+                isBusy={isLoading}
+                disabled={
+                  getSelectedProductId() === null ||
+                  (getSelectedCreateRenewalOrderProductType() ===
+                    "variable-subscription" &&
+                    getSelectedProductVariationId() === null) ||
+                  isLoading ||
+                  createRenewalOrderFormData.order_link !== null
+                }
+              >
+                {__("Create Order", "wicket-memberships")}
+              </Button>
+            </FlexItem>
+          </Flex>
+        </ActionRow>
+      </form>
+    </Modal>
+  );
+};
+
+/**
+ * CreateRenewalOrder (default export)
+ *
+ * The original standalone component — renders the trigger button in a
+ * BorderedBox plus the CreateRenewalOrderModal. Kept for backward
+ * compatibility; new usage should prefer MembershipActionsDropdown +
+ * CreateRenewalOrderModal directly.
+ */
+const CreateRenewalOrder = ({ membership }) => {
+  const [isCreateRenewalOrderModalOpen, setIsCreateRenewalOrderModalOpen] =
+    useState(false);
+
+  const openCreateRenewalOrderModal = () => {
+    setIsCreateRenewalOrderModalOpen(true);
+  };
 
   return (
     <>
@@ -238,162 +410,30 @@ const CreateRenewalOrder = ({ membership }) => {
         </div>
       </BorderedBox>
 
-      {/* "Create Renewal Order" Modal */}
-      {isCreateRenewalOrderModalOpen && (
-        <Modal
-          title={__("Create Renewal Order", "wicket-memberships")}
-          onRequestClose={closeCreateRenewalOrderModalOpen}
-          style={{
-            maxWidth: "650px",
-            width: "100%",
-          }}
-        >
-          {createRenewalOrderErrors.length > 0 && (
-            <ErrorsRow>
-              {createRenewalOrderErrors.map((errorMessage, index) => (
-                <Notice isDismissible={false} key={index} status="warning">
-                  {errorMessage}
-                </Notice>
-              ))}
-            </ErrorsRow>
-          )}
-
-          {createRenewalOrderFormData.order_link !== null && (
-            <Notice isDismissible={false} status="success">
-              {__("Renewal Order created successfully.", "wicket-memberships")}{" "}
-              <Button
-                variant="link"
-                href={createRenewalOrderFormData.order_link}
-                target="_blank"
-              >
-                {__("View Order", "wicket-memberships")}
-              </Button>
-              &nbsp;
-              <Icon
-                icon="external"
-                style={{ color: "var(--wp-admin-theme-color)" }}
-              />
-            </Notice>
-          )}
-
-          <form onSubmit={handleCreateRenewalOrderModalSubmit}>
-            <MarginedFlex
-              align="end"
-              justify="start"
-              gap={5}
-              direction={["column", "row"]}
-            >
-              <FlexBlock>
-                <LabelWpStyled htmlFor={"create_renewal_order_product_id"}>
-                  {__("Product", "wicket-memberships")}
-                </LabelWpStyled>
-                <SelectWpStyled
-                  id={"create_renewal_order_product_id"}
-                  classNamePrefix="select"
-                  value={wcProductOptions.find(
-                    (option) =>
-                      option.value === createRenewalOrderFormData.product_id,
-                  )}
-                  isClearable={false}
-                  isSearchable={true}
-                  isLoading={wcProductOptions.length === 0}
-                  options={wcProductOptions}
-                  menuPortalTarget={document.body}
-                  styles={{
-                    menuPortal: (provided) => ({ ...provided, zIndex: 100001 }),
-                  }}
-                  onChange={(selected) => {
-                    setCreateRenewalOrderFormData({
-                      ...createRenewalOrderFormData,
-                      product_id: selected.value,
-                      variation_id: null,
-                    });
-
-                    // Fetch variations if the selected product is a variable subscription
-                    const product = wcProductOptions.find(
-                      (option) => option.value === selected.value,
-                    );
-
-                    if (product.type === "variable-subscription") {
-                      getProductVariations(selected.value);
-                    }
-                  }}
-                />
-              </FlexBlock>
-            </MarginedFlex>
-
-            {getSelectedCreateRenewalOrderProductType() ===
-              "variable-subscription" && (
-              <MarginedFlex>
-                <FlexBlock>
-                  <LabelWpStyled htmlFor={"create_order_renewal_variation_id"}>
-                    {__("Variable", "wicket-memberships")}
-                  </LabelWpStyled>
-                  <SelectWpStyled
-                    id={"create_order_renewal_variation_id"}
-                    classNamePrefix="select"
-                    value={getSelectedVariationOption()}
-                    isClearable={false}
-                    isSearchable={true}
-                    isLoading={
-                      productVariations[getSelectedProductId()] === undefined
-                    }
-                    menuPortalTarget={document.body}
-                    styles={{
-                      menuPortal: (provided) => ({
-                        ...provided,
-                        zIndex: 100001,
-                      }),
-                    }}
-                    options={
-                      productVariations[getSelectedProductId()]
-                        ? productVariations[getSelectedProductId()].map(
-                            (variation) => {
-                              return {
-                                label: `${variation.name} (#${variation.id})`,
-                                value: variation.id,
-                              };
-                            },
-                          )
-                        : []
-                    }
-                    onChange={(selected) => {
-                      setCreateRenewalOrderFormData({
-                        ...createRenewalOrderFormData,
-                        variation_id: selected.value,
-                      });
-                    }}
-                  />
-                </FlexBlock>
-              </MarginedFlex>
-            )}
-
-            <ActionRow>
-              <Flex align="end" gap={5} direction={["column", "row"]}>
-                <FlexItem>
-                  <Button
-                    variant="primary"
-                    type="submit"
-                    isBusy={isLoading}
-                    disabled={
-                      getSelectedProductId() === null ||
-                      (getSelectedCreateRenewalOrderProductType() ===
-                        "variable-subscription" &&
-                        getSelectedProductVariationId() === null) ||
-                      isLoading ||
-                      createRenewalOrderFormData.order_link !== null
-                    }
-                  >
-                    {__("Create Order", "wicket-memberships")}
-                  </Button>
-                </FlexItem>
-              </Flex>
-            </ActionRow>
-          </form>
-        </Modal>
-      )}
+      <CreateRenewalOrderModal
+        membership={membership}
+        isOpen={isCreateRenewalOrderModalOpen}
+        onClose={() => setIsCreateRenewalOrderModalOpen(false)}
+      />
     </>
   );
 };
+
+/**
+ * Returns an action object for use with MembershipActionsDropdown.
+ * Keeps the disabled condition colocated with the feature that owns it.
+ *
+ * @param {object}   membership - The membership object.
+ * @param {function} onOpen     - Called when the action is clicked.
+ * @returns {{ label: string, disabled: boolean, onClick: function }}
+ */
+export const getRenewalOrderAction = (membership, onOpen) => ({
+  label: __("Create Renewal Order", "wicket-memberships"),
+  disabled:
+    membership.data.membership_status_slug !== "active" &&
+    membership.data.membership_status_slug !== "grace_period" &&
+    membership.data.membership_status_slug !== "delayed",
+  onClick: onOpen,
+});
 
 export default CreateRenewalOrder;
