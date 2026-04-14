@@ -9859,6 +9859,8 @@ const useResolvedOption = (id, type, restSlug = "pages") => {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   createRenewalOrder: () => (/* binding */ createRenewalOrder),
+/* harmony export */   fetchGroupMembershipFilters: () => (/* binding */ fetchGroupMembershipFilters),
+/* harmony export */   fetchGroupMemberships: () => (/* binding */ fetchGroupMemberships),
 /* harmony export */   fetchMdpPersons: () => (/* binding */ fetchMdpPersons),
 /* harmony export */   fetchMemberInfo: () => (/* binding */ fetchMemberInfo),
 /* harmony export */   fetchMembers: () => (/* binding */ fetchMembers),
@@ -9974,6 +9976,18 @@ const fetchMembers = (params = null) => {
 };
 
 /**
+ * Fetch Group Memberships
+ */
+const fetchGroupMemberships = (params = null) => {
+  if (params === null) {
+    return;
+  }
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group_memberships`, params)
+  });
+};
+
+/**
  * Fetch Membership Tiers Info
  */
 const fetchTiersInfo = (tierIds = []) => {
@@ -10008,6 +10022,15 @@ const fetchMdpPersons = (queryParams = {}) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: url,
     method: "POST"
+  });
+};
+
+/**
+ * Fetch Group Membership Filters
+ */
+const fetchGroupMembershipFilters = () => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group_membership_filters`
   });
 };
 

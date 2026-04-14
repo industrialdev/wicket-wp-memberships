@@ -34,9 +34,15 @@ Remove the entry when the work is completed.
 | `includes/Group_Admin_Controller.php` | `get_group_entity_records()` | Enrich the group entity response with WooCommerce subscription and order data. | — |
 | `includes/Group_Admin_Controller.php` | `update_group_entity_record()` | Wire subscription date updates when the group renewal type changes. | — |
 
+## Group List (Frontend)
+
+| File | Method | Note | Asana |
+|---|---|---|---|
+| `frontend/src/members/group_list.js` | `GroupMemberList` | Enable the "Link to MDP" column once group membership MDP sync is implemented — link is currently rendered disabled (red, pointer-events: none). | — |
+
 ## Membership_Group_WP_REST_Controller
 
 | File | Method | Note | Asana |
 |---|---|---|---|
 | `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register `POST /group/{id}/create_renewal_order` once the group subscription line item structure is finalised. | — |
-| `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register remaining group routes once backing business logic exists: `GET /group_memberships`, `GET /group_membership_filters`, `GET /get_group_membership_callouts`, `POST /group`, `POST /group/{id}/add_member`, `POST /group/{id}/remove_member`, `POST /group/{id}/move_member`, `POST /group/{id}/cancel`, `GET /group/{id}/members`, and `POST /group/{id}/import_members`. | — |
+| `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register remaining group routes once backing business logic exists: `GET /get_group_membership_callouts`, `POST /group`, `POST /group/{id}/add_member`, `POST /group/{id}/remove_member`, `POST /group/{id}/move_member`, `POST /group/{id}/cancel`, `GET /group/{id}/members`, and `POST /group/{id}/import_members`. | — |

@@ -38,6 +38,50 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     // -------------------------------------------------------------------------
 
     /**
+     * List/search/filter group memberships grouped by organisation.
+     *
+     * GET /wicket_member/v1/group_memberships
+     */
+    register_rest_route( $this->namespace, '/group_memberships', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_group_memberships' ],
+        'permission_callback' => [ $this, 'permissions_check_read' ],
+        'args'                => [
+          'page' => [
+            'type'        => 'integer',
+            'description' => 'Paginated results page.',
+          ],
+          'posts_per_page' => [
+            'type'        => 'integer',
+            'description' => 'Paginated results per page.',
+          ],
+          'status' => [
+            'type'        => 'string',
+            'description' => 'Membership group status filter.',
+          ],
+          'search' => [
+            'type'        => 'string',
+            'description' => 'Free-text search across grouped rows.',
+          ],
+          'order_col' => [
+            'type'        => 'string',
+            'description' => 'Order by column name.',
+          ],
+          'order_dir' => [
+            'type'        => 'string',
+            'description' => 'Order by direction.',
+          ],
+          'filter' => [
+            'type'                 => 'object',
+            'description'          => 'Optional exact-match filters (associative: key => value).',
+            'additionalProperties' => [ 'type' => 'string' ],
+          ],
+        ],
+      ],
+    ] );
+
+    /**
      * Get a group membership record by its post ID.
      *
      * GET /wicket_member/v1/group_membership_entity?group_post_id=123
@@ -143,14 +187,25 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
       ],
     ] );
 
+    /**
+     * Return available filter options for the group membership list UI.
+     *
+     * GET /wicket_member/v1/group_membership_filters
+     */
+    register_rest_route( $this->namespace, '/group_membership_filters', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_group_membership_filters' ],
+        'permission_callback' => [ $this, 'permissions_check_read' ],
+      ],
+    ] );
+
     // -------------------------------------------------------------------------
     // TODO stubs — no backing business logic yet (see TODO.md)
     // -------------------------------------------------------------------------
     // TODO: POST /group/{id}/create_renewal_order — blocked on group subscription
     //       line item structure being finalised.
 
-    // TODO: GET  /group_memberships              — list/search/filter group memberships
-    // TODO: GET  /group_membership_filters       — filter options for group membership list UI
     // TODO: GET  /get_group_membership_callouts  — group-level renewal/grace callouts
     // TODO: POST /group                          — create a new group membership
     // TODO: POST /group/{id}/add_member          — add individual to group
@@ -164,6 +219,23 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
   // ---------------------------------------------------------------------------
   // Handlers — implemented
   // ---------------------------------------------------------------------------
+
+  /**
+   * GET /group_memberships
+   */
+  public function get_group_memberships( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Group_Admin_Controller::get_group_memberships_list(
+      $params['page'] ?? 1,
+      $params['posts_per_page'] ?? 25,
+      $params['status'] ?? 'all',
+      $params['search'] ?? '',
+      $params['filter'] ?? [],
+      $params['order_col'] ?? 'post_modified',
+      $params['order_dir'] ?? 'desc'
+    );
+    return rest_ensure_response( $response );
+  }
 
   /**
    * GET /group_membership_entity
@@ -211,6 +283,14 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
   public function get_group_edit_page_info( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $response = Group_Admin_Controller::get_group_edit_page_info( (int) $params['group_post_id'] );
+    return rest_ensure_response( $response );
+  }
+
+  /**
+   * GET /group_membership_filters
+   */
+  public function get_group_membership_filters( \WP_REST_Request $request ) {
+    $response = Group_Admin_Controller::get_group_membership_filters();
     return rest_ensure_response( $response );
   }
 

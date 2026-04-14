@@ -103,6 +103,19 @@ export const fetchMembers = (params = null) => {
 };
 
 /**
+ * Fetch Group Memberships
+ */
+export const fetchGroupMemberships = (params = null) => {
+  if (params === null) {
+    return;
+  }
+
+  return apiFetch({
+    path: addQueryArgs(`${PLUGIN_API_URL}/group_memberships`, params),
+  });
+};
+
+/**
  * Fetch Membership Tiers Info
  */
 export const fetchTiersInfo = (tierIds = []) => {
@@ -134,6 +147,15 @@ export const fetchMdpPersons = (queryParams = {}) => {
   // ?term=
   const url = addQueryArgs(`${PLUGIN_API_URL}/mdp_person/search`, queryParams);
   return apiFetch({ path: url, method: "POST" });
+};
+
+/**
+ * Fetch Group Membership Filters
+ */
+export const fetchGroupMembershipFilters = () => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/group_membership_filters`,
+  });
 };
 
 /**

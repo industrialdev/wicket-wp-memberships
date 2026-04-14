@@ -14,6 +14,8 @@ class Membership_CPT_Hooks {
   const EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG = 'wicket_individual_member_edit';
   const LIST_ORG_MEMBER_PAGE_SLUG = 'org_member_list';
   const EDIT_ORG_MEMBER_PAGE_SLUG = 'wicket_org_member_edit';
+  const LIST_GROUP_MEMBER_PAGE_SLUG = 'group_member_list';
+  const EDIT_GROUP_MEMBER_PAGE_SLUG = 'wicket_group_member_edit';
 
   private $status_names;
 
@@ -24,9 +26,11 @@ class Membership_CPT_Hooks {
 
     add_action( 'admin_menu', [ $this, 'add_individual_members_page' ] );
     add_action( 'admin_menu', [ $this, 'add_org_members_page' ] );
+    add_action( 'admin_menu', [ $this, 'add_group_members_page' ] );
 
     add_action( 'admin_menu', [ $this, 'edit_individual_member_page' ] );
     add_action( 'admin_menu', [ $this, 'edit_org_member_page' ] );
+    add_action( 'admin_menu', [ $this, 'edit_group_member_page' ] );
 
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
   }
@@ -105,6 +109,17 @@ class Membership_CPT_Hooks {
     );
   }
 
+  function add_group_members_page() {
+    add_submenu_page(
+      WICKET_MEMBERSHIP_PLUGIN_SLUG,
+      __( 'Group Memberships', 'wicket-memberships'),
+      __( 'Group Memberships', 'wicket-memberships'),
+      'edit_posts',
+      self::LIST_GROUP_MEMBER_PAGE_SLUG,
+      [ $this, 'render_group_members_page' ]
+    );
+  }
+
   function render_org_members_page() {
     $edit_org_member_page_url = admin_url( 'admin.php?page=' . self::EDIT_ORG_MEMBER_PAGE_SLUG );
 
@@ -127,6 +142,46 @@ class Membership_CPT_Hooks {
     HTML;
   }
 
+  function edit_group_member_page() {
+    add_submenu_page(
+      null,
+      __( 'Edit Group Member', 'wicket-memberships' ),
+      __( 'Edit Group Member', 'wicket-memberships' ),
+      'edit_posts',
+      self::EDIT_GROUP_MEMBER_PAGE_SLUG,
+      [ $this, 'render_edit_group_member_page' ]
+    );
+  }
+
+  function render_group_members_page() {
+    $edit_group_member_page_url = admin_url( 'admin.php?page=' . self::EDIT_GROUP_MEMBER_PAGE_SLUG );
+
+    echo <<<HTML
+      <div id="group_member_list" data-edit-group-url="{$edit_group_member_page_url}"></div>
+    HTML;
+  }
+
+  function render_edit_group_member_page() {
+    $post_id = isset( $_GET['id'] ) ? intval( $_GET['id'] ) : 0;
+
+    if ( ! $post_id ) {
+      echo '<div class="wrap"><p>' . esc_html__( 'No group ID provided.', 'wicket-memberships' ) . '</p></div>';
+      return;
+    }
+
+    $meta = \Wicket_Memberships\Helper::get_post_meta( $post_id );
+    $list_url = admin_url( 'admin.php?page=' . self::LIST_GROUP_MEMBER_PAGE_SLUG );
+
+    echo '<div class="wrap">';
+    echo '<h1>' . esc_html__( 'Group Membership', 'wicket-memberships' ) . ' <pre style="display:inline;font-size:13px">(' . esc_html( $post_id ) . ')</pre></h1>';
+    echo '<p><a href="' . esc_url( $list_url ) . '">&larr; ' . esc_html__( 'Back to Group Memberships', 'wicket-memberships' ) . '</a></p>';
+    echo '<table class="widefat striped" style="max-width:800px"><thead><tr><th>' . esc_html__( 'Key', 'wicket-memberships' ) . '</th><th>' . esc_html__( 'Value', 'wicket-memberships' ) . '</th></tr></thead><tbody>';
+    foreach ( $meta as $key => $value ) {
+      echo '<tr><td><code>' . esc_html( $key ) . '</code></td><td><code>' . esc_html( (string) $value ) . '</code></td></tr>';
+    }
+    echo '</tbody></table></div>';
+  }
+
   function enqueue_scripts() {
 
     $page = get_current_screen();
@@ -143,6 +198,18 @@ class Membership_CPT_Hooks {
       wp_enqueue_script(
         WICKET_MEMBERSHIP_PLUGIN_SLUG . '_member_list',
         WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/member_list.js',
+        $asset_file['dependencies'],
+        $asset_file['version'],
+        true
+      );
+    }
+
+    if ( $page->id === 'wicket-memberships_page_' . self::LIST_GROUP_MEMBER_PAGE_SLUG ) {
+      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/group_member_list.asset.php' );
+
+      wp_enqueue_script(
+        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_group_member_list',
+        WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/group_member_list.js',
         $asset_file['dependencies'],
         $asset_file['version'],
         true

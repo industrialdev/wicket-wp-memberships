@@ -25,6 +25,166 @@ class Group_Admin_Controller {
   }
 
   // ---------------------------------------------------------------------------
+  // Group membership list
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Return grouped membership-group rows for the admin list UI.
+   *
+   * @param int|string      $page
+   * @param int|string      $posts_per_page
+   * @param string          $status
+   * @param string          $search
+   * @param array|string    $filter
+   * @param string|null     $order_col
+   * @param string|null     $order_dir
+   * @return array
+   */
+  public static function get_group_memberships_list(
+    $page = 1,
+    $posts_per_page = 25,
+    string $status = 'all',
+    string $search = '',
+    $filter = [],
+    ?string $order_col = null,
+    ?string $order_dir = null
+  ): array {
+    $page = max( 1, (int) $page );
+    $posts_per_page = max( 1, (int) $posts_per_page );
+    $status = sanitize_text_field( $status );
+    $search = sanitize_text_field( $search );
+    $order_col = ! empty( $order_col ) ? sanitize_key( $order_col ) : 'post_modified';
+    $sort_dir = ( ! empty( $order_dir ) && strtoupper( $order_dir ) === 'ASC' ) ? 'ASC' : 'DESC';
+    $filter = is_array( $filter ) ? $filter : [];
+
+    $query_args = [
+      'post_type'      => Helper::get_membership_group_cpt_slug(),
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+      'orderby'        => 'modified',
+      'order'          => 'DESC',
+      'meta_query'     => [],
+    ];
+
+    if ( $status !== '' && $status !== 'all' ) {
+      $query_args['meta_query'][] = [
+        'key'     => 'membership_status',
+        'value'   => $status,
+        'compare' => '=',
+      ];
+    }
+
+    $supported_filters = [
+      'org_uuid'          => 'org_uuid',
+      'membership_status' => 'membership_status',
+      'user_email'        => 'user_email',
+    ];
+    foreach ( $filter as $key => $value ) {
+      if ( ! isset( $supported_filters[ $key ] ) || $value === '' ) {
+        continue;
+      }
+
+      $query_args['meta_query'][] = [
+        'key'     => $supported_filters[ $key ],
+        'value'   => sanitize_text_field( $value ),
+        'compare' => '=',
+      ];
+    }
+
+    if ( count( $query_args['meta_query'] ) === 1 && isset( $query_args['meta_query'][0]['relation'] ) ) {
+      $query_args['meta_query'] = $query_args['meta_query'][0];
+    } elseif ( count( $query_args['meta_query'] ) > 1 ) {
+      $query_args['meta_query']['relation'] = 'AND';
+    }
+
+    if ( empty( $query_args['meta_query'] ) ) {
+      unset( $query_args['meta_query'] );
+    }
+
+    $all_posts = get_posts( $query_args );
+    $rows = array_map( [ self::class, 'build_group_memberships_row' ], $all_posts );
+    if ( $search !== '' ) {
+      $rows = array_values( array_filter( $rows, function ( array $row ) use ( $search ): bool {
+        $haystacks = [
+          $row['group_name'] ?? '',
+          $row['org_name'] ?? '',
+          $row['owner']['name'] ?? '',
+          $row['owner']['email'] ?? '',
+          $row['status']['label'] ?? '',
+        ];
+
+        foreach ( $haystacks as $haystack ) {
+          if ( $haystack !== '' && stripos( (string) $haystack, $search ) !== false ) {
+            return true;
+          }
+        }
+
+        return false;
+      } ) );
+    }
+
+    usort( $rows, function ( array $left, array $right ) use ( $order_col, $sort_dir ) {
+      return self::compare_group_membership_rows( $left, $right, $order_col, $sort_dir );
+    } );
+
+    $count = count( $rows );
+    $results = array_slice( $rows, ( $page - 1 ) * $posts_per_page, $posts_per_page );
+
+    return [
+      'results'        => array_values( $results ),
+      'page'           => $page,
+      'posts_per_page' => $posts_per_page,
+      'count'          => $count,
+    ];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Group membership filters
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Return available filter options for the group membership list UI.
+   *
+   * Returns the set of membership_status values that exist on published
+   * group posts, formatted as { name, value } pairs to match the shape
+   * used by the individual-membership filters endpoint.
+   *
+   * @return array
+   */
+  public static function get_group_membership_filters(): array {
+    $statuses = Helper::get_all_status_names();
+
+    $existing_slugs = get_posts( [
+      'post_type'      => Helper::get_membership_group_cpt_slug(),
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+      'fields'         => 'ids',
+    ] );
+
+    $used_slugs = [];
+    foreach ( $existing_slugs as $post_id ) {
+      $slug = get_post_meta( $post_id, 'membership_status', true );
+      if ( $slug !== '' && ! in_array( $slug, $used_slugs, true ) ) {
+        $used_slugs[] = $slug;
+      }
+    }
+
+    $membership_status = [];
+    foreach ( $statuses as $slug => $info ) {
+      if ( in_array( $slug, $used_slugs, true ) ) {
+        $membership_status[] = [
+          'name'  => $slug,
+          'value' => $info['name'],
+        ];
+      }
+    }
+
+    return [
+      'membership_status' => $membership_status,
+    ];
+  }
+
+  // ---------------------------------------------------------------------------
   // Status management
   // ---------------------------------------------------------------------------
 
@@ -241,6 +401,88 @@ class Group_Admin_Controller {
       ] ),
       'individual_members' => array_map( fn( $p ) => $p->ID, $group->get_individual_memberships() ),
     ];
+  }
+
+  /**
+   * Build one list row per membership-group post.
+   *
+   * @param \WP_Post $post
+   * @return array
+   */
+  private static function build_group_memberships_row( \WP_Post $post ): array {
+    $statuses        = Helper::get_all_status_names();
+    $post_id         = (int) $post->ID;
+    $status_slug     = (string) get_post_meta( $post_id, 'membership_status', true );
+    $org_uuid        = (string) get_post_meta( $post_id, 'org_uuid', true );
+    $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] ?? null );
+    $wicket_admin    = $wicket_settings['wicket_admin'] ?? '';
+    $mdp_link        = ( $org_uuid && $wicket_admin )
+      ? $wicket_admin . '/organizations/' . $org_uuid
+      : '';
+
+    return [
+      'id'            => $post_id,
+      'group_name'    => self::get_group_membership_name( $post_id ),
+      'org_name'      => (string) get_post_meta( $post_id, 'org_name', true ),
+      'owner'         => [
+        'name'  => (string) get_post_meta( $post_id, 'user_name', true ),
+        'email' => (string) get_post_meta( $post_id, 'user_email', true ),
+      ],
+      'status'        => [
+        'slug'  => $status_slug,
+        'label' => $statuses[ $status_slug ]['name'] ?? $status_slug,
+      ],
+      'last_updated'  => (string) $post->post_modified,
+      'post_modified' => (string) $post->post_modified,
+      'org_uuid'      => $org_uuid,
+      'mdp_link'      => $mdp_link,
+    ];
+  }
+
+  /**
+   * Compare two grouped rows for sorting.
+   *
+   * @param array  $left
+   * @param array  $right
+   * @param string $order_col
+   * @param string $sort_dir
+   * @return int
+   */
+  private static function compare_group_membership_rows( array $left, array $right, string $order_col, string $sort_dir ): int {
+    if ( $order_col === 'group_name' ) {
+      $result = strcasecmp( (string) $left['group_name'], (string) $right['group_name'] );
+    } elseif ( $order_col === 'org_name' ) {
+      $result = strcasecmp( (string) $left['org_name'], (string) $right['org_name'] );
+    } elseif ( $order_col === 'user_name' ) {
+      $result = strcasecmp( (string) $left['owner']['name'], (string) $right['owner']['name'] );
+    } elseif ( $order_col === 'membership_status' ) {
+      $result = strcasecmp( (string) $left['status']['label'], (string) $right['status']['label'] );
+    } else {
+      $left_ts = strtotime( (string) $left['last_updated'] ) ?: 0;
+      $right_ts = strtotime( (string) $right['last_updated'] ) ?: 0;
+      $result = $left_ts <=> $right_ts;
+    }
+
+    if ( $result === 0 ) {
+      $result = strcasecmp( (string) $left['group_name'], (string) $right['group_name'] );
+    }
+
+    return $sort_dir === 'ASC' ? $result : $result * -1;
+  }
+
+  /**
+   * Resolve the preferred group name for list-table display.
+   *
+   * @param int $post_id
+   * @return string
+   */
+  private static function get_group_membership_name( int $post_id ): string {
+    $stored_name = (string) get_post_meta( $post_id, 'membership_group_name', true );
+    if ( $stored_name !== '' ) {
+      return $stored_name;
+    }
+
+    return get_the_title( $post_id );
   }
 
   // ---------------------------------------------------------------------------
