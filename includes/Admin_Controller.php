@@ -341,6 +341,7 @@ class Admin_Controller {
         'data' => $user->user_email,
         'mdp_link' => $wicket_settings['wicket_admin'] . '/people/' . $person_uuid,
         'org_name' => '',
+        'switch_to_url' => Helper::get_user_switch_to_url( $id ),
       ];
     } else if(preg_match('/^[a-f\d]{8}(-[a-f\d]{4}){4}[a-f\d]{8}$/i', $id)) {
       $response = wicket_get_organization( $id );
@@ -515,6 +516,7 @@ class Admin_Controller {
           }
         }
       }
+      $membership_item['switch_to_url'] = Helper::get_user_switch_to_url( $meta['user_id'] );
       $membership_items[] = $membership_item;
     }
     return $membership_items;

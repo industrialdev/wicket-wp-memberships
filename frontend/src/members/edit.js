@@ -549,11 +549,11 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 <Flex gap={3}>
                   {memberType === 'individual' && (
                     <CustomDisabled
-                      isDisabled={memberInfo === null || memberInfo.switch_to_url === ''}
+                      isDisabled={memberInfo === null || !memberInfo.switch_to_url}
                     >
                       <Button
                         variant='secondary'
-                        href={memberInfo === null ? '' : memberInfo.switch_to_url.replaceAll("&amp;", "&")}
+                        href={memberInfo === null || !memberInfo.switch_to_url ? '' : memberInfo.switch_to_url.replaceAll("&amp;", "&")}
                       >
                         <Icon icon='update' />&nbsp;
                         {__('Switch to', 'wicket-memberships')}
@@ -1043,7 +1043,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         </LabelWpStyled>
                                         <FlexItem>
                                           <Button
-                                            href={membership.switch_to_url.replaceAll("&amp;", "&")}
+                                            href={(membership.switch_to_url || '').replaceAll("&amp;", "&")}
                                             variant='link'
                                             style={{ textTransform: 'initial', marginLeft: '20px' }}
                                           >
