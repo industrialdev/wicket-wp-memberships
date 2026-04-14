@@ -79,13 +79,13 @@ Delegates to `Group_Admin_Controller::get_group_edit_page_info()`. Returns all d
 
 **Route:** `POST /group/{group_post_id}/change_owner`
 
-Body: `new_owner_uuid`. Delegates to `Group_Admin_Controller::update_group_change_ownership()`. Updates group post meta and WC subscription customer.
+Body: `new_owner_uuid`. Delegates to `Group_Admin_Controller::update_group_change_ownership()`. Updates the canonical single-owner group fields and reassigns linked WC order/subscription customers.
 
 ### `create_group_renewal_order( \WP_REST_Request $request )`
 
 **Route:** `POST /group/{group_post_id}/create_renewal_order`
 
-Body: `product_id`, optional `variation_id`. Delegates to `Group_Admin_Controller::create_group_renewal_order()`. Creates a WC order and subscription for the group renewal.
+Body: `product_id`, optional `variation_id`. Delegates to `Group_Admin_Controller::create_group_renewal_order()`. This is currently a `501` stub; the remaining blocker is the group subscription line item structure.
 
 ### `permissions_check_read( $request ): bool|\WP_REST_Response`
 

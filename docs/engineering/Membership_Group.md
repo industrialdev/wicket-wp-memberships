@@ -35,19 +35,21 @@ Sets `membership_group_id` meta on an individual membership post to link it to t
 
 ---
 
-### `set_group_owners( array $user_ids ): int[]|false`
+### `set_owner( ?int $user_id ): int|false`
 
-Replaces the stored `group_owner_ids` meta with the provided array of user IDs. Returns the saved owner array on success, `false` on failure.
+Stores the canonical single-owner fields for the group: `user_id`, `user_name`, `user_email`, `membership_user_uuid`, and updates `post_author`. Passing `null` clears those fields and resets `post_author` to `0`. Returns the saved owner ID on success, `0` when clearing, and `false` on failure.
 
-### `get_group_owners(): int[]`
+### `get_owner_id(): int|false`
 
-Returns the array of group owner user IDs stored in `group_owner_ids` meta. Returns an empty array if not set.
+Returns the canonical owner user ID stored in `user_id`, or `false` if not set or invalid.
 
-### `is_group_owner( int $user_id ): bool`
+### `get_owner_uuid(): string|false`
 
-Returns `true` if the given user ID is in the group owners list.
+Returns the owner UUID stored in `membership_user_uuid`, or `false` if not set.
 
----
+### `is_owner( int $user_id ): bool`
+
+Returns `true` if the given user ID is the group owner.
 
 ### `set_organization( ?string $org_uuid ): array|true|false`
 
@@ -60,6 +62,31 @@ Returns the `org_uuid` meta value, or `false` if not set.
 ### `get_organization(): array|false`
 
 Returns the full organization data array from `Helper::get_org_data()` for the stored UUID, or `false` if not set or UUID is invalid.
+
+### `get_config(): Membership_Group_Config|false`
+
+Returns the linked `Membership_Group_Config` object from `membership_group_config_id`, or `false` if not set.
+
+### `get_parent_order_id(): int|false`
+
+Returns the linked WooCommerce parent order ID from `membership_parent_order_id`, or `false` if not set.
+
+### `get_subscription_id(): int|false`
+
+Returns the linked WooCommerce subscription ID from `membership_subscription_id`, or `false` if not set.
+
+### `get_dates(): array`
+
+Returns the stored group dates as:
+
+```php
+[
+  'starts_at'      => string,
+  'ends_at'        => string,
+  'expires_at'     => string,
+  'early_renew_at' => string,
+]
+```
 
 ---
 
@@ -83,11 +110,16 @@ Returns all individual membership CPT posts that have `membership_group_id` set 
 
 | Key | Type | Description |
 |---|---|---|
-| `group_owner_ids` | `int[]` | WP user IDs of group owners |
+| `user_id` | `int` | Canonical WP user ID of the group owner |
+| `user_name` | `string` | Cached owner display name |
+| `user_email` | `string` | Cached owner email |
+| `membership_user_uuid` | `string` | Owner UUID from the MDP / WP login |
 | `org_uuid` | `string` | MDP organisation UUID |
 | `org_name` | `string` | MDP organisation legal name (cached) |
 | `membership_status` | `string` | Group membership status (see vocabulary above) |
+| `membership_group_config_id` | `int` | Linked membership group config post ID |
+| `membership_parent_order_id` | `int` | Linked WooCommerce order ID |
+| `membership_subscription_id` | `int` | Linked WooCommerce subscription ID |
 | `membership_group_id` | `int` | Set on individual membership posts to link them to this group |
 
 ---
-

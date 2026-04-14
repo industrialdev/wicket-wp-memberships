@@ -48,7 +48,7 @@ Transitions a group membership to a new status. Supported transitions:
 | `active` | `expired` | Sets end = tomorrow, expires = tomorrow; cancels subscription |
 | `grace-period` | `cancelled` | Preserves existing end date; sets expires = now |
 
-After updating group post meta, cascades the new status to all child individual memberships that are not already `expired` or `cancelled`. Date changes are also cascaded via `Membership_Group::cascade_dates_to_members()`.
+After updating group post meta, cascades the new status to all child individual memberships that are not already `expired` or `cancelled`.
 
 Respects the `BYPASS_STATUS_CHANGE_LOCKOUT` env flag: when set, forces the status directly without enforcing transition rules.
 
@@ -94,7 +94,7 @@ Updates editable fields on a group post. Expects these keys in `$data`:
 | `membership_expires_at` | No | |
 | `membership_renewal_type` | No | |
 
-Validates date ordering (start < end ≤ expires) before writing. Cascades date changes to child individual memberships via `Membership_Group::cascade_dates_to_members()`.
+Validates date ordering (start < end ≤ expires) before writing.
 
 > **TODO:** Wire in subscription date updates when renewal type changes — see TODO.md.
 
@@ -110,7 +110,7 @@ Returns all data required to populate the group membership edit form:
   'title'               => string,
   'meta'                => array,   // raw post meta
   'org'                 => [ 'uuid', 'name', 'location', 'mdp_link' ],
-  'owner'               => [ 'user_id', 'uuid', 'name', 'email', 'mdp_link', 'identifying_number' ],
+  'owner'               => [ 'user_id', 'uuid', 'name', 'email', 'mdp_link', 'identifying_number' ] | null,
   'config'              => array,   // post meta from the linked Membership_Group_Config
   'subscription_id'     => int|false,
   'dates'               => [ 'starts_at', 'ends_at', 'expires_at', 'early_renew_at' ],
@@ -133,7 +133,9 @@ Changes the membership owner on a group post. Expects `params`:
 | `new_owner_uuid` | Yes — MDP person UUID |
 
 - Resolves the WP user from the UUID; creates a new WP user via `wicket_create_wp_user_if_not_exist()` if not found.
+- Rejects the request when the selected user is already the canonical owner.
 - Updates `user_id`, `user_name`, `user_email`, `membership_user_uuid` post meta and `post_author`.
+- Reassigns the linked WC order customer when `membership_parent_order_id` is present.
 - Reassigns the WC subscription customer.
 
 Returns `400` if the new owner is the same as the current owner, or if the user cannot be resolved.
@@ -150,9 +152,7 @@ Creates a renewal WC order and subscription for a group membership. Expects `par
 | `product_id` | Yes |
 | `variation_id` | No — overrides `product_id` if provided |
 
-The group must be in `active`, `grace-period`, or `delayed` status. Sets `_group_membership_post_id_renew` meta on order and subscription line items. Returns the new order URL on success.
-
-> **TODO:** Add multi-line-item support once the group subscription line item structure is finalised — see TODO.md.
+This is currently a stub that returns `501 Not yet implemented.` The remaining blocker is the group subscription line item structure.
 
 ---
 

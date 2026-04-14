@@ -146,8 +146,8 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     // -------------------------------------------------------------------------
     // TODO stubs — no backing business logic yet (see TODO.md)
     // -------------------------------------------------------------------------
-    // TODO: POST /group/{id}/create_renewal_order — blocked on group ownership model
-    //       and subscription line item structure being finalised.
+    // TODO: POST /group/{id}/create_renewal_order — blocked on group subscription
+    //       line item structure being finalised.
 
     // TODO: GET  /group_memberships              — list/search/filter group memberships
     // TODO: GET  /group_membership_filters       — filter options for group membership list UI

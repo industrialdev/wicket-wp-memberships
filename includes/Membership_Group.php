@@ -17,7 +17,7 @@ class Membership_Group {
   public $bypass_wicket;
 
   public function __construct( $post_id ) {
-    $this->bypass_wicket = !empty( $_ENV['BYPASS_WICKET'] ) ?? false;
+    $this->bypass_wicket = ! empty( $_ENV['BYPASS_WICKET'] ) ?? false;
 
     // Ensure the post exists in the database before proceeding
     if ( ! get_post( $post_id ) ) {
@@ -35,7 +35,7 @@ class Membership_Group {
       return;
     }
 
-    $this->post_id    = $post_id;
+    $this->post_id   = $post_id;
     $this->meta_data = get_post_meta( $post_id );
   }
 
@@ -68,6 +68,27 @@ class Membership_Group {
     return new static( $post_id );
   }
 
+  // Group membership relations.
+
+  /**
+   * Get all individual memberships that have this group set as their FK
+   *
+   * @return array
+   */
+  public function get_individual_memberships() {
+    return get_posts( [
+      'post_type'   => Helper::get_membership_cpt_slug(),
+      'post_status' => 'any',
+      'numberposts' => -1,
+      'meta_query'  => [
+        [
+          'key'   => 'membership_group_id',
+          'value' => $this->post_id,
+        ],
+      ],
+    ] );
+  }
+
   /**
    * Associate an individual membership post with this group.
    *
@@ -80,39 +101,111 @@ class Membership_Group {
     update_post_meta( $membership_post_id, 'membership_group_id', $this->post_id );
   }
 
+  // Owner management.
+
   /**
-   * Set the group owners for this membership group.
+   * Set the single owner for this membership group.
    *
-   * @param array $user_ids Array of WP user IDs to set as group owners
-   * @return int[]|false Returns the saved owner IDs on success, false on failure
+   * @param ?int $user_id WP user ID to set as the canonical owner, or null to clear it
+   * @return int|false Returns the saved owner ID on success, false on failure
    */
-  public function set_group_owners( array $user_ids ) {
-    $owners = array_values( array_map( 'intval', $user_ids ) );
-    if ( update_post_meta( $this->post_id, 'group_owner_ids', $owners ) === false ) {
+  public function set_owner( ?int $user_id ) {
+    if ( null === $user_id ) {
+      return $this->clear_owner();
+    }
+
+    $user = get_user_by( 'id', $user_id );
+    if ( ! $user ) {
+      Wicket()->log()->error( 'Membership_Group: Invalid owner user ID', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'user_id' => $user_id] );
       return false;
     }
-    return $this->get_group_owners();
+
+    if ( update_post_meta( $this->post_id, 'user_id', $user->ID ) === false ) {
+      Wicket()->log()->error( 'Membership_Group: Failed to save owner user_id', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'user_id' => $user_id] );
+      return false;
+    }
+
+    if ( update_post_meta( $this->post_id, 'user_name', $user->display_name ) === false ) {
+      Wicket()->log()->error( 'Membership_Group: Failed to save owner user_name', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'user_id' => $user_id] );
+      return false;
+    }
+
+    if ( update_post_meta( $this->post_id, 'user_email', $user->user_email ) === false ) {
+      Wicket()->log()->error( 'Membership_Group: Failed to save owner user_email', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'user_id' => $user_id] );
+      return false;
+    }
+
+    if ( update_post_meta( $this->post_id, 'membership_user_uuid', $user->user_login ) === false ) {
+      Wicket()->log()->error( 'Membership_Group: Failed to save owner membership_user_uuid', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'user_id' => $user_id] );
+      return false;
+    }
+
+    wp_update_post( [
+      'ID'          => $this->post_id,
+      'post_author' => $user->ID,
+    ] );
+
+    $this->meta_data = get_post_meta( $this->post_id );
+
+    return $user->ID;
   }
 
   /**
-   * Check if a given user ID is a group owner.
+   * Clear the canonical owner fields for this group.
+   *
+   * @return int
+   */
+  private function clear_owner(): int {
+    delete_post_meta( $this->post_id, 'user_id' );
+    delete_post_meta( $this->post_id, 'user_name' );
+    delete_post_meta( $this->post_id, 'user_email' );
+    delete_post_meta( $this->post_id, 'membership_user_uuid' );
+
+    wp_update_post( [
+      'ID'          => $this->post_id,
+      'post_author' => 0,
+    ] );
+
+    $this->meta_data = get_post_meta( $this->post_id );
+
+    return 0;
+  }
+
+  /**
+   * Check if a given user ID is the owner.
    *
    * @param int $user_id
    * @return bool
    */
-  public function is_group_owner( int $user_id ): bool {
-    return in_array( $user_id, $this->get_group_owners(), true );
+  public function is_owner( int $user_id ): bool {
+    return $this->get_owner_id() === $user_id;
   }
 
   /**
-   * Get the array of group owner user IDs.
+   * Get the canonical owner user ID.
    *
-   * @return int[]
+   * @return int|false
    */
-  public function get_group_owners(): array {
-    $owners = get_post_meta( $this->post_id, 'group_owner_ids', true );
-    return is_array( $owners ) ? $owners : [];
+  public function get_owner_id() {
+    $owner_id = (int) get_post_meta( $this->post_id, 'user_id', true );
+    if ( $owner_id <= 0 ) {
+      return false;
+    }
+
+    return get_user_by( 'id', $owner_id ) ? $owner_id : false;
   }
+
+  /**
+   * Get the owner UUID stored on this membership group.
+   *
+   * @return string|false
+   */
+  public function get_owner_uuid() {
+    $owner_uuid = get_post_meta( $this->post_id, 'membership_user_uuid', true );
+    return ! empty( $owner_uuid ) ? $owner_uuid : false;
+  }
+
+  // Organization.
 
   /**
    * Set the organization for this membership group.
@@ -153,12 +246,6 @@ class Membership_Group {
   }
 
   /**
-   * Get the organization linked to this membership group.
-   * Eventually will call wicket_get_organization() to fetch from the MDP.
-   *
-   * @return string|false Returns the org UUID string, or false if not set
-   */
-  /**
    * Get the org UUID stored on this membership group.
    *
    * @return string|false The org UUID, or false if not set
@@ -177,6 +264,45 @@ class Membership_Group {
 
     return Helper::get_org_data( $org_uuid );
   }
+
+  // Configuration and commerce links.
+
+  /**
+   * Get the group config object linked to this group.
+   *
+   * @return Membership_Group_Config|false
+   */
+  public function get_config() {
+    $config_id = (int) get_post_meta( $this->post_id, 'membership_group_config_id', true );
+    if ( $config_id <= 0 ) {
+      return false;
+    }
+
+    $config = new Membership_Group_Config( $config_id );
+    return $config->get_post_id() > 0 ? $config : false;
+  }
+
+  /**
+   * Get the linked parent order ID.
+   *
+   * @return int|false
+   */
+  public function get_parent_order_id() {
+    $order_id = (int) get_post_meta( $this->post_id, 'membership_parent_order_id', true );
+    return $order_id > 0 ? $order_id : false;
+  }
+
+  /**
+   * Get the linked subscription ID.
+   *
+   * @return int|false
+   */
+  public function get_subscription_id() {
+    $subscription_id = (int) get_post_meta( $this->post_id, 'membership_subscription_id', true );
+    return $subscription_id > 0 ? $subscription_id : false;
+  }
+
+  // Status and dates.
 
   /**
    * Get the membership status for this group.
@@ -211,22 +337,17 @@ class Membership_Group {
   }
 
   /**
-   * Get all individual memberships that have this group set as their FK
+   * Get the stored membership date fields for this group.
    *
-   * @return array
+   * @return array<string, string>
    */
-  public function get_individual_memberships() {
-    return get_posts( [
-      'post_type'   => Helper::get_membership_cpt_slug(),
-      'post_status' => 'any',
-      'numberposts' => -1,
-      'meta_query'  => [
-        [
-          'key'   => 'membership_group_id',
-          'value' => $this->post_id,
-        ],
-      ],
-    ] );
+  public function get_dates(): array {
+    return [
+      'starts_at'      => (string) get_post_meta( $this->post_id, 'membership_starts_at', true ),
+      'ends_at'        => (string) get_post_meta( $this->post_id, 'membership_ends_at', true ),
+      'expires_at'     => (string) get_post_meta( $this->post_id, 'membership_expires_at', true ),
+      'early_renew_at' => (string) get_post_meta( $this->post_id, 'membership_early_renew_at', true ),
+    ];
   }
 
 }

@@ -315,39 +315,47 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'Membership group not found.' ], 404 );
     }
 
-    $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] );
+    $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] ?? null );
+    $wicket_admin    = $wicket_settings['wicket_admin'] ?? '';
     $group           = new Membership_Group( $group_post_id );
     $meta            = Helper::get_post_meta( $group_post_id );
 
     // Organisation data from MDP.
     $org_uuid = $group->get_org_uuid();
     $org_data = $org_uuid ? Helper::get_org_data( $org_uuid ) : [];
-    $mdp_org_link = $org_uuid
-      ? $wicket_settings['wicket_admin'] . '/organizations/' . $org_uuid
+    $mdp_org_link = ( $org_uuid && $wicket_admin )
+      ? $wicket_admin . '/organizations/' . $org_uuid
       : '';
 
-    // Owner / person data from MDP — groups support multiple owners.
-    $owner_user_ids = $group->get_group_owners();
-    $owners_data    = [];
-    foreach ( $owner_user_ids as $owner_user_id ) {
-      $owner_user = get_user_by( 'id', $owner_user_id );
-      if ( ! $owner_user ) {
-        continue;
+    $owner_data = null;
+    $owner_id   = $group->get_owner_id();
+    if ( $owner_id ) {
+      $owner_user = get_user_by( 'id', $owner_id );
+      if ( $owner_user ) {
+        $owner_uuid   = $group->get_owner_uuid() ?: $owner_user->user_login;
+        $owner_person = null;
+
+        if ( $owner_uuid && isValidUuid( $owner_uuid ) && function_exists( 'wicket_get_person_by_id' ) ) {
+          try {
+            $owner_person = wicket_get_person_by_id( $owner_uuid );
+          } catch ( \Throwable $e ) {
+            $owner_person = null;
+          }
+        }
+
+        $owner_data = [
+          'user_id'            => $owner_id,
+          'uuid'               => $owner_uuid,
+          'name'               => $owner_user->display_name,
+          'email'              => $owner_user->user_email,
+          'mdp_link'           => ( $owner_uuid && $wicket_admin )
+            ? $wicket_admin . '/people/' . $owner_uuid
+            : '',
+          'identifying_number' => ( is_object( $owner_person ) && method_exists( $owner_person, 'getAttribute' ) )
+            ? $owner_person->getAttribute( 'identifying_number' )
+            : '',
+        ];
       }
-      $owner_uuid   = $owner_user->user_login;
-      $owner_person = $owner_uuid ? wicket_get_person_by_id( $owner_uuid ) : null;
-      $owners_data[] = [
-        'user_id'            => $owner_user_id,
-        'uuid'               => $owner_uuid,
-        'name'               => $owner_user->display_name,
-        'email'              => $owner_user->user_email,
-        'mdp_link'           => $owner_uuid
-          ? $wicket_settings['wicket_admin'] . '/people/' . $owner_uuid
-          : '',
-        'identifying_number' => $owner_person
-          ? $owner_person->getAttribute( 'identifying_number' )
-          : '',
-      ];
     }
 
     // Config data.
@@ -364,7 +372,7 @@ class Group_Admin_Controller {
         'location' => $org_data['location'] ?? '',
         'mdp_link' => $mdp_org_link,
       ],
-      'owners'          => $owners_data,
+      'owner'           => $owner_data,
       'config'          => $config_data,
       'subscription_id' => $group->get_subscription_id(),
       'dates'           => $group->get_dates(),
@@ -396,7 +404,7 @@ class Group_Admin_Controller {
     }
 
     $group           = new Membership_Group( $group_post_id );
-    $current_owners  = $group->get_group_owners();
+    $current_owner_id = $group->get_owner_id();
     $new_user        = get_user_by( 'login', $new_owner_uuid );
 
     if ( empty( $new_user ) ) {
@@ -408,13 +416,25 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'Could not resolve new owner user.' ], 400 );
     }
 
-    if ( in_array( $new_user->ID, $current_owners, true ) ) {
+    if ( $current_owner_id && $new_user->ID === $current_owner_id ) {
       return new \WP_REST_Response( [ 'error' => 'Please select a different user.' ], 400 );
     }
 
-    // Replace the owner list with the new single owner.
-    $group->set_group_owners( [ $new_user->ID ] );
-    wp_update_post( [ 'ID' => $group_post_id, 'post_author' => $new_user->ID ] );
+    if ( false === $group->set_owner( $new_user->ID ) ) {
+      return new \WP_REST_Response( [ 'error' => 'Could not update group owner.' ], 500 );
+    }
+
+    $order_id = $group->get_parent_order_id();
+    if ( $order_id ) {
+      $order = wc_get_order( $order_id );
+      if ( ! empty( $order ) ) {
+        $order->set_customer_id( $new_user->ID );
+        $order->save();
+        $order->add_order_note(
+          "Reassigning customer to {$new_user->user_email} on group membership ownership change."
+        );
+      }
+    }
 
     // Reassign the WC subscription customer.
     $subscription_id = $group->get_subscription_id();
@@ -443,13 +463,11 @@ class Group_Admin_Controller {
    * Create a renewal order for a group membership.
    *
    * Not yet implemented. Blocked on:
-   * - Group ownership model being finalised (who is the WC subscription billing customer
-   *   when a group has multiple owners?).
    * - Group subscription line item structure being finalised (multi-tier line items).
    *
    * @param array $params
    * @return \WP_REST_Response
-   * @todo Implement once group ownership model and subscription line item structure are finalised — see TODO.md
+   * @todo Implement once the group subscription line item structure is finalised — see TODO.md
    */
   public static function create_group_renewal_order( array $params ): \WP_REST_Response {
     return new \WP_REST_Response( [ 'error' => 'Not yet implemented.' ], 501 );
