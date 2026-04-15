@@ -1,3 +1,8 @@
+---
+title: "Wicket Memberships Documentation Index"
+audience: [implementer, support, developer, end-user]
+---
+
 # Wicket Memberships Documentation
 
 ## Product Docs (Operators & Support)
