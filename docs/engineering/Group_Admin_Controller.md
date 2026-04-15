@@ -14,6 +14,10 @@ Admin operations for membership group posts. Mirrors the shape of `Admin_Control
 
 All public methods are `static` and return `\WP_REST_Response` or a plain `array` (for data retrieval methods).
 
+## Architectural convention
+
+`Group_Admin_Controller` is a thin orchestrator. WooCommerce order and subscription operations — customer reassignment, status changes, date updates — must be implemented as methods on `Membership_Group` and called from here, not written inline in the controller. This keeps WC coupling contained in the model and the controller readable as a sequence of model calls. See TODO.md for outstanding items where this refactor is still pending.
+
 ---
 
 ## Constructor
@@ -53,6 +57,9 @@ After updating group post meta, cascades the new status to all child individual 
 Respects the `BYPASS_STATUS_CHANGE_LOCKOUT` env flag: when set, forces the status directly without enforcing transition rules.
 
 Returns a `400` response for invalid transitions (unless bypass is active), `404` if the post is not found or is the wrong CPT.
+
+> **TODO:** WC subscription activation and date-update logic is currently inlined here. It should be extracted into a `Membership_Group` method (e.g. `activate_subscription()`) — see TODO.md.
+> **TODO:** Cancel the linked WC subscription on `cancelled`/`expired` transitions once group subscription management is implemented — see TODO.md.
 
 ---
 
@@ -134,11 +141,13 @@ Changes the membership owner on a group post. Expects `params`:
 
 - Resolves the WP user from the UUID; creates a new WP user via `wicket_create_wp_user_if_not_exist()` if not found.
 - Rejects the request when the selected user is already the canonical owner.
-- Updates `user_id`, `user_name`, `user_email`, `membership_user_uuid` post meta and `post_author`.
+- Delegates ownership storage to `Membership_Group::set_owner()` — only `user_id` and `post_author` are stored (see `Membership_Group` docs for rationale).
 - Reassigns the linked WC order customer when `membership_parent_order_id` is present.
 - Reassigns the WC subscription customer.
 
 Returns `400` if the new owner is the same as the current owner, or if the user cannot be resolved.
+
+> **TODO:** WC order and subscription customer reassignment is currently inlined here. It should be extracted into `Membership_Group` methods (e.g. `reassign_order_customer()`, `reassign_subscription_customer()`) — see TODO.md.
 
 ---
 
@@ -157,6 +166,18 @@ This is currently a stub that returns `501 Not yet implemented.` The remaining b
 ---
 
 ## Private Helpers
+
+### `build_group_memberships_row( \WP_Post $post ): array`
+
+Builds one list-table row per group post. Owner `name` and `email` should be resolved from the WP user object via the stored `user_id` — the `user_name` and `user_email` post meta keys are no longer written.
+
+> **TODO:** Currently reads `user_name`/`user_email` from stale post meta — will return empty strings for groups created after the ownership meta change. Fix to resolve from `get_user_by( 'id', $owner_id )` — see TODO.md.
+
+### `get_group_memberships_list()` — `user_email` filter
+
+The supported filter map includes `user_email` as a post meta key. This key is no longer stored.
+
+> **TODO:** Update or remove the `user_email` filter — querying this meta key will silently match nothing — see TODO.md.
 
 ### `cancel_group_subscription( int|false $subscription_id, array $meta_data ): void`
 

@@ -37,7 +37,11 @@ Sets `membership_group_id` meta on an individual membership post to link it to t
 
 ### `set_owner( ?int $user_id ): int|false`
 
-Stores the canonical single-owner fields for the group: `user_id`, `user_name`, `user_email`, `membership_user_uuid`, and updates `post_author`. Passing `null` clears those fields and resets `post_author` to `0`. Returns the saved owner ID on success, `0` when clearing, and `false` on failure.
+Stores only the WP user ID (`user_id`) and updates `post_author`. Derived fields — display name, email, and MDP UUID — are intentionally not stored to avoid persisting values that can change independently of the membership record. Passing `null` clears `user_id` and resets `post_author` to `0`. Returns the saved owner ID on success, `0` when clearing, and `false` on failure.
+
+To retrieve owner details on demand:
+- WP user object: `get_user_by( 'id', $owner_id )`
+- MDP person record: `wicket_get_person_by_id( $user->user_login )` (UUID = `user_login`)
 
 ### `get_owner_id(): int|false`
 
@@ -45,7 +49,7 @@ Returns the canonical owner user ID stored in `user_id`, or `false` if not set o
 
 ### `get_owner_uuid(): string|false`
 
-Returns the owner UUID stored in `membership_user_uuid`, or `false` if not set.
+Derives and returns the MDP UUID for the owner by reading `user_login` from the WP user resolved via `get_owner_id()`. Returns `false` if no owner is set or the user cannot be resolved. The UUID is not stored as post meta.
 
 ### `is_owner( int $user_id ): bool`
 
@@ -110,10 +114,7 @@ Returns all individual membership CPT posts that have `membership_group_id` set 
 
 | Key | Type | Description |
 |---|---|---|
-| `user_id` | `int` | Canonical WP user ID of the group owner |
-| `user_name` | `string` | Cached owner display name |
-| `user_email` | `string` | Cached owner email |
-| `membership_user_uuid` | `string` | Owner UUID from the MDP / WP login |
+| `user_id` | `int` | WP user ID of the group owner — the only owner field stored; derive email/name/UUID from the WP user at runtime |
 | `org_uuid` | `string` | MDP organisation UUID |
 | `org_name` | `string` | MDP organisation legal name (cached) |
 | `membership_status` | `string` | Group membership status (see vocabulary above) |

@@ -303,7 +303,7 @@ class Group_Admin_Controller {
         'membership_early_renew_at' => $dates['early_renew_at'] ?? ( $dates['end_date'] ?? $now_iso ),
       ];
 
-      // Activate the WC subscription.
+      // TODO: Extract into Membership_Group::activate_subscription( array $dates ) — see TODO.md.
       if ( $subscription_id && function_exists( 'wcs_get_subscription' ) ) {
         $sub = wcs_get_subscription( $subscription_id );
         if ( ! empty( $sub ) ) {
@@ -380,13 +380,12 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( $response_array, 200 );
     }
 
-    // Persist meta changes.
+    // TODO: Extract into Membership_Group::apply_status_meta( array $meta_data ) — see TODO.md.
     foreach ( $meta_data as $key => $value ) {
       update_post_meta( $group_post_id, $key, $value );
     }
 
-    // Cascade status + dates to child individual memberships.
-    $cascade_statuses  = [ 'expired', 'cancelled' ];
+    // TODO: Extract into Membership_Group::cascade_status_to_members( string $status ) — see TODO.md.
     $individual_skip   = [ 'expired', 'cancelled' ];
     $members           = $group->get_individual_memberships();
     foreach ( $members as $member_post ) {
@@ -468,10 +467,7 @@ class Group_Admin_Controller {
       'id'            => $post_id,
       'group_name'    => self::get_group_membership_name( $post_id ),
       'org_name'      => (string) get_post_meta( $post_id, 'org_name', true ),
-      'owner'         => [
-        'name'  => (string) get_post_meta( $post_id, 'user_name', true ),
-        'email' => (string) get_post_meta( $post_id, 'user_email', true ),
-      ],
+      'owner'         => self::build_owner_field( $post_id ),
       'status'        => [
         'slug'  => $status_slug,
         'label' => $statuses[ $status_slug ]['name'] ?? $status_slug,
@@ -481,6 +477,27 @@ class Group_Admin_Controller {
       'org_uuid'      => $org_uuid,
       'mdp_link'      => $mdp_link,
     ];
+  }
+
+  /**
+   * Build the owner sub-array for a group list row by looking up the live WP user.
+   *
+   * @param int $post_id
+   * @return array{name: string, email: string}
+   */
+  private static function build_owner_field( int $post_id ): array {
+    $user_id = (int) get_post_meta( $post_id, 'user_id', true );
+    if ( $user_id ) {
+      $user = get_user_by( 'id', $user_id );
+      if ( $user ) {
+        return [
+          'name'  => $user->display_name,
+          'email' => $user->user_email,
+        ];
+      }
+    }
+
+    return [ 'name' => '', 'email' => '' ];
   }
 
   /**
@@ -614,6 +631,7 @@ class Group_Admin_Controller {
    * @param int   $expires_at
    * @return array<string, mixed>
    */
+  // TODO: Extract into Membership_Group::normalize_edit_payload( array $data ) — see TODO.md.
   private static function normalize_group_edit_payload( int $group_post_id, array $data, int $starts_at, int $ends_at, int $expires_at ): array {
     $group = new Membership_Group( $group_post_id );
     $config = $group->get_config();
@@ -693,6 +711,7 @@ class Group_Admin_Controller {
    * @param array $normalized
    * @return void
    */
+  // TODO: Extract into Membership_Group::cascade_dates_to_members( array $normalized ) — see TODO.md.
   private static function cascade_group_edit_to_members( int $group_post_id, array $normalized ): void {
     $group = new Membership_Group( $group_post_id );
     $members = $group->get_individual_memberships();
@@ -723,8 +742,13 @@ class Group_Admin_Controller {
   }
 
   /**
-   * Convert a timestamp into the same canonical local ISO representation used
-   * by the individual membership edit flow.
+   * Convert a timestamp into an ISO 8601 string anchored to the WP site timezone.
+   *
+   * TODO: Remove this method when normalize_group_edit_payload() is extracted into
+   * Membership_Group::normalize_edit_payload(). Replace all call sites with
+   * Utilities::get_utc_datetime( date( 'Y-m-d', $timestamp ) )->format( 'c' )
+   * so that dates are stored in UTC and only rendered in the MDP timezone at
+   * display time — see TODO.md.
    *
    * @param int $timestamp
    * @return string
@@ -880,6 +904,9 @@ class Group_Admin_Controller {
 
     $group           = new Membership_Group( $group_post_id );
     $current_owner_id = $group->get_owner_id();
+    // TODO: Simplify to a single wicket_create_wp_user_if_not_exist() call — the upfront
+    // get_user_by( 'login', ... ) check is redundant as that function already does it
+    // internally. See TODO.md.
     $new_user        = get_user_by( 'login', $new_owner_uuid );
 
     if ( empty( $new_user ) ) {
@@ -899,6 +926,7 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'Could not update group owner.' ], 500 );
     }
 
+    // TODO: Replace with $group->reassign_order_customer( $new_user->ID ) — see TODO.md.
     $order_id = $group->get_parent_order_id();
     if ( $order_id ) {
       $order = wc_get_order( $order_id );
@@ -911,7 +939,7 @@ class Group_Admin_Controller {
       }
     }
 
-    // Reassign the WC subscription customer.
+    // TODO: Replace with $group->reassign_subscription_customer( $new_user->ID ) — see TODO.md.
     $subscription_id = $group->get_subscription_id();
     if ( $subscription_id && function_exists( 'wcs_get_subscription' ) ) {
       $sub = wcs_get_subscription( $subscription_id );

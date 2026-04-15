@@ -120,23 +120,13 @@ class Membership_Group {
       return false;
     }
 
+    // Only the WP user ID is stored. Derived fields like display name, email, and
+    // MDP UUID are intentionally omitted — they can change independently of the
+    // membership record and would silently go stale. Retrieve them on demand via:
+    //   $user = get_user_by( 'id', $owner_id );           // WP user object
+    //   wicket_get_person_by_id( $user->user_login );      // MDP person record (UUID = user_login)
     if ( update_post_meta( $this->post_id, 'user_id', $user->ID ) === false ) {
       Wicket()->log()->error( 'Membership_Group: Failed to save owner user_id', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'user_id' => $user_id] );
-      return false;
-    }
-
-    if ( update_post_meta( $this->post_id, 'user_name', $user->display_name ) === false ) {
-      Wicket()->log()->error( 'Membership_Group: Failed to save owner user_name', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'user_id' => $user_id] );
-      return false;
-    }
-
-    if ( update_post_meta( $this->post_id, 'user_email', $user->user_email ) === false ) {
-      Wicket()->log()->error( 'Membership_Group: Failed to save owner user_email', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'user_id' => $user_id] );
-      return false;
-    }
-
-    if ( update_post_meta( $this->post_id, 'membership_user_uuid', $user->user_login ) === false ) {
-      Wicket()->log()->error( 'Membership_Group: Failed to save owner membership_user_uuid', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'user_id' => $user_id] );
       return false;
     }
 
@@ -157,9 +147,6 @@ class Membership_Group {
    */
   private function clear_owner(): int {
     delete_post_meta( $this->post_id, 'user_id' );
-    delete_post_meta( $this->post_id, 'user_name' );
-    delete_post_meta( $this->post_id, 'user_email' );
-    delete_post_meta( $this->post_id, 'membership_user_uuid' );
 
     wp_update_post( [
       'ID'          => $this->post_id,
@@ -196,13 +183,21 @@ class Membership_Group {
   }
 
   /**
-   * Get the owner UUID stored on this membership group.
+   * Get the MDP UUID of the group owner.
+   *
+   * The UUID is not stored as post meta — it is derived from the WP user's
+   * user_login, which is the MDP person UUID. This avoids persisting a value
+   * that can change independently of the membership record.
    *
    * @return string|false
    */
   public function get_owner_uuid() {
-    $owner_uuid = get_post_meta( $this->post_id, 'membership_user_uuid', true );
-    return ! empty( $owner_uuid ) ? $owner_uuid : false;
+    $owner_id = $this->get_owner_id();
+    if ( ! $owner_id ) {
+      return false;
+    }
+    $user = get_user_by( 'id', $owner_id );
+    return ( $user && ! empty( $user->user_login ) ) ? $user->user_login : false;
   }
 
   // Organization.
