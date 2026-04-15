@@ -1,3 +1,9 @@
+---
+title: "Membership_WP_REST_Controller Class Reference"
+audience: [developer]
+php_class: Membership_WP_REST_Controller
+source_files: ["includes/Membership_WP_REST_Controller.php"]
+---
 
 # Membership_WP_REST_Controller Class Index
 

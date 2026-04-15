@@ -1,3 +1,10 @@
+---
+title: "Membership_Tier Data Structure"
+audience: [developer]
+php_class: Membership_Tier
+source_files: ["includes/Membership_Tier.php"]
+---
+
 # Membership_Tier Data Structure and MDP Connection
 
 This document describes the structure and external linkage of membership tiers in the Wicket Memberships plugin.

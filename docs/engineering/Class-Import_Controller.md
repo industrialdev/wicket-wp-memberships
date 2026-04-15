@@ -1,3 +1,10 @@
+---
+title: "Import_Controller Class Reference"
+audience: [developer]
+php_class: Import_Controller
+source_files: ["includes/Import_Controller.php"]
+---
+
 # Import_Controller Class Index
 
 **File:** includes/Import_Controller.php

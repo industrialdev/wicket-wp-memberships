@@ -1,3 +1,9 @@
+---
+title: "Utilities Class Reference"
+audience: [developer]
+php_class: Utilities
+source_files: ["includes/Utilities.php"]
+---
 
 # Utilities Class Index
 
