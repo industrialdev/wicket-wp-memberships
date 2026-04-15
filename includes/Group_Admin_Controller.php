@@ -18,6 +18,50 @@ use Wicket_Memberships\Helper;
  */
 class Group_Admin_Controller {
 
+  private const MOCK_ORDER_PAYLOAD = [
+    'id'            => 999999,
+    'link'          => 'https://example.test/wp-admin/post.php?post=999999&action=edit',
+    'total'         => '999.99',
+    'status'        => 'mock-pending',
+    'date_created'  => '2099-12-31T00:00:00+00:00',
+    'date_completed'=> '2099-12-31T00:00:00+00:00',
+  ];
+
+  private const MOCK_ORDERS_PAYLOAD = [
+    [
+      'id'            => 999999,
+      'link'          => 'https://example.test/wp-admin/post.php?post=999999&action=edit',
+      'total'         => '999.99',
+      'status'        => 'mock-pending',
+      'date_created'  => '2099-12-31T00:00:00+00:00',
+      'date_completed'=> '2099-12-31T00:00:00+00:00',
+    ],
+    [
+      'id'            => 999999,
+      'link'          => 'https://example.test/wp-admin/post.php?post=999999&action=edit',
+      'total'         => '999.99',
+      'status'        => 'mock-pending',
+      'date_created'  => '2099-12-31T00:00:00+00:00',
+      'date_completed'=> '2099-12-31T00:00:00+00:00',
+    ],
+    [
+      'id'            => 999999,
+      'link'          => 'https://example.test/wp-admin/post.php?post=999999&action=edit',
+      'total'         => '999.99',
+      'status'        => 'mock-pending',
+      'date_created'  => '2099-12-31T00:00:00+00:00',
+      'date_completed'=> '2099-12-31T00:00:00+00:00',
+    ],
+  ];
+
+  private const MOCK_SUBSCRIPTION_PAYLOAD = [
+    'id'                => 999999,
+    'link'              => 'https://example.test/wp-admin/post.php?post=999999&action=edit',
+    'status'            => 'mock-active',
+    'next_payment_date' => '2099-12-31T00:00:00+00:00',
+    'is_mocked'         => true,
+  ];
+
   private string $group_cpt_slug;
 
   public function __construct() {
@@ -497,20 +541,44 @@ class Group_Admin_Controller {
    *
    * @param array $data  Expects keys: group_post_id, membership_starts_at,
    *                     membership_ends_at, membership_expires_at.
-   *                     Optional: membership_renewal_type.
+   *                     Optional: membership_renewal_type, membership_next_tier_form_page_id,
+   *                     membership_next_tier_id.
    * @return \WP_REST_Response
    * @todo Wire in subscription date updates when renewal type changes — see TODO.md
    */
   public static function update_group_entity_record( array $data ): \WP_REST_Response {
+    foreach ( $data as $key => $value ) {
+      if ( is_scalar( $value ) ) {
+        $data[ $key ] = sanitize_text_field( (string) $value );
+      }
+    }
+
     $group_post_id = (int) ( $data['group_post_id'] ?? 0 );
 
     if ( ! $group_post_id || get_post_type( $group_post_id ) !== Helper::get_membership_group_cpt_slug() ) {
       return new \WP_REST_Response( [ 'error' => 'Membership group not found.' ], 404 );
     }
 
-    $starts_at  = strtotime( $data['membership_starts_at'] ?? '' );
-    $ends_at    = strtotime( $data['membership_ends_at']   ?? '' );
-    $expires_at = strtotime( $data['membership_expires_at'] ?? '' );
+    $group_meta = Helper::get_post_meta( $group_post_id );
+    if ( ( $group_meta['membership_status'] ?? '' ) === Wicket_Memberships::STATUS_CANCELLED ) {
+      return new \WP_REST_Response( [ 'error' => 'Cannot update a cancelled membership record. Membership update failed.' ], 400 );
+    }
+
+    if (
+      ! array_key_exists( 'membership_starts_at', $data )
+      || ! array_key_exists( 'membership_ends_at', $data )
+      || ! array_key_exists( 'membership_expires_at', $data )
+    ) {
+      return new \WP_REST_Response( [ 'error' => 'All dates required.' ], 400 );
+    }
+
+    $starts_at  = strtotime( $data['membership_starts_at'] );
+    $ends_at    = strtotime( $data['membership_ends_at'] );
+    $expires_at = strtotime( $data['membership_expires_at'] );
+
+    if ( false === $starts_at || false === $ends_at || false === $expires_at ) {
+      return new \WP_REST_Response( [ 'error' => 'Invalid date value received.' ], 400 );
+    }
 
     if ( $starts_at && $ends_at && $starts_at >= $ends_at ) {
       return new \WP_REST_Response( [ 'error' => 'Start date must be before end date.' ], 400 );
@@ -519,26 +587,150 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'End date must not be after expiration date.' ], 400 );
     }
 
-    $updatable = [
-      'membership_starts_at',
-      'membership_ends_at',
-      'membership_expires_at',
-      'membership_renewal_type',
-    ];
+    $normalized = self::normalize_group_edit_payload( $group_post_id, $data, $starts_at, $ends_at, $expires_at );
 
-    foreach ( $updatable as $key ) {
-      if ( isset( $data[ $key ] ) ) {
-        update_post_meta( $group_post_id, $key, $data[ $key ] );
-      }
+    foreach ( $normalized as $key => $value ) {
+      update_post_meta( $group_post_id, $key, $value );
     }
 
-    // TODO: cascade date changes to child individual memberships once
-    // cascade_dates_to_members() is implemented — see TODO.md.
+    self::cascade_group_edit_to_members( $group_post_id, $normalized );
 
     return new \WP_REST_Response( [
       'success'  => 'Group membership updated successfully.',
       'response' => Helper::get_post_meta( $group_post_id ),
     ], 200 );
+  }
+
+  /**
+   * Normalize incoming group edit data to the same local shape used by the
+   * individual membership edit flow.
+   *
+   * Order/subscription side effects are intentionally deferred; see TODO.md.
+   *
+   * @param int   $group_post_id
+   * @param array $data
+   * @param int   $starts_at
+   * @param int   $ends_at
+   * @param int   $expires_at
+   * @return array<string, mixed>
+   */
+  private static function normalize_group_edit_payload( int $group_post_id, array $data, int $starts_at, int $ends_at, int $expires_at ): array {
+    $group = new Membership_Group( $group_post_id );
+    $config = $group->get_config();
+
+    $renewal_type = $data['membership_renewal_type'] ?? $data['renewal_type'] ?? get_post_meta( $group_post_id, 'membership_renewal_type', true );
+    $renewal_type = $renewal_type !== '' ? $renewal_type : 'inherited';
+
+    $renewal_window_days = $config ? $config->get_renewal_window_days() : false;
+    $early_renew_at = $starts_at;
+    if ( $renewal_window_days !== false ) {
+      $early_renew_at = strtotime( '-' . absint( $renewal_window_days ) . ' days', $ends_at );
+    }
+
+    $grace_period_days = abs( (int) round( ( $expires_at - $ends_at ) / DAY_IN_SECONDS ) );
+
+    $resolved = [
+      'membership_starts_at'         => self::to_wp_timezone_iso( $starts_at ),
+      'membership_ends_at'           => self::to_wp_timezone_iso( $ends_at ),
+      'membership_expires_at'        => self::to_wp_timezone_iso( $expires_at ),
+      'membership_early_renew_at'    => self::to_wp_timezone_iso( $early_renew_at ),
+      'membership_grace_period_days' => $grace_period_days,
+      'membership_renewal_type'      => $renewal_type,
+    ];
+
+    $current_next_tier_id = get_post_meta( $group_post_id, 'membership_next_tier_id', true );
+    $current_next_form_id = get_post_meta( $group_post_id, 'membership_next_tier_form_page_id', true );
+    $current_next_sub_renew = get_post_meta( $group_post_id, 'membership_next_tier_subscription_renewal', true );
+
+    $resolved['membership_next_tier_id'] = $current_next_tier_id !== '' ? (int) $current_next_tier_id : '';
+    $resolved['membership_next_tier_form_page_id'] = $current_next_form_id !== '' ? (int) $current_next_form_id : '';
+    $resolved['membership_next_tier_subscription_renewal'] = $current_next_sub_renew !== '' ? (int) $current_next_sub_renew : 0;
+
+    $requested_next_tier_id = isset( $data['membership_next_tier_id'] ) ? (int) $data['membership_next_tier_id'] : ( isset( $data['next_tier_id'] ) ? (int) $data['next_tier_id'] : 0 );
+    $requested_next_form_id = isset( $data['membership_next_tier_form_page_id'] ) ? (int) $data['membership_next_tier_form_page_id'] : ( isset( $data['next_tier_form_page_id'] ) ? (int) $data['next_tier_form_page_id'] : 0 );
+
+    if ( $renewal_type === 'subscription' ) {
+      $resolved['membership_next_tier_id'] = '';
+      $resolved['membership_next_tier_form_page_id'] = '';
+      $resolved['membership_next_tier_subscription_renewal'] = 1;
+    } elseif ( $renewal_type === 'current_tier' ) {
+      $resolved['membership_next_tier_id'] = '';
+      $resolved['membership_next_tier_form_page_id'] = '';
+      $resolved['membership_next_tier_subscription_renewal'] = 0;
+    } elseif ( $requested_next_form_id > 0 ) {
+      $resolved['membership_next_tier_id'] = '';
+      $resolved['membership_next_tier_form_page_id'] = $requested_next_form_id;
+      $resolved['membership_next_tier_subscription_renewal'] = 0;
+    } elseif ( $renewal_type === 'sequential_logic' || $requested_next_tier_id > 0 ) {
+      $resolved['membership_next_tier_id'] = $requested_next_tier_id;
+      $resolved['membership_next_tier_form_page_id'] = '';
+      $resolved['membership_next_tier_subscription_renewal'] = 0;
+    } elseif ( $renewal_type === 'inherited' ) {
+      if ( $config && $config->is_renewal_subscription() ) {
+        $resolved['membership_next_tier_id'] = '';
+        $resolved['membership_next_tier_form_page_id'] = '';
+        $resolved['membership_next_tier_subscription_renewal'] = 1;
+      } elseif ( $config && $config->is_renewal_form_page() ) {
+        $resolved['membership_next_tier_id'] = '';
+        $resolved['membership_next_tier_form_page_id'] = (int) $config->get_renewal_form_page_id();
+        $resolved['membership_next_tier_subscription_renewal'] = 0;
+      } else {
+        $resolved['membership_next_tier_id'] = '';
+        $resolved['membership_next_tier_form_page_id'] = '';
+        $resolved['membership_next_tier_subscription_renewal'] = 0;
+      }
+    }
+
+    return $resolved;
+  }
+
+  /**
+   * Apply locally supported group edit fields to child individual memberships.
+   *
+   * Subscription/order side effects are intentionally deferred; see TODO.md.
+   *
+   * @param int   $group_post_id
+   * @param array $normalized
+   * @return void
+   */
+  private static function cascade_group_edit_to_members( int $group_post_id, array $normalized ): void {
+    $group = new Membership_Group( $group_post_id );
+    $members = $group->get_individual_memberships();
+    $cascade_keys = [
+      'membership_starts_at',
+      'membership_ends_at',
+      'membership_expires_at',
+      'membership_early_renew_at',
+      'membership_grace_period_days',
+      'membership_renewal_type',
+      'membership_next_tier_id',
+      'membership_next_tier_form_page_id',
+      'membership_next_tier_subscription_renewal',
+    ];
+
+    foreach ( $members as $member_post ) {
+      $status = (string) get_post_meta( $member_post->ID, 'membership_status', true );
+      if ( in_array( $status, [ Wicket_Memberships::STATUS_CANCELLED, Wicket_Memberships::STATUS_EXPIRED ], true ) ) {
+        continue;
+      }
+
+      foreach ( $cascade_keys as $key ) {
+        if ( array_key_exists( $key, $normalized ) ) {
+          update_post_meta( $member_post->ID, $key, $normalized[ $key ] );
+        }
+      }
+    }
+  }
+
+  /**
+   * Convert a timestamp into the same canonical local ISO representation used
+   * by the individual membership edit flow.
+   *
+   * @param int $timestamp
+   * @return string
+   */
+  private static function to_wp_timezone_iso( int $timestamp ): string {
+    return ( new \DateTime( date( 'Y-m-d', $timestamp ), wp_timezone() ) )->format( 'c' );
   }
 
   // ---------------------------------------------------------------------------
@@ -604,22 +796,63 @@ class Group_Admin_Controller {
     $config      = $group->get_config();
     $config_data = $config ? Helper::get_post_meta( $config->get_post_id() ) : [];
 
+    // Individual membership records belonging to this group.
+    $statuses            = Helper::get_all_status_names();
+    $individual_posts    = $group->get_individual_memberships();
+    $membership_records  = array_map( function ( \WP_Post $member_post ) use ( $statuses ) {
+      $member_meta = Helper::get_post_meta( $member_post->ID );
+      $status_slug = $member_meta['membership_status'] ?? '';
+
+      $group_id   = (int) ( $member_meta['membership_group_id'] ?? 0 );
+      $group_name = $group_id ? (string) get_the_title( $group_id ) : '';
+
+      $tier_post_id      = (int) ( $member_meta['membership_tier_post_id'] ?? 0 );
+      $tier_renewal_type = '';
+      if ( $tier_post_id ) {
+        $tier              = new Membership_Tier( $tier_post_id );
+        $tier_renewal_type = (string) $tier->get_tier_renewal_type();
+      }
+
+      return [
+        'ID'                    => $member_post->ID,
+        'name'                  => $group_name,
+        'tier'                  => (string) ( $member_meta['membership_tier_name'] ?? '' ),
+        'status'                => $statuses[ $status_slug ]['name'] ?? $status_slug,
+        'starts_at'             => (string) ( $member_meta['membership_starts_at'] ?? '' ),
+        'ends_at'               => (string) ( $member_meta['membership_ends_at'] ?? '' ),
+        'expires_at'            => (string) ( $member_meta['membership_expires_at'] ?? '' ),
+        'renewal_type'          => (string) ( $member_meta['membership_renewal_type'] ?? '' ),
+        'tier_renewal_type'     => $tier_renewal_type,
+        'next_tier_form_page_id' => (int) ( $member_meta['membership_next_tier_form_page_id'] ?? 0 ) ?: null,
+        'next_tier_id'          => (int) ( $member_meta['membership_next_tier_id'] ?? 0 ) ?: null,
+      ];
+    }, $individual_posts );
+
+    // Order/subscription enrichment is intentionally mocked until the group
+    // commerce implementation exists; see TODO.md.
     return [
-      'ID'              => $group_post_id,
-      'title'           => get_the_title( $group_post_id ),
-      'meta'            => $meta,
-      'org'             => [
+      'ID'                  => $group_post_id,
+      'title'               => get_the_title( $group_post_id ),
+      'meta'                => $meta,
+      'org'                 => [
         'uuid'     => $org_uuid,
         'name'     => $org_data['name']     ?? '',
         'location' => $org_data['location'] ?? '',
         'mdp_link' => $mdp_org_link,
       ],
-      'owner'           => $owner_data,
-      'config'          => $config_data,
-      'subscription_id' => $group->get_subscription_id(),
-      'dates'           => $group->get_dates(),
-      'statuses'        => Helper::get_all_status_names(),
+      'owner'               => $owner_data,
+      'config'              => $config_data,
+      'config_id'           => $config ? $config->get_post_id() : null,
+      'config_title'        => $config ? get_the_title( $config->get_post_id() ) : '',
+      'config_renewal_type' => $config ? $config->get_renewal_type() : '',
+      'subscription_id'     => $group->get_subscription_id(),
+      'subscription'        => self::MOCK_SUBSCRIPTION_PAYLOAD,
+      'order'               => self::MOCK_ORDER_PAYLOAD,
+      'orders'              => self::MOCK_ORDERS_PAYLOAD,
+      'dates'               => $group->get_dates(),
+      'statuses'            => $statuses,
       'allowed_transitions' => Helper::get_allowed_transition_status( $meta['membership_status'] ?? '' ),
+      'membership_records'  => $membership_records,
     ];
   }
 

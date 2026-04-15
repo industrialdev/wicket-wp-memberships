@@ -208,3 +208,72 @@ export const createRenewalOrder = (membershipId, productId, variationId) => {
     },
   });
 };
+
+/**
+ * Fetch all data required to populate the group membership detail/edit page.
+ *
+ * Maps to GET /wicket_member/v1/group/admin/get_edit_page_info?group_post_id=<id>
+ *
+ * @param {string|number} postId - WP post ID of the membership group.
+ */
+export const fetchGroupEditPageInfo = (postId) => {
+  return apiFetch({
+    path: addQueryArgs(`${PLUGIN_API_URL}/group/admin/get_edit_page_info`, {
+      group_post_id: postId,
+    }),
+  });
+};
+
+/**
+ * Fetch available status transition options for a group membership post.
+ *
+ * Maps to GET /wicket_member/v1/group/admin/status_options?group_post_id=<id>
+ *
+ * @param {string|number} groupPostId - WP post ID of the membership group.
+ */
+export const fetchGroupMembershipStatuses = (groupPostId = null) => {
+  if (groupPostId === null) {
+    return;
+  }
+
+  return apiFetch({
+    path: addQueryArgs(`${PLUGIN_API_URL}/group/admin/status_options`, {
+      group_post_id: groupPostId,
+    }),
+  });
+};
+
+/**
+ * Transition a group membership to a new status.
+ *
+ * Maps to POST /wicket_member/v1/group/admin/manage_status
+ *
+ * @param {string|number} groupPostId - WP post ID of the membership group.
+ * @param {string}        status      - New status slug.
+ */
+export const updateGroupMembershipStatus = (groupPostId, status) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/group/admin/manage_status`,
+    method: "POST",
+    data: {
+      group_post_id: groupPostId,
+      status: status,
+    },
+  });
+};
+
+/**
+ * Update editable fields on a group membership post (dates, renewal type, owner).
+ *
+ * Maps to POST /wicket_member/v1/group_membership_entity/{id}/update
+ *
+ * @param {string|number} groupPostId - WP post ID of the membership group.
+ * @param {object}        data        - Fields to update.
+ */
+export const updateGroupMembership = (groupPostId, data) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/group_membership_entity/${groupPostId}/update`,
+    method: "POST",
+    data: data,
+  });
+};

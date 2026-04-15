@@ -4,6 +4,7 @@
 - [Overview](product/overview.md) — What the plugin does, CPTs, lifecycle, feature flags
 
 ## Engineering Docs (Developers & Agents)
+- [Membership Type Model](engineering/membership-type-model.md) — individual vs organization vs group, when a tier is required, what membership_group_id means
 - [Membership_Config Data Structure](engineering/membership_config_data_structure.md) — Renewal windows, late fees, calendar/anniversary cycles
 - [Membership_Tier Data Structure](engineering/membership_tier_data_structure.md) — Tier-to-product linkage, renewal types, approval flows
 - [Group_Admin_Controller](engineering/Group_Admin_Controller.md) — Admin business logic for group membership posts (status, dates, ownership, renewal orders)

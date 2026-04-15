@@ -43,7 +43,6 @@ class Admin_Controller {
    */
 	public function init_menu() {
     $menu_slug        = WICKET_MEMBERSHIP_PLUGIN_SLUG;
-    $group_cpt_slug   = Helper::get_membership_group_cpt_slug();
     $grp_cfg_cpt_slug = Helper::get_membership_group_config_cpt_slug();
 
 		add_menu_page(
@@ -54,14 +53,6 @@ class Admin_Controller {
 			'',
 			'dashicons-list-view'
 		);
-
-    add_submenu_page(
-      $menu_slug,
-      esc_attr__( 'Membership Groups', 'wicket-memberships' ),
-      esc_attr__( 'Membership Groups', 'wicket-memberships' ),
-      Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY,
-      'edit.php?post_type=' . $group_cpt_slug
-    );
 
     add_submenu_page(
       $menu_slug,
@@ -615,8 +606,8 @@ class Admin_Controller {
       if(empty($membership_tier_id)) {
         $response_array['error'] = 'Error: '.$ownership_change_response.'Membership tier not found. ';
         $response_array['response'] = Helper::get_post_meta( $membership_post_id );
-        $response_code = 200;  
-        return new \WP_REST_Response($response_array, $response_code);  
+        $response_code = 200;
+        return new \WP_REST_Response($response_array, $response_code);
       }
       $membership_tier = new Membership_Tier( $membership_tier_id );
       $config = new Membership_Config( $membership_tier->tier_data['config_id'] );

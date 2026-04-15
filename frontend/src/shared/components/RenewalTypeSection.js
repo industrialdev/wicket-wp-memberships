@@ -42,10 +42,10 @@ const RenewalTypeSection = ({
             classNamePrefix="select"
             id="renewal_type"
             isDisabled={disabled}
-            isSearchable={true}
+            isSearchable={false}
             onChange={(selected) => onRenewalTypeChange(selected.value)}
             options={RENEWAL_TYPE_OPTIONS}
-            value={RENEWAL_TYPE_OPTIONS.find((o) => o.value === renewalType)}
+            value={RENEWAL_TYPE_OPTIONS.find((o) => o.value === renewalType) ?? null}
           />
         </FlexBlock>
       </div>

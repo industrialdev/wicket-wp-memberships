@@ -169,17 +169,13 @@ class Membership_CPT_Hooks {
       return;
     }
 
-    $meta = \Wicket_Memberships\Helper::get_post_meta( $post_id );
     $list_url = admin_url( 'admin.php?page=' . self::LIST_GROUP_MEMBER_PAGE_SLUG );
 
-    echo '<div class="wrap">';
-    echo '<h1>' . esc_html__( 'Group Membership', 'wicket-memberships' ) . ' <pre style="display:inline;font-size:13px">(' . esc_html( $post_id ) . ')</pre></h1>';
-    echo '<p><a href="' . esc_url( $list_url ) . '">&larr; ' . esc_html__( 'Back to Group Memberships', 'wicket-memberships' ) . '</a></p>';
-    echo '<table class="widefat striped" style="max-width:800px"><thead><tr><th>' . esc_html__( 'Key', 'wicket-memberships' ) . '</th><th>' . esc_html__( 'Value', 'wicket-memberships' ) . '</th></tr></thead><tbody>';
-    foreach ( $meta as $key => $value ) {
-      echo '<tr><td><code>' . esc_html( $key ) . '</code></td><td><code>' . esc_html( (string) $value ) . '</code></td></tr>';
-    }
-    echo '</tbody></table></div>';
+    echo '<div
+      id="group_member_edit"
+      data-post-id="' . esc_attr( $post_id ) . '"
+      data-list-url="' . esc_url( $list_url ) . '"
+    ></div>';
   }
 
   function enqueue_scripts() {
@@ -227,6 +223,18 @@ class Membership_CPT_Hooks {
       wp_enqueue_script(
         WICKET_MEMBERSHIP_PLUGIN_SLUG . '_edit_member',
         WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/member_edit.js',
+        $asset_file['dependencies'],
+        $asset_file['version'],
+        true
+      );
+    }
+
+    if ( $page->id === 'admin_page_' . self::EDIT_GROUP_MEMBER_PAGE_SLUG ) {
+      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/group_member_edit.asset.php' );
+
+      wp_enqueue_script(
+        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_group_member_edit',
+        WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/group_member_edit.js',
         $asset_file['dependencies'],
         $asset_file['version'],
         true

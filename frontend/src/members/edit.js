@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
 import apiFetch from '@wordpress/api-fetch';
 import { addQueryArgs } from '@wordpress/url';
-import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_SETTINGS } from '../shared/constants';
+import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_SETTINGS, formatDateWithTooltip, formatCurrency } from '../shared/constants';
 import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../shared/styled_elements';
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon } from '@wordpress/components';
 import ManageStatusModal from './ManageStatusModal';
@@ -90,16 +90,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 		{ label: __('Subscription Renewal', 'wicket-memberships'), value: 'subscription' },
 		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' }
 	];
-
-	// Helper: Format date as Y-m-d with ISO 8601 tooltip (in MDP timezone)
-	const formatDateWithTooltip = (isoString) => {
-		if (!isoString) return '';
-		const mdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
-		const m = moment.tz(isoString, mdpTimezone);
-		const dateDisplay = m.format('YYYY-MM-DD'); // Y-m-d format in MDP timezone
-		const isoFull = m.format(); // ISO 8601 with MDP timezone: 2025-12-31T00:00:00-05:00
-		return <span title={isoFull}>{dateDisplay}</span>;
-	};
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -688,7 +678,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                     { formatDateWithTooltip(membership.order.date_created) }
                                   </td>
                                   <td className="column-columnname">
-                                    {membership.order.total}
+                                    {formatCurrency(membership.order.total)}
                                   </td>
                                   <td className="column-columnname">
                                     {membership.order.status}

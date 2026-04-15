@@ -33,6 +33,11 @@ frontend/
 │   │   ├── hooks/                   # Custom hooks for this page
 │   │   ├── pages/                   # Webpack entry points (one file per WP admin page)
 │   │   └── utils/                   # Page-scoped utility and helper functions
+│   ├── membership_groups/           # Group membership detail page (modern)
+│   │   ├── components/              # Thin adapter components — map page data to shared UI
+│   │   ├── hooks/                   # Custom hooks for this page
+│   │   ├── pages/                   # Webpack entry points (one file per WP admin page)
+│   │   └── utils/                   # Page-scoped utility and helper functions
 │   └── membership_tiers/            # Membership tier edit pages (legacy)
 ├── build/                           # Compiled output — committed to repo
 ├── webpack.config.js                # Extends @wordpress/scripts; defines entry points
@@ -58,6 +63,8 @@ frontend/
 | `membership_tier_create` | `membership_tiers/edit.js` | Tier create/edit |
 | `member_list` | `members/index.js` | Member list |
 | `member_edit` | `members/edit.js` | Member detail/edit |
+| `group_member_list` | `members/group_list.js` | Group membership list |
+| `group_member_edit` | `membership_groups/pages/edit.js` | Group membership detail/edit |
 | `tier_member_count` | `membership_tiers/member_count.js` | Inline tier table cell |
 | `wicket_memberships_tier_cell_info` | `membership_tiers/tier_cell_info.js` | Inline tier table cell |
 
@@ -150,6 +157,8 @@ All shared components are data-agnostic — they receive flat props and have no 
 | `SeasonConfigModal.js` | Create/edit a membership season (name, active flag, start/end dates). |
 | `WicketButton.js` | Thin wrapper around `@wordpress/components` `Button` with Wicket-specific defaults. |
 | `WicketModal.js` | Thin wrapper around `@wordpress/components` `Modal` with a fixed 840px max-width. Use this instead of the raw Modal for visual consistency. |
+| `IntroBlock.js` | Header block for membership entity detail pages. Renders entity name, action buttons, and a configurable `infoFields` metadata bar. Props: `title`, `infoFields` (`[{ label, value }]`), `actions` (`[{ label, href, target?, icon? }]`), `isLoading`. |
+| `MembershipRecordsSection.js` | Titled bordered panel for membership record tables. Shell only — no data rows rendered yet. Props: `isLoading`. |
 
 ---
 

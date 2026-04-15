@@ -18,6 +18,7 @@ module.exports = {
 		membership_tier_create: './src/membership_tiers/edit.js',
 		member_list: './src/members/index.js',
 		group_member_list: './src/members/group_list.js',
+		group_member_edit: './src/membership_groups/pages/edit.js',
 		member_edit: './src/members/edit.js',
 		tier_member_count: './src/membership_tiers/member_count.js',
 		wicket_memberships_tier_cell_info: './src/membership_tiers/tier_cell_info.js',

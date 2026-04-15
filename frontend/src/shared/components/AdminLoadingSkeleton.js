@@ -62,6 +62,20 @@ const skeletonPresets = {
       { columns: ["100%"] },
     ],
   },
+  introBlock: {
+    rows: [
+      { columns: ["240px", "120px"] },
+      { columns: ["180px"], height: "11px" },
+    ],
+  },
+  membershipTable: {
+    rows: [
+      { columns: ["180px"] },
+      { columns: ["2fr", "80px", "120px", "120px", "120px", "120px", "40px"], height: "24px" },
+      { columns: ["2fr", "80px", "120px", "120px", "120px", "120px", "40px"] },
+      { columns: ["2fr", "80px", "120px", "120px", "120px", "120px", "40px"] },
+    ],
+  },
 };
 
 const AdminLoadingSkeleton = ({
@@ -81,6 +95,7 @@ const AdminLoadingSkeleton = ({
           {row.columns.map((column, columnIndex) => (
             <SkeletonLine
               $width={column}
+              $height={row.height}
               key={`${label}-${rowIndex}-${columnIndex}`}
             />
           ))}

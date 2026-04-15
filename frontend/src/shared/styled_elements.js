@@ -35,6 +35,10 @@ export const Wrap = styled.div`
   max-width: 600px;
 `;
 
+export const EditWrap = styled.div`
+  max-width: 1000px;
+`;
+
 export const ActionRow = styled.div`
   margin-top: 30px;
 `;
@@ -152,5 +156,38 @@ export const ModalStyled = styled(Modal)`
   &,
   .components-modal__content {
     overflow: visible;
+  }
+`;
+
+export const RecordTopInfo = styled.div`
+  background: #F0F6FC;
+  margin-top: 15px;
+  padding: 15px;
+  font-size: 14px;
+`;
+
+export const MembershipTable = styled.div`
+  margin-top: 20px;
+
+  .membership_details {
+    background: #F6F7F7;
+
+    td {
+      padding: 15px;
+    }
+  }
+
+  td {
+    vertical-align: middle;
+  }
+
+  .billing_table {
+    margin-top: 15px;
+
+    thead {
+      th {
+        background: #F0F0F1;
+      }
+    }
   }
 `;

@@ -6801,10 +6801,1742 @@ function safePolygon(options) {
 
 /***/ }),
 
-/***/ "./src/membership_configs/tiers.js":
-/*!*****************************************!*\
-  !*** ./src/membership_configs/tiers.js ***!
-  \*****************************************/
+/***/ "./src/membership_group_configs/utils/formUtils.js":
+/*!*********************************************************!*\
+  !*** ./src/membership_group_configs/utils/formUtils.js ***!
+  \*********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   buildGroupConfigPayload: () => (/* binding */ buildGroupConfigPayload),
+/* harmony export */   createDefaultForm: () => (/* binding */ createDefaultForm),
+/* harmony export */   createDefaultLocales: () => (/* binding */ createDefaultLocales),
+/* harmony export */   createEmptySeason: () => (/* binding */ createEmptySeason),
+/* harmony export */   findOptionByValue: () => (/* binding */ findOptionByValue),
+/* harmony export */   getDefaultCycleData: () => (/* reexport safe */ _shared_cycleUtils__WEBPACK_IMPORTED_MODULE_2__.getDefaultCycleData),
+/* harmony export */   getPrimaryErrorMessage: () => (/* binding */ getPrimaryErrorMessage),
+/* harmony export */   mergeCalloutData: () => (/* binding */ mergeCalloutData),
+/* harmony export */   mergeLocales: () => (/* binding */ mergeLocales),
+/* harmony export */   normalizeApiErrors: () => (/* binding */ normalizeApiErrors),
+/* harmony export */   normalizeCycleData: () => (/* reexport safe */ _shared_cycleUtils__WEBPACK_IMPORTED_MODULE_2__.normalizeCycleData),
+/* harmony export */   normalizeGroupConfigPostToForm: () => (/* binding */ normalizeGroupConfigPostToForm)
+/* harmony export */ });
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var he__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! he */ "./node_modules/he/he.js");
+/* harmony import */ var he__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(he__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _shared_cycleUtils__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../shared/cycleUtils */ "./src/shared/cycleUtils.js");
+
+
+
+
+const createDefaultLocales = (languageCodes = []) => languageCodes.reduce((locales, code) => {
+  locales[code] = {
+    callout_header: "",
+    callout_content: "",
+    callout_button_label: ""
+  };
+  return locales;
+}, {});
+const mergeLocales = (defaultLocales, incomingLocales = {}) => Object.keys(defaultLocales).reduce((locales, code) => {
+  locales[code] = {
+    ...defaultLocales[code],
+    ...(incomingLocales?.[code] || {})
+  };
+  return locales;
+}, {});
+const mergeCalloutData = (defaultLocales, calloutData = {}) => ({
+  ...calloutData,
+  locales: mergeLocales(defaultLocales, calloutData?.locales)
+});
+const createEmptySeason = () => ({
+  season_name: "",
+  active: true,
+  start_date: "",
+  end_date: ""
+});
+const createDefaultForm = (languageCodes = []) => {
+  return {
+    name: "",
+    renewal_window_data: {
+      days_count: "1",
+      locales: createDefaultLocales(languageCodes)
+    },
+    late_fee_window_data: {
+      days_count: "0",
+      product_id: "-1",
+      locales: createDefaultLocales(languageCodes)
+    },
+    cycle_data: (0,_shared_cycleUtils__WEBPACK_IMPORTED_MODULE_2__.getDefaultCycleData)(),
+    group_config_data: {
+      renewal_type: "subscription",
+      renewal_form_page_id: "",
+      approval_required: false,
+      grant_owner_assignment: false,
+      approval_email_recipient: "",
+      approval_callout_data: {
+        locales: createDefaultLocales(languageCodes)
+      }
+    }
+  };
+};
+const normalizeGroupConfigPostToForm = (post, languageCodes = []) => {
+  const defaultForm = createDefaultForm(languageCodes);
+  const defaultLocales = createDefaultLocales(languageCodes);
+  const groupConfigData = post?.group_config_data || {};
+  return {
+    ...defaultForm,
+    name: he__WEBPACK_IMPORTED_MODULE_1___default().decode(post?.title?.rendered || ""),
+    renewal_window_data: {
+      ...defaultForm.renewal_window_data,
+      ...(post?.renewal_window_data || {}),
+      locales: mergeLocales(defaultLocales, post?.renewal_window_data?.locales || {})
+    },
+    late_fee_window_data: {
+      ...defaultForm.late_fee_window_data,
+      ...(post?.late_fee_window_data || {}),
+      locales: mergeLocales(defaultLocales, post?.late_fee_window_data?.locales || {})
+    },
+    cycle_data: (0,_shared_cycleUtils__WEBPACK_IMPORTED_MODULE_2__.normalizeCycleData)(post?.cycle_data),
+    group_config_data: {
+      ...defaultForm.group_config_data,
+      ...groupConfigData,
+      renewal_type: groupConfigData.renewal_type || "subscription",
+      renewal_form_page_id: groupConfigData.renewal_form_page_id || "",
+      approval_required: groupConfigData.approval_required === true || groupConfigData.approval_required === 1 || groupConfigData.approval_required === "1",
+      grant_owner_assignment: groupConfigData.grant_owner_assignment === true || groupConfigData.grant_owner_assignment === 1 || groupConfigData.grant_owner_assignment === "1",
+      approval_email_recipient: groupConfigData.approval_email_recipient || "",
+      approval_callout_data: mergeCalloutData(defaultLocales, groupConfigData.approval_callout_data || {})
+    }
+  };
+};
+const buildGroupConfigPayload = form => ({
+  title: form.name,
+  status: "publish",
+  renewal_window_data: form.renewal_window_data,
+  late_fee_window_data: form.late_fee_window_data,
+  cycle_data: form.cycle_data,
+  group_config_data: {
+    ...form.group_config_data,
+    renewal_form_page_id: form.group_config_data.renewal_type === "form_page" ? parseInt(form.group_config_data.renewal_form_page_id, 10) || 0 : 0,
+    approval_required: !!form.group_config_data.approval_required,
+    grant_owner_assignment: !!form.group_config_data.grant_owner_assignment
+  }
+});
+const normalizeApiErrors = (error, fallbackMessage = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_0__.__)("Something went wrong. Please try again.", "wicket-memberships")) => {
+  if (error?.data?.params) {
+    return Object.keys(error.data.params).flatMap(key => String(error.data.params[key]).split(/(?<=[.?!])\s+|\.$/).map(message => message.trim()).filter(Boolean)).filter(Boolean);
+  }
+  if (error?.message) {
+    return [error.message];
+  }
+  return [fallbackMessage];
+};
+const getPrimaryErrorMessage = (error, fallbackMessage) => normalizeApiErrors(error, fallbackMessage)[0];
+const findOptionByValue = (options = [], value) => options.find(option => String(option.value) === String(value));
+
+/***/ }),
+
+/***/ "./src/membership_groups/components/GroupMembershipForm.js":
+/*!*****************************************************************!*\
+  !*** ./src/membership_groups/components/GroupMembershipForm.js ***!
+  \*****************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _IntroBlockSection__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./IntroBlockSection */ "./src/membership_groups/components/IntroBlockSection.js");
+/* harmony import */ var _MembershipRecordsSection__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./MembershipRecordsSection */ "./src/membership_groups/components/MembershipRecordsSection.js");
+
+
+
+
+/**
+ * GroupMembershipForm — form orchestrator for the group membership detail page.
+ *
+ * Renders all section components in order. Mirrors the role of GroupConfigForm
+ * in membership_group_configs/. Each section component is a thin adapter that
+ * maps pageData to flat props for the shared UI component.
+ *
+ * Expanded record detail content (billing info, order details, status, actions,
+ * dates) is rendered inside MembershipRecordsSection via its renderExpandedContent
+ * prop — matching the layout of members/edit.js.
+ *
+ * @param {object}       props
+ * @param {object|null}  props.pageData   - Data returned by fetchGroupEditPageInfo.
+ * @param {boolean}      props.isLoading  - True while page data is pending.
+ */
+const GroupMembershipForm = ({
+  pageData,
+  isLoading
+}) => {
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_IntroBlockSection__WEBPACK_IMPORTED_MODULE_1__["default"], {
+    pageData: pageData,
+    isLoading: isLoading
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_MembershipRecordsSection__WEBPACK_IMPORTED_MODULE_2__["default"], {
+    pageData: pageData,
+    isLoading: isLoading
+  }));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (GroupMembershipForm);
+
+/***/ }),
+
+/***/ "./src/membership_groups/components/GroupMembershipPage.js":
+/*!*****************************************************************!*\
+  !*** ./src/membership_groups/components/GroupMembershipPage.js ***!
+  \*****************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _shared_components_AdminNoticeStack__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../shared/components/AdminNoticeStack */ "./src/shared/components/AdminNoticeStack.js");
+/* harmony import */ var _shared_components_AdminPageErrorBoundary__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../shared/components/AdminPageErrorBoundary */ "./src/shared/components/AdminPageErrorBoundary.js");
+/* harmony import */ var _shared_styled_elements__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../shared/styled_elements */ "./src/shared/styled_elements.js");
+/* harmony import */ var _utils_formUtils__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../utils/formUtils */ "./src/membership_groups/utils/formUtils.js");
+/* harmony import */ var _hooks_useGroupMembershipBootstrap__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../hooks/useGroupMembershipBootstrap */ "./src/membership_groups/hooks/useGroupMembershipBootstrap.js");
+/* harmony import */ var _GroupMembershipForm__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ./GroupMembershipForm */ "./src/membership_groups/components/GroupMembershipForm.js");
+
+
+
+
+
+
+
+
+
+const GroupMembershipPageContent = ({
+  postId,
+  listUrl
+}) => {
+  const {
+    pageData,
+    requestState,
+    retryLoad
+  } = (0,_hooks_useGroupMembershipBootstrap__WEBPACK_IMPORTED_MODULE_6__.useGroupMembershipBootstrap)({
+    postId
+  });
+  const isLoading = requestState.status === "loading";
+  const notices = [...(requestState.status === "error" ? [{
+    id: "load-error",
+    status: "warning",
+    message: (0,_utils_formUtils__WEBPACK_IMPORTED_MODULE_5__.getPrimaryErrorMessage)(requestState.error, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("The group membership data could not be loaded. Retry to continue.", "wicket-memberships")),
+    action: {
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Retry loading", "wicket-memberships"),
+      onClick: retryLoad
+    }
+  }] : [])];
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_AdminNoticeStack__WEBPACK_IMPORTED_MODULE_2__["default"], {
+    notices: notices
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_GroupMembershipForm__WEBPACK_IMPORTED_MODULE_7__["default"], {
+    pageData: pageData,
+    isLoading: isLoading
+  }));
+};
+
+/**
+ * GroupMembershipPage — top-level container for the group membership detail page.
+ *
+ * Owns the error boundary and renders the page heading. Mirrors the role of
+ * GroupConfigPage in membership_group_configs/.
+ *
+ * @param {object} props
+ * @param {string|number} props.postId  - WP post ID passed from the PHP mount point.
+ * @param {string}        props.listUrl - URL of the group membership list page.
+ */
+const GroupMembershipPage = ({
+  postId,
+  listUrl
+}) => {
+  const [errorBoundaryResetKey, setErrorBoundaryResetKey] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(0);
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_4__.AppWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    className: "wrap"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("h1", {
+    className: "wp-heading-inline"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Group Membership", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("hr", {
+    className: "wp-header-end"
+  }), listUrl && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+    href: listUrl
+  }, "\u2190 ", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Back to Group Memberships", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_AdminPageErrorBoundary__WEBPACK_IMPORTED_MODULE_3__["default"], {
+    onReset: () => setErrorBoundaryResetKey(value => value + 1),
+    resetKey: errorBoundaryResetKey
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_4__.EditWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(GroupMembershipPageContent, {
+    key: errorBoundaryResetKey,
+    listUrl: listUrl,
+    postId: postId
+  })))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (GroupMembershipPage);
+
+/***/ }),
+
+/***/ "./src/membership_groups/components/GroupMembershipRecordDetails.js":
+/*!**************************************************************************!*\
+  !*** ./src/membership_groups/components/GroupMembershipRecordDetails.js ***!
+  \**************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _shared_components_MembershipBillingInfoSection__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../../shared/components/MembershipBillingInfoSection */ "./src/shared/components/MembershipBillingInfoSection.js");
+/* harmony import */ var _shared_components_MembershipOrderDetailsSection__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../shared/components/MembershipOrderDetailsSection */ "./src/shared/components/MembershipOrderDetailsSection.js");
+/* harmony import */ var _shared_components_MembershipStatusSection__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../../shared/components/MembershipStatusSection */ "./src/shared/components/MembershipStatusSection.js");
+/* harmony import */ var _shared_components_MembershipActionsSection__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../../shared/components/MembershipActionsSection */ "./src/shared/components/MembershipActionsSection.js");
+/* harmony import */ var _shared_components_MembershipDetailsForm__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../../shared/components/MembershipDetailsForm */ "./src/shared/components/MembershipDetailsForm.js");
+/* harmony import */ var _shared_services_api__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../../shared/services/api */ "./src/shared/services/api.js");
+
+
+
+
+
+
+
+
+
+
+const DetailsWrap = styled_components__WEBPACK_IMPORTED_MODULE_9__["default"].div`
+  padding: 4px 0;
+`;
+
+/**
+ * GroupMembershipRecordDetails — expanded panel content for a single group
+ * membership record row.
+ *
+ * Rendered inside the detail <tr> of MembershipRecordsSection when the user
+ * expands a row. Wires the shared section components to the group-specific API
+ * functions, mirroring the expanded row layout from members/edit.js:
+ *
+ *  1. Billing Info   — subscription ID + next payment date
+ *  2. Order Details  — order record table
+ *  3. Status row     — manage status alongside the actions dropdown
+ *  4. Dates          — start / end / expiry date pickers + save
+ *  5. Renewal Type   — renewal type selector with conditional sub-fields
+ *
+ * `record` is a single entry from pageData.membership_records (the shape
+ * returned by Group_Admin_Controller::get_group_edit_page_info).
+ *
+ * @param {object}   props
+ * @param {object}   props.record          - Single membership record from pageData.membership_records.
+ * @param {object}   props.groupPageData   - Full pageData for the group (subscription_id etc.).
+ * @param {Function} props.onRecordUpdated - Called with the updated record after a save.
+ */
+const GroupMembershipRecordDetails = ({
+  record,
+  groupPageData,
+  onRecordUpdated
+}) => {
+  var _groupPageData$subscr, _groupPageData$subscr2, _groupPageData$subscr3, _groupPageData$orders, _record$next_tier_for, _record$next_tier_id;
+  // Group-level subscription and order data is shared across all records until
+  // the API is enriched to return per-record billing data.
+  // TODO: Switch to per-record subscription/order data once
+  // Group_Admin_Controller::get_group_edit_page_info() enriches individual
+  // record entries with their own billing info. See TODO.md.
+  const subscriptionId = (_groupPageData$subscr = groupPageData?.subscription?.id) !== null && _groupPageData$subscr !== void 0 ? _groupPageData$subscr : null;
+  // TODO: Replace mock subscription link and next_payment_date with real values
+  // once Group_Admin_Controller::get_group_edit_page_info() is enriched with
+  // live WooCommerce subscription data. See TODO.md.
+  const subscriptionLink = (_groupPageData$subscr2 = groupPageData?.subscription?.link) !== null && _groupPageData$subscr2 !== void 0 ? _groupPageData$subscr2 : null;
+  const nextPaymentDate = (_groupPageData$subscr3 = groupPageData?.subscription?.next_payment_date) !== null && _groupPageData$subscr3 !== void 0 ? _groupPageData$subscr3 : null;
+  const orders = (_groupPageData$orders = groupPageData?.orders) !== null && _groupPageData$orders !== void 0 ? _groupPageData$orders : null;
+  const configRenewalType = groupPageData?.config_renewal_type || null;
+  const isCancelled = record.status?.toLowerCase() === "cancelled";
+  console.log('[GroupMembershipRecordDetails]', {
+    renewal_type: record?.renewal_type,
+    tier_renewal_type: record?.tier_renewal_type,
+    configRenewalType
+  });
+  const handleStatusUpdated = (_postId, newStatus) => {
+    if (onRecordUpdated) {
+      onRecordUpdated({
+        ...record,
+        status: newStatus
+      });
+    }
+  };
+  const handleSave = ({
+    renewalType,
+    nextTierFormPageId,
+    nextTierId,
+    ...datepayload
+  }) => (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_8__.updateMembership)(record.ID, {
+    membership_post_id: record.ID,
+    renewal_type: renewalType,
+    next_tier_form_page_id: nextTierFormPageId,
+    next_tier_id: nextTierId,
+    ...datepayload
+  });
+  const handleSaved = updated => {
+    if (onRecordUpdated) {
+      var _updated$starts_at, _updated$ends_at, _updated$expires_at, _updated$renewalType, _updated$nextTierForm, _updated$nextTierId;
+      onRecordUpdated({
+        ...record,
+        starts_at: (_updated$starts_at = updated.starts_at) !== null && _updated$starts_at !== void 0 ? _updated$starts_at : record.starts_at,
+        ends_at: (_updated$ends_at = updated.ends_at) !== null && _updated$ends_at !== void 0 ? _updated$ends_at : record.ends_at,
+        expires_at: (_updated$expires_at = updated.expires_at) !== null && _updated$expires_at !== void 0 ? _updated$expires_at : record.expires_at,
+        renewal_type: (_updated$renewalType = updated.renewalType) !== null && _updated$renewalType !== void 0 ? _updated$renewalType : record.renewal_type,
+        next_tier_form_page_id: (_updated$nextTierForm = updated.nextTierFormPageId) !== null && _updated$nextTierForm !== void 0 ? _updated$nextTierForm : record.next_tier_form_page_id,
+        next_tier_id: (_updated$nextTierId = updated.nextTierId) !== null && _updated$nextTierId !== void 0 ? _updated$nextTierId : record.next_tier_id
+      });
+    }
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(DetailsWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipBillingInfoSection__WEBPACK_IMPORTED_MODULE_3__["default"], {
+    subscriptionId: subscriptionId,
+    subscriptionLink: subscriptionLink,
+    nextPaymentDate: nextPaymentDate
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipOrderDetailsSection__WEBPACK_IMPORTED_MODULE_4__["default"], {
+    orders: orders
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex, {
+    align: "normal",
+    justify: "start",
+    gap: 6,
+    direction: ["column", "row"]
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipStatusSection__WEBPACK_IMPORTED_MODULE_5__["default"], {
+    postId: record.ID,
+    currentStatus: record.status,
+    fetchStatuses: _shared_services_api__WEBPACK_IMPORTED_MODULE_8__.fetchMembershipStatuses,
+    updateStatus: _shared_services_api__WEBPACK_IMPORTED_MODULE_8__.updateMembershipStatus,
+    onStatusUpdated: handleStatusUpdated
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipActionsSection__WEBPACK_IMPORTED_MODULE_6__["default"], {
+    actions: []
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipDetailsForm__WEBPACK_IMPORTED_MODULE_7__["default"], {
+    dates: {
+      starts_at: record.starts_at,
+      ends_at: record.ends_at,
+      expires_at: record.expires_at
+    },
+    renewalType: record?.renewal_type || "inherited",
+    tierRenewalType: configRenewalType,
+    nextTierFormPageId: (_record$next_tier_for = record?.next_tier_form_page_id) !== null && _record$next_tier_for !== void 0 ? _record$next_tier_for : null,
+    nextTierId: (_record$next_tier_id = record?.next_tier_id) !== null && _record$next_tier_id !== void 0 ? _record$next_tier_id : null,
+    disabled: isCancelled,
+    onSave: handleSave,
+    onSaved: handleSaved
+  }));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (GroupMembershipRecordDetails);
+
+/***/ }),
+
+/***/ "./src/membership_groups/components/IntroBlockSection.js":
+/*!***************************************************************!*\
+  !*** ./src/membership_groups/components/IntroBlockSection.js ***!
+  \***************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _shared_components_IntroBlock__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../shared/components/IntroBlock */ "./src/shared/components/IntroBlock.js");
+
+
+
+
+/**
+ * IntroBlockSection — group membership page adapter for IntroBlock.
+ *
+ * Reads group page data and maps it to the flat props that the shared
+ * IntroBlock UI component expects. Contains no JSX of its own beyond
+ * the IntroBlock invocation.
+ *
+ * @param {object}       props
+ * @param {object|null}  props.pageData   - Data returned by fetchGroupEditPageInfo.
+ * @param {boolean}      props.isLoading  - Pass-through to IntroBlock.
+ */
+const IntroBlockSection = ({
+  pageData,
+  isLoading
+}) => {
+  const title = pageData?.title || "";
+  const infoFields = [{
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Organization", "wicket-memberships"),
+    value: pageData?.org?.name || ""
+  }];
+
+  // TODO: Replace org MDP link with the correct group membership MDP link once
+  // group membership MDP sync is implemented — see TODO.md.
+  const actions = [{
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("View in MDP", "wicket-memberships"),
+    href: pageData?.org?.mdp_link || "",
+    target: "_blank",
+    icon: "external"
+  }];
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_IntroBlock__WEBPACK_IMPORTED_MODULE_2__["default"], {
+    title: title,
+    infoFields: infoFields,
+    actions: actions,
+    isLoading: isLoading
+  });
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (IntroBlockSection);
+
+/***/ }),
+
+/***/ "./src/membership_groups/components/MembershipRecordsSection.js":
+/*!**********************************************************************!*\
+  !*** ./src/membership_groups/components/MembershipRecordsSection.js ***!
+  \**********************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _shared_components_MembershipRecordsSection__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../../shared/components/MembershipRecordsSection */ "./src/shared/components/MembershipRecordsSection.js");
+/* harmony import */ var _GroupMembershipRecordDetails__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./GroupMembershipRecordDetails */ "./src/membership_groups/components/GroupMembershipRecordDetails.js");
+/* harmony import */ var _shared_constants__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../shared/constants */ "./src/shared/constants.js");
+
+
+
+
+
+
+const buildColumns = pageData => [{
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership Group Name", "wicket-memberships"),
+  render: record => record.name
+}, {
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("ID", "wicket-memberships"),
+  render: record => record.ID
+}, {
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Config", "wicket-memberships"),
+  render: () => pageData?.config_title || "—"
+}, {
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Status", "wicket-memberships"),
+  render: record => record.status
+}, {
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Start Date", "wicket-memberships"),
+  render: record => (0,_shared_constants__WEBPACK_IMPORTED_MODULE_4__.formatDateWithTooltip)(record.starts_at)
+}, {
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("End Date", "wicket-memberships"),
+  render: record => (0,_shared_constants__WEBPACK_IMPORTED_MODULE_4__.formatDateWithTooltip)(record.ends_at)
+}, {
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Exp. Date", "wicket-memberships"),
+  render: record => (0,_shared_constants__WEBPACK_IMPORTED_MODULE_4__.formatDateWithTooltip)(record.expires_at)
+}];
+
+/**
+ * MembershipRecordsSection — group membership page adapter for
+ * the shared MembershipRecordsSection UI component.
+ *
+ * Defines the column layout for the group context, maps individual
+ * membership records from pageData, and wires the expanded detail panel
+ * so each row shows billing info, order details, status management,
+ * actions, and date editing — matching the layout in members/edit.js.
+ *
+ * @param {object}       props
+ * @param {object|null}  props.pageData   - Data returned by fetchGroupEditPageInfo.
+ * @param {boolean}      props.isLoading  - Pass-through to the shared component.
+ */
+const MembershipRecordsSection = ({
+  pageData,
+  isLoading
+}) => {
+  var _pageData$membership_;
+  // Keep a local copy of records so status/date changes update the collapsed
+  // row summary (status badge, dates) without a full page reload.
+  const [localRecords, setLocalRecords] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const records = localRecords !== null && localRecords !== void 0 ? localRecords : (_pageData$membership_ = pageData?.membership_records) !== null && _pageData$membership_ !== void 0 ? _pageData$membership_ : [];
+  const columns = buildColumns(pageData);
+  const handleRecordUpdated = updatedRecord => {
+    setLocalRecords(prev => {
+      var _pageData$membership_2;
+      const base = prev !== null && prev !== void 0 ? prev : (_pageData$membership_2 = pageData?.membership_records) !== null && _pageData$membership_2 !== void 0 ? _pageData$membership_2 : [];
+      return base.map(r => r.ID === updatedRecord.ID ? updatedRecord : r);
+    });
+  };
+  const renderExpandedContent = record => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_GroupMembershipRecordDetails__WEBPACK_IMPORTED_MODULE_3__["default"], {
+    record: record,
+    groupPageData: pageData,
+    onRecordUpdated: handleRecordUpdated
+  });
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipRecordsSection__WEBPACK_IMPORTED_MODULE_2__["default"], {
+    columns: columns,
+    records: records,
+    isLoading: isLoading,
+    renderExpandedContent: renderExpandedContent
+  });
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipRecordsSection);
+
+/***/ }),
+
+/***/ "./src/membership_groups/hooks/useGroupMembershipBootstrap.js":
+/*!********************************************************************!*\
+  !*** ./src/membership_groups/hooks/useGroupMembershipBootstrap.js ***!
+  \********************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   useGroupMembershipBootstrap: () => (/* binding */ useGroupMembershipBootstrap)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _shared_services_api__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../../shared/services/api */ "./src/shared/services/api.js");
+
+
+const REQUEST_LOADING = {
+  status: "loading",
+  error: null
+};
+const REQUEST_SUCCESS = {
+  status: "success",
+  error: null
+};
+
+/**
+ * useGroupMembershipBootstrap
+ *
+ * Loads all data required to populate the group membership detail page.
+ * Calls fetchGroupEditPageInfo from api.js — never calls apiFetch directly.
+ *
+ * @param {object} params
+ * @param {string|number} params.postId - WP post ID of the membership group.
+ * @returns {{ pageData: object|null, requestState: object, retryLoad: function }}
+ */
+const useGroupMembershipBootstrap = ({
+  postId
+}) => {
+  const [pageData, setPageData] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [requestState, setRequestState] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(REQUEST_LOADING);
+  const loadPageData = (0,react__WEBPACK_IMPORTED_MODULE_0__.useCallback)(async () => {
+    setRequestState(REQUEST_LOADING);
+    try {
+      const data = await (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_1__.fetchGroupEditPageInfo)(postId);
+      setPageData(data);
+      setRequestState(REQUEST_SUCCESS);
+    } catch (error) {
+      setRequestState({
+        status: "error",
+        error
+      });
+    }
+  }, [postId]);
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    if (postId) {
+      loadPageData();
+    }
+  }, [postId, loadPageData]);
+  return {
+    pageData,
+    requestState,
+    retryLoad: loadPageData
+  };
+};
+
+/***/ }),
+
+/***/ "./src/membership_groups/utils/formUtils.js":
+/*!**************************************************!*\
+  !*** ./src/membership_groups/utils/formUtils.js ***!
+  \**************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   getPrimaryErrorMessage: () => (/* reexport safe */ _membership_group_configs_utils_formUtils__WEBPACK_IMPORTED_MODULE_0__.getPrimaryErrorMessage),
+/* harmony export */   normalizeApiErrors: () => (/* reexport safe */ _membership_group_configs_utils_formUtils__WEBPACK_IMPORTED_MODULE_0__.normalizeApiErrors)
+/* harmony export */ });
+/* harmony import */ var _membership_group_configs_utils_formUtils__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ../../membership_group_configs/utils/formUtils */ "./src/membership_group_configs/utils/formUtils.js");
+/**
+ * Utility functions for the group membership page.
+ *
+ * Re-exports getPrimaryErrorMessage / normalizeApiErrors from the group config
+ * utils so that the group membership page can use the same error-resolution
+ * helpers without duplicating logic.
+ */
+
+
+/***/ }),
+
+/***/ "./src/shared/components/AdminLoadingSkeleton.js":
+/*!*******************************************************!*\
+  !*** ./src/shared/components/AdminLoadingSkeleton.js ***!
+  \*******************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+
+
+
+const shimmer = (0,styled_components__WEBPACK_IMPORTED_MODULE_2__.keyframes)`
+  0% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0 50%;
+  }
+`;
+const SkeletonStack = styled_components__WEBPACK_IMPORTED_MODULE_2__["default"].div`
+  display: grid;
+  gap: 12px;
+`;
+const SkeletonLabel = styled_components__WEBPACK_IMPORTED_MODULE_2__["default"].div`
+  height: 11px;
+  width: 160px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #d4d8dd 0%, #e7eaee 50%, #d4d8dd 100%);
+  background-size: 200% 100%;
+  animation: ${shimmer} 1.4s ease-in-out infinite;
+`;
+const SkeletonLine = styled_components__WEBPACK_IMPORTED_MODULE_2__["default"].div`
+  height: ${props => props.$height || "32px"};
+  width: ${props => props.$width || "100%"};
+  border-radius: ${props => props.$height === "11px" ? "999px" : "4px"};
+  background: linear-gradient(90deg, #d4d8dd 0%, #e7eaee 50%, #d4d8dd 100%);
+  background-size: 200% 100%;
+  animation: ${shimmer} 1.4s ease-in-out infinite;
+`;
+const SkeletonRow = styled_components__WEBPACK_IMPORTED_MODULE_2__["default"].div`
+  display: grid;
+  gap: 12px;
+  grid-template-columns: ${props => props.$columns || "1fr"};
+
+  @media screen and (max-width: 782px) {
+    grid-template-columns: 1fr;
+  }
+`;
+const skeletonPresets = {
+  singleField: {
+    rows: [{
+      columns: ["100%"]
+    }]
+  },
+  fieldWithAction: {
+    rows: [{
+      columns: ["1fr", "180px"]
+    }]
+  },
+  multiField: {
+    rows: [{
+      columns: ["1fr", "1fr", "180px"]
+    }]
+  },
+  cycle: {
+    rows: [{
+      columns: ["1fr", "160px"]
+    }, {
+      columns: ["100%"]
+    }, {
+      columns: ["100%"]
+    }, {
+      columns: ["100%"]
+    }]
+  },
+  introBlock: {
+    rows: [{
+      columns: ["240px", "120px"]
+    }, {
+      columns: ["180px"],
+      height: "11px"
+    }]
+  },
+  membershipTable: {
+    rows: [{
+      columns: ["180px"]
+    }, {
+      columns: ["2fr", "80px", "120px", "120px", "120px", "120px", "40px"],
+      height: "24px"
+    }, {
+      columns: ["2fr", "80px", "120px", "120px", "120px", "120px", "40px"]
+    }, {
+      columns: ["2fr", "80px", "120px", "120px", "120px", "120px", "40px"]
+    }]
+  }
+};
+const AdminLoadingSkeleton = ({
+  label,
+  boxed = true,
+  variant = "singleField"
+}) => {
+  const preset = skeletonPresets[variant] || skeletonPresets.singleField;
+  const content = (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SkeletonStack, {
+    "aria-hidden": "true"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SkeletonLabel, {
+    "aria-label": label
+  }), preset.rows.map((row, rowIndex) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SkeletonRow, {
+    $columns: row.columns.map(column => column || "1fr").join(" "),
+    key: `${label}-${rowIndex}`
+  }, row.columns.map((column, columnIndex) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SkeletonLine, {
+    $width: column,
+    $height: row.height,
+    key: `${label}-${rowIndex}-${columnIndex}`
+  })))));
+  if (boxed) {
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_1__.BorderedBox, null, content);
+  }
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_1__.FormFlex, null, content);
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (AdminLoadingSkeleton);
+
+/***/ }),
+
+/***/ "./src/shared/components/AdminNoticeStack.js":
+/*!***************************************************!*\
+  !*** ./src/shared/components/AdminNoticeStack.js ***!
+  \***************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _WicketButton__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./WicketButton */ "./src/shared/components/WicketButton.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+
+
+
+
+const AdminNoticeStack = ({
+  notices = []
+}) => {
+  if (notices.length === 0) {
+    return null;
+  }
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.ErrorsRow, null, notices.map(notice => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_1__.Notice, {
+    isDismissible: false,
+    key: notice.id,
+    status: notice.status || "warning"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, notice.message), notice.action ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_WicketButton__WEBPACK_IMPORTED_MODULE_2__["default"], {
+    onClick: notice.action.onClick,
+    variant: "link"
+  }, notice.action.label)) : null)));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (AdminNoticeStack);
+
+/***/ }),
+
+/***/ "./src/shared/components/AdminPageErrorBoundary.js":
+/*!*********************************************************!*\
+  !*** ./src/shared/components/AdminPageErrorBoundary.js ***!
+  \*********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _WicketButton__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./WicketButton */ "./src/shared/components/WicketButton.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+
+
+
+
+
+
+class AdminPageErrorBoundary extends react__WEBPACK_IMPORTED_MODULE_0__.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      hasError: false
+    };
+    this.handleReset = this.handleReset.bind(this);
+  }
+  static getDerivedStateFromError() {
+    return {
+      hasError: true
+    };
+  }
+  componentDidUpdate(prevProps) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({
+        hasError: false
+      });
+    }
+  }
+  handleReset() {
+    if (this.props.onReset) {
+      this.props.onReset();
+    }
+  }
+  render() {
+    if (this.state.hasError) {
+      return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.ErrorsRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+        isDismissible: false,
+        status: "error"
+      }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("This page hit an unexpected error and could not finish rendering.", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_WicketButton__WEBPACK_IMPORTED_MODULE_3__["default"], {
+        onClick: this.handleReset,
+        variant: "link"
+      }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Try again", "wicket-memberships")))));
+    }
+    return this.props.children;
+  }
+}
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (AdminPageErrorBoundary);
+
+/***/ }),
+
+/***/ "./src/shared/components/IntroBlock.js":
+/*!*********************************************!*\
+  !*** ./src/shared/components/IntroBlock.js ***!
+  \*********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _AdminLoadingSkeleton__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./AdminLoadingSkeleton */ "./src/shared/components/AdminLoadingSkeleton.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+
+
+
+
+
+
+const IntroBoxWrap = (0,styled_components__WEBPACK_IMPORTED_MODULE_5__["default"])((0,_styled_elements__WEBPACK_IMPORTED_MODULE_4__.BorderedBox))`
+  background: #fff;
+`;
+
+/**
+ * IntroBlock — shared header block for membership entity detail pages.
+ *
+ * Renders the entity name, action buttons, and a configurable row of
+ * metadata fields. Data-agnostic — receives only flat props. Adapter
+ * components in each page's components/ folder handle the mapping from
+ * page-specific data shapes to these props.
+ *
+ * @param {object}   props
+ * @param {string}   props.title       - Primary heading (e.g. group name, org name).
+ * @param {Array}    props.infoFields  - Metadata items: [{ label, value }].
+ *                                      Rendered in the RecordTopInfo bar.
+ *                                      Different pages pass different fields.
+ * @param {Array}    props.actions     - Action buttons: [{ label, href, target, icon }].
+ * @param {boolean}  props.isLoading   - Show skeleton while data is pending.
+ */
+const IntroBlock = ({
+  title = "",
+  infoFields = [],
+  actions = [],
+  isLoading = false
+}) => {
+  if (isLoading) {
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_AdminLoadingSkeleton__WEBPACK_IMPORTED_MODULE_3__["default"], {
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Loading…", "wicket-memberships"),
+      variant: "introBlock"
+    });
+  }
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(IntroBoxWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex, {
+    align: "end",
+    justify: "start",
+    gap: 5,
+    direction: ["column", "row"]
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.__experimentalHeading, {
+    level: 3
+  }, title)), actions.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex, {
+    gap: 3
+  }, actions.map((action, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    key: index,
+    variant: "secondary",
+    href: action.href || undefined,
+    target: action.target || undefined,
+    disabled: !action.href
+  }, action.icon && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Icon, {
+    icon: action.icon
+  }), "\xA0"), action.label))))), infoFields.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.RecordTopInfo, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex, {
+    align: "end",
+    justify: "start",
+    gap: 10,
+    direction: ["column", "row"]
+  }, infoFields.map((field, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, {
+    key: index
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, field.label, ":"), " ", field.value || "-")))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (IntroBlock);
+
+/***/ }),
+
+/***/ "./src/shared/components/MembershipActionsDropdown.js":
+/*!************************************************************!*\
+  !*** ./src/shared/components/MembershipActionsDropdown.js ***!
+  \************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+
+
+
+
+
+
+const DropdownWrap = (0,styled_components__WEBPACK_IMPORTED_MODULE_4__["default"])((0,_styled_elements__WEBPACK_IMPORTED_MODULE_3__.BorderedBox))`
+  position: relative;
+  display: inline-block;
+`;
+const DropdownMenu = styled_components__WEBPACK_IMPORTED_MODULE_4__["default"].div`
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-radius: 2px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  min-width: 200px;
+  margin-top: 4px;
+`;
+const DropdownItem = styled_components__WEBPACK_IMPORTED_MODULE_4__["default"].button`
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1e1e1e;
+
+  &:hover:not(:disabled) {
+    background: #f0f0f1;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+/**
+ * MembershipActionsDropdown
+ *
+ * A dropdown button that reveals a list of actions.
+ *
+ * Props:
+ *   label   {string}   - Button label. Defaults to "Membership Actions".
+ *   actions {Array}    - Array of action objects:
+ *                          { label: string, onClick: function, disabled?: boolean }
+ */
+const MembershipActionsDropdown = ({
+  label,
+  actions = []
+}) => {
+  const [isOpen, setIsOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const wrapRef = (0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(null);
+  const buttonLabel = label || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership Actions", "wicket-memberships");
+
+  // Close dropdown when clicking outside
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    const handleClickOutside = event => {
+      if (wrapRef.current && !wrapRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+  const handleActionClick = action => {
+    setIsOpen(false);
+    action.onClick();
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(DropdownWrap, {
+    ref: wrapRef
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Actions", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    variant: "secondary",
+    onClick: () => setIsOpen(prev => !prev)
+  }, buttonLabel, "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Icon, {
+    icon: isOpen ? "arrow-up-alt2" : "arrow-down-alt2"
+  }))), isOpen && actions.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(DropdownMenu, null, actions.map((action, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(DropdownItem, {
+    key: index,
+    disabled: !!action.disabled,
+    onClick: () => handleActionClick(action)
+  }, action.label))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipActionsDropdown);
+
+/***/ }),
+
+/***/ "./src/shared/components/MembershipActionsSection.js":
+/*!***********************************************************!*\
+  !*** ./src/shared/components/MembershipActionsSection.js ***!
+  \***********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _MembershipActionsDropdown__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ./MembershipActionsDropdown */ "./src/shared/components/MembershipActionsDropdown.js");
+
+
+
+
+/**
+ * MembershipActionsSection — actions dropdown for a membership record row.
+ *
+ * A thin wrapper around MembershipActionsDropdown. Callers inject their
+ * page-specific actions via the `actions` prop so this component works for
+ * individual, organization, and group membership pages without modification.
+ *
+ * Data-agnostic: receives only flat props.
+ *
+ * @param {string}  [props.label]   - Button label. Defaults to "Membership Actions".
+ * @param {Array}   props.actions   - Action objects: [{ label, onClick, disabled? }].
+ */
+const MembershipActionsSection = ({
+  label,
+  actions = []
+}) => {
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_MembershipActionsDropdown__WEBPACK_IMPORTED_MODULE_2__["default"], {
+    label: label || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership Actions", "wicket-memberships"),
+    actions: actions
+  });
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipActionsSection);
+
+/***/ }),
+
+/***/ "./src/shared/components/MembershipBillingInfoSection.js":
+/*!***************************************************************!*\
+  !*** ./src/shared/components/MembershipBillingInfoSection.js ***!
+  \***************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../constants */ "./src/shared/constants.js");
+
+
+
+
+
+/**
+ * MembershipBillingInfoSection — billing summary block rendered inside an
+ * expanded membership record row.
+ *
+ * Displays the subscription ID (linked) and next payment date.
+ *
+ * Data-agnostic: receives only flat props. Callers are responsible for mapping
+ * their page-specific data shapes to these props.
+ *
+ * @param {string|number|null}  props.subscriptionId    - WooCommerce subscription ID.
+ * @param {string|null}         props.subscriptionLink  - Admin edit URL for the subscription.
+ * @param {string|null}         props.nextPaymentDate   - Next payment date string.
+ */
+const MembershipBillingInfoSection = ({
+  subscriptionId = null,
+  subscriptionLink = null,
+  nextPaymentDate = null
+}) => {
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex, {
+    align: "end",
+    justify: "start",
+    gap: 6,
+    direction: ["column", "row"]
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.__experimentalHeading, {
+    level: 4
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Billing Info", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Subscription:", "wicket-memberships"), "\xA0", subscriptionLink ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+    target: "_blank",
+    href: subscriptionLink,
+    rel: "noreferrer"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "#", subscriptionId)) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, "#", subscriptionId)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Next Payment Date:", "wicket-memberships"), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, (0,_constants__WEBPACK_IMPORTED_MODULE_3__.formatDateWithTooltip)(nextPaymentDate))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipBillingInfoSection);
+
+/***/ }),
+
+/***/ "./src/shared/components/MembershipDatesSection.js":
+/*!*********************************************************!*\
+  !*** ./src/shared/components/MembershipDatesSection.js ***!
+  \*********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__),
+/* harmony export */   isoToPickerDate: () => (/* binding */ isoToPickerDate),
+/* harmony export */   pickerDateToIso: () => (/* binding */ pickerDateToIso)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! react-datepicker */ "./node_modules/react-datepicker/dist/react-datepicker.min.js");
+/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_6___default = /*#__PURE__*/__webpack_require__.n(react_datepicker__WEBPACK_IMPORTED_MODULE_6__);
+/* harmony import */ var moment_timezone__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! moment-timezone */ "./node_modules/moment-timezone/index.js");
+/* harmony import */ var moment_timezone__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(moment_timezone__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../constants */ "./src/shared/constants.js");
+
+
+
+
+
+
+
+
+
+/**
+ * Convert a stored ISO string to a Date object for the date picker.
+ * Interprets the value in the MDP timezone and returns a plain local Date at
+ * the same calendar day (react-datepicker works in local time).
+ *
+ * @param {string} isoString
+ * @returns {Date|null}
+ */
+const isoToPickerDate = isoString => {
+  if (!isoString) return null;
+  const mdpTimezone = _constants__WEBPACK_IMPORTED_MODULE_5__.PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || "UTC";
+  const m = moment_timezone__WEBPACK_IMPORTED_MODULE_3___default().tz(isoString, mdpTimezone);
+  return new Date(m.year(), m.month(), m.date());
+};
+
+/**
+ * Convert a date picker Date back to a UTC ISO string.
+ * End / expiry fields are stored at end-of-day; start is at start-of-day.
+ *
+ * @param {Date|null} dateValue
+ * @param {string}    field
+ * @returns {string|null}
+ */
+const pickerDateToIso = (dateValue, field) => {
+  if (!dateValue) return null;
+  const mdpTimezone = _constants__WEBPACK_IMPORTED_MODULE_5__.PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || "UTC";
+  const mdpDate = moment_timezone__WEBPACK_IMPORTED_MODULE_3___default().tz([dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()], mdpTimezone);
+  if (["membership_ends_at", "membership_expires_at"].includes(field)) {
+    mdpDate.endOf("day");
+  } else {
+    mdpDate.startOf("day");
+  }
+  return mdpDate.utc().toISOString();
+};
+
+/**
+ * MembershipDatesSection — presentational date pickers for start, end, and
+ * expiry dates. Fully controlled: the parent owns the Date state and receives
+ * changes via individual onChange callbacks.
+ *
+ * @param {Date|null}   props.startsAt          - Controlled start date value.
+ * @param {Date|null}   props.endsAt            - Controlled end date value.
+ * @param {Date|null}   props.expiresAt         - Controlled expiry date value.
+ * @param {boolean}     [props.disabled]        - Disables all date pickers.
+ * @param {Function}    props.onStartsAtChange  - Called with a Date when start changes.
+ * @param {Function}    props.onEndsAtChange    - Called with a Date when end changes.
+ * @param {Function}    props.onExpiresAtChange - Called with a Date when expiry changes.
+ */
+const MembershipDatesSection = ({
+  startsAt = null,
+  endsAt = null,
+  expiresAt = null,
+  disabled = false,
+  onStartsAtChange,
+  onEndsAtChange,
+  onExpiresAtChange
+}) => {
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex, {
+    align: "end",
+    justify: "start",
+    gap: 6,
+    direction: ["column", "row"]
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.LabelWpStyled, {
+    htmlFor: "membership_starts_at"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Start Date", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_6___default()), {
+    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Start Date", "wicket-memberships"),
+    name: "membership_starts_at",
+    dateFormat: _constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
+    showMonthDropdown: true,
+    showYearDropdown: true,
+    dropdownMode: "select",
+    locale: "UTC",
+    disabled: disabled,
+    selected: startsAt,
+    onChange: onStartsAtChange
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.LabelWpStyled, {
+    htmlFor: "membership_ends_at"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("End Date", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_6___default()), {
+    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("End Date", "wicket-memberships"),
+    name: "membership_ends_at",
+    dateFormat: _constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
+    showMonthDropdown: true,
+    showYearDropdown: true,
+    dropdownMode: "select",
+    disabled: disabled,
+    selected: endsAt,
+    onChange: onEndsAtChange
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.LabelWpStyled, {
+    htmlFor: "membership_expires_at"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Expiration Date", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_6___default()), {
+    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Expiration Date", "wicket-memberships"),
+    name: "membership_expires_at",
+    dateFormat: _constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
+    showMonthDropdown: true,
+    showYearDropdown: true,
+    dropdownMode: "select",
+    disabled: disabled,
+    selected: expiresAt,
+    onChange: onExpiresAtChange
+  }))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipDatesSection);
+
+/***/ }),
+
+/***/ "./src/shared/components/MembershipDetailsForm.js":
+/*!********************************************************!*\
+  !*** ./src/shared/components/MembershipDetailsForm.js ***!
+  \********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+/* harmony import */ var _MembershipDatesSection__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./MembershipDatesSection */ "./src/shared/components/MembershipDatesSection.js");
+/* harmony import */ var _MembershipRenewalTypeSection__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./MembershipRenewalTypeSection */ "./src/shared/components/MembershipRenewalTypeSection.js");
+
+
+
+
+
+
+
+
+const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_6__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex))`
+  margin-top: 15px;
+`;
+
+/**
+ * MembershipDetailsForm — combined form for membership dates and renewal type.
+ *
+ * Owns all local state for the date pickers and renewal type fields. Submits
+ * everything in a single "Update Membership" button click by calling `onSave`
+ * with the merged payload.
+ *
+ * @param {object|null}  props.dates              - Initial date values: { starts_at, ends_at, expires_at }.
+ * @param {string|null}  props.renewalType        - Current renewal type value.
+ * @param {string|null}  [props.tierRenewalType]  - Renewal type inherited from tier/config (hint label).
+ * @param {number|null}  [props.nextTierFormPageId] - Current form page ID (for form_flow).
+ * @param {number|null}  [props.nextTierId]       - Current next tier ID (for sequential_logic).
+ * @param {boolean}      [props.disabled]         - Disables all inputs and the save button.
+ * @param {Function}     props.onSave             - Called with merged payload:
+ *                                                  { membership_starts_at, membership_ends_at,
+ *                                                    membership_expires_at, renewalType,
+ *                                                    nextTierFormPageId, nextTierId }
+ *                                                  Must return a Promise<{ success?, error? }>.
+ * @param {Function}     [props.onSaved]          - Called after a successful save with updated values.
+ */
+const MembershipDetailsForm = ({
+  dates = null,
+  renewalType: initialRenewalType = null,
+  tierRenewalType = null,
+  nextTierFormPageId: initialNextTierFormPageId = null,
+  nextTierId: initialNextTierId = null,
+  disabled = false,
+  onSave,
+  onSaved
+}) => {
+  const [startsAt, setStartsAt] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [endsAt, setEndsAt] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [expiresAt, setExpiresAt] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [renewalType, setRenewalType] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(initialRenewalType);
+  const [nextTierFormPageId, setNextTierFormPageId] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(initialNextTierFormPageId);
+  const [nextTierId, setNextTierId] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(initialNextTierId);
+  const [isSaving, setIsSaving] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const [saveResult, setSaveResult] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)("");
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    if (dates) {
+      setStartsAt((0,_MembershipDatesSection__WEBPACK_IMPORTED_MODULE_4__.isoToPickerDate)(dates.starts_at));
+      setEndsAt((0,_MembershipDatesSection__WEBPACK_IMPORTED_MODULE_4__.isoToPickerDate)(dates.ends_at));
+      setExpiresAt((0,_MembershipDatesSection__WEBPACK_IMPORTED_MODULE_4__.isoToPickerDate)(dates.expires_at));
+    }
+  }, [dates]);
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    setRenewalType(initialRenewalType);
+  }, [initialRenewalType]);
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    setNextTierFormPageId(initialNextTierFormPageId);
+  }, [initialNextTierFormPageId]);
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    setNextTierId(initialNextTierId);
+  }, [initialNextTierId]);
+  const handleRenewalTypeChange = ({
+    renewalType: rt,
+    nextTierFormPageId: fp,
+    nextTierId: ti
+  }) => {
+    if (rt !== undefined) setRenewalType(rt);
+    if (fp !== undefined) setNextTierFormPageId(fp);
+    if (ti !== undefined) setNextTierId(ti);
+  };
+  const handleSubmit = event => {
+    event.preventDefault();
+    if (isSaving || !onSave) return;
+    setIsSaving(true);
+    setSaveResult("");
+    const rawStartsAt = (0,_MembershipDatesSection__WEBPACK_IMPORTED_MODULE_4__.pickerDateToIso)(startsAt, "membership_starts_at");
+    const rawEndsAt = (0,_MembershipDatesSection__WEBPACK_IMPORTED_MODULE_4__.pickerDateToIso)(endsAt, "membership_ends_at");
+    const rawExpiresAt = (0,_MembershipDatesSection__WEBPACK_IMPORTED_MODULE_4__.pickerDateToIso)(expiresAt, "membership_expires_at");
+    const payload = {};
+    if (rawStartsAt) payload.membership_starts_at = rawStartsAt;
+    if (rawEndsAt) payload.membership_ends_at = rawEndsAt;
+    if (rawExpiresAt) payload.membership_expires_at = rawExpiresAt;
+    onSave({
+      ...payload,
+      renewalType,
+      nextTierFormPageId,
+      nextTierId
+    }).then(response => {
+      const message = response?.success || response?.error || "";
+      setSaveResult(message);
+      if (response?.success && onSaved) {
+        onSaved({
+          starts_at: rawStartsAt,
+          ends_at: rawEndsAt,
+          expires_at: rawExpiresAt,
+          renewalType,
+          nextTierFormPageId,
+          nextTierId
+        });
+      }
+    }).catch(error => {
+      setSaveResult(error?.message || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("An error occurred.", "wicket-memberships"));
+    }).finally(() => {
+      setIsSaving(false);
+    });
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.BorderedBox, null, saveResult.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.ErrorsRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+    isDismissible: true,
+    onDismiss: () => setSaveResult(""),
+    status: "info"
+  }, saveResult)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+    onSubmit: handleSubmit
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_MembershipDatesSection__WEBPACK_IMPORTED_MODULE_4__["default"], {
+    startsAt: startsAt,
+    endsAt: endsAt,
+    expiresAt: expiresAt,
+    disabled: disabled,
+    onStartsAtChange: setStartsAt,
+    onEndsAtChange: setEndsAt,
+    onExpiresAtChange: setExpiresAt
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_MembershipRenewalTypeSection__WEBPACK_IMPORTED_MODULE_5__["default"], {
+    renewalType: renewalType,
+    tierRenewalType: tierRenewalType,
+    nextTierFormPageId: nextTierFormPageId,
+    nextTierId: nextTierId,
+    disabled: disabled,
+    onChange: handleRenewalTypeChange
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    variant: "primary",
+    type: "submit",
+    disabled: isSaving || disabled,
+    isBusy: isSaving
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Update Membership", "wicket-memberships"))))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipDetailsForm);
+
+/***/ }),
+
+/***/ "./src/shared/components/MembershipOrderDetailsSection.js":
+/*!****************************************************************!*\
+  !*** ./src/shared/components/MembershipOrderDetailsSection.js ***!
+  \****************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../constants */ "./src/shared/constants.js");
+
+
+
+
+
+/**
+ * MembershipOrderDetailsSection — order record table rendered inside an
+ * expanded membership record row.
+ *
+ * Mirrors the billing_table from members/edit.js. Displays order number
+ * (linked), order date, total, and status.
+ *
+ * Data-agnostic: receives only flat props. Callers are responsible for mapping
+ * their page-specific data shapes to these props.
+ *
+ * @param {Array}  props.orders  - Array of order objects. Each must include:
+ *                                 id, link, date_created, total, status.
+ */
+const MembershipOrderDetailsSection = ({
+  orders = []
+}) => {
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_2__.MembershipTable, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
+    className: "widefat billing_table",
+    cellSpacing: "0"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Order Number", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Order Date", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Order Total", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Order Status", "wicket-memberships")))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, orders.map((order, index) => {
+    var _order$id;
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
+      key: (_order$id = order.id) !== null && _order$id !== void 0 ? _order$id : index
+    }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+      className: "column-columnname"
+    }, order.link ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+      target: "_blank",
+      href: order.link,
+      rel: "noreferrer"
+    }, "#", order.id) : `#${order.id}`), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+      className: "column-columnname"
+    }, (0,_constants__WEBPACK_IMPORTED_MODULE_3__.formatDateWithTooltip)(order.date_created)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+      className: "column-columnname"
+    }, (0,_constants__WEBPACK_IMPORTED_MODULE_3__.formatCurrency)(order.total)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+      className: "column-columnname"
+    }, order.status));
+  }))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipOrderDetailsSection);
+
+/***/ }),
+
+/***/ "./src/shared/components/MembershipRecordsSection.js":
+/*!***********************************************************!*\
+  !*** ./src/shared/components/MembershipRecordsSection.js ***!
+  \***********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _AdminLoadingSkeleton__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ./AdminLoadingSkeleton */ "./src/shared/components/AdminLoadingSkeleton.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+
+
+
+
+
+
+
+const SectionWrap = (0,styled_components__WEBPACK_IMPORTED_MODULE_5__["default"])((0,_styled_elements__WEBPACK_IMPORTED_MODULE_4__.BorderedBox))`
+  background: #fff;
+`;
+
+/**
+ * MembershipRecordRow — a single expandable row in the membership records table.
+ *
+ * Renders one cell per column definition in the collapsed state. When expanded,
+ * renders the result of `renderExpandedContent(record)` inside the detail row.
+ *
+ * @param {object}    props
+ * @param {object}    props.record                 - The record data object passed to each column's render fn.
+ * @param {Array}     props.columns                - Column definitions: [{ label, render }].
+ * @param {Function}  [props.renderExpandedContent] - Optional. Called with `record`, returns ReactNode
+ *                                                    rendered inside the expanded panel.
+ */
+const MembershipRecordRow = ({
+  record,
+  columns,
+  renderExpandedContent
+}) => {
+  const [isExpanded, setIsExpanded] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const colSpan = columns.length + 1;
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, columns.map((col, i) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    key: i,
+    className: "column-columnname"
+  }, col.render(record))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    variant: "primary",
+    icon: isExpanded ? "minus" : "plus-alt2",
+    onClick: () => setIsExpanded(prev => !prev)
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
+    className: "membership_details",
+    style: {
+      display: isExpanded ? "table-row" : "none"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    colSpan: colSpan
+  }, isExpanded && renderExpandedContent ? renderExpandedContent(record) : null)));
+};
+
+/**
+ * MembershipRecordsSection — shared component for membership record tables.
+ *
+ * Renders a titled bordered panel with one expandable row per record.
+ * Columns are fully caller-defined via the `columns` prop so the table
+ * structure can differ across pages without forking this component.
+ *
+ * Data-agnostic: receives only flat props. Adapter components in each page's
+ * components/ folder handle any page-specific data mapping.
+ *
+ * @param {object}    props
+ * @param {Array}     props.columns                - Column definitions: [{ label: string, render: (record) => ReactNode }].
+ * @param {Array}     props.records                - Array of record objects passed to each column's render fn.
+ * @param {boolean}   props.isLoading              - Show skeleton while data is pending.
+ * @param {Function}  [props.renderExpandedContent] - Optional. Called with each record, returns ReactNode
+ *                                                    rendered inside the expanded detail panel.
+ */
+const MembershipRecordsSection = ({
+  columns = [],
+  records = [],
+  isLoading = false,
+  renderExpandedContent
+}) => {
+  if (isLoading) {
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_AdminLoadingSkeleton__WEBPACK_IMPORTED_MODULE_3__["default"], {
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership Records", "wicket-memberships"),
+      variant: "membershipTable"
+    });
+  }
+  const colSpan = columns.length + 1;
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SectionWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex, {
+    align: "end",
+    justify: "start",
+    gap: 5,
+    direction: ["column", "row"]
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.__experimentalHeading, {
+    level: 4,
+    weight: "300"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership Records", "wicket-memberships")))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_4__.MembershipTable, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
+    className: "widefat",
+    cellSpacing: "0"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, columns.map((col, i) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    key: i,
+    className: "manage-column column-columnname",
+    scope: "col"
+  }, col.label)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+    className: "check-column"
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, records.length === 0 ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname",
+    colSpan: colSpan
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("No membership records yet.", "wicket-memberships"))) : records.map(record => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MembershipRecordRow, {
+    key: record.ID,
+    record: record,
+    columns: columns,
+    renderExpandedContent: renderExpandedContent
+  }))))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipRecordsSection);
+
+/***/ }),
+
+/***/ "./src/shared/components/MembershipRenewalTypeSection.js":
+/*!***************************************************************!*\
+  !*** ./src/shared/components/MembershipRenewalTypeSection.js ***!
+  \***************************************************************/
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -6822,9 +8554,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_url__WEBPACK_IMPORTED_MODULE_3__);
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__);
-/* harmony import */ var _shared_constants__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../shared/constants */ "./src/shared/constants.js");
-/* harmony import */ var _shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../shared/styled_elements */ "./src/shared/styled_elements.js");
-/* harmony import */ var _shared_services_api__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../shared/services/api */ "./src/shared/services/api.js");
+/* harmony import */ var he__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! he */ "./node_modules/he/he.js");
+/* harmony import */ var he__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(he__WEBPACK_IMPORTED_MODULE_5__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _ModalPostSelector__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./ModalPostSelector */ "./src/shared/components/ModalPostSelector.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../constants */ "./src/shared/constants.js");
+/* harmony import */ var _services_api__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../services/api */ "./src/shared/services/api.js");
 
 
 
@@ -6834,137 +8570,1104 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-const MembershipConfigTiers = ({
-  configPostId,
-  tierCptSlug,
-  tierMdpUuids,
-  tierListUrl
+
+
+
+const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_10__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Flex))`
+  margin-top: 15px;
+`;
+const RENEWAL_TYPE_OPTIONS = [{
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Inherited from Tier", "wicket-memberships"),
+  value: "inherited"
+}, {
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Sequential Logic", "wicket-memberships"),
+  value: "sequential_logic"
+}, {
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Renewal Form Flow", "wicket-memberships"),
+  value: "form_flow"
+}, {
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Subscription Renewal", "wicket-memberships"),
+  value: "subscription"
+}, {
+  label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Current Tier", "wicket-memberships"),
+  value: "current_tier"
+}];
+
+/**
+ * MembershipRenewalTypeSection — renewal type selector with conditional
+ * sub-fields, matching the renewal type UI on individual/org membership pages.
+ *
+ * Manages its own pages/tiers option lists. Calls `onChange` with a flat
+ * patch object whenever any field changes so the caller can merge it into
+ * its save payload.
+ *
+ * @param {string|null}  props.renewalType            - Current renewal type value.
+ * @param {string|null}  [props.tierRenewalType]      - Renewal type inherited from the tier/config,
+ *                                                      shown as a hint when renewalType === 'inherited'.
+ * @param {number|null}  [props.nextTierFormPageId]   - Current form page ID (used when form_flow).
+ * @param {number|null}  [props.nextTierId]           - Current next tier ID (used when sequential_logic).
+ * @param {boolean}      [props.disabled]             - Disables all inputs.
+ * @param {Function}     props.onChange               - Called with a patch object on any field change:
+ *                                                      { renewalType?, nextTierFormPageId?, nextTierId? }
+ */
+const MembershipRenewalTypeSection = ({
+  renewalType = null,
+  tierRenewalType = null,
+  nextTierFormPageId = null,
+  nextTierId = null,
+  disabled = false,
+  onChange
 }) => {
-  if (!configPostId) {
+  var _ref, _RENEWAL_TYPE_OPTIONS, _RENEWAL_TYPE_OPTIONS2;
+  const loadPageOptions = (0,react__WEBPACK_IMPORTED_MODULE_0__.useCallback)(() => {
+    return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_2___default()({
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_3__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_8__.API_URL}/pages`, {
+        _fields: "id,title",
+        status: "publish",
+        per_page: -1
+      })
+    }).then(posts => posts.map(post => ({
+      value: post.id,
+      title: he__WEBPACK_IMPORTED_MODULE_5___default().decode(post.title.rendered)
+    })));
+  }, []);
+  const loadTierOptions = (0,react__WEBPACK_IMPORTED_MODULE_0__.useCallback)(() => {
+    return (0,_services_api__WEBPACK_IMPORTED_MODULE_9__.fetchTiers)().then(tiers => tiers.map(tier => ({
+      value: tier.id,
+      title: he__WEBPACK_IMPORTED_MODULE_5___default().decode(tier.title.rendered)
+    })));
+  }, []);
+  const CONFIG_RENEWAL_TYPE_LABELS = {
+    subscription: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Subscription", "wicket-memberships"),
+    form_page: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Renewal Form Flow", "wicket-memberships")
+  };
+  const tierRenewalTypeLabel = (_ref = (_RENEWAL_TYPE_OPTIONS = RENEWAL_TYPE_OPTIONS.find(o => o.value === tierRenewalType)?.label) !== null && _RENEWAL_TYPE_OPTIONS !== void 0 ? _RENEWAL_TYPE_OPTIONS : CONFIG_RENEWAL_TYPE_LABELS[tierRenewalType]) !== null && _ref !== void 0 ? _ref : tierRenewalType;
+  const selectedPageOption = nextTierFormPageId ? {
+    value: nextTierFormPageId,
+    title: String(nextTierFormPageId)
+  } : null;
+  const selectedTierOption = nextTierId ? {
+    value: nextTierId,
+    title: String(nextTierId)
+  } : null;
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_7__.LabelWpStyled, {
+    htmlFor: "renewal_type"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Renewal Type", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_7__.SelectWpStyled, {
+    classNamePrefix: "select",
+    id: "renewal_type",
+    isDisabled: disabled,
+    isSearchable: false,
+    onChange: selected => onChange({
+      renewalType: selected.value
+    }),
+    options: RENEWAL_TYPE_OPTIONS,
+    value: (_RENEWAL_TYPE_OPTIONS2 = RENEWAL_TYPE_OPTIONS.find(o => o.value === renewalType)) !== null && _RENEWAL_TYPE_OPTIONS2 !== void 0 ? _RENEWAL_TYPE_OPTIONS2 : null
+  }), renewalType === "inherited" && tierRenewalType && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexItem, {
+    style: {
+      marginTop: "5px"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("small", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Inherited Renewal Type: ", "wicket-memberships"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, tierRenewalTypeLabel))))), renewalType === "form_flow" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_ModalPostSelector__WEBPACK_IMPORTED_MODULE_6__["default"], {
+    id: "next_tier_form_page_id",
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Form Page", "wicket-memberships"),
+    placeholder: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Select a page…", "wicket-memberships"),
+    modalTitle: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Select Form Page", "wicket-memberships"),
+    value: selectedPageOption,
+    onChange: selected => onChange({
+      nextTierFormPageId: selected ? selected.value : null
+    }),
+    disabled: disabled,
+    loadOptions: loadPageOptions,
+    columnLabels: {
+      id: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("ID", "wicket-memberships"),
+      name: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Title", "wicket-memberships")
+    }
+  }))), renewalType === "sequential_logic" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_ModalPostSelector__WEBPACK_IMPORTED_MODULE_6__["default"], {
+    id: "next_tier_id",
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Sequential Tier", "wicket-memberships"),
+    placeholder: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Select a tier…", "wicket-memberships"),
+    modalTitle: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Select Sequential Tier", "wicket-memberships"),
+    value: selectedTierOption,
+    onChange: selected => onChange({
+      nextTierId: selected ? selected.value : null
+    }),
+    disabled: disabled,
+    loadOptions: loadTierOptions,
+    columnLabels: {
+      id: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("ID", "wicket-memberships"),
+      name: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Title", "wicket-memberships")
+    }
+  }))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipRenewalTypeSection);
+
+/***/ }),
+
+/***/ "./src/shared/components/MembershipStatusSection.js":
+/*!**********************************************************!*\
+  !*** ./src/shared/components/MembershipStatusSection.js ***!
+  \**********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+/* harmony import */ var _WicketModal__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./WicketModal */ "./src/shared/components/WicketModal.js");
+
+
+
+
+
+
+
+const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_5__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex))`
+  margin-top: 15px;
+`;
+
+/**
+ * MembershipStatusSection — status display, management button, and transition
+ * modal for a membership record.
+ *
+ * Renders the current status as a read-only field with a "Manage Status" button.
+ * On click, opens an inline modal that loads available status transitions and
+ * submits the change.
+ *
+ * Data-agnostic: receives only flat props. API calls are injected via
+ * `fetchStatuses` and `updateStatus` so this component works for both
+ * individual and group membership pages without modification.
+ *
+ * @param {number|string|null}  props.postId          - WP post ID of the record.
+ * @param {string}              props.currentStatus   - Current status label/slug.
+ * @param {Function}            props.fetchStatuses   - `(postId) => Promise<statusMap>`.
+ *                                                       statusMap: { [slug]: { name, slug } }.
+ * @param {Function}            props.updateStatus    - `(postId, newStatus) => Promise<response>`.
+ *                                                       response: { success?, error? }.
+ * @param {Function}            [props.onStatusUpdated] - Called with (postId, newStatus, responseData)
+ *                                                         after a successful change.
+ */
+const MembershipStatusSection = ({
+  postId,
+  currentStatus = "",
+  fetchStatuses,
+  updateStatus,
+  onStatusUpdated
+}) => {
+  const [isModalOpen, setIsModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const [newStatus, setNewStatus] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)("");
+  const [availableStatuses, setAvailableStatuses] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
+  const [errors, setErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
+  const [statusChangeConfirmed, setStatusChangeConfirmed] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    if (isModalOpen && postId && fetchStatuses) {
+      setNewStatus("");
+      setErrors([]);
+      setStatusChangeConfirmed(false);
+      fetchStatuses(postId).then(response => setAvailableStatuses(response)).catch(console.error);
+    }
+  }, [isModalOpen, postId, fetchStatuses]);
+  const statusRequiresConfirmation = status => ["cancelled", "expired"].includes(status);
+  const getStatusOptions = () => {
+    const options = Object.keys(availableStatuses).map(status => ({
+      label: availableStatuses[status].name,
+      value: availableStatuses[status].slug
+    }));
+    options.unshift({
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Select Status", "wicket-memberships"),
+      value: ""
+    });
+    return options;
+  };
+  const handleSubmit = event => {
+    event.preventDefault();
+    if (!updateStatus) return;
+    updateStatus(postId, newStatus).then(response => {
+      if (response.success) {
+        if (onStatusUpdated) {
+          onStatusUpdated(postId, newStatus, response.response);
+        }
+        setIsModalOpen(false);
+      } else {
+        setErrors([response.error]);
+      }
+    }).catch(console.error);
+  };
+  const handleStatusChange = value => {
+    setNewStatus(value);
+    setStatusChangeConfirmed(false);
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.BorderedBox, {
+    style: {
+      flex: "1"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex, {
+    align: "end",
+    justify: "start",
+    gap: 6,
+    direction: ["column", "row"]
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, {
+    style: {
+      flex: "1"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership Status", "wicket-memberships"),
+    disabled: true,
+    __nextHasNoMarginBottom: true,
+    value: currentStatus
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    variant: "secondary",
+    disabled: !postId,
+    onClick: () => setIsModalOpen(true)
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Manage Status", "wicket-memberships"))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_WicketModal__WEBPACK_IMPORTED_MODULE_4__["default"], {
+    isOpen: isModalOpen,
+    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Change Status", "wicket-memberships"),
+    onRequestClose: () => setIsModalOpen(false)
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+    onSubmit: handleSubmit
+  }, errors.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.ErrorsRow, null, errors.map((errorMessage, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+    isDismissible: false,
+    key: index,
+    status: "warning"
+  }, errorMessage))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, {
+    align: "end",
+    justify: "start",
+    gap: 5,
+    direction: ["column", "row"]
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.TextControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Current Status", "wicket-memberships"),
+    disabled: true,
+    style: {
+      backgroundColor: "#F6F7F7"
+    },
+    value: currentStatus,
+    __nextHasNoMarginBottom: true
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      fontWeight: 500,
+      marginBottom: "5px"
+    }
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("To", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.SelectControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("New Status", "wicket-memberships"),
+    value: newStatus,
+    onChange: handleStatusChange,
+    options: getStatusOptions(),
+    __nextHasNoMarginBottom: true
+  }))), statusRequiresConfirmation(newStatus) && !statusChangeConfirmed && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, {
+    direction: "column",
+    gap: 3
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Notice, {
+    isDismissible: false,
+    status: "warning"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.sprintf)( /* translators: %s: status name (cancelled or expired) */
+  (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Once a membership status is changed to '%s' it cannot be undone. Are you certain you would like to proceed?", "wicket-memberships"), newStatus)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    variant: "secondary",
+    isDestructive: true,
+    onClick: () => setStatusChangeConfirmed(true)
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Confirm Action", "wicket-memberships")))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex, {
+    align: "end",
+    gap: 5,
+    direction: ["column", "row"]
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
+    variant: "primary",
+    type: "submit",
+    disabled: newStatus === "" || statusRequiresConfirmation(newStatus) && !statusChangeConfirmed
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Update Status", "wicket-memberships"))))))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipStatusSection);
+
+/***/ }),
+
+/***/ "./src/shared/components/ModalPostSelector.js":
+/*!****************************************************!*\
+  !*** ./src/shared/components/ModalPostSelector.js ***!
+  \****************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _WicketModal__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./WicketModal */ "./src/shared/components/WicketModal.js");
+/* harmony import */ var _WicketButton__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./WicketButton */ "./src/shared/components/WicketButton.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../constants */ "./src/shared/constants.js");
+
+
+
+
+
+
+
+
+
+const PAGE_SIZE = 20;
+const COLUMN_LAYOUT = {
+  id: {
+    width: 80
+  },
+  title: {
+    flex: 1
+  },
+  sku: {
+    width: 180
+  },
+  price: {
+    width: 120
+  },
+  published: {
+    width: 140
+  },
+  modified: {
+    width: 160
+  },
+  view: {
+    width: 44
+  }
+};
+
+// ─── Styled pieces ────────────────────────────────────────────────────────────
+
+const TriggerButton = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].button`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid #949494;
+  border-radius: 2px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  color: #1e1e1e;
+  gap: 6px;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: #f0f0f0;
+  }
+
+  .modal-selector__value {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .modal-selector__placeholder {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #757575;
+  }
+
+  .modal-selector__chevron {
+    flex-shrink: 0;
+    color: #757575;
+  }
+
+  .modal-selector__clear {
+    flex-shrink: 0;
+    color: #757575;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 2px;
+
+    &:hover {
+      color: #cc1818;
+      background: #f5e0e0;
+    }
+  }
+`;
+const TableWrap = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  margin-top: 12px;
+  overflow-x: auto;
+`;
+const truncate = `
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`;
+const TableHeader = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  display: flex;
+  padding: 0;
+  background: #f6f7f7;
+  border-bottom: 1px solid #c3c4c7;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #50575e;
+  user-select: none;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+`;
+
+// Shared layout primitive — used in both header and data rows
+const Col = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  padding: 8px 10px;
+  flex-shrink: 0;
+  min-width: 0;
+  width: ${({
+  $width
+}) => $width ? `${$width}px` : "auto"};
+  flex: ${({
+  $flex
+}) => $flex !== null && $flex !== void 0 ? $flex : "none"};
+  ${truncate}
+`;
+const SortableCol = (0,styled_components__WEBPACK_IMPORTED_MODULE_8__["default"])(Col)`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  cursor: pointer;
+
+  &:hover {
+    background: #e8e9ea;
+  }
+
+  .sort-icon {
+    flex-shrink: 0;
+    color: #a0a0a0;
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  &[aria-sort="ascending"] .sort-icon,
+  &[aria-sort="descending"] .sort-icon {
+    color: #2271b1;
+  }
+`;
+const IconCol = (0,styled_components__WEBPACK_IMPORTED_MODULE_8__["default"])(Col)`
+  padding: 8px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  a {
+    display: flex;
+    align-items: center;
+    color: #757575;
+    text-decoration: none;
+
+    &:hover {
+      color: #2271b1;
+    }
+  }
+`;
+const TableBody = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  border: 1px solid #c3c4c7;
+  max-height: 380px;
+  overflow-y: auto;
+`;
+const TableRow = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #e0e0e0;
+  cursor: pointer;
+  font-size: 13px;
+  background: ${({
+  $isSelected
+}) => $isSelected ? "#f0f6fc" : "#fff"};
+  font-weight: ${({
+  $isSelected
+}) => $isSelected ? "600" : "normal"};
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background: ${({
+  $isSelected
+}) => $isSelected ? "#e5f0fa" : "#f8f9fa"};
+  }
+
+  ${Col}[data-col="id"] {
+    color: #757575;
+    font-size: 12px;
+  }
+`;
+const EmptyRow = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  padding: 20px 10px;
+  text-align: center;
+  color: #757575;
+  font-size: 13px;
+`;
+const SearchInput = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].input`
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid #949494;
+  border-radius: 2px;
+  font-size: 13px;
+  box-sizing: border-box;
+  margin-top: 4px;
+
+  &:focus {
+    border-color: #2271b1;
+    outline: none;
+    box-shadow: 0 0 0 1px #2271b1;
+  }
+`;
+const SearchWrap = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  margin-bottom: 8px;
+`;
+const LoadingState = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  border: 1px solid #c3c4c7;
+`;
+const PaginationBar = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0 0;
+  font-size: 12px;
+  color: #50575e;
+`;
+const PaginationInfo = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].span``;
+const PaginationControls = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+const ModalFooter = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e0e0e0;
+`;
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const SortIcon = ({
+  sortKey,
+  activeSortKey,
+  sortDir
+}) => {
+  if (sortKey !== activeSortKey) return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "sort-icon"
+  }, "\u21C5");
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "sort-icon"
+  }, sortDir === "asc" ? "↑" : "↓");
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+/**
+ * ModalPostSelector
+ *
+ * Modal-based picker for WP posts/pages or WooCommerce products.
+ * Data is loaded lazily on first open. Supports client-side search,
+ * sorting by any column, and paginated results.
+ *
+ * Props:
+ *   id              {string}    HTML id for the trigger button
+ *   label           {string}    Field label rendered above the trigger button
+ *   placeholder     {string}    Placeholder text shown when nothing is selected
+ *   value           {object}    Currently selected option: { value, title }
+ *   onChange        {Function}  Called with the selected option { value, title }
+ *   disabled        {boolean}   Disables the trigger button
+ *   modalTitle      {string}    Title shown in the modal header
+ *   loadOptions     {Function}  Async () => [{ value, title, ...extras }].
+ *                               Called once on first modal open.
+ *   columnLabels    {object}    Override column headers: { id, name }
+ */
+const ModalPostSelector = ({
+  id,
+  label,
+  placeholder = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Select…", "wicket-memberships"),
+  value = null,
+  onChange,
+  disabled = false,
+  modalTitle,
+  loadOptions,
+  isLoadingValue = false,
+  columnLabels = {}
+}) => {
+  var _columnLabels$id, _columnLabels$name, _options$find;
+  const [isOpen, setIsOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false);
+  const [options, setOptions] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)([]);
+  const [loadState, setLoadState] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)("idle"); // idle | loading | loaded | error
+  const [errorMessage, setErrorMessage] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)("");
+  const [search, setSearch] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)("");
+  const [sortKey, setSortKey] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)("value");
+  const [sortDir, setSortDir] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)("asc");
+  const [currentPage, setCurrentPage] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(1);
+  const [pendingValue, setPendingValue] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(null);
+  const colId = (_columnLabels$id = columnLabels.id) !== null && _columnLabels$id !== void 0 ? _columnLabels$id : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("ID", "wicket-memberships");
+  const colName = (_columnLabels$name = columnLabels.name) !== null && _columnLabels$name !== void 0 ? _columnLabels$name : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Title", "wicket-memberships");
+
+  // Detect extra columns from the first loaded option
+  const firstOpt = options[0];
+  const isProduct = firstOpt && "sku" in firstOpt;
+  const isPost = firstOpt && "modified" in firstOpt;
+  const columns = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useMemo)(() => {
+    const baseColumns = [{
+      key: "id",
+      label: colId
+    }, {
+      key: "title",
+      label: colName
+    }];
+    if (isProduct) {
+      baseColumns.push({
+        key: "sku",
+        label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("SKU", "wicket-memberships")
+      }, {
+        key: "price",
+        label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Price", "wicket-memberships")
+      });
+    }
+    if (isPost) {
+      baseColumns.push({
+        key: "published",
+        label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Published", "wicket-memberships")
+      }, {
+        key: "modified",
+        label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Modified", "wicket-memberships")
+      });
+    }
+    baseColumns.push({
+      key: "view",
+      label: ""
+    });
+    return baseColumns;
+  }, [colId, colName, isPost, isProduct]);
+  const formatDate = (iso, includeTime = false) => {
+    if (!iso) return "—";
+    const opts = {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
+    };
+    if (includeTime) {
+      opts.hour = "2-digit";
+      opts.minute = "2-digit";
+    }
+    return new Date(iso).toLocaleString(undefined, opts);
+  };
+  const formatPrice = price => {
+    var _wicketMembershipsSet;
+    if (price === undefined || price === null || price === "") return "—";
+    const num = parseFloat(price);
+    if (isNaN(num)) return price;
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: (_wicketMembershipsSet = wicketMembershipsSettings.currency) !== null && _wicketMembershipsSet !== void 0 ? _wicketMembershipsSet : "USD"
+    }).format(num);
+  };
+
+  // ── Sort key → comparable value ──────────────────────────────────────────
+  const getSortValue = (opt, key) => {
+    var _opt$title$toLowerCas, _opt$sku$toLowerCase, _opt$published, _opt$modified;
+    switch (key) {
+      case "id":
+        return opt.value;
+      case "value":
+        return opt.value;
+      case "title":
+        return (_opt$title$toLowerCas = opt.title?.toLowerCase()) !== null && _opt$title$toLowerCas !== void 0 ? _opt$title$toLowerCas : "";
+      case "sku":
+        return (_opt$sku$toLowerCase = opt.sku?.toLowerCase()) !== null && _opt$sku$toLowerCase !== void 0 ? _opt$sku$toLowerCase : "";
+      case "price":
+        return parseFloat(opt.price) || 0;
+      case "published":
+        return (_opt$published = opt.published) !== null && _opt$published !== void 0 ? _opt$published : "";
+      case "modified":
+        return (_opt$modified = opt.modified) !== null && _opt$modified !== void 0 ? _opt$modified : "";
+      default:
+        return "";
+    }
+  };
+
+  // ── Derived: filter → sort → paginate ────────────────────────────────────
+  const filteredSorted = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useMemo)(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = q ? options.filter(opt => String(opt.value).toLowerCase().includes(q) || opt.title.toLowerCase().includes(q)) : options;
+    return [...filtered].sort((a, b) => {
+      const av = getSortValue(a, sortKey);
+      const bv = getSortValue(b, sortKey);
+      if (av < bv) return sortDir === "asc" ? -1 : 1;
+      if (av > bv) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [options, search, sortKey, sortDir]);
+  const totalPages = Math.max(1, Math.ceil(filteredSorted.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pageRows = filteredSorted.slice(pageStart, pageStart + PAGE_SIZE);
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleSort = key => {
+    if (key === sortKey) {
+      setSortDir(d => d === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+    setCurrentPage(1);
+  };
+  const handleSearchChange = e => {
+    setSearch(e.target.value);
+    setCurrentPage(1);
+  };
+  const openModal = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useCallback)(async () => {
+    setPendingValue(value);
+    setIsOpen(true);
+    if (loadState === "loaded" || loadState === "loading") return;
+    setLoadState("loading");
+    try {
+      const result = await loadOptions();
+      setOptions(result);
+      setLoadState("loaded");
+    } catch (err) {
+      setErrorMessage(err?.message || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Failed to load options.", "wicket-memberships"));
+      setLoadState("error");
+    }
+  }, [loadOptions, loadState, value]);
+  const closeModal = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useCallback)(() => {
+    setIsOpen(false);
+    setSearch("");
+    setCurrentPage(1);
+    setPendingValue(null);
+  }, []);
+  const handleSelect = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useCallback)(option => {
+    setPendingValue(option);
+  }, []);
+  const handleConfirm = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useCallback)(() => {
+    onChange(pendingValue);
+    closeModal();
+  }, [onChange, pendingValue, closeModal]);
+  const handleClear = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useCallback)(e => {
+    e.stopPropagation();
+    onChange(null);
+  }, [onChange]);
+  const handleRetry = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useCallback)(async () => {
+    setLoadState("loading");
+    setErrorMessage("");
+    try {
+      const result = await loadOptions();
+      setOptions(result);
+      setLoadState("loaded");
+    } catch (err) {
+      setErrorMessage(err?.message || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Failed to load options.", "wicket-memberships"));
+      setLoadState("error");
+    }
+  }, [loadOptions]);
+
+  // ── Sortable header helper ────────────────────────────────────────────────
+  const headerCol = (key, children) => {
+    var _COLUMN_LAYOUT$key;
+    const ariaSort = sortKey === key ? sortDir === "asc" ? "ascending" : "descending" : "none";
+    const {
+      width,
+      flex
+    } = (_COLUMN_LAYOUT$key = COLUMN_LAYOUT[key]) !== null && _COLUMN_LAYOUT$key !== void 0 ? _COLUMN_LAYOUT$key : {};
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SortableCol, {
+      key: key,
+      role: "columnheader",
+      "aria-sort": ariaSort,
+      onClick: () => handleSort(key),
+      title: typeof children === "string" ? children : undefined,
+      $width: width,
+      $flex: flex
+    }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SortIcon, {
+      sortKey: key,
+      activeSortKey: sortKey,
+      sortDir: sortDir
+    }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+      style: {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        flex: 1,
+        minWidth: 0
+      }
+    }, children));
+  };
+
+  // Resolve display title from loaded options when available (fixes "Saved Post" on page load)
+  const resolvedValue = value ? (_options$find = options.find(o => String(o.value) === String(value.value))) !== null && _options$find !== void 0 ? _options$find : value : null;
+  const displayLabel = resolvedValue ? `${resolvedValue.title} (${resolvedValue.value})` : null;
+  const renderCell = (opt, key) => {
+    const skuVal = opt.sku || "—";
+    const priceVal = formatPrice(opt.price);
+    const publishedVal = formatDate(opt.published, true);
+    const modifiedVal = formatDate(opt.modified, true);
+    switch (key) {
+      case "id":
+        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Col, {
+          key: key,
+          $width: COLUMN_LAYOUT.id.width,
+          "data-col": "id",
+          title: String(opt.value)
+        }, opt.value);
+      case "title":
+        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Col, {
+          key: key,
+          $flex: COLUMN_LAYOUT.title.flex,
+          title: opt.title
+        }, opt.title);
+      case "sku":
+        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Col, {
+          key: key,
+          $width: COLUMN_LAYOUT.sku.width,
+          title: skuVal
+        }, skuVal);
+      case "price":
+        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Col, {
+          key: key,
+          $width: COLUMN_LAYOUT.price.width,
+          title: priceVal
+        }, priceVal);
+      case "published":
+        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Col, {
+          key: key,
+          $width: COLUMN_LAYOUT.published.width,
+          title: publishedVal
+        }, publishedVal);
+      case "modified":
+        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Col, {
+          key: key,
+          $width: COLUMN_LAYOUT.modified.width,
+          title: modifiedVal
+        }, modifiedVal);
+      case "view":
+        return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(IconCol, {
+          key: key,
+          $width: COLUMN_LAYOUT.view.width,
+          onClick: e => e.stopPropagation()
+        }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
+          href: `${_constants__WEBPACK_IMPORTED_MODULE_7__.WP_ADMIN_URL}post.php?action=edit&post=${opt.value}`,
+          target: "_blank",
+          rel: "noreferrer",
+          title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Edit in admin", "wicket-memberships"),
+          "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Edit in admin", "wicket-memberships")
+        }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+          className: "dashicons dashicons-visibility"
+        })));
+      default:
+        return null;
+    }
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, label && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
+    htmlFor: id
+  }, label), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(TriggerButton, {
+    id: id,
+    type: "button",
+    disabled: disabled || isLoadingValue,
+    onClick: openModal,
+    "aria-haspopup": "dialog",
+    title: displayLabel !== null && displayLabel !== void 0 ? displayLabel : undefined
+  }, isLoadingValue ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "modal-selector__placeholder"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Loading…", "wicket-memberships")) : displayLabel ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "modal-selector__value"
+  }, displayLabel) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "modal-selector__placeholder"
+  }, placeholder), value && !disabled && !isLoadingValue ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "modal-selector__clear",
+    role: "button",
+    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Clear selection", "wicket-memberships"),
+    onClick: handleClear
+  }, "\u2715") : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "modal-selector__chevron",
+    "aria-hidden": "true",
+    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Search options", "wicket-memberships")
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "dashicons dashicons-search"
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_WicketModal__WEBPACK_IMPORTED_MODULE_4__["default"], {
+    isOpen: isOpen,
+    title: modalTitle || label || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Select an option", "wicket-memberships"),
+    onRequestClose: closeModal
+  }, loadState === "error" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Notice, {
+    isDismissible: false,
+    status: "warning"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, errorMessage), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_WicketButton__WEBPACK_IMPORTED_MODULE_5__["default"], {
+    onClick: handleRetry,
+    variant: "link"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Retry", "wicket-memberships")))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SearchWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(SearchInput, {
+    type: "search",
+    placeholder: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Search…", "wicket-memberships"),
+    value: search,
+    onChange: handleSearchChange,
+    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Search options", "wicket-memberships")
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(TableWrap, null, loadState === "loading" ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(LoadingState, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Spinner, null)) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(TableBody, {
+    role: "listbox"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(TableHeader, {
+    role: "row"
+  }, columns.map(column => column.key === "view" ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(IconCol, {
+    key: column.key,
+    $width: COLUMN_LAYOUT.view.width,
+    "aria-hidden": "true"
+  }) : headerCol(column.key, column.label))), loadState === "loaded" && filteredSorted.length === 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(EmptyRow, null, search.trim() ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("No results match your search.", "wicket-memberships") : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("No options available.", "wicket-memberships")), loadState === "loaded" && pageRows.map(opt => {
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(TableRow, {
+      key: opt.value,
+      $isSelected: pendingValue && pendingValue.value === opt.value,
+      onClick: () => handleSelect(opt),
+      role: "option",
+      "aria-selected": value && value.value === opt.value,
+      tabIndex: 0,
+      onKeyDown: e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleSelect(opt);
+        }
+      }
+    }, columns.map(column => renderCell(opt, column.key)));
+  }))), loadState === "loaded" && filteredSorted.length > PAGE_SIZE && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(PaginationBar, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(PaginationInfo, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Page", "wicket-memberships"), " ", safePage, " ", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("of", "wicket-memberships"), " ", totalPages, " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    style: {
+      color: "#a0a0a0"
+    }
+  }, "(", filteredSorted.length, " ", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("total", "wicket-memberships"), ")")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(PaginationControls, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_WicketButton__WEBPACK_IMPORTED_MODULE_5__["default"], {
+    variant: "secondary",
+    isSmall: true,
+    disabled: safePage <= 1,
+    onClick: () => setCurrentPage(p => p - 1)
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("← Prev", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_WicketButton__WEBPACK_IMPORTED_MODULE_5__["default"], {
+    variant: "secondary",
+    isSmall: true,
+    disabled: safePage >= totalPages,
+    onClick: () => setCurrentPage(p => p + 1)
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Next →", "wicket-memberships")))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ModalFooter, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_WicketButton__WEBPACK_IMPORTED_MODULE_5__["default"], {
+    variant: "secondary",
+    onClick: closeModal
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Cancel", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_WicketButton__WEBPACK_IMPORTED_MODULE_5__["default"], {
+    variant: "primary",
+    disabled: !pendingValue,
+    onClick: handleConfirm
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Select", "wicket-memberships")))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (ModalPostSelector);
+
+/***/ }),
+
+/***/ "./src/shared/components/WicketButton.js":
+/*!***********************************************!*\
+  !*** ./src/shared/components/WicketButton.js ***!
+  \***********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_1__);
+
+
+
+/**
+ * WicketButton wraps @wordpress/components Button with project conventions:
+ *
+ * - `type="button"` by default (prevents accidental form submission)
+ * - `dashicon` prop renders a dashicon before the label — pass the icon slug
+ *   (e.g. dashicon="screenoptions" renders dashicons-screenoptions)
+ *
+ * All other @wordpress/components Button props (variant, disabled, isBusy,
+ * isDestructive, href, onClick, type="submit", etc.) pass through unchanged.
+ */
+const WicketButton = ({
+  children,
+  dashicon,
+  type = "button",
+  ...props
+}) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_1__.Button, {
+  type: type,
+  ...props
+}, dashicon && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+  className: `dashicons dashicons-${dashicon}`
+}), dashicon && children && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, "\xA0"), children);
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (WicketButton);
+
+/***/ }),
+
+/***/ "./src/shared/components/WicketModal.js":
+/*!**********************************************!*\
+  !*** ./src/shared/components/WicketModal.js ***!
+  \**********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ../styled_elements */ "./src/shared/styled_elements.js");
+
+
+
+/**
+ * WicketModal
+ *
+ * Standard modal wrapper for the Wicket Memberships admin UI.
+ * Handles conditional rendering and enforces consistent sizing.
+ *
+ * Props:
+ *   isOpen        {boolean}  Whether the modal is visible.
+ *   title         {string}   Modal title (required by @wordpress/components Modal).
+ *   onRequestClose {Function} Called when the modal requests to close.
+ *   children      {ReactNode} Modal body content.
+ *   ...rest                  Any additional props forwarded to the underlying Modal.
+ */
+const WicketModal = ({
+  isOpen,
+  title,
+  onRequestClose,
+  children,
+  ...rest
+}) => {
+  if (!isOpen) {
     return null;
   }
-  console.log("tierMdpUuids:");
-  console.log(tierMdpUuids);
-  const [mdpTiers, setMdpTiers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
-  const [tiersInfo, setTiersInfo] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
-  const [isLoading, setIsLoading] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(true);
-  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    // tierMdpUuids to array
-    const tierIdsArray = tierMdpUuids.split(",");
-    console.log(tierIdsArray);
-    (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_7__.fetchMembershipTiers)({
-      filters: {
-        id: tierIdsArray
-      }
-    }).then(tiers => {
-      console.log("Tiers.js");
-      console.log(tiers);
-
-      // TODO: Remove this when the API is updated to return the certain tiers
-      tiers = tiers.filter(tier => {
-        return tierMdpUuids.includes(tier.uuid);
-      });
-      tiers = tiers.map(tier => {
-        return {
-          uuid: tier.uuid,
-          name: tier.name,
-          active: tier.status === "Active" ? true : false,
-          type: tier.type,
-          // orgranization, individual
-          grace_period_days: 0,
-          // TODO: Update when grace period is added to MDP
-          category: tier.category === null ? "" : tier.category
-        };
-      });
-      setMdpTiers(tiers);
-      setIsLoading(false);
-      fetchTiersInfo();
-    }).catch(error => {
-      console.log("Tiers Error:");
-      console.log(error);
-      setIsLoading(false);
-    });
-  }, []);
-  const fetchTiersInfo = () => {
-    if (tierMdpUuids.length === 0) {
-      return;
-    }
-
-    // tierMdpUuids to array
-    const tierIdsArray = tierMdpUuids.split(",");
-    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_2___default()({
-      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_3__.addQueryArgs)(`${_shared_constants__WEBPACK_IMPORTED_MODULE_5__.PLUGIN_API_URL}/membership_tier_info`, {
-        filter: {
-          tier_uuid: tierIdsArray
-        },
-        "properties[]": "count"
-      })
-    }).then(tiersInfo => {
-      setTiersInfo(tiersInfo);
-    }).catch(error => {
-      console.log("Tiers Info Error:");
-      console.log(error);
-    });
-  };
-  const getTierInfo = tierId => {
-    if (tiersInfo === null) {
-      return null;
-    }
-    if (!tiersInfo.hasOwnProperty("tier_data") || !tiersInfo.tier_data.hasOwnProperty(tierId)) {
-      return null;
-    }
-    return tiersInfo.tier_data[tierId];
-  };
-  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Flex, {
-    justify: "start",
-    gap: 2,
-    direction: ["column", "row"]
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.__experimentalHeading, {
-    level: "4",
-    weight: "300"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Connected Membership Tiers", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Button, {
-    variant: "link",
-    href: tierListUrl,
-    target: "_blank"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("View All", "wicket-memberships")))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
-    className: "widefat",
-    cellSpacing: "0"
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
-    className: "manage-column column-columnname",
-    scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership Tier", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
-    className: "manage-column column-columnname",
-    scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Status", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
-    className: "manage-column column-columnname",
-    scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Type", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
-    className: "manage-column column-columnname",
-    scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Category", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
-    className: "manage-column column-columnname",
-    scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("# Members", "wicket-memberships")))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, isLoading && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
-    className: "alternate"
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
-    className: "column-columnname",
-    colSpan: 5
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Spinner, null))), mdpTiers.map((mdpTier, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
-    key: index,
-    className: index % 2 === 0 ? "alternate" : ""
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
-    className: "column-columnname"
-  }, mdpTier.name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
-    className: "column-columnname"
-  }, mdpTier.active ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Active") : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Inactive")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
-    className: "column-columnname"
-  }, mdpTier.type), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
-    className: "column-columnname"
-  }, mdpTier.category.length > 0 ? mdpTier.category : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("N/A", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
-    className: "column-columnname"
-  }, tiersInfo === null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Spinner, null), getTierInfo(mdpTier.uuid) !== null && getTierInfo(mdpTier.uuid).count)))))));
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_1__.ModalStyled, {
+    title: title,
+    onRequestClose: onRequestClose,
+    style: {
+      maxWidth: '840px',
+      width: '100%'
+    },
+    ...rest
+  }, children);
 };
-/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipConfigTiers);
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (WicketModal);
 
 /***/ }),
 
@@ -7037,6 +9740,43 @@ const formatDateWithTooltip = isoString => {
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     title: isoFull
   }, dateDisplay);
+};
+
+/***/ }),
+
+/***/ "./src/shared/cycleUtils.js":
+/*!**********************************!*\
+  !*** ./src/shared/cycleUtils.js ***!
+  \**********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   getDefaultCycleData: () => (/* binding */ getDefaultCycleData),
+/* harmony export */   normalizeCycleData: () => (/* binding */ normalizeCycleData)
+/* harmony export */ });
+const getDefaultCycleData = () => ({
+  cycle_type: "calendar",
+  anniversary_data: {
+    period_count: "1",
+    period_type: "year",
+    align_end_dates_enabled: false,
+    align_end_dates_type: "first-day-of-month"
+  },
+  calendar_items: []
+});
+const normalizeCycleData = cycleData => {
+  const defaultCycleData = getDefaultCycleData();
+  return {
+    ...defaultCycleData,
+    ...(cycleData || {}),
+    anniversary_data: {
+      ...defaultCycleData.anniversary_data,
+      ...(cycleData?.anniversary_data || {})
+    },
+    calendar_items: Array.isArray(cycleData?.calendar_items) ? cycleData.calendar_items : []
+  };
 };
 
 /***/ }),
@@ -38239,6 +40979,17 @@ module.exports = window["wp"]["components"];
 
 /***/ }),
 
+/***/ "@wordpress/element":
+/*!*********************************!*\
+  !*** external ["wp","element"] ***!
+  \*********************************/
+/***/ ((module) => {
+
+"use strict";
+module.exports = window["wp"]["element"];
+
+/***/ }),
+
 /***/ "@wordpress/i18n":
 /*!******************************!*\
   !*** external ["wp","i18n"] ***!
@@ -38258,92 +41009,6 @@ module.exports = window["wp"]["i18n"];
 
 "use strict";
 module.exports = window["wp"]["url"];
-
-/***/ }),
-
-/***/ "./node_modules/classnames/index.js":
-/*!******************************************!*\
-  !*** ./node_modules/classnames/index.js ***!
-  \******************************************/
-/***/ ((module, exports) => {
-
-var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
-	Copyright (c) 2018 Jed Watson.
-	Licensed under the MIT License (MIT), see
-	http://jedwatson.github.io/classnames
-*/
-/* global define */
-
-(function () {
-	'use strict';
-
-	var hasOwn = {}.hasOwnProperty;
-
-	function classNames () {
-		var classes = '';
-
-		for (var i = 0; i < arguments.length; i++) {
-			var arg = arguments[i];
-			if (arg) {
-				classes = appendClass(classes, parseValue(arg));
-			}
-		}
-
-		return classes;
-	}
-
-	function parseValue (arg) {
-		if (typeof arg === 'string' || typeof arg === 'number') {
-			return arg;
-		}
-
-		if (typeof arg !== 'object') {
-			return '';
-		}
-
-		if (Array.isArray(arg)) {
-			return classNames.apply(null, arg);
-		}
-
-		if (arg.toString !== Object.prototype.toString && !arg.toString.toString().includes('[native code]')) {
-			return arg.toString();
-		}
-
-		var classes = '';
-
-		for (var key in arg) {
-			if (hasOwn.call(arg, key) && arg[key]) {
-				classes = appendClass(classes, key);
-			}
-		}
-
-		return classes;
-	}
-
-	function appendClass (value, newClass) {
-		if (!newClass) {
-			return value;
-		}
-	
-		if (value) {
-			return value + ' ' + newClass;
-		}
-	
-		return value + newClass;
-	}
-
-	if ( true && module.exports) {
-		classNames.default = classNames;
-		module.exports = classNames;
-	} else if (true) {
-		// register as 'classnames', consistent with npm package name
-		!(__WEBPACK_AMD_DEFINE_ARRAY__ = [], __WEBPACK_AMD_DEFINE_RESULT__ = (function () {
-			return classNames;
-		}).apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__),
-		__WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
-	} else {}
-}());
-
 
 /***/ }),
 
@@ -42656,36 +45321,6 @@ function rectToClientRect(rect) {
 
 /***/ }),
 
-/***/ "./node_modules/react-tooltip/dist/react-tooltip.min.mjs":
-/*!***************************************************************!*\
-  !*** ./node_modules/react-tooltip/dist/react-tooltip.min.mjs ***!
-  \***************************************************************/
-/***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
-
-"use strict";
-__webpack_require__.r(__webpack_exports__);
-/* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   Tooltip: () => (/* binding */ M),
-/* harmony export */   TooltipProvider: () => (/* binding */ I),
-/* harmony export */   TooltipWrapper: () => (/* binding */ B),
-/* harmony export */   removeStyle: () => (/* binding */ g)
-/* harmony export */ });
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
-/* harmony import */ var _floating_ui_dom__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @floating-ui/dom */ "./node_modules/@floating-ui/core/dist/floating-ui.core.mjs");
-/* harmony import */ var _floating_ui_dom__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @floating-ui/dom */ "./node_modules/@floating-ui/dom/dist/floating-ui.dom.mjs");
-/* harmony import */ var classnames__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! classnames */ "./node_modules/classnames/index.js");
-/*
-* React Tooltip
-* {@link https://github.com/ReactTooltip/react-tooltip}
-* @copyright ReactTooltip Team
-* @license MIT
-*/
-const h="react-tooltip-core-styles",w="react-tooltip-base-styles",b={core:!1,base:!1};function S({css:e,id:t=w,type:o="base",ref:l}){var r,n;if(!e||"undefined"==typeof document||b[o])return;if("core"===o&&"undefined"!=typeof process&&(null===(r=null===process||void 0===process?void 0:process.env)||void 0===r?void 0:r.REACT_TOOLTIP_DISABLE_CORE_STYLES))return;if("base"!==o&&"undefined"!=typeof process&&(null===(n=null===process||void 0===process?void 0:process.env)||void 0===n?void 0:n.REACT_TOOLTIP_DISABLE_BASE_STYLES))return;"core"===o&&(t=h),l||(l={});const{insertAt:i}=l;if(document.getElementById(t))return;const c=document.head||document.getElementsByTagName("head")[0],s=document.createElement("style");s.id=t,s.type="text/css","top"===i&&c.firstChild?c.insertBefore(s,c.firstChild):c.appendChild(s),s.styleSheet?s.styleSheet.cssText=e:s.appendChild(document.createTextNode(e)),b[o]=!0}function g({type:e="base",id:t=w}={}){if(!b[e])return;"core"===e&&(t=h);const o=document.getElementById(t);"style"===(null==o?void 0:o.tagName)?null==o||o.remove():console.warn(`[react-tooltip] Failed to remove 'style' element with id '${t}'. Call \`injectStyle()\` first`),b[e]=!1}const E=async({elementReference:e=null,tooltipReference:t=null,tooltipArrowReference:o=null,place:l="top",offset:r=10,strategy:n="absolute",middlewares:i=[(0,_floating_ui_dom__WEBPACK_IMPORTED_MODULE_2__.offset)(Number(r)),(0,_floating_ui_dom__WEBPACK_IMPORTED_MODULE_3__.flip)({fallbackAxisSideDirection:"start"}),(0,_floating_ui_dom__WEBPACK_IMPORTED_MODULE_3__.shift)({padding:5})],border:c})=>{if(!e)return{tooltipStyles:{},tooltipArrowStyles:{},place:l};if(null===t)return{tooltipStyles:{},tooltipArrowStyles:{},place:l};const s=i;return o?(s.push((0,_floating_ui_dom__WEBPACK_IMPORTED_MODULE_3__.arrow)({element:o,padding:5})),(0,_floating_ui_dom__WEBPACK_IMPORTED_MODULE_3__.computePosition)(e,t,{placement:l,strategy:n,middleware:s}).then((({x:e,y:t,placement:o,middlewareData:l})=>{var r,n;const i={left:`${e}px`,top:`${t}px`,border:c},{x:s,y:a}=null!==(r=l.arrow)&&void 0!==r?r:{x:0,y:0},u=null!==(n={top:"bottom",right:"left",bottom:"top",left:"right"}[o.split("-")[0]])&&void 0!==n?n:"bottom",d=c&&{borderBottom:c,borderRight:c};let p=0;if(c){const e=`${c}`.match(/(\d+)px/);p=(null==e?void 0:e[1])?Number(e[1]):1}return{tooltipStyles:i,tooltipArrowStyles:{left:null!=s?`${s}px`:"",top:null!=a?`${a}px`:"",right:"",bottom:"",...d,[u]:`-${4+p}px`},place:o}}))):(0,_floating_ui_dom__WEBPACK_IMPORTED_MODULE_3__.computePosition)(e,t,{placement:"bottom",strategy:n,middleware:s}).then((({x:e,y:t,placement:o})=>({tooltipStyles:{left:`${e}px`,top:`${t}px`},tooltipArrowStyles:{},place:o})))},A=(e,t)=>!("CSS"in window&&"supports"in window.CSS)||window.CSS.supports(e,t),_=(e,t,o)=>{let l=null;const r=function(...r){const n=()=>{l=null,o||e.apply(this,r)};o&&!l&&(e.apply(this,r),l=setTimeout(n,t)),o||(l&&clearTimeout(l),l=setTimeout(n,t))};return r.cancel=()=>{l&&(clearTimeout(l),l=null)},r},O=e=>null!==e&&!Array.isArray(e)&&"object"==typeof e,k=(e,t)=>{if(e===t)return!0;if(Array.isArray(e)&&Array.isArray(t))return e.length===t.length&&e.every(((e,o)=>k(e,t[o])));if(Array.isArray(e)!==Array.isArray(t))return!1;if(!O(e)||!O(t))return e===t;const o=Object.keys(e),l=Object.keys(t);return o.length===l.length&&o.every((o=>k(e[o],t[o])))},T=e=>{if(!(e instanceof HTMLElement||e instanceof SVGElement))return!1;const t=getComputedStyle(e);return["overflow","overflow-x","overflow-y"].some((e=>{const o=t.getPropertyValue(e);return"auto"===o||"scroll"===o}))},L=e=>{if(!e)return null;let t=e.parentElement;for(;t;){if(T(t))return t;t=t.parentElement}return document.scrollingElement||document.documentElement},C="undefined"!=typeof window?react__WEBPACK_IMPORTED_MODULE_0__.useLayoutEffect:react__WEBPACK_IMPORTED_MODULE_0__.useEffect,R=e=>{e.current&&(clearTimeout(e.current),e.current=null)},x="DEFAULT_TOOLTIP_ID",N={anchorRefs:new Set,activeAnchor:{current:null},attach:()=>{},detach:()=>{},setActiveAnchor:()=>{}},$=(0,react__WEBPACK_IMPORTED_MODULE_0__.createContext)({getTooltipData:()=>N}),I=({children:t})=>{const[o,l]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({[x]:new Set}),[c,s]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({[x]:{current:null}}),a=(e,...t)=>{l((o=>{var l;const r=null!==(l=o[e])&&void 0!==l?l:new Set;return t.forEach((e=>r.add(e))),{...o,[e]:new Set(r)}}))},u=(e,...t)=>{l((o=>{const l=o[e];return l?(t.forEach((e=>l.delete(e))),{...o}):o}))},d=(0,react__WEBPACK_IMPORTED_MODULE_0__.useCallback)(((e=x)=>{var t,l;return{anchorRefs:null!==(t=o[e])&&void 0!==t?t:new Set,activeAnchor:null!==(l=c[e])&&void 0!==l?l:{current:null},attach:(...t)=>a(e,...t),detach:(...t)=>u(e,...t),setActiveAnchor:t=>((e,t)=>{s((o=>{var l;return(null===(l=o[e])||void 0===l?void 0:l.current)===t.current?o:{...o,[e]:t}}))})(e,t)}}),[o,c,a,u]),p=(0,react__WEBPACK_IMPORTED_MODULE_0__.useMemo)((()=>({getTooltipData:d})),[d]);return react__WEBPACK_IMPORTED_MODULE_0__.createElement($.Provider,{value:p},t)};function j(e=x){return (0,react__WEBPACK_IMPORTED_MODULE_0__.useContext)($).getTooltipData(e)}const B=({tooltipId:t,children:l,className:r,place:n,content:i,html:c,variant:a,offset:u,wrapper:d,events:p,positionStrategy:v,delayShow:m,delayHide:f})=>{const{attach:h,detach:w}=j(t),b=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(null);return (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>(h(b),()=>{w(b)})),[]),react__WEBPACK_IMPORTED_MODULE_0__.createElement("span",{ref:b,className:classnames__WEBPACK_IMPORTED_MODULE_1__("react-tooltip-wrapper",r),"data-tooltip-place":n,"data-tooltip-content":i,"data-tooltip-html":c,"data-tooltip-variant":a,"data-tooltip-offset":u,"data-tooltip-wrapper":d,"data-tooltip-events":p,"data-tooltip-position-strategy":v,"data-tooltip-delay-show":m,"data-tooltip-delay-hide":f},l)};var z={tooltip:"core-styles-module_tooltip__3vRRp",fixed:"core-styles-module_fixed__pcSol",arrow:"core-styles-module_arrow__cvMwQ",noArrow:"core-styles-module_noArrow__xock6",clickable:"core-styles-module_clickable__ZuTTB",show:"core-styles-module_show__Nt9eE",closing:"core-styles-module_closing__sGnxF"},D={tooltip:"styles-module_tooltip__mnnfp",arrow:"styles-module_arrow__K0L3T",dark:"styles-module_dark__xNqje",light:"styles-module_light__Z6W-X",success:"styles-module_success__A2AKt",warning:"styles-module_warning__SCK0X",error:"styles-module_error__JvumD",info:"styles-module_info__BWdHW"};const q=({forwardRef:t,id:l,className:i,classNameArrow:c,variant:u="dark",anchorId:d,anchorSelect:p,place:v="top",offset:m=10,events:h=["hover"],openOnClick:w=!1,positionStrategy:b="absolute",middlewares:S,wrapper:g,delayShow:A=0,delayHide:O=0,float:T=!1,hidden:x=!1,noArrow:N=!1,clickable:$=!1,closeOnEsc:I=!1,closeOnScroll:B=!1,closeOnResize:q=!1,openEvents:H,closeEvents:M,globalCloseEvents:W,imperativeModeOnly:P,style:V,position:F,afterShow:K,afterHide:U,disableTooltip:X,content:Y,contentWrapperRef:G,isOpen:Z,defaultIsOpen:J=!1,setIsOpen:Q,activeAnchor:ee,setActiveAnchor:te,border:oe,opacity:le,arrowColor:re,role:ne="tooltip"})=>{var ie;const ce=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(null),se=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(null),ae=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(null),ue=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(null),de=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(null),[pe,ve]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({tooltipStyles:{},tooltipArrowStyles:{},place:v}),[me,fe]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(!1),[ye,he]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(!1),[we,be]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null),Se=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(!1),ge=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(null),{anchorRefs:Ee,setActiveAnchor:Ae}=j(l),_e=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(!1),[Oe,ke]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]),Te=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(!1),Le=w||h.includes("click"),Ce=Le||(null==H?void 0:H.click)||(null==H?void 0:H.dblclick)||(null==H?void 0:H.mousedown),Re=H?{...H}:{mouseover:!0,focus:!0,mouseenter:!1,click:!1,dblclick:!1,mousedown:!1};!H&&Le&&Object.assign(Re,{mouseenter:!1,focus:!1,mouseover:!1,click:!0});const xe=M?{...M}:{mouseout:!0,blur:!0,mouseleave:!1,click:!1,dblclick:!1,mouseup:!1};!M&&Le&&Object.assign(xe,{mouseleave:!1,blur:!1,mouseout:!1});const Ne=W?{...W}:{escape:I||!1,scroll:B||!1,resize:q||!1,clickOutsideAnchor:Ce||!1};P&&(Object.assign(Re,{mouseover:!1,focus:!1,mouseenter:!1,click:!1,dblclick:!1,mousedown:!1}),Object.assign(xe,{mouseout:!1,blur:!1,mouseleave:!1,click:!1,dblclick:!1,mouseup:!1}),Object.assign(Ne,{escape:!1,scroll:!1,resize:!1,clickOutsideAnchor:!1})),C((()=>(Te.current=!0,()=>{Te.current=!1})),[]);const $e=e=>{Te.current&&(e&&he(!0),setTimeout((()=>{Te.current&&(null==Q||Q(e),void 0===Z&&fe(e))}),10))};(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{if(void 0===Z)return()=>null;Z&&he(!0);const e=setTimeout((()=>{fe(Z)}),10);return()=>{clearTimeout(e)}}),[Z]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{if(me!==Se.current)if(R(de),Se.current=me,me)null==K||K();else{const e=(e=>{const t=e.match(/^([\d.]+)(ms|s)$/);if(!t)return 0;const[,o,l]=t;return Number(o)*("ms"===l?1:1e3)})(getComputedStyle(document.body).getPropertyValue("--rt-transition-show-delay"));de.current=setTimeout((()=>{he(!1),be(null),null==U||U()}),e+25)}}),[me]);const Ie=e=>{ve((t=>k(t,e)?t:e))},je=(e=A)=>{R(ae),ye?$e(!0):ae.current=setTimeout((()=>{$e(!0)}),e)},Be=(e=O)=>{R(ue),ue.current=setTimeout((()=>{_e.current||$e(!1)}),e)},ze=e=>{var t;if(!e)return;const o=null!==(t=e.currentTarget)&&void 0!==t?t:e.target;if(!(null==o?void 0:o.isConnected))return te(null),void Ae({current:null});A?je():$e(!0),te(o),Ae({current:o}),R(ue)},De=()=>{$?Be(O||100):O?Be():$e(!1),R(ae)},qe=({x:e,y:t})=>{var o;const l={getBoundingClientRect:()=>({x:e,y:t,width:0,height:0,top:t,left:e,right:e,bottom:t})};E({place:null!==(o=null==we?void 0:we.place)&&void 0!==o?o:v,offset:m,elementReference:l,tooltipReference:ce.current,tooltipArrowReference:se.current,strategy:b,middlewares:S,border:oe}).then((e=>{Ie(e)}))},He=e=>{if(!e)return;const t=e,o={x:t.clientX,y:t.clientY};qe(o),ge.current=o},Me=e=>{var t;if(!me)return;const o=e.target;if(!o.isConnected)return;if(null===(t=ce.current)||void 0===t?void 0:t.contains(o))return;[document.querySelector(`[id='${d}']`),...Oe].some((e=>null==e?void 0:e.contains(o)))||($e(!1),R(ae))},We=_(ze,50,!0),Pe=_(De,50,!0),Ve=e=>{Pe.cancel(),We(e)},Fe=()=>{We.cancel(),Pe()},Ke=(0,react__WEBPACK_IMPORTED_MODULE_0__.useCallback)((()=>{var e,t;const o=null!==(e=null==we?void 0:we.position)&&void 0!==e?e:F;o?qe(o):T?ge.current&&qe(ge.current):(null==ee?void 0:ee.isConnected)&&E({place:null!==(t=null==we?void 0:we.place)&&void 0!==t?t:v,offset:m,elementReference:ee,tooltipReference:ce.current,tooltipArrowReference:se.current,strategy:b,middlewares:S,border:oe}).then((e=>{Te.current&&Ie(e)}))}),[me,ee,Y,V,v,null==we?void 0:we.place,m,b,F,null==we?void 0:we.position,T]);(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{var e,t;const o=new Set(Ee);Oe.forEach((e=>{(null==X?void 0:X(e))||o.add({current:e})}));const l=document.querySelector(`[id='${d}']`);l&&!(null==X?void 0:X(l))&&o.add({current:l});const r=()=>{$e(!1)},n=L(ee),i=L(ce.current);Ne.scroll&&(window.addEventListener("scroll",r),null==n||n.addEventListener("scroll",r),null==i||i.addEventListener("scroll",r));let c=null;Ne.resize?window.addEventListener("resize",r):ee&&ce.current&&(c=(0,_floating_ui_dom__WEBPACK_IMPORTED_MODULE_3__.autoUpdate)(ee,ce.current,Ke,{ancestorResize:!0,elementResize:!0,layoutShift:!0}));const s=e=>{"Escape"===e.key&&$e(!1)};Ne.escape&&window.addEventListener("keydown",s),Ne.clickOutsideAnchor&&window.addEventListener("click",Me);const a=[],u=e=>Boolean((null==e?void 0:e.target)&&(null==ee?void 0:ee.contains(e.target))),p=e=>{me&&u(e)||ze(e)},v=e=>{me&&u(e)&&De()},m=["mouseover","mouseout","mouseenter","mouseleave","focus","blur"],y=["click","dblclick","mousedown","mouseup"];Object.entries(Re).forEach((([e,t])=>{t&&(m.includes(e)?a.push({event:e,listener:Ve}):y.includes(e)&&a.push({event:e,listener:p}))})),Object.entries(xe).forEach((([e,t])=>{t&&(m.includes(e)?a.push({event:e,listener:Fe}):y.includes(e)&&a.push({event:e,listener:v}))})),T&&a.push({event:"pointermove",listener:He});const h=()=>{_e.current=!0},w=()=>{_e.current=!1,De()},b=$&&(xe.mouseout||xe.mouseleave);return b&&(null===(e=ce.current)||void 0===e||e.addEventListener("mouseover",h),null===(t=ce.current)||void 0===t||t.addEventListener("mouseout",w)),a.forEach((({event:e,listener:t})=>{o.forEach((o=>{var l;null===(l=o.current)||void 0===l||l.addEventListener(e,t)}))})),()=>{var e,t;Ne.scroll&&(window.removeEventListener("scroll",r),null==n||n.removeEventListener("scroll",r),null==i||i.removeEventListener("scroll",r)),Ne.resize?window.removeEventListener("resize",r):null==c||c(),Ne.clickOutsideAnchor&&window.removeEventListener("click",Me),Ne.escape&&window.removeEventListener("keydown",s),b&&(null===(e=ce.current)||void 0===e||e.removeEventListener("mouseover",h),null===(t=ce.current)||void 0===t||t.removeEventListener("mouseout",w)),a.forEach((({event:e,listener:t})=>{o.forEach((o=>{var l;null===(l=o.current)||void 0===l||l.removeEventListener(e,t)}))}))}}),[ee,Ke,ye,Ee,Oe,H,M,W,Le,A,O]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{var e,t;let o=null!==(t=null!==(e=null==we?void 0:we.anchorSelect)&&void 0!==e?e:p)&&void 0!==t?t:"";!o&&l&&(o=`[data-tooltip-id='${l.replace(/'/g,"\\'")}']`);const r=new MutationObserver((e=>{const t=[],r=[];e.forEach((e=>{if("attributes"===e.type&&"data-tooltip-id"===e.attributeName){e.target.getAttribute("data-tooltip-id")===l?t.push(e.target):e.oldValue===l&&r.push(e.target)}if("childList"===e.type){if(ee){const t=[...e.removedNodes].filter((e=>1===e.nodeType));if(o)try{r.push(...t.filter((e=>e.matches(o)))),r.push(...t.flatMap((e=>[...e.querySelectorAll(o)])))}catch(e){}t.some((e=>{var t;return!!(null===(t=null==e?void 0:e.contains)||void 0===t?void 0:t.call(e,ee))&&(he(!1),$e(!1),te(null),R(ae),R(ue),!0)}))}if(o)try{const l=[...e.addedNodes].filter((e=>1===e.nodeType));t.push(...l.filter((e=>e.matches(o)))),t.push(...l.flatMap((e=>[...e.querySelectorAll(o)])))}catch(e){}}})),(t.length||r.length)&&ke((e=>[...e.filter((e=>!r.includes(e))),...t]))}));return r.observe(document.body,{childList:!0,subtree:!0,attributes:!0,attributeFilter:["data-tooltip-id"],attributeOldValue:!0}),()=>{r.disconnect()}}),[l,p,null==we?void 0:we.anchorSelect,ee]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{Ke()}),[Ke]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{if(!(null==G?void 0:G.current))return()=>null;const e=new ResizeObserver((()=>{setTimeout((()=>Ke()))}));return e.observe(G.current),()=>{e.disconnect()}}),[Y,null==G?void 0:G.current]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{var e;const t=document.querySelector(`[id='${d}']`),o=[...Oe,t];ee&&o.includes(ee)||te(null!==(e=Oe[0])&&void 0!==e?e:t)}),[d,Oe,ee]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>(J&&$e(!0),()=>{R(ae),R(ue)})),[]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{var e;let t=null!==(e=null==we?void 0:we.anchorSelect)&&void 0!==e?e:p;if(!t&&l&&(t=`[data-tooltip-id='${l.replace(/'/g,"\\'")}']`),t)try{const e=Array.from(document.querySelectorAll(t));ke(e)}catch(e){ke([])}}),[l,p,null==we?void 0:we.anchorSelect]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{ae.current&&(R(ae),je(A))}),[A]);const Ue=null!==(ie=null==we?void 0:we.content)&&void 0!==ie?ie:Y,Xe=me&&Object.keys(pe.tooltipStyles).length>0;return (0,react__WEBPACK_IMPORTED_MODULE_0__.useImperativeHandle)(t,(()=>({open:e=>{if(null==e?void 0:e.anchorSelect)try{document.querySelector(e.anchorSelect)}catch(t){return void console.warn(`[react-tooltip] "${e.anchorSelect}" is not a valid CSS selector`)}be(null!=e?e:null),(null==e?void 0:e.delay)?je(e.delay):$e(!0)},close:e=>{(null==e?void 0:e.delay)?Be(e.delay):$e(!1)},activeAnchor:ee,place:pe.place,isOpen:Boolean(ye&&!x&&Ue&&Xe)}))),ye&&!x&&Ue?react__WEBPACK_IMPORTED_MODULE_0__.createElement(g,{id:l,role:ne,className:classnames__WEBPACK_IMPORTED_MODULE_1__("react-tooltip",z.tooltip,D.tooltip,D[u],i,`react-tooltip__place-${pe.place}`,z[Xe?"show":"closing"],Xe?"react-tooltip__show":"react-tooltip__closing","fixed"===b&&z.fixed,$&&z.clickable),onTransitionEnd:e=>{R(de),me||"opacity"!==e.propertyName||(he(!1),be(null),null==U||U())},style:{...V,...pe.tooltipStyles,opacity:void 0!==le&&Xe?le:void 0},ref:ce},Ue,react__WEBPACK_IMPORTED_MODULE_0__.createElement(g,{className:classnames__WEBPACK_IMPORTED_MODULE_1__("react-tooltip-arrow",z.arrow,D.arrow,c,N&&z.noArrow),style:{...pe.tooltipArrowStyles,background:re?`linear-gradient(to right bottom, transparent 50%, ${re} 50%)`:void 0},ref:se})):null},H=({content:t})=>react__WEBPACK_IMPORTED_MODULE_0__.createElement("span",{dangerouslySetInnerHTML:{__html:t}}),M=react__WEBPACK_IMPORTED_MODULE_0__.forwardRef((({id:t,anchorId:l,anchorSelect:n,content:i,html:c,render:a,className:u,classNameArrow:d,variant:p="dark",place:v="top",offset:m=10,wrapper:f="div",children:h=null,events:w=["hover"],openOnClick:b=!1,positionStrategy:S="absolute",middlewares:g,delayShow:E=0,delayHide:_=0,float:O=!1,hidden:k=!1,noArrow:T=!1,clickable:L=!1,closeOnEsc:C=!1,closeOnScroll:R=!1,closeOnResize:x=!1,openEvents:N,closeEvents:$,globalCloseEvents:I,imperativeModeOnly:B=!1,style:z,position:D,isOpen:M,defaultIsOpen:W=!1,disableStyleInjection:P=!1,border:V,opacity:F,arrowColor:K,setIsOpen:U,afterShow:X,afterHide:Y,disableTooltip:G,role:Z="tooltip"},J)=>{const[Q,ee]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(i),[te,oe]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(c),[le,re]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(v),[ne,ie]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(p),[ce,se]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(m),[ae,ue]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(E),[de,pe]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(_),[ve,me]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(O),[fe,ye]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(k),[he,we]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(f),[be,Se]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(w),[ge,Ee]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(S),[Ae,_e]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null),[Oe,ke]=(0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null),Te=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(P),{anchorRefs:Le,activeAnchor:Ce}=j(t),Re=e=>null==e?void 0:e.getAttributeNames().reduce(((t,o)=>{var l;if(o.startsWith("data-tooltip-")){t[o.replace(/^data-tooltip-/,"")]=null!==(l=null==e?void 0:e.getAttribute(o))&&void 0!==l?l:null}return t}),{}),xe=e=>{const t={place:e=>{var t;re(null!==(t=e)&&void 0!==t?t:v)},content:e=>{ee(null!=e?e:i)},html:e=>{oe(null!=e?e:c)},variant:e=>{var t;ie(null!==(t=e)&&void 0!==t?t:p)},offset:e=>{se(null===e?m:Number(e))},wrapper:e=>{var t;we(null!==(t=e)&&void 0!==t?t:f)},events:e=>{const t=null==e?void 0:e.split(" ");Se(null!=t?t:w)},"position-strategy":e=>{var t;Ee(null!==(t=e)&&void 0!==t?t:S)},"delay-show":e=>{ue(null===e?E:Number(e))},"delay-hide":e=>{pe(null===e?_:Number(e))},float:e=>{me(null===e?O:"true"===e)},hidden:e=>{ye(null===e?k:"true"===e)},"class-name":e=>{_e(e)}};Object.values(t).forEach((e=>e(null))),Object.entries(e).forEach((([e,o])=>{var l;null===(l=t[e])||void 0===l||l.call(t,o)}))};(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{ee(i)}),[i]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{oe(c)}),[c]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{re(v)}),[v]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{ie(p)}),[p]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{se(m)}),[m]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{ue(E)}),[E]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{pe(_)}),[_]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{me(O)}),[O]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{ye(k)}),[k]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{Ee(S)}),[S]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{Te.current!==P&&console.warn("[react-tooltip] Do not change `disableStyleInjection` dynamically.")}),[P]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{"undefined"!=typeof window&&window.dispatchEvent(new CustomEvent("react-tooltip-inject-styles",{detail:{disableCore:"core"===P,disableBase:P}}))}),[]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{var e;const o=new Set(Le);let r=n;if(!r&&t&&(r=`[data-tooltip-id='${t.replace(/'/g,"\\'")}']`),r)try{document.querySelectorAll(r).forEach((e=>{o.add({current:e})}))}catch(e){console.warn(`[react-tooltip] "${r}" is not a valid CSS selector`)}const i=document.querySelector(`[id='${l}']`);if(i&&o.add({current:i}),!o.size)return()=>null;const c=null!==(e=null!=Oe?Oe:i)&&void 0!==e?e:Ce.current,s=new MutationObserver((e=>{e.forEach((e=>{var t;if(!c||"attributes"!==e.type||!(null===(t=e.attributeName)||void 0===t?void 0:t.startsWith("data-tooltip-")))return;const o=Re(c);xe(o)}))})),a={attributes:!0,childList:!1,subtree:!1};if(c){const e=Re(c);xe(e),s.observe(c,a)}return()=>{s.disconnect()}}),[Le,Ce,Oe,l,n]),(0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)((()=>{(null==z?void 0:z.border)&&console.warn("[react-tooltip] Do not set `style.border`. Use `border` prop instead."),V&&!A("border",`${V}`)&&console.warn(`[react-tooltip] "${V}" is not a valid \`border\`.`),(null==z?void 0:z.opacity)&&console.warn("[react-tooltip] Do not set `style.opacity`. Use `opacity` prop instead."),F&&!A("opacity",`${F}`)&&console.warn(`[react-tooltip] "${F}" is not a valid \`opacity\`.`)}),[]);let Ne=h;const $e=(0,react__WEBPACK_IMPORTED_MODULE_0__.useRef)(null);if(a){const t=a({content:(null==Oe?void 0:Oe.getAttribute("data-tooltip-content"))||Q||null,activeAnchor:Oe});Ne=t?react__WEBPACK_IMPORTED_MODULE_0__.createElement("div",{ref:$e,className:"react-tooltip-content-wrapper"},t):null}else Q&&(Ne=Q);te&&(Ne=react__WEBPACK_IMPORTED_MODULE_0__.createElement(H,{content:te}));const Ie={forwardRef:J,id:t,anchorId:l,anchorSelect:n,className:classnames__WEBPACK_IMPORTED_MODULE_1__(u,Ae),classNameArrow:d,content:Ne,contentWrapperRef:$e,place:le,variant:ne,offset:ce,wrapper:he,events:be,openOnClick:b,positionStrategy:ge,middlewares:g,delayShow:ae,delayHide:de,float:ve,hidden:fe,noArrow:T,clickable:L,closeOnEsc:C,closeOnScroll:R,closeOnResize:x,openEvents:N,closeEvents:$,globalCloseEvents:I,imperativeModeOnly:B,style:z,position:D,isOpen:M,defaultIsOpen:W,border:V,opacity:F,arrowColor:K,setIsOpen:U,afterShow:X,afterHide:Y,disableTooltip:G,activeAnchor:Oe,setActiveAnchor:e=>ke(e),role:Z};return react__WEBPACK_IMPORTED_MODULE_0__.createElement(q,{...Ie})}));"undefined"!=typeof window&&window.addEventListener("react-tooltip-inject-styles",(e=>{e.detail.disableCore||S({css:`:root{--rt-color-white:#fff;--rt-color-dark:#222;--rt-color-success:#8dc572;--rt-color-error:#be6464;--rt-color-warning:#f0ad4e;--rt-color-info:#337ab7;--rt-opacity:0.9;--rt-transition-show-delay:0.15s;--rt-transition-closing-delay:0.15s}.core-styles-module_tooltip__3vRRp{position:absolute;top:0;left:0;pointer-events:none;opacity:0;will-change:opacity}.core-styles-module_fixed__pcSol{position:fixed}.core-styles-module_arrow__cvMwQ{position:absolute;background:inherit}.core-styles-module_noArrow__xock6{display:none}.core-styles-module_clickable__ZuTTB{pointer-events:auto}.core-styles-module_show__Nt9eE{opacity:var(--rt-opacity);transition:opacity var(--rt-transition-show-delay)ease-out}.core-styles-module_closing__sGnxF{opacity:0;transition:opacity var(--rt-transition-closing-delay)ease-in}`,type:"core"}),e.detail.disableBase||S({css:`
-.styles-module_tooltip__mnnfp{padding:8px 16px;border-radius:3px;font-size:90%;width:max-content}.styles-module_arrow__K0L3T{width:8px;height:8px}[class*='react-tooltip__place-top']>.styles-module_arrow__K0L3T{transform:rotate(45deg)}[class*='react-tooltip__place-right']>.styles-module_arrow__K0L3T{transform:rotate(135deg)}[class*='react-tooltip__place-bottom']>.styles-module_arrow__K0L3T{transform:rotate(225deg)}[class*='react-tooltip__place-left']>.styles-module_arrow__K0L3T{transform:rotate(315deg)}.styles-module_dark__xNqje{background:var(--rt-color-dark);color:var(--rt-color-white)}.styles-module_light__Z6W-X{background-color:var(--rt-color-white);color:var(--rt-color-dark)}.styles-module_success__A2AKt{background-color:var(--rt-color-success);color:var(--rt-color-white)}.styles-module_warning__SCK0X{background-color:var(--rt-color-warning);color:var(--rt-color-white)}.styles-module_error__JvumD{background-color:var(--rt-color-error);color:var(--rt-color-white)}.styles-module_info__BWdHW{background-color:var(--rt-color-info);color:var(--rt-color-white)}`,type:"base"})}));
-
-
-/***/ }),
-
 /***/ "./node_modules/stylis/src/Enum.js":
 /*!*****************************************!*\
   !*** ./node_modules/stylis/src/Enum.js ***!
@@ -43870,920 +46505,26 @@ var __webpack_exports__ = {};
 // This entry need to be wrapped in an IIFE because it need to be in strict mode.
 (() => {
 "use strict";
-/*!****************************************!*\
-  !*** ./src/membership_configs/edit.js ***!
-  \****************************************/
+/*!*********************************************!*\
+  !*** ./src/membership_groups/pages/edit.js ***!
+  \*********************************************/
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
-/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var react_dom_client__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! react-dom/client */ "./node_modules/react-dom/client.js");
-/* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @wordpress/api-fetch */ "@wordpress/api-fetch");
-/* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3__);
-/* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @wordpress/url */ "@wordpress/url");
-/* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_url__WEBPACK_IMPORTED_MODULE_4__);
-/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
-/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_5___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__);
-/* harmony import */ var _shared_constants__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../shared/constants */ "./src/shared/constants.js");
-/* harmony import */ var he__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! he */ "./node_modules/he/he.js");
-/* harmony import */ var he__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(he__WEBPACK_IMPORTED_MODULE_7__);
-/* harmony import */ var _shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../shared/styled_elements */ "./src/shared/styled_elements.js");
-/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! react-datepicker */ "./node_modules/react-datepicker/dist/react-datepicker.min.js");
-/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_12___default = /*#__PURE__*/__webpack_require__.n(react_datepicker__WEBPACK_IMPORTED_MODULE_12__);
-/* harmony import */ var _tiers__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ./tiers */ "./src/membership_configs/tiers.js");
-/* harmony import */ var _shared_services_api__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../shared/services/api */ "./src/shared/services/api.js");
-/* harmony import */ var react_tooltip__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! react-tooltip */ "./node_modules/react-tooltip/dist/react-tooltip.min.mjs");
+/* harmony import */ var react_dom_client__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! react-dom/client */ "./node_modules/react-dom/client.js");
+/* harmony import */ var _components_GroupMembershipPage__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../components/GroupMembershipPage */ "./src/membership_groups/components/GroupMembershipPage.js");
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-//import 'react-tooltip/dist/react-tooltip.css';
-
-const CreateMembershipConfig = ({
-  configCptSlug,
-  configListUrl,
-  tierListUrl,
-  tierCptSlug,
-  postId,
-  tierMdpUuids,
-  languageCodes
-}) => {
-  const languageCodesArray = languageCodes.split(",");
-  const [currentRenewalWindowDataLocale, setCurrentRenewalWindowDataLocale] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(languageCodesArray[0]); // at least one language code should always exist
-
-  const [currentLateFeeWindowDataLocale, setCurrentLateFeeWindowDataLocale] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(languageCodesArray[0]);
-  const [currentSeasonIndex, setCurrentSeasonIndex] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
-  const [tempSeason, setTempSeason] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
-    season_name: "",
-    active: true,
-    // true or false
-    start_date: "",
-    end_date: ""
-  });
-  const [isCreateSeasonModalOpen, setCreateSeasonModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
-  const openCreateSeasonModalOpen = () => setCreateSeasonModalOpen(true);
-  const closeCreateSeasonModalOpen = () => setCreateSeasonModalOpen(false);
-  const [isRenewalWindowCalloutModalOpen, setRenewalWindowCalloutModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
-  const openRenewalWindowCalloutModal = () => setRenewalWindowCalloutModalOpen(true);
-  const closeRenewalWindowCalloutModal = () => setRenewalWindowCalloutModalOpen(false);
-  const [isLateFeeWindowCalloutModalOpen, setLateFeeWindowCalloutModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
-  const openLateFeeWindowCalloutModal = () => setLateFeeWindowCalloutModalOpen(true);
-  const closeLateFeeWindowCalloutModal = () => setLateFeeWindowCalloutModalOpen(false);
-  const [isSubmitting, setSubmitting] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
-  const [errors, setErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
-  const [seasonErrors, setSeasonErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({});
-  const [wcProductOptions, setWcProductOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
-  let default_locales = {};
-  languageCodesArray.forEach(code => {
-    default_locales[code] = {
-      callout_header: "",
-      callout_content: "",
-      callout_button_label: ""
-    };
-  });
-  const [form, setForm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
-    name: "",
-    multi_tier_renewal: false,
-    renewal_window_data: {
-      days_count: "1",
-      locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
-    },
-    late_fee_window_data: {
-      days_count: "0",
-      product_id: "-1",
-      locales: default_locales // { en: { callout_header: '', callout_content: '', callout_button_label: '' } }
-    },
-    cycle_data: {
-      cycle_type: "calendar",
-      // calendar/anniversary
-      anniversary_data: {
-        period_count: "1",
-        period_type: "year",
-        // year/month/week
-        align_end_dates_enabled: false,
-        align_end_dates_type: "first-day-of-month" // first-day-of-month | 15th-of-month | last-day-of-month
-      },
-      calendar_items: [
-        // {
-        // 	season_name: '',
-        // 	active: true, // true or false
-        // 	start_date: '',
-        // 	end_date: ''
-        // }
-      ]
-    }
-  });
-  const [tempForm, setTempForm] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(form);
-
-  /**
-   * Reinitialize the renewal window callout form with the current form data
-   */
-  const reInitRenewalWindowCallout = () => {
-    setTempForm(form);
-    openRenewalWindowCalloutModal();
-  };
-
-  /**
-   * Reinitialize the Grace Period window callout form with the current form data
-   */
-  const reInitLateFeeWindowCallout = () => {
-    setTempForm(form);
-    openLateFeeWindowCalloutModal();
-  };
-
-  /**
-   * Validate the form
-   * @returns {boolean}
-   */
-  const validateForm = () => {
-    let isValid = true;
-    let newErrors = [];
-    if (form.name.length === 0) {
-      newErrors.push((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership Configuration Name is required", "wicket-memberships"));
-      isValid = false;
-    }
-    setErrors(newErrors);
-    return isValid;
-  };
-  const initSeasonModal = season_index => {
-    setCurrentSeasonIndex(season_index);
-
-    // Clear errors
-    setSeasonErrors({});
-    if (season_index === null) {
-      // Creating
-      console.log("Creating season");
-      setTempSeason({
-        season_name: "",
-        active: true,
-        start_date: "",
-        end_date: ""
-      });
-    } else {
-      // Editing
-      console.log("Editing season");
-      const season = form.cycle_data.calendar_items[season_index];
-      setTempSeason(season);
-    }
-    openCreateSeasonModalOpen();
-  };
-  const saveRenewalWindowCallout = () => {
-    console.log("Saving renewal window callout");
-    setForm({
-      ...form,
-      renewal_window_data: {
-        ...form.renewal_window_data,
-        locales: tempForm.renewal_window_data.locales
-      }
-    });
-  };
-  const saveLateFeeWindowCallout = () => {
-    console.log("Saving Grace Period window callout");
-    setForm({
-      ...form,
-      late_fee_window_data: {
-        ...form.late_fee_window_data,
-        locales: tempForm.late_fee_window_data.locales
-      }
-    });
-  };
-  const validateSeason = () => {
-    let isValid = true;
-    const newErrors = {};
-    if (tempSeason.season_name.length === 0) {
-      newErrors.seasonName = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Season Name is required", "wicket-memberships");
-      isValid = false;
-    }
-    if (tempSeason.start_date.length === 0) {
-      newErrors.seasonStartDate = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Season Start Date is required", "wicket-memberships");
-      isValid = false;
-    }
-    if (tempSeason.end_date.length === 0) {
-      newErrors.seasonEndDate = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Season End Date is required", "wicket-memberships");
-      isValid = false;
-    }
-    if (tempSeason.start_date.length > 0 && tempSeason.end_date.length > 0) {
-      const startDate = new Date(tempSeason.start_date);
-      const endDate = new Date(tempSeason.end_date);
-      if (startDate > endDate) {
-        newErrors.seasonEndDate = (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Season End Date must be greater than Start Date", "wicket-memberships");
-        isValid = false;
-      }
-    }
-    setSeasonErrors(newErrors);
-    return isValid;
-  };
-  const handleCreateSeasonSubmit = e => {
-    e.preventDefault();
-    console.log("Saving season");
-    if (!validateSeason()) {
-      return;
-    }
-    if (currentSeasonIndex === null) {
-      setForm({
-        ...form,
-        cycle_data: {
-          ...form.cycle_data,
-          calendar_items: [...form.cycle_data.calendar_items, {
-            season_name: tempSeason.season_name,
-            active: tempSeason.active,
-            start_date: tempSeason.start_date,
-            end_date: tempSeason.end_date
-          }]
-        }
-      });
-    } else {
-      const seasons = form.cycle_data.calendar_items.map((season, index) => {
-        if (index === currentSeasonIndex) {
-          return {
-            season_name: tempSeason.season_name,
-            active: tempSeason.active,
-            start_date: tempSeason.start_date,
-            end_date: tempSeason.end_date
-          };
-        }
-        return season;
-      });
-      setForm({
-        ...form,
-        cycle_data: {
-          ...form.cycle_data,
-          calendar_items: seasons
-        }
-      });
-    }
-    closeCreateSeasonModalOpen();
-  };
-  const handleSubmit = e => {
-    e.preventDefault();
-    if (!validateForm()) {
-      return;
-    }
-    setSubmitting(true);
-    console.log("Saving membership config");
-    const endpoint = postId ? `${_shared_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/${configCptSlug}/${postId}` : `${_shared_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/${configCptSlug}`;
-
-    // I need to create new Wordpress CPT with the form data
-    _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
-      path: endpoint,
-      method: "POST",
-      data: {
-        title: form.name,
-        status: "publish",
-        renewal_window_data: form.renewal_window_data,
-        late_fee_window_data: form.late_fee_window_data,
-        cycle_data: form.cycle_data,
-        multi_tier_renewal: form.multi_tier_renewal
-      }
-    }).then(response => {
-      console.log(response);
-      if (response.id) {
-        // Redirect to the cpt list page
-        window.location.href = configListUrl;
-      }
-    }).catch(error => {
-      let newErrors = [];
-      Object.keys(error.data.params).forEach(key => {
-        let errors = error.data.params[key].split(/(?<=[.?!])\s+|\.$/);
-        newErrors = newErrors.concat(errors).filter(sentence => sentence.trim() !== "");
-      });
-      setErrors(newErrors);
-      setSubmitting(false);
-    });
-  };
-  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
-    let queryParams = {};
-
-    // Fetch the membership configuration
-    if (postId) {
-      _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
-        path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_shared_constants__WEBPACK_IMPORTED_MODULE_6__.API_URL}/${configCptSlug}/${postId}`, queryParams)
-      }).then(post => {
-        console.log(post);
-        const decodedTitle = he__WEBPACK_IMPORTED_MODULE_7___default().decode(post.title.rendered);
-        setForm({
-          name: decodedTitle,
-          renewal_window_data: post.renewal_window_data,
-          late_fee_window_data: post.late_fee_window_data,
-          cycle_data: post.cycle_data,
-          multi_tier_renewal: post.multi_tier_renewal
-        });
-      });
-    }
-
-    // Fetch all WooCommerce products
-    (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_10__.fetchWcProducts)({
-      status: "publish",
-      per_page: 100
-    }).then(products => {
-      const options = products.map(product => {
-        return {
-          label: `${product.name} | ID: ${product.id}`,
-          value: product.id
-        };
-      });
-      setWcProductOptions(prevOptions => [...prevOptions, ...options]);
-    });
-  }, []);
-  console.log(errors);
-  console.log(form);
-  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
-    className: "wrap"
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("h1", {
-    className: "wp-heading-inline"
-  }, postId ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Edit Membership Configuration", "wicket-memberships") : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Add New Membership Configuration", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("hr", {
-    className: "wp-header-end"
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.Wrap, null, errors.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ErrorsRow, null, errors.map(error => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Notice, {
-    isDismissible: false,
-    key: error,
-    status: "warning"
-  }, error))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
-    onSubmit: handleSubmit
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
-    align: "end",
-    justify: "start",
-    gap: 5,
-    direction: ["column", "row"]
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership Configuration Name", "wicket-memberships"),
-    onChange: value => {
-      setForm({
-        ...form,
-        name: value
-      });
-    },
-    value: form.name
-  }), _shared_constants__WEBPACK_IMPORTED_MODULE_6__.PLUGIN_SETTINGS.WICKET_MSHIP_MULTI_TIER_RENEWALS && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
-    style: {
-      display: "flex",
-      alignItems: "center",
-      gap: "6px"
-    }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.CheckboxControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Multi-Tier Renewal", "wicket-memberships"),
-    checked: form.multi_tier_renewal,
-    onChange: value => setForm({
-      ...form,
-      multi_tier_renewal: value
-    }),
-    __nextHasNoMarginBottom: true
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    tabIndex: 0,
-    style: {
-      display: "inline-flex",
-      justifyContent: "center",
-      alignItems: "center",
-      width: "16px",
-      height: "16px",
-      borderRadius: "50%",
-      backgroundColor: "#007bff",
-      // Bootstrap blue
-      color: "#fff",
-      fontSize: "12px",
-      fontWeight: "bold",
-      cursor: "pointer",
-      lineHeight: 1
-    },
-    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("What is Multi-Tier Renewal?", "wicket-memberships"),
-    "data-tooltip-id": "membership-multi-tier-tooltip",
-    "data-tooltip-html": [(0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("All the Membership Tiers attached to this or any other Membership Config set to use", "wicket-memberships"), (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("a Multi-Tier Renewal where they all have similar options selected for Renewal Flow,", "wicket-memberships"), (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("will be combined into a single callout in the Account Centre.", "wicket-memberships")].join("<br />")
-  }, "?"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react_tooltip__WEBPACK_IMPORTED_MODULE_11__.Tooltip, {
-    id: "membership-multi-tier-tooltip",
-    place: "right",
-    effect: "solid",
-    multiline: true
-  })))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
-    align: "end",
-    justify: "start",
-    gap: 5,
-    direction: ["column", "row"]
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Renewal Window (Days)", "wicket-memberships"),
-    type: "number",
-    min: "1",
-    onChange: value => {
-      setForm({
-        ...form,
-        renewal_window_data: {
-          ...form.renewal_window_data,
-          days_count: value
-        }
-      });
-    },
-    value: form.renewal_window_data.days_count,
-    __nextHasNoMarginBottom: true
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    variant: "secondary",
-    onClick: reInitRenewalWindowCallout
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    className: "dashicons dashicons-screenoptions me-2"
-  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Callout Configuration", "wicket-memberships"))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
-    align: "end",
-    gap: 5,
-    direction: ["column", "row"]
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Grace Period Window (Days)", "wicket-memberships"),
-    type: "number",
-    min: "0",
-    onChange: value => {
-      setForm({
-        ...form,
-        late_fee_window_data: {
-          ...form.late_fee_window_data,
-          days_count: value
-        }
-      });
-    },
-    value: form.late_fee_window_data.days_count,
-    __nextHasNoMarginBottom: true
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
-    htmlFor: "late_fee_product_id"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Product", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.SelectWpStyled, {
-    id: "late_fee_product_id",
-    classNamePrefix: "select",
-    value: wcProductOptions.find(option => option.value === form.late_fee_window_data.product_id),
-    isClearable: true,
-    isSearchable: true,
-    isLoading: wcProductOptions.length === 0,
-    options: wcProductOptions,
-    onChange: selected => {
-      if (selected === null) {
-        setForm({
-          ...form,
-          late_fee_window_data: {
-            ...form.late_fee_window_data,
-            product_id: "-1"
-          }
-        });
-      } else {
-        setForm({
-          ...form,
-          late_fee_window_data: {
-            ...form.late_fee_window_data,
-            product_id: selected.value
-          }
-        });
-      }
-    }
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    variant: "secondary",
-    onClick: reInitLateFeeWindowCallout
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    className: "dashicons dashicons-screenoptions me-2"
-  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Callout Configuration", "wicket-memberships"))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
-    align: "end",
-    gap: 5,
-    direction: ["column", "row"]
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.SelectControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Cycle", "wicket-memberships"),
-    value: form.cycle_data.cycle_type,
-    __nextHasNoMarginBottom: true,
-    onChange: value => {
-      setForm({
-        ...form,
-        cycle_data: {
-          ...form.cycle_data,
-          cycle_type: value
-        }
-      });
-    },
-    options: [{
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Calendar", "wicket-memberships"),
-      value: "calendar"
-    }, {
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Anniversary", "wicket-memberships"),
-      value: "anniversary"
-    }]
-  })), form.cycle_data.cycle_type === "calendar" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    variant: "secondary",
-    onClick: () => initSeasonModal(null)
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    className: "dashicons dashicons-plus-alt"
-  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Add Season", "wicket-memberships")))), form.cycle_data.cycle_type === "anniversary" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.FormFlex, {
-    align: "end",
-    gap: 5,
-    direction: ["column", "row"]
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership Period", "wicket-memberships"),
-    type: "number",
-    min: "1",
-    __nextHasNoMarginBottom: true,
-    onChange: value => {
-      setForm({
-        ...form,
-        cycle_data: {
-          ...form.cycle_data,
-          anniversary_data: {
-            ...form.cycle_data.anniversary_data,
-            period_count: value
-          }
-        }
-      });
-    },
-    value: form.cycle_data.anniversary_data.period_count
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.SelectControl, {
-    label: "",
-    value: form.cycle_data.anniversary_data.period_type,
-    __nextHasNoMarginBottom: true,
-    onChange: value => {
-      setForm({
-        ...form,
-        cycle_data: {
-          ...form.cycle_data,
-          anniversary_data: {
-            ...form.cycle_data.anniversary_data,
-            period_type: value
-          }
-        }
-      });
-    },
-    options: [{
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Year", "wicket-memberships"),
-      value: "year"
-    }, {
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Month", "wicket-memberships"),
-      value: "month"
-    }, {
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Week", "wicket-memberships"),
-      value: "week"
-    }]
-  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
-    align: "end",
-    justify: "start",
-    gap: 5,
-    direction: ["column", "row"]
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.CheckboxControl, {
-    checked: form.cycle_data.anniversary_data.align_end_dates_enabled,
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Align End Dates", "wicket-memberships"),
-    __nextHasNoMarginBottom: true,
-    onChange: value => {
-      setForm({
-        ...form,
-        cycle_data: {
-          ...form.cycle_data,
-          anniversary_data: {
-            ...form.cycle_data.anniversary_data,
-            align_end_dates_enabled: value
-          }
-        }
-      });
-    }
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.CustomDisabled, {
-    isDisabled: !form.cycle_data.anniversary_data.align_end_dates_enabled
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.SelectControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Align by", "wicket-memberships"),
-    value: form.cycle_data.anniversary_data.align_end_dates_type,
-    __nextHasNoMarginBottom: true,
-    onChange: value => {
-      setForm({
-        ...form,
-        cycle_data: {
-          ...form.cycle_data,
-          anniversary_data: {
-            ...form.cycle_data.anniversary_data,
-            align_end_dates_type: value
-          }
-        }
-      });
-    },
-    options: [{
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("First Day of Month", "wicket-memberships"),
-      value: "first-day-of-month"
-    }, {
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("15th of Month", "wicket-memberships"),
-      value: "15th-of-month"
-    }, {
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Last Day of Month", "wicket-memberships"),
-      value: "last-day-of-month"
-    }]
-  })))))), form.cycle_data.cycle_type === "calendar" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.__experimentalHeading, {
-    level: "4",
-    weight: "300"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Seasons", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("table", {
-    className: "widefat",
-    cellSpacing: "0"
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("thead", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
-    className: "manage-column column-columnname",
-    scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Season Name", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
-    className: "manage-column column-columnname",
-    scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Status", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
-    className: "manage-column column-columnname",
-    scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Start Date", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
-    className: "manage-column column-columnname",
-    scope: "col"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("End Date", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
-    className: "check-column"
-  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, form.cycle_data.calendar_items.map((season, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
-    key: index,
-    className: index % 2 === 0 ? "alternate" : ""
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
-    className: "column-columnname"
-  }, season.season_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
-    className: "column-columnname"
-  }, season.active ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Active", "wicket-memberships") : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Inactive", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
-    className: "column-columnname"
-  }, season.start_date), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
-    className: "column-columnname"
-  }, season.end_date), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    onClick: () => initSeasonModal(index)
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    className: "dashicons dashicons-edit"
-  })))))))))), tierMdpUuids.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_tiers__WEBPACK_IMPORTED_MODULE_9__["default"], {
-    configPostId: postId,
-    tierCptSlug: tierCptSlug,
-    tierMdpUuids: tierMdpUuids,
-    tierListUrl: tierListUrl
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
-    align: "end",
-    justify: "end",
-    gap: 5,
-    direction: ["column", "row"]
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    isBusy: isSubmitting,
-    disabled: isSubmitting,
-    variant: "primary",
-    type: "submit"
-  }, isSubmitting && (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Saving now...", "wicket-memberships"), !isSubmitting && (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Save Membership Configuration", "wicket-memberships"))))))), isRenewalWindowCalloutModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Modal, {
-    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Renewal Window - Callout Configuration", "wicket-memberships"),
-    onRequestClose: closeRenewalWindowCalloutModal,
-    style: {
-      maxWidth: "840px",
-      width: "100%"
-    }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
-    onSubmit: () => {
-      saveRenewalWindowCallout();
-      closeRenewalWindowCalloutModal();
-    }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.SelectControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Language", "wicket-memberships"),
-    options: languageCodesArray.map(code => {
-      return {
-        label: code,
-        value: code
-      };
-    }),
-    value: currentRenewalWindowDataLocale,
-    onChange: value => setCurrentRenewalWindowDataLocale(value)
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Callout Header", "wicket-memberships"),
-    onChange: value => {
-      setTempForm({
-        ...tempForm,
-        renewal_window_data: {
-          ...tempForm.renewal_window_data,
-          locales: {
-            ...tempForm.renewal_window_data.locales,
-            [currentRenewalWindowDataLocale]: {
-              ...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
-              callout_header: value
-            }
-          }
-        }
-      });
-    },
-    value: tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_header
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextareaControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Callout Content", "wicket-memberships"),
-    onChange: value => {
-      setTempForm({
-        ...tempForm,
-        renewal_window_data: {
-          ...tempForm.renewal_window_data,
-          locales: {
-            ...tempForm.renewal_window_data.locales,
-            [currentRenewalWindowDataLocale]: {
-              ...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
-              callout_content: value
-            }
-          }
-        }
-      });
-    },
-    value: tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_content
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Button Label", "wicket-memberships"),
-    onChange: value => {
-      setTempForm({
-        ...tempForm,
-        renewal_window_data: {
-          ...tempForm.renewal_window_data,
-          locales: {
-            ...tempForm.renewal_window_data.locales,
-            [currentRenewalWindowDataLocale]: {
-              ...tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale],
-              callout_button_label: value
-            }
-          }
-        }
-      });
-    },
-    value: tempForm.renewal_window_data.locales[currentRenewalWindowDataLocale].callout_button_label
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    variant: "primary",
-    type: "submit"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Save", "wicket-memberships")))), isLateFeeWindowCalloutModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Modal, {
-    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Grace Period Window - Callout Configuration", "wicket-memberships"),
-    onRequestClose: closeLateFeeWindowCalloutModal,
-    style: {
-      maxWidth: "840px",
-      width: "100%"
-    }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
-    onSubmit: () => {
-      saveLateFeeWindowCallout();
-      closeLateFeeWindowCalloutModal();
-    }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.SelectControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Language", "wicket-memberships"),
-    options: languageCodesArray.map(code => {
-      return {
-        label: code,
-        value: code
-      };
-    }),
-    value: currentLateFeeWindowDataLocale,
-    onChange: value => setCurrentLateFeeWindowDataLocale(value)
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Callout Header", "wicket-memberships"),
-    onChange: value => {
-      setTempForm({
-        ...tempForm,
-        late_fee_window_data: {
-          ...tempForm.late_fee_window_data,
-          locales: {
-            ...tempForm.late_fee_window_data.locales,
-            [currentLateFeeWindowDataLocale]: {
-              ...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
-              callout_header: value
-            }
-          }
-        }
-      });
-    },
-    value: tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_header
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextareaControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Callout Content", "wicket-memberships"),
-    onChange: value => {
-      setTempForm({
-        ...tempForm,
-        late_fee_window_data: {
-          ...tempForm.late_fee_window_data,
-          locales: {
-            ...tempForm.late_fee_window_data.locales,
-            [currentLateFeeWindowDataLocale]: {
-              ...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
-              callout_content: value
-            }
-          }
-        }
-      });
-    },
-    value: tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_content
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Button Label", "wicket-memberships"),
-    onChange: value => {
-      setTempForm({
-        ...tempForm,
-        late_fee_window_data: {
-          ...tempForm.late_fee_window_data,
-          locales: {
-            ...tempForm.late_fee_window_data.locales,
-            [currentLateFeeWindowDataLocale]: {
-              ...tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale],
-              callout_button_label: value
-            }
-          }
-        }
-      });
-    },
-    value: tempForm.late_fee_window_data.locales[currentLateFeeWindowDataLocale].callout_button_label
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    variant: "primary",
-    type: "submit"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Save", "wicket-memberships")))), isCreateSeasonModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Modal, {
-    title: currentSeasonIndex === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Add Season", "wicket-memberships") : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Edit Season", "wicket-memberships"),
-    onRequestClose: closeCreateSeasonModalOpen,
-    style: {
-      maxWidth: "840px",
-      width: "100%",
-      paddingTop: "40px"
-    }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.AppWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
-    onSubmit: handleCreateSeasonSubmit
-  }, Object.keys(seasonErrors).length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ErrorsRow, null, Object.keys(seasonErrors).map(key => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Notice, {
-    isDismissible: false,
-    key: key,
-    status: "warning"
-  }, seasonErrors[key]))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.TextControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Season Name", "wicket-memberships"),
-    onChange: value => {
-      setTempSeason({
-        ...tempSeason,
-        season_name: value
-      });
-    },
-    value: tempSeason.season_name
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.SelectControl, {
-    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Status", "wicket-memberships"),
-    value: tempSeason.active ? "true" : "false",
-    onChange: value => {
-      setTempSeason({
-        ...tempSeason,
-        active: value === "true"
-      });
-    },
-    options: [{
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Active", "wicket-memberships"),
-      value: "true"
-    }, {
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Inactive", "wicket-memberships"),
-      value: "false"
-    }]
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.FormFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
-    htmlFor: "mdp_tier"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Start Date", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_12___default()), {
-    popperPlacement: "bottom",
-    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Start Date", "wicket-memberships"),
-    dateFormat: _shared_constants__WEBPACK_IMPORTED_MODULE_6__.DEFAULT_DATE_FORMAT,
-    showMonthDropdown: true,
-    showYearDropdown: true,
-    dropdownMode: "select",
-    selected: tempSeason.start_date !== "" ? moment(tempSeason.start_date).format("YYYY-MM-DD") : null,
-    popperProps: {
-      zIndex: 25
-    },
-    onChange: value => {
-      setTempSeason({
-        ...tempSeason,
-        start_date: moment(value).format("YYYY-MM-DD")
-      });
-    }
-  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.LabelWpStyled, {
-    htmlFor: "mdp_tier"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("End Date", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_12___default()), {
-    popperPlacement: "bottom",
-    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("End Date", "wicket-memberships"),
-    dateFormat: _shared_constants__WEBPACK_IMPORTED_MODULE_6__.DEFAULT_DATE_FORMAT,
-    showMonthDropdown: true,
-    showYearDropdown: true,
-    dropdownMode: "select",
-    selected: tempSeason.end_date !== "" ? moment(tempSeason.end_date).format("YYYY-MM-DD") : null,
-    popperProps: {
-      zIndex: 25
-    },
-    onChange: value => {
-      setTempSeason({
-        ...tempSeason,
-        end_date: moment(value).format("YYYY-MM-DD")
-      });
-    }
-  })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_8__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Flex, {
-    align: "end",
-    gap: 5,
-    direction: ["column", "row"]
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, currentSeasonIndex !== null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    isDestructive: true,
-    onClick: () => {
-      const seasons = form.cycle_data.calendar_items.filter((_, index) => index !== currentSeasonIndex);
-      setForm({
-        ...form,
-        cycle_data: {
-          ...form.cycle_data,
-          calendar_items: seasons
-        }
-      });
-      closeCreateSeasonModalOpen();
-    }
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Icon, {
-    icon: "archive"
-  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Archive", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_5__.Button, {
-    variant: "primary",
-    type: "submit"
-  }, currentSeasonIndex === null ? (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Add Season", "wicket-memberships") : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Update Season", "wicket-memberships"))))))))));
-};
-const app = document.getElementById("create_membership_config");
+const app = document.getElementById("group_member_edit");
 if (app) {
-  (0,react_dom_client__WEBPACK_IMPORTED_MODULE_2__.createRoot)(app).render((0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(CreateMembershipConfig, {
-    ...app.dataset
+  (0,react_dom_client__WEBPACK_IMPORTED_MODULE_1__.createRoot)(app).render((0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_components_GroupMembershipPage__WEBPACK_IMPORTED_MODULE_2__["default"], {
+    postId: app.dataset.postId,
+    listUrl: app.dataset.listUrl
   }));
 }
 })();
 
 /******/ })()
 ;
-//# sourceMappingURL=membership_config_create.js.map
+//# sourceMappingURL=group_member_edit.js.map
