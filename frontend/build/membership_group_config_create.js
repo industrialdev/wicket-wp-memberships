@@ -7002,7 +7002,8 @@ const GracePeriodSection = ({
         product_id: selected ? selected.value : "-1"
       }
     })),
-    selectedProductOption: selectedProductOption
+    selectedProductOption: selectedProductOption,
+    showProduct: false
   });
 };
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (GracePeriodSection);
@@ -8451,7 +8452,8 @@ const GracePeriodSection = ({
   onDaysCountChange,
   onProductChange,
   onConfigureCallout,
-  loadProductOptions
+  loadProductOptions,
+  showProduct = true
 }) => {
   if (isLoading) {
     return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_AdminLoadingSkeleton__WEBPACK_IMPORTED_MODULE_4__["default"], {
@@ -8471,7 +8473,7 @@ const GracePeriodSection = ({
     onChange: onDaysCountChange,
     type: "number",
     value: daysCount
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_ModalPostSelector__WEBPACK_IMPORTED_MODULE_5__["default"], {
+  })), showProduct && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_ModalPostSelector__WEBPACK_IMPORTED_MODULE_5__["default"], {
     id: "late_fee_product_id",
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Product", "wicket-memberships"),
     placeholder: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Select a product…", "wicket-memberships"),

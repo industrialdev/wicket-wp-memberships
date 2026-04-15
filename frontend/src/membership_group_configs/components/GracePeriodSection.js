@@ -45,6 +45,7 @@ const GracePeriodSection = ({
         }))
       }
       selectedProductOption={selectedProductOption}
+      showProduct={false}
     />
   );
 };

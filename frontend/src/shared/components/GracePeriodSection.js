@@ -20,6 +20,7 @@ const GracePeriodSection = ({
   onProductChange,
   onConfigureCallout,
   loadProductOptions,
+  showProduct = true,
 }) => {
   if (isLoading) {
     return (
@@ -44,23 +45,25 @@ const GracePeriodSection = ({
             value={daysCount}
           />
         </FlexBlock>
-        <FlexBlock>
-          <ModalPostSelector
-            id="late_fee_product_id"
-            label={__("Product", "wicket-memberships")}
-            placeholder={__("Select a product…", "wicket-memberships")}
-            modalTitle={__("Select a Product", "wicket-memberships")}
-            value={selectedProductOption}
-            onChange={onProductChange}
-            disabled={disabled}
-            isLoadingValue={isLoadingValue}
-            loadOptions={loadProductOptions}
-            columnLabels={{
-              id: __("ID", "wicket-memberships"),
-              name: __("Product Name", "wicket-memberships"),
-            }}
-          />
-        </FlexBlock>
+        {showProduct && (
+          <FlexBlock>
+            <ModalPostSelector
+              id="late_fee_product_id"
+              label={__("Product", "wicket-memberships")}
+              placeholder={__("Select a product…", "wicket-memberships")}
+              modalTitle={__("Select a Product", "wicket-memberships")}
+              value={selectedProductOption}
+              onChange={onProductChange}
+              disabled={disabled}
+              isLoadingValue={isLoadingValue}
+              loadOptions={loadProductOptions}
+              columnLabels={{
+                id: __("ID", "wicket-memberships"),
+                name: __("Product Name", "wicket-memberships"),
+              }}
+            />
+          </FlexBlock>
+        )}
         <FlexItem>
           <WicketButton
             dashicon="screenoptions"
