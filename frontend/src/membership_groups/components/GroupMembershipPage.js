@@ -8,9 +8,13 @@ import { useGroupMembershipBootstrap } from "../hooks/useGroupMembershipBootstra
 import GroupMembershipForm from "./GroupMembershipForm";
 
 const GroupMembershipPageContent = ({ postId, listUrl }) => {
-  const { pageData, requestState, retryLoad } = useGroupMembershipBootstrap({ postId });
+  const { pageData, setPageData, requestState, retryLoad } = useGroupMembershipBootstrap({ postId });
 
   const isLoading = requestState.status === "loading";
+
+  const handleOwnerUpdated = (newOwner) => {
+    setPageData((prev) => prev ? { ...prev, owner: { ...prev.owner, ...newOwner } } : prev);
+  };
 
   const notices = [
     ...(requestState.status === "error"
@@ -34,7 +38,11 @@ const GroupMembershipPageContent = ({ postId, listUrl }) => {
   return (
     <>
       <AdminNoticeStack notices={notices} />
-      <GroupMembershipForm pageData={pageData} isLoading={isLoading} />
+      <GroupMembershipForm
+        pageData={pageData}
+        isLoading={isLoading}
+        onOwnerUpdated={handleOwnerUpdated}
+      />
     </>
   );
 };

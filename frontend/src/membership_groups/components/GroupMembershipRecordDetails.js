@@ -7,7 +7,9 @@ import MembershipStatusSection from "../../shared/components/MembershipStatusSec
 import MembershipActionsSection from "../../shared/components/MembershipActionsSection";
 import MembershipDetailsForm from "../../shared/components/MembershipDetailsForm";
 import {
+  fetchMdpPersons,
   fetchMembershipStatuses,
+  updateGroupChangeOwnership,
   updateMembershipStatus,
   updateMembership,
 } from "../../shared/services/api";
@@ -37,8 +39,9 @@ const DetailsWrap = styled.div`
  * @param {object}   props.record          - Single membership record from pageData.membership_records.
  * @param {object}   props.groupPageData   - Full pageData for the group (subscription_id etc.).
  * @param {Function} props.onRecordUpdated - Called with the updated record after a save.
+ * @param {Function} props.onOwnerUpdated  - Called with new owner data after a successful ownership change.
  */
-const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated }) => {
+const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, onOwnerUpdated }) => {
   // Group-level subscription and order data is shared across all records until
   // the API is enriched to return per-record billing data.
   // TODO: Switch to per-record subscription/order data once
@@ -52,6 +55,28 @@ const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated }
   const nextPaymentDate = groupPageData?.subscription?.next_payment_date ?? null;
   const orders = groupPageData?.orders ?? null;
   const configRenewalType = groupPageData?.config_renewal_type || null;
+
+  const groupPostId = groupPageData?.ID ?? null;
+  const owner       = groupPageData?.owner ?? null;
+  const ownerOption = owner ? { label: owner.name, value: owner.uuid } : null;
+  const ownerMdpLink = owner?.mdp_link ?? null;
+  const ownerSwitchToUrl = owner?.switch_to_url ?? null;
+
+  const loadOwnerOptions = (inputValue, callback) => {
+    if ( inputValue.length < 3 ) { return; }
+    fetchMdpPersons({ term: inputValue })
+      .then((response) => {
+        callback(
+          response.map((person) => ({ label: person.full_name, value: person.id }))
+        );
+      })
+      .catch((error) => {
+        console.error('[GroupMembershipRecordDetails] loadOwnerOptions error', error);
+      });
+  };
+
+  const handleOwnerSave = (selectedOption) =>
+    updateGroupChangeOwnership(groupPostId, selectedOption.value);
 
   const isCancelled = record.status?.toLowerCase() === "cancelled";
 
@@ -125,6 +150,12 @@ const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated }
         disabled={isCancelled}
         onSave={handleSave}
         onSaved={handleSaved}
+        ownerOption={ownerOption}
+        ownerMdpLink={ownerMdpLink}
+        ownerSwitchToUrl={ownerSwitchToUrl}
+        onLoadOwnerOptions={loadOwnerOptions}
+        onOwnerSave={handleOwnerSave}
+        onOwnerUpdated={onOwnerUpdated}
       />
     </DetailsWrap>
   );

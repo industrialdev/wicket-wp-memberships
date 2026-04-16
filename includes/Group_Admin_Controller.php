@@ -812,6 +812,7 @@ class Group_Admin_Controller {
           'identifying_number' => ( is_object( $owner_person ) && method_exists( $owner_person, 'getAttribute' ) )
             ? $owner_person->getAttribute( 'identifying_number' )
             : '',
+          'switch_to_url'      => Helper::get_user_switch_to_url( $owner_id ),
         ];
       }
     }
@@ -919,7 +920,7 @@ class Group_Admin_Controller {
     }
 
     if ( $current_owner_id && $new_user->ID === $current_owner_id ) {
-      return new \WP_REST_Response( [ 'error' => 'Please select a different user.' ], 400 );
+      return new \WP_REST_Response( [ 'error' => 'This user is already selected.' ], 400 );
     }
 
     if ( false === $group->set_owner( $new_user->ID ) ) {

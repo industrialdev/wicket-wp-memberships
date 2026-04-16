@@ -117,7 +117,7 @@ Returns all data required to populate the group membership edit form:
   'title'               => string,
   'meta'                => array,   // raw post meta
   'org'                 => [ 'uuid', 'name', 'location', 'mdp_link' ],
-  'owner'               => [ 'user_id', 'uuid', 'name', 'email', 'mdp_link', 'identifying_number' ] | null,
+  'owner'               => [ 'user_id', 'uuid', 'name', 'email', 'mdp_link', 'identifying_number', 'switch_to_url' ] | null,
   'config'              => array,   // post meta from the linked Membership_Group_Config
   'subscription_id'     => int|false,
   'dates'               => [ 'starts_at', 'ends_at', 'expires_at', 'early_renew_at' ],

@@ -12,7 +12,7 @@ const REQUEST_SUCCESS = { status: "success", error: null };
  *
  * @param {object} params
  * @param {string|number} params.postId - WP post ID of the membership group.
- * @returns {{ pageData: object|null, requestState: object, retryLoad: function }}
+ * @returns {{ pageData: object|null, setPageData: Function, requestState: object, retryLoad: function }}
  */
 export const useGroupMembershipBootstrap = ({ postId }) => {
   const [pageData, setPageData] = useState(null);
@@ -38,6 +38,7 @@ export const useGroupMembershipBootstrap = ({ postId }) => {
 
   return {
     pageData,
+    setPageData,
     requestState,
     retryLoad: loadPageData,
   };

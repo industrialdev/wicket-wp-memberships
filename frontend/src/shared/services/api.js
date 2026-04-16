@@ -277,3 +277,19 @@ export const updateGroupMembership = (groupPostId, data) => {
     data: data,
   });
 };
+
+/**
+ * Change the owner of a membership group.
+ *
+ * Maps to POST /wicket_member/v1/group/{group_post_id}/change_owner
+ *
+ * @param {string|number} groupPostId   - WP post ID of the membership group.
+ * @param {string}        newOwnerUuid  - MDP UUID of the new owner.
+ */
+export const updateGroupChangeOwnership = (groupPostId, newOwnerUuid) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/group/${groupPostId}/change_owner`,
+    method: "POST",
+    data: { new_owner_uuid: newOwnerUuid },
+  });
+};
