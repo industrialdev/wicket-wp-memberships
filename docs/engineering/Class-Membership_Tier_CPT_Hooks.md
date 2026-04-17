@@ -1,3 +1,9 @@
+---
+title: "Membership_Tier_CPT_Hooks Class Reference"
+audience: [developer]
+php_class: Membership_Tier_CPT_Hooks
+source_files: ["includes/Membership_Tier_CPT_Hooks.php"]
+---
 
 # Membership_Tier_CPT_Hooks Class Index
 

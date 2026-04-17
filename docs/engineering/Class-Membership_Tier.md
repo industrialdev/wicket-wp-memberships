@@ -1,3 +1,9 @@
+---
+title: "Membership_Tier Class Reference"
+audience: [developer]
+php_class: Membership_Tier
+source_files: ["includes/Membership_Tier.php"]
+---
 
 # Membership_Tier Class Index
 

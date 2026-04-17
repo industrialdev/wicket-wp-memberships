@@ -1,3 +1,10 @@
+---
+title: "Membership_Post_Types Class Reference"
+audience: [developer]
+php_class: Membership_Post_Types
+source_files: ["includes/Membership_Post_Types.php"]
+---
+
 # Membership_Post_Types Class Index
 
 **File:** includes/Membership_Post_Types.php

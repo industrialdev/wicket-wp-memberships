@@ -1,3 +1,9 @@
+---
+title: "Helper Class Reference"
+audience: [developer]
+php_class: Helper
+source_files: ["includes/Helper.php"]
+---
 
 # Helper Class Index
 

@@ -1,3 +1,9 @@
+---
+title: "Membership_Config Class Reference"
+audience: [developer]
+php_class: Membership_Config
+source_files: ["includes/Membership_Config.php"]
+---
 
 # Membership_Config Class Index
 

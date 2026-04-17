@@ -35,8 +35,15 @@ This file applies to work inside `src/web/app/plugins/wicket-wp-memberships`.
 
 ## Active Feature Context
 
-`CURRENT_SCOPE.md` describes the **Group Memberships** feature currently in development. Key concepts:
 
+## Testing Guidelines
+- Frameworks: PHPUnit 8, Yoast PHPUnit Polyfills, Brain Monkey.
+- Tests live in `tests/` with custom factories in `tests/factories/` for products, tiers, configs, and memberships.
+- Base test class: `MembershipsBaseTest` (sets up factories and environment).
+- Key test areas: membership creation, merge webhook, admin status transitions, factory functionality, helper utilities.
+- When adding tests, prefer using the centralized QA suite at `./qa` per the stack AGENTS.md.
+
+`CURRENT_SCOPE.md` describes the **Group Memberships** feature currently in development. Key concepts:
 - A **Membership Group** is a container (WP custom post) that holds individual membership records and is linked to an MDP organisation.
 - A **Membership Group Config** defines date calculation, renewal windows, grace periods, and renewal type for groups.
 - Membership Groups have their own WooCommerce subscription; individual memberships within a group are represented as line items on that subscription.

@@ -1,22 +1,85 @@
-# Wicket - Memberships plugin for WordPress
+# Wicket Memberships
 
-This plugin is a part of the Wicket ecosystem and is used to manage memberships in WordPress.
+WordPress plugin for managing memberships on top of WooCommerce and WooCommerce Subscriptions, synchronized with the Wicket MDP (Master Data Platform).
 
-## Development Environment Setup Notes
+## Requirements
 
-* This project uses composer for dependency management. Run `composer install` to install dependencies.
-* Project uses PSR-4 class autoload. You will need to run `composer dump-autoload` to re-generate the autoload files every time you add a new class. To generate production autoload files, run `composer dump-autoload -o`.
-* This project uses react-based components for the admin interface. To build the assets, go to the /frontend directory (`cd frontend`) and run `npm install` to install the dependencies and then run `npm run start` to build the development version of the assets. To build the production version of the assets, run `npm run build`.
+- WordPress 6.5+
+- PHP 8.1+
+- [wicket-wp-base-plugin](../wicket-wp-base-plugin)
+- WooCommerce
+- WooCommerce Subscriptions
 
-This readme will be updated as the project evolves.
+## Features
+
+- Creates membership records when WooCommerce orders or subscriptions complete
+- Syncs membership data to the Wicket MDP in real time
+- Manages membership lifecycle via Action Scheduler (activation, grace periods, expiry)
+- AutomateWoo triggers for early renewal, end-date, and grace-period events
+- React-based admin UI for memberships, tiers, and configs
+- REST API (`wicket_member/v1`) for search, CRUD, status management, and merge webhooks
+- CSV import tooling for bulk individual and organization memberships
+- Multi-tier renewal workflows (optional, via feature flag)
+- Subscription-based renewal (optional, via feature flag)
+
+## Architecture
+
+Three custom post types drive the data model:
+
+| CPT | Slug | Purpose |
+|---|---|---|
+| Membership | `wicket_membership` | Individual membership records |
+| Tier | `wicket_mship_tier` | Tier definitions linked to WooCommerce products |
+| Config | `wicket_mship_config` | Renewal windows, grace periods, billing cycles |
+
+Key classes:
+
+| Class | Role |
+|---|---|
+| `Membership_Controller` | Core business logic — order processing, MDP sync, lifecycle scheduling |
+| `Membership_WP_REST_Controller` | REST API endpoints (`wicket_member/v1`) |
+| `Admin_Controller` | Admin menus, status transitions, React app mounting |
+| `Settings` | Plugin options page — feature flags and debug toggles |
+| `Utilities` | WooCommerce hooks, cart/checkout modifications, date helpers |
+| `Import_Controller` | CSV import for bulk membership creation |
+
+## Development
+
+Install PHP dependencies:
+
+```bash
+composer install
+```
+
+Build the React admin UI:
+
+```bash
+cd frontend && npm install && npm run build
+```
+
+Watch mode for frontend development:
+
+```bash
+cd frontend && npm run start
+```
+
+## Testing
+
+Tests live in the centralized QA suite at `./qa` (from the stack root). Do not run PHPUnit directly from this plugin directory.
+
+```bash
+# From the stack root:
+cd qa && composer test:wordpress:memberships
+```
+
+See `./qa/README.md` for full setup and usage instructions.
 
 ## Documentation
 
 For complete documentation, see **[docs/index.md](docs/index.md)**.
 
-## Testing
-* Install development packages if you haven't with: `docker compose exec php bash -c "cd /var/www/html/web/app/plugins/wicket-wp-memberships && composer install"`
-* Install WordPress testing instance with: `docker compose exec php bash -c "cd /var/www/html/web/app/plugins/wicket-wp-memberships && bin/install-wp-tests.sh wordpress_test root 'root' mariadb latest"`
-* Now you can run the tests: `docker compose exec php bash -c "cd /var/www/html/web/app/plugins/wicket-wp-memberships && ./vendor/bin/phpunit"`
-* You will also need to remove dev packages from autoload once you plan to push changes to git: `docker compose exec php bash -c "cd /var/www/html/web/app/plugins/wicket-wp-memberships && composer install --no-dev"`
-* Don't forget to cover complex logic parts of your code with tests. Test it, or trust it to fail.
+| Audience | Directory |
+|---|---|
+| Operators & Support | [docs/product/](docs/product/) |
+| Developers & Agents | [docs/engineering/](docs/engineering/) |
+| End Users | [docs/guides/](docs/guides/) |

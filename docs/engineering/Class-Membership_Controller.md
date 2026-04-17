@@ -1,3 +1,10 @@
+---
+title: "Membership_Controller Class Reference"
+audience: [developer]
+php_class: Membership_Controller
+source_files: ["includes/Membership_Controller.php"]
+---
+
 # Membership_Controller Class Index
 
 **File:** includes/Membership_Controller.php

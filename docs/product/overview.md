@@ -1,8 +1,8 @@
 ---
 title: "Wicket Memberships Overview"
 audience: [implementer, support]
+wp_admin_path: "Settings → Wicket Memberships"
 php_class: Membership_Controller
-source_files: ["includes/Membership_Controller.php", "includes/Settings.php", "includes/Membership_Post_Types.php"]
 ---
 
 # Overview
@@ -19,7 +19,7 @@ Wicket Memberships manages membership records on top of WooCommerce and WooComme
 
 ## Requirements
 
-- WordPress 6.6+
+- WordPress 6.5+
 - PHP 8.1+
 - `wicket-wp-base-plugin`
 - WooCommerce
