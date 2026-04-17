@@ -129,6 +129,24 @@ Fetches organisation data from `Helper::get_org_data()` and person data from `wi
 
 ---
 
+### `get_group_members_by_tier( int $group_post_id ): array|\WP_REST_Response`
+
+Returns the total member count and per-tier breakdown for a group:
+
+```php
+[
+  'total_members' => int,
+  'tiers'         => [
+    [ 'tier_name' => string, 'member_count' => int ],
+    // ...sorted alphabetically by tier_name
+  ],
+]
+```
+
+Queries child memberships via `Membership_Group::get_individual_memberships()`, groups them by `membership_tier_name` meta, and returns the totals. Members without a tier name count toward `total_members` but are omitted from `tiers`. Tiers are sorted alphabetically. Returns `404` if the post is not found or is the wrong CPT.
+
+---
+
 ### `update_group_change_ownership( array $params ): \WP_REST_Response`
 
 Changes the membership owner on a group post. Expects `params`:

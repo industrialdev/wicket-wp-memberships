@@ -200,6 +200,26 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
       ],
     ] );
 
+    /**
+     * Return total member count and per-tier breakdown for a group.
+     *
+     * GET /wicket_member/v1/group/{id}/members_by_tier
+     */
+    register_rest_route( $this->namespace, '/group/(?P<group_post_id>\d+)/members_by_tier', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_group_members_by_tier' ],
+        'permission_callback' => [ $this, 'permissions_check_read' ],
+        'args'                => [
+          'group_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'The WP post ID of the membership group.',
+          ],
+        ],
+      ],
+    ] );
+
     // -------------------------------------------------------------------------
     // TODO stubs — no backing business logic yet (see TODO.md)
     // -------------------------------------------------------------------------
@@ -291,6 +311,15 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
    */
   public function get_group_membership_filters( \WP_REST_Request $request ) {
     $response = Group_Admin_Controller::get_group_membership_filters();
+    return rest_ensure_response( $response );
+  }
+
+  /**
+   * GET /group/{group_post_id}/members_by_tier
+   */
+  public function get_group_members_by_tier( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Group_Admin_Controller::get_group_members_by_tier( (int) $params['group_post_id'] );
     return rest_ensure_response( $response );
   }
 

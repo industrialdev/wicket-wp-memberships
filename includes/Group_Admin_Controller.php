@@ -718,6 +718,50 @@ class Group_Admin_Controller {
   }
 
   // ---------------------------------------------------------------------------
+  // Members by tier
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Return the total member count and per-tier breakdown for a group.
+   *
+   * @param int $group_post_id
+   * @return array|\WP_REST_Response
+   */
+  public static function get_group_members_by_tier( int $group_post_id ) {
+    $post = get_post( $group_post_id );
+    if ( ! $post || get_post_type( $group_post_id ) !== Helper::get_membership_group_cpt_slug() ) {
+      return new \WP_REST_Response( [ 'error' => 'Membership group not found.' ], 404 );
+    }
+
+    $group   = new Membership_Group( $group_post_id );
+    $members = $group->get_individual_memberships();
+    $counts  = [];
+
+    foreach ( $members as $member ) {
+      $tier_name           = (string) get_post_meta( $member->ID, 'membership_tier_name', true );
+      $counts[ $tier_name ] = ( $counts[ $tier_name ] ?? 0 ) + 1;
+    }
+
+    $tiers = [];
+    foreach ( $counts as $tier_name => $count ) {
+      if ( $tier_name === '' ) {
+        continue;
+      }
+      $tiers[] = [
+        'tier_name'    => $tier_name,
+        'member_count' => $count,
+      ];
+    }
+
+    usort( $tiers, fn( $a, $b ) => strcasecmp( $a['tier_name'], $b['tier_name'] ) );
+
+    return [
+      'total_members' => count( $members ),
+      'tiers'         => $tiers,
+    ];
+  }
+
+  // ---------------------------------------------------------------------------
   // Ownership change
   // ---------------------------------------------------------------------------
 
