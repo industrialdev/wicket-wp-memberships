@@ -2,8 +2,8 @@
 
 namespace Wicket_Memberships;
 
-use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Utilities;
 
 /**
  * Admin operations for Membership Group posts.
@@ -121,7 +121,6 @@ class Group_Admin_Controller {
     $supported_filters = [
       'org_uuid'          => 'org_uuid',
       'membership_status' => 'membership_status',
-      'user_email'        => 'user_email',
     ];
     foreach ( $filter as $key => $value ) {
       if ( ! isset( $supported_filters[ $key ] ) || $value === '' ) {
@@ -243,9 +242,8 @@ class Group_Admin_Controller {
    */
   public static function get_admin_status_options( ?int $group_post_id = null ): array {
     if ( ! empty( $group_post_id ) ) {
-      $current_status = get_post_meta( $group_post_id, 'membership_status', true );
-      $transitions    = Helper::get_allowed_transition_status( $current_status );
-      return is_array( $transitions ) ? $transitions : [];
+      $group = new Membership_Group( $group_post_id );
+      return $group->get_allowed_status_transitions();
     }
     return Helper::get_all_status_names();
   }
@@ -269,10 +267,6 @@ class Group_Admin_Controller {
    * @return \WP_REST_Response
    */
   public static function admin_manage_status( int $group_post_id, string $new_status ): \WP_REST_Response {
-    $tomorrow_iso  = ( new \DateTime( date( 'Y-m-d', strtotime( '+1 day' ) ), wp_timezone() ) )->format( 'c' );
-    $yesterday_iso = ( new \DateTime( date( 'Y-m-d', strtotime( '-1 day' ) ), wp_timezone() ) )->format( 'c' );
-    $now_iso       = ( new \DateTime( date( 'Y-m-d' ), wp_timezone() ) )->format( 'c' );
-
     if ( empty( $new_status ) ) {
       return new \WP_REST_Response( [ 'error' => 'Invalid status transition. Requested status was not received.' ], 400 );
     }
@@ -282,125 +276,19 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'Membership group not found.' ], 404 );
     }
 
-    $current_status = get_post_meta( $group_post_id, 'membership_status', true );
     $group          = new Membership_Group( $group_post_id );
-    $subscription_id = $group->get_subscription_id();
-
-    $meta_data      = [];
     $response_array = [];
-    $response_code  = 200;
+    $transition_result = $group->transition_to( $new_status );
 
-    // --- pending → active -------------------------------------------------------
-    if ( $current_status === Wicket_Memberships::STATUS_PENDING && $new_status === Wicket_Memberships::STATUS_ACTIVE ) {
-      $config = $group->get_config();
-      $dates  = $config ? $config->get_membership_dates() : [];
-
-      $meta_data = [
-        'membership_status'  => $new_status,
-        'membership_starts_at'   => $dates['start_date']   ?? $now_iso,
-        'membership_ends_at'     => $dates['end_date']     ?? $now_iso,
-        'membership_expires_at'  => $dates['expires_at']   ?? ( $dates['end_date'] ?? $now_iso ),
-        'membership_early_renew_at' => $dates['early_renew_at'] ?? ( $dates['end_date'] ?? $now_iso ),
-      ];
-
-      // TODO: Extract into Membership_Group::activate_subscription( array $dates ) — see TODO.md.
-      if ( $subscription_id && function_exists( 'wcs_get_subscription' ) ) {
-        $sub = wcs_get_subscription( $subscription_id );
-        if ( ! empty( $sub ) ) {
-          $sub->update_status( 'active' );
-
-          $sub_dates = [ 'start_date' => substr( $meta_data['membership_starts_at'], 0, 10 ) . ' 00:00:00' ];
-          if ( ! empty( $meta_data['membership_ends_at'] ) ) {
-            $end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
-            $end->setTimezone( new \DateTimeZone( 'UTC' ) );
-            $sub_dates['next_payment'] = $end->format( 'Y-m-d H:i:s' );
-          }
-          if ( ! empty( $meta_data['membership_expires_at'] ) ) {
-            $exp = new \DateTime( substr( $meta_data['membership_expires_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
-            $exp->setTimezone( new \DateTimeZone( 'UTC' ) );
-            $sub_dates['end'] = $exp->format( 'Y-m-d H:i:s' );
-          }
-          $sub->update_dates( $sub_dates );
-          $sub->save();
-        }
-      }
-
-      $response_array['success'] = 'Pending group membership activated successfully.';
-
-    // --- → cancelled ------------------------------------------------------------
-    } elseif ( $new_status === Wicket_Memberships::STATUS_CANCELLED ) {
-      if ( in_array( $current_status, [ Wicket_Memberships::STATUS_PENDING, Wicket_Memberships::STATUS_DELAYED ], true ) ) {
-        $meta_data = [
-          'membership_status'     => $new_status,
-          'membership_starts_at'  => $yesterday_iso,
-          'membership_ends_at'    => $now_iso,
-          'membership_expires_at' => $now_iso,
-        ];
-      } elseif ( $current_status === Wicket_Memberships::STATUS_GRACE ) {
-        $current_end = get_post_meta( $group_post_id, 'membership_ends_at', true );
-        $meta_data   = [
-          'membership_status'     => $new_status,
-          'membership_ends_at'    => $current_end,
-          'membership_expires_at' => $now_iso,
-        ];
-      } else {
-        // active or any other cancellable state
-        $meta_data = [
-          'membership_status'     => $new_status,
-          'membership_ends_at'    => $tomorrow_iso,
-          'membership_expires_at' => $tomorrow_iso,
-        ];
-      }
-
-      // TODO: Cancel the group WC subscription here once group subscription
-      // management is implemented — see TODO.md.
-      $response_array['success'] = 'Group membership cancelled successfully.';
-
-    // --- → expired --------------------------------------------------------------
-    } elseif ( $new_status === Wicket_Memberships::STATUS_EXPIRED ) {
-      $meta_data = [
-        'membership_status'     => $new_status,
-        'membership_ends_at'    => $tomorrow_iso,
-        'membership_expires_at' => $tomorrow_iso,
-      ];
-
-      // TODO: Cancel the group WC subscription here once group subscription
-      // management is implemented — see TODO.md.
-      $response_array['success'] = 'Group membership marked as expired.';
-
-    } elseif ( empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
+    if ( false === $transition_result ) {
       $response_array['error'] = 'Invalid status transition. Request did not succeed.';
       Utilities::wc_log_mship_error( $response_array );
       return new \WP_REST_Response( $response_array, 400 );
-    } else {
-      // Bypass mode — force the status directly.
-      update_post_meta( $group_post_id, 'membership_status', $new_status );
-      $response_array['success'] = 'BYPASSED STATUS LOCKOUT — status set to ' . $new_status;
-      Utilities::wc_log_mship_error( $response_array );
-      return new \WP_REST_Response( $response_array, 200 );
     }
 
-    // TODO: Extract into Membership_Group::apply_status_meta( array $meta_data ) — see TODO.md.
-    foreach ( $meta_data as $key => $value ) {
-      update_post_meta( $group_post_id, $key, $value );
-    }
-
-    // TODO: Extract into Membership_Group::cascade_status_to_members( string $status ) — see TODO.md.
-    $individual_skip   = [ 'expired', 'cancelled' ];
-    $members           = $group->get_individual_memberships();
-    foreach ( $members as $member_post ) {
-      $member_status = get_post_meta( $member_post->ID, 'membership_status', true );
-      if ( in_array( $member_status, $individual_skip, true ) ) {
-        continue;
-      }
-      update_post_meta( $member_post->ID, 'membership_status', $new_status );
-    }
-
-    // TODO: cascade date changes to child individual memberships once
-    // cascade_dates_to_members() is implemented — see TODO.md.
-
+    $response_array['success']  = $transition_result['success_message'];
     $response_array['response'] = Helper::get_post_meta( $group_post_id );
-    return new \WP_REST_Response( $response_array, $response_code );
+    return new \WP_REST_Response( $response_array, 200 );
   }
 
   // ---------------------------------------------------------------------------
@@ -457,6 +345,7 @@ class Group_Admin_Controller {
     $post_id         = (int) $post->ID;
     $status_slug     = (string) get_post_meta( $post_id, 'membership_status', true );
     $org_uuid        = (string) get_post_meta( $post_id, 'org_uuid', true );
+    $group           = new Membership_Group( $post_id );
     $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] ?? null );
     $wicket_admin    = $wicket_settings['wicket_admin'] ?? '';
     $mdp_link        = ( $org_uuid && $wicket_admin )
@@ -467,7 +356,7 @@ class Group_Admin_Controller {
       'id'            => $post_id,
       'group_name'    => self::get_group_membership_name( $post_id ),
       'org_name'      => (string) get_post_meta( $post_id, 'org_name', true ),
-      'owner'         => self::build_owner_field( $post_id ),
+      'owner'         => self::build_owner_field( $group ),
       'status'        => [
         'slug'  => $status_slug,
         'label' => $statuses[ $status_slug ]['name'] ?? $status_slug,
@@ -480,24 +369,26 @@ class Group_Admin_Controller {
   }
 
   /**
-   * Build the owner sub-array for a group list row by looking up the live WP user.
+   * Build the owner payload used in admin list responses.
    *
-   * @param int $post_id
+   * @param Membership_Group $group
    * @return array{name: string, email: string}
    */
-  private static function build_owner_field( int $post_id ): array {
-    $user_id = (int) get_post_meta( $post_id, 'user_id', true );
-    if ( $user_id ) {
-      $user = get_user_by( 'id', $user_id );
-      if ( $user ) {
-        return [
-          'name'  => $user->display_name,
-          'email' => $user->user_email,
-        ];
-      }
+  private static function build_owner_field( Membership_Group $group ): array {
+    $owner_id = $group->get_owner_id();
+    if ( ! $owner_id ) {
+      return [ 'name' => '', 'email' => '' ];
     }
 
-    return [ 'name' => '', 'email' => '' ];
+    $user = get_user_by( 'id', $owner_id );
+    if ( ! $user ) {
+      return [ 'name' => '', 'email' => '' ];
+    }
+
+    return [
+      'name'  => $user->display_name,
+      'email' => $user->user_email,
+    ];
   }
 
   /**
@@ -604,13 +495,14 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'End date must not be after expiration date.' ], 400 );
     }
 
-    $normalized = self::normalize_group_edit_payload( $group_post_id, $data, $starts_at, $ends_at, $expires_at );
+    $group             = new Membership_Group( $group_post_id );
+    $normalized_fields = self::build_normalized_group_edit_fields( $group_post_id, $data, $starts_at, $ends_at, $expires_at );
 
-    foreach ( $normalized as $key => $value ) {
-      update_post_meta( $group_post_id, $key, $value );
+    if ( ! $group->apply_edit_fields( $normalized_fields ) ) {
+      return new \WP_REST_Response( [ 'error' => 'Could not update group membership record.' ], 500 );
     }
 
-    self::cascade_group_edit_to_members( $group_post_id, $normalized );
+    $group->cascade_dates_to_members( $normalized_fields );
 
     return new \WP_REST_Response( [
       'success'  => 'Group membership updated successfully.',
@@ -631,8 +523,7 @@ class Group_Admin_Controller {
    * @param int   $expires_at
    * @return array<string, mixed>
    */
-  // TODO: Extract into Membership_Group::normalize_edit_payload( array $data ) — see TODO.md.
-  private static function normalize_group_edit_payload( int $group_post_id, array $data, int $starts_at, int $ends_at, int $expires_at ): array {
+  private static function build_normalized_group_edit_fields( int $group_post_id, array $data, int $starts_at, int $ends_at, int $expires_at ): array {
     $group = new Membership_Group( $group_post_id );
     $config = $group->get_config();
 
@@ -648,10 +539,10 @@ class Group_Admin_Controller {
     $grace_period_days = abs( (int) round( ( $expires_at - $ends_at ) / DAY_IN_SECONDS ) );
 
     $resolved = [
-      'membership_starts_at'         => self::to_wp_timezone_iso( $starts_at ),
-      'membership_ends_at'           => self::to_wp_timezone_iso( $ends_at ),
-      'membership_expires_at'        => self::to_wp_timezone_iso( $expires_at ),
-      'membership_early_renew_at'    => self::to_wp_timezone_iso( $early_renew_at ),
+      'membership_starts_at'         => Utilities::get_utc_datetime( date( 'Y-m-d', $starts_at ) )->format( 'c' ),
+      'membership_ends_at'           => Utilities::get_utc_datetime( date( 'Y-m-d', $ends_at ) )->format( 'c' ),
+      'membership_expires_at'        => Utilities::get_utc_datetime( date( 'Y-m-d', $expires_at ) )->format( 'c' ),
+      'membership_early_renew_at'    => Utilities::get_utc_datetime( date( 'Y-m-d', $early_renew_at ) )->format( 'c' ),
       'membership_grace_period_days' => $grace_period_days,
       'membership_renewal_type'      => $renewal_type,
     ];
@@ -700,61 +591,6 @@ class Group_Admin_Controller {
     }
 
     return $resolved;
-  }
-
-  /**
-   * Apply locally supported group edit fields to child individual memberships.
-   *
-   * Subscription/order side effects are intentionally deferred; see TODO.md.
-   *
-   * @param int   $group_post_id
-   * @param array $normalized
-   * @return void
-   */
-  // TODO: Extract into Membership_Group::cascade_dates_to_members( array $normalized ) — see TODO.md.
-  private static function cascade_group_edit_to_members( int $group_post_id, array $normalized ): void {
-    $group = new Membership_Group( $group_post_id );
-    $members = $group->get_individual_memberships();
-    $cascade_keys = [
-      'membership_starts_at',
-      'membership_ends_at',
-      'membership_expires_at',
-      'membership_early_renew_at',
-      'membership_grace_period_days',
-      'membership_renewal_type',
-      'membership_next_tier_id',
-      'membership_next_tier_form_page_id',
-      'membership_next_tier_subscription_renewal',
-    ];
-
-    foreach ( $members as $member_post ) {
-      $status = (string) get_post_meta( $member_post->ID, 'membership_status', true );
-      if ( in_array( $status, [ Wicket_Memberships::STATUS_CANCELLED, Wicket_Memberships::STATUS_EXPIRED ], true ) ) {
-        continue;
-      }
-
-      foreach ( $cascade_keys as $key ) {
-        if ( array_key_exists( $key, $normalized ) ) {
-          update_post_meta( $member_post->ID, $key, $normalized[ $key ] );
-        }
-      }
-    }
-  }
-
-  /**
-   * Convert a timestamp into an ISO 8601 string anchored to the WP site timezone.
-   *
-   * TODO: Remove this method when normalize_group_edit_payload() is extracted into
-   * Membership_Group::normalize_edit_payload(). Replace all call sites with
-   * Utilities::get_utc_datetime( date( 'Y-m-d', $timestamp ) )->format( 'c' )
-   * so that dates are stored in UTC and only rendered in the MDP timezone at
-   * display time — see TODO.md.
-   *
-   * @param int $timestamp
-   * @return string
-   */
-  private static function to_wp_timezone_iso( int $timestamp ): string {
-    return ( new \DateTime( date( 'Y-m-d', $timestamp ), wp_timezone() ) )->format( 'c' );
   }
 
   // ---------------------------------------------------------------------------
@@ -905,15 +741,8 @@ class Group_Admin_Controller {
 
     $group           = new Membership_Group( $group_post_id );
     $current_owner_id = $group->get_owner_id();
-    // TODO: Simplify to a single wicket_create_wp_user_if_not_exist() call — the upfront
-    // get_user_by( 'login', ... ) check is redundant as that function already does it
-    // internally. See TODO.md.
-    $new_user        = get_user_by( 'login', $new_owner_uuid );
-
-    if ( empty( $new_user ) ) {
-      $new_user_id = wicket_create_wp_user_if_not_exist( $new_owner_uuid );
-      $new_user    = get_user_by( 'id', $new_user_id );
-    }
+    $new_user_id = wicket_create_wp_user_if_not_exist( $new_owner_uuid );
+    $new_user    = get_user_by( 'id', $new_user_id );
 
     if ( empty( $new_user ) ) {
       return new \WP_REST_Response( [ 'error' => 'Could not resolve new owner user.' ], 400 );
@@ -925,32 +754,6 @@ class Group_Admin_Controller {
 
     if ( false === $group->set_owner( $new_user->ID ) ) {
       return new \WP_REST_Response( [ 'error' => 'Could not update group owner.' ], 500 );
-    }
-
-    // TODO: Replace with $group->reassign_order_customer( $new_user->ID ) — see TODO.md.
-    $order_id = $group->get_parent_order_id();
-    if ( $order_id ) {
-      $order = wc_get_order( $order_id );
-      if ( ! empty( $order ) ) {
-        $order->set_customer_id( $new_user->ID );
-        $order->save();
-        $order->add_order_note(
-          "Reassigning customer to {$new_user->user_email} on group membership ownership change."
-        );
-      }
-    }
-
-    // TODO: Replace with $group->reassign_subscription_customer( $new_user->ID ) — see TODO.md.
-    $subscription_id = $group->get_subscription_id();
-    if ( $subscription_id && function_exists( 'wcs_get_subscription' ) ) {
-      $sub = wcs_get_subscription( $subscription_id );
-      if ( ! empty( $sub ) ) {
-        $sub->set_customer_id( $new_user->ID );
-        $sub->save();
-        $sub->add_order_note(
-          "Reassigning customer to {$new_user->user_email} on group membership ownership change."
-        );
-      }
     }
 
     return new \WP_REST_Response( [

@@ -35,9 +35,11 @@ Sets `membership_group_id` meta on an individual membership post to link it to t
 
 ---
 
-### `set_owner( ?int $user_id ): int|false`
+### `set_owner( int $user_id ): int|false`
 
-Stores only the WP user ID (`user_id`) and updates `post_author`. Derived fields — display name, email, and MDP UUID — are intentionally not stored to avoid persisting values that can change independently of the membership record. Passing `null` clears `user_id` and resets `post_author` to `0`. Returns the saved owner ID on success, `0` when clearing, and `false` on failure.
+Stores only the WP user ID (`user_id`) and updates `post_author`. Derived fields — display name, email, and MDP UUID — are intentionally not stored to avoid persisting values that can change independently of the membership record. Group ownership cannot be cleared through this method; invalid owner IDs are rejected. Returns the saved owner ID on success and `false` on failure.
+
+When ownership changes, this method also reassigns the linked WooCommerce parent order and subscription customers through private helper methods.
 
 To retrieve owner details on demand:
 - WP user object: `get_user_by( 'id', $owner_id )`
@@ -55,9 +57,9 @@ Derives and returns the MDP UUID for the owner by reading `user_login` from the 
 
 Returns `true` if the given user ID is the group owner.
 
-### `set_organization( ?string $org_uuid ): array|true|false`
+### `set_organization( string $org_uuid ): array|false`
 
-Associates an MDP organization with this group. Fetches the org via `Helper::get_org_data()` and stores `org_uuid` and `org_name` as post meta. Pass `null` to remove the organization. Returns the org data array on success, `true` when cleared, `false` on failure.
+Associates an MDP organization with this group. Fetches the org via `Helper::get_org_data()` and stores `org_uuid` and `org_name` as post meta. Organization assignment cannot be cleared through this method; invalid values are rejected. Returns the org data array on success and `false` on failure.
 
 ### `get_org_uuid(): string|false`
 
@@ -92,6 +94,8 @@ Returns the stored group dates as:
 ]
 ```
 
+> **Date convention:** All date boundaries are computed in the MDP timezone (via `Utilities::get_mdp_day_start()` / `get_mdp_day_end()`) and then stored and returned in UTC. `starts_at` is snapped to the start of the MDP day; `ends_at`, `expires_at`, and `early_renew_at` are snapped to the end of the MDP day. Never snap boundaries to UTC midnight directly.
+
 ---
 
 ### `get_membership_status(): string|false`
@@ -100,7 +104,19 @@ Returns the `membership_status` meta value for this group, or `false` if not set
 
 ### `set_membership_status( string $status ): bool`
 
-Sets the `membership_status` meta value. The value must be one of the slugs returned by `Helper::get_all_status_names()`. Returns `true` on success. Logs an error and returns `false` if the status is not in the allowed list or if the meta update fails.
+Sets the `membership_status` meta value directly. This remains public as a low-level developer escape hatch, but normal lifecycle flows should use `transition_to()` so transition rules, dates, and side effects are applied consistently. The value must be one of the slugs returned by `Helper::get_all_status_names()`. Returns `true` on success. Logs an error and returns `false` if the status is not in the allowed list or if the meta update fails.
+
+### `transition_to( string $new_status ): array|false`
+
+Executes a group status transition and its side effects. This is the supported lifecycle entrypoint for status changes. It applies transition rules, plans transition dates, activates the linked subscription for `pending -> active`, and persists the new group state. Child-status cascading is currently a TODO placeholder and does not run. Returns an array containing `success_message` and `bypassed` on success, or `false` when the requested transition cannot be performed.
+
+### `apply_edit_fields( array $normalized_fields ): bool`
+
+Persists normalized group edit fields to the group post.
+
+### `cascade_dates_to_members( array $normalized_fields ): void`
+
+Currently a TODO placeholder. It intentionally performs no updates until group/member edit propagation rules are finalized.
 
 ---
 

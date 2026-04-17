@@ -16,7 +16,7 @@ All public methods are `static` and return `\WP_REST_Response` or a plain `array
 
 ## Architectural convention
 
-`Group_Admin_Controller` is a thin orchestrator. WooCommerce order and subscription operations — customer reassignment, status changes, date updates — must be implemented as methods on `Membership_Group` and called from here, not written inline in the controller. This keeps WC coupling contained in the model and the controller readable as a sequence of model calls. See TODO.md for outstanding items where this refactor is still pending.
+`Group_Admin_Controller` is a thin orchestrator. Request validation, payload normalization, and transition planning stay here. Group-domain mutations and WooCommerce side effects are delegated to `Membership_Group`, which keeps WC coupling contained in the model and the controller readable as a sequence of model calls.
 
 ---
 
@@ -52,13 +52,12 @@ Transitions a group membership to a new status. Supported transitions:
 | `active` | `expired` | Sets end = tomorrow, expires = tomorrow; cancels subscription |
 | `grace-period` | `cancelled` | Preserves existing end date; sets expires = now |
 
-After updating group post meta, cascades the new status to all child individual memberships that are not already `expired` or `cancelled`.
+Delegates the full lifecycle operation to `Membership_Group::transition_to()`, which applies transition rules, plans dates, activates the linked subscription for `pending -> active`, and persists the new group status. Child-status cascading is currently a TODO placeholder and does not run.
 
 Respects the `BYPASS_STATUS_CHANGE_LOCKOUT` env flag: when set, forces the status directly without enforcing transition rules.
 
 Returns a `400` response for invalid transitions (unless bypass is active), `404` if the post is not found or is the wrong CPT.
 
-> **TODO:** WC subscription activation and date-update logic is currently inlined here. It should be extracted into a `Membership_Group` method (e.g. `activate_subscription()`) — see TODO.md.
 > **TODO:** Cancel the linked WC subscription on `cancelled`/`expired` transitions once group subscription management is implemented — see TODO.md.
 
 ---
@@ -147,7 +146,7 @@ Changes the membership owner on a group post. Expects `params`:
 
 Returns `400` if the new owner is the same as the current owner, or if the user cannot be resolved.
 
-> **TODO:** WC order and subscription customer reassignment is currently inlined here. It should be extracted into `Membership_Group` methods (e.g. `reassign_order_customer()`, `reassign_subscription_customer()`) — see TODO.md.
+Ownership reassignment of linked WooCommerce order/subscription records is handled internally by `Membership_Group::set_owner()`.
 
 ---
 
@@ -169,15 +168,7 @@ This is currently a stub that returns `501 Not yet implemented.` The remaining b
 
 ### `build_group_memberships_row( \WP_Post $post ): array`
 
-Builds one list-table row per group post. Owner `name` and `email` should be resolved from the WP user object via the stored `user_id` — the `user_name` and `user_email` post meta keys are no longer written.
-
-> **TODO:** Currently reads `user_name`/`user_email` from stale post meta — will return empty strings for groups created after the ownership meta change. Fix to resolve from `get_user_by( 'id', $owner_id )` — see TODO.md.
-
-### `get_group_memberships_list()` — `user_email` filter
-
-The supported filter map includes `user_email` as a post meta key. This key is no longer stored.
-
-> **TODO:** Update or remove the `user_email` filter — querying this meta key will silently match nothing — see TODO.md.
+Builds one list-table row per group post. Owner `name` and `email` are resolved in controller response-shaping code from the live WP user via the stored `user_id`.
 
 ### `cancel_group_subscription( int|false $subscription_id, array $meta_data ): void`
 
@@ -189,7 +180,7 @@ Cancels a WC subscription and updates its end date from `$meta_data['membership_
 
 | Class / Function | Purpose |
 |---|---|
-| `Membership_Group` | Model — reads/writes group post meta, cascades dates |
+| `Membership_Group` | Model — reads/writes group post meta; child date/status cascade hooks are currently TODO placeholders |
 | `Membership_Group_Config` | Reads date calculation config for `pending → active` transition |
 | `Helper` | `get_post_meta()`, `get_all_status_names()`, `get_allowed_transition_status()`, `get_org_data()` |
 | `Utilities` | `wc_log_mship_error()` for error logging |
