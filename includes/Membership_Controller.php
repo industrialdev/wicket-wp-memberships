@@ -54,12 +54,31 @@ class Membership_Controller {
 }
 
 function add_cart_item_data( $cart_item_meta, $product_id ) {
+    $log_ctx = ['source' => 'wicket-cart-renewal'];
+
     if ( isset( $_REQUEST ['org_uuid'] ) ) {
       $cart_item_meta[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
     }
+
     if( isset( $_REQUEST['membership_post_id_renew']) && !is_array($_REQUEST['membership_post_id_renew'])) {
-      $cart_item_meta[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
+      $renew_id = sanitize_text_field( $_REQUEST['membership_post_id_renew'] );
+      $cart_item_meta[ 'membership_post_id_renew' ] = $renew_id;
+
+      if ( function_exists('Wicket') ) {
+        if ( !empty( $renew_id ) ) {
+          Wicket()->log()->info(
+            sprintf( 'add_cart_item_data: attached membership_post_id_renew=%s to product %d cart item', $renew_id, $product_id ),
+            $log_ctx
+          );
+        } else {
+          Wicket()->log()->warning(
+            sprintf( 'add_cart_item_data: membership_post_id_renew param present but empty for product %d — renewal tracking will be lost', $product_id ),
+            $log_ctx
+          );
+        }
+      }
     }
+
     return $cart_item_meta;
 }
 
@@ -75,15 +94,33 @@ function get_item_data ( $other_data, $cart_item ) {
 }
 
   function add_order_item_meta ( $item_id, $values ) {
-  if(is_array($values)) {
-    if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
-      wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
-    }
-    if(empty(wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)) && !empty($values['membership_post_id_renew'])) {
-      wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $values['membership_post_id_renew'] );
+    $log_ctx = ['source' => 'wicket-cart-renewal'];
+
+    if(is_array($values)) {
+      if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
+        wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
+      }
+
+      if ( !empty( $values['membership_post_id_renew'] ) ) {
+        if ( empty( wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true ) ) ) {
+          wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $values['membership_post_id_renew'] );
+          if ( function_exists('Wicket') ) {
+            Wicket()->log()->info(
+              sprintf( 'add_order_item_meta: saved _membership_post_id_renew=%s on order item %d', $values['membership_post_id_renew'], $item_id ),
+              $log_ctx
+            );
+          }
+        }
+      } elseif ( isset( $values['membership_post_id_renew'] ) ) {
+        if ( function_exists('Wicket') ) {
+          Wicket()->log()->warning(
+            sprintf( 'add_order_item_meta: membership_post_id_renew is empty on order item %d — renewal link will be missing from this order', $item_id ),
+            $log_ctx
+          );
+        }
+      }
     }
   }
-}
 
   /**
    * Resolve subscriptions for an order, with a direct child-post fallback for
