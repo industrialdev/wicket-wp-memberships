@@ -10,9 +10,8 @@ module.exports = {
         use: 'raw-loader',
       },
     ],
-  },
+	},
 	entry: {
-		...defaultConfig.entry(),
 		membership_config_create: './src/membership_configs/edit.js',
 		membership_group_config_create: './src/membership_group_configs/pages/edit.js',
 		membership_tier_create: './src/membership_tiers/edit.js',

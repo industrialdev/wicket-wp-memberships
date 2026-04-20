@@ -657,37 +657,24 @@ class Group_Admin_Controller {
     $config      = $group->get_config();
     $config_data = $config ? Helper::get_post_meta( $config->get_post_id() ) : [];
 
-    // Individual membership records belonging to this group.
-    $statuses            = Helper::get_all_status_names();
-    $individual_posts    = $group->get_individual_memberships();
-    $membership_records  = array_map( function ( \WP_Post $member_post ) use ( $statuses ) {
-      $member_meta = Helper::get_post_meta( $member_post->ID );
-      $status_slug = $member_meta['membership_status'] ?? '';
-
-      $group_id   = (int) ( $member_meta['membership_group_id'] ?? 0 );
-      $group_name = $group_id ? (string) get_the_title( $group_id ) : '';
-
-      $tier_post_id      = (int) ( $member_meta['membership_tier_post_id'] ?? 0 );
-      $tier_renewal_type = '';
-      if ( $tier_post_id ) {
-        $tier              = new Membership_Tier( $tier_post_id );
-        $tier_renewal_type = (string) $tier->get_tier_renewal_type();
-      }
-
-      return [
-        'ID'                    => $member_post->ID,
-        'name'                  => $group_name,
-        'tier'                  => (string) ( $member_meta['membership_tier_name'] ?? '' ),
-        'status'                => $statuses[ $status_slug ]['name'] ?? $status_slug,
-        'starts_at'             => (string) ( $member_meta['membership_starts_at'] ?? '' ),
-        'ends_at'               => (string) ( $member_meta['membership_ends_at'] ?? '' ),
-        'expires_at'            => (string) ( $member_meta['membership_expires_at'] ?? '' ),
-        'renewal_type'          => (string) ( $member_meta['membership_renewal_type'] ?? '' ),
-        'tier_renewal_type'     => $tier_renewal_type,
-        'next_tier_form_page_id' => (int) ( $member_meta['membership_next_tier_form_page_id'] ?? 0 ) ?: null,
-        'next_tier_id'          => (int) ( $member_meta['membership_next_tier_id'] ?? 0 ) ?: null,
-      ];
-    }, $individual_posts );
+    // The "Membership Records" table on the group detail page should show the
+    // group membership record itself. Child individual memberships are managed
+    // separately via the Group Members section.
+    $statuses           = Helper::get_all_status_names();
+    $status_slug        = (string) ( $meta['membership_status'] ?? '' );
+    $membership_records = [
+      [
+        'ID'                     => $group_post_id,
+        'name'                   => self::get_group_membership_name( $group_post_id ),
+        'status'                 => $statuses[ $status_slug ]['name'] ?? $status_slug,
+        'starts_at'              => (string) ( $meta['membership_starts_at'] ?? '' ),
+        'ends_at'                => (string) ( $meta['membership_ends_at'] ?? '' ),
+        'expires_at'             => (string) ( $meta['membership_expires_at'] ?? '' ),
+        'renewal_type'           => (string) ( $meta['membership_renewal_type'] ?? '' ),
+        'next_tier_form_page_id' => (int) ( $meta['membership_next_tier_form_page_id'] ?? 0 ) ?: null,
+        'next_tier_id'           => (int) ( $meta['membership_next_tier_id'] ?? 0 ) ?: null,
+      ],
+    ];
 
     // Order/subscription enrichment is intentionally mocked until the group
     // commerce implementation exists; see TODO.md.

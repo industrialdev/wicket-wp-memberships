@@ -122,8 +122,23 @@ Returns all data required to populate the group membership edit form:
   'dates'               => [ 'starts_at', 'ends_at', 'expires_at', 'early_renew_at' ],
   'statuses'            => array,   // all status names
   'allowed_transitions' => array,   // valid next statuses from current
+  'membership_records'  => [
+    [
+      'ID'                     => int,     // the group post ID
+      'name'                   => string,  // stored group name or post title
+      'status'                 => string,  // human-readable label
+      'starts_at'              => string,
+      'ends_at'                => string,
+      'expires_at'             => string,
+      'renewal_type'           => string,
+      'next_tier_form_page_id' => int|null,
+      'next_tier_id'           => int|null,
+    ],
+  ],
 ]
 ```
+
+`membership_records` contains the singular group membership record shown in the edit-page "Membership Records" table. Child individual memberships are not listed there; they remain available through the separate group-members breakdown and filtered member-management links.
 
 Fetches organisation data from `Helper::get_org_data()` and person data from `wicket_get_person_by_id()`. Returns `404` if the post is not found.
 

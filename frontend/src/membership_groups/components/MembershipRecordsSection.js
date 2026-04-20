@@ -39,8 +39,8 @@ const buildColumns = (pageData) => [
  * MembershipRecordsSection — group membership page adapter for
  * the shared MembershipRecordsSection UI component.
  *
- * Defines the column layout for the group context, maps individual
- * membership records from pageData, and wires the expanded detail panel
+ * Defines the column layout for the group context, maps the singular group
+ * membership record from pageData, and wires the expanded detail panel
  * so each row shows billing info, order details, status management,
  * actions, and date editing — matching the layout in members/edit.js.
  *

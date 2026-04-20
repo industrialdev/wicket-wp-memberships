@@ -9,10 +9,10 @@ import MembershipActionsSection from "../../shared/components/MembershipActionsS
 import MembershipDetailsForm from "../../shared/components/MembershipDetailsForm";
 import {
   fetchMdpPersons,
-  fetchMembershipStatuses,
+  fetchGroupMembershipStatuses,
   updateGroupChangeOwnership,
-  updateMembershipStatus,
-  updateMembership,
+  updateGroupMembershipStatus,
+  updateGroupMembership,
 } from "../../shared/services/api";
 
 const DetailsWrap = styled.div`
@@ -33,8 +33,8 @@ const DetailsWrap = styled.div`
  *  4. Dates          — start / end / expiry date pickers + save
  *  5. Renewal Type   — renewal type selector with conditional sub-fields
  *
- * `record` is a single entry from pageData.membership_records (the shape
- * returned by Group_Admin_Controller::get_group_edit_page_info).
+ * `record` is the group membership record entry from pageData.membership_records
+ * (the shape returned by Group_Admin_Controller::get_group_edit_page_info).
  *
  * @param {object}   props
  * @param {object}   props.record                - Single membership record from pageData.membership_records.
@@ -82,21 +82,18 @@ const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, 
 
   const isCancelled = record.status?.toLowerCase() === "cancelled";
 
-  console.log('[GroupMembershipRecordDetails]', {
-    renewal_type: record?.renewal_type,
-    tier_renewal_type: record?.tier_renewal_type,
-    configRenewalType,
-  });
-
   const handleStatusUpdated = (_postId, newStatus) => {
     if (onRecordUpdated) {
-      onRecordUpdated({ ...record, status: newStatus });
+      onRecordUpdated({
+        ...record,
+        status: groupPageData?.statuses?.[newStatus]?.name ?? newStatus,
+      });
     }
   };
 
   const handleSave = ({ renewalType, nextTierFormPageId, nextTierId, ...datepayload }) =>
-    updateMembership(record.ID, {
-      membership_post_id: record.ID,
+    updateGroupMembership(record.ID, {
+      group_post_id: record.ID,
       renewal_type: renewalType,
       next_tier_form_page_id: nextTierFormPageId,
       next_tier_id: nextTierId,
@@ -131,8 +128,8 @@ const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, 
         <MembershipStatusSection
           postId={record.ID}
           currentStatus={record.status}
-          fetchStatuses={fetchMembershipStatuses}
-          updateStatus={updateMembershipStatus}
+          fetchStatuses={fetchGroupMembershipStatuses}
+          updateStatus={updateGroupMembershipStatus}
           onStatusUpdated={handleStatusUpdated}
         />
 

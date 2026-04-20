@@ -7312,8 +7312,8 @@ const DetailsWrap = styled_components__WEBPACK_IMPORTED_MODULE_10__["default"].d
  *  4. Dates          — start / end / expiry date pickers + save
  *  5. Renewal Type   — renewal type selector with conditional sub-fields
  *
- * `record` is a single entry from pageData.membership_records (the shape
- * returned by Group_Admin_Controller::get_group_edit_page_info).
+ * `record` is the group membership record entry from pageData.membership_records
+ * (the shape returned by Group_Admin_Controller::get_group_edit_page_info).
  *
  * @param {object}   props
  * @param {object}   props.record                - Single membership record from pageData.membership_records.
@@ -7368,16 +7368,12 @@ const GroupMembershipRecordDetails = ({
   };
   const handleOwnerSave = selectedOption => (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_9__.updateGroupChangeOwnership)(groupPostId, selectedOption.value);
   const isCancelled = record.status?.toLowerCase() === "cancelled";
-  console.log('[GroupMembershipRecordDetails]', {
-    renewal_type: record?.renewal_type,
-    tier_renewal_type: record?.tier_renewal_type,
-    configRenewalType
-  });
   const handleStatusUpdated = (_postId, newStatus) => {
     if (onRecordUpdated) {
+      var _groupPageData$status;
       onRecordUpdated({
         ...record,
-        status: newStatus
+        status: (_groupPageData$status = groupPageData?.statuses?.[newStatus]?.name) !== null && _groupPageData$status !== void 0 ? _groupPageData$status : newStatus
       });
     }
   };
@@ -7386,8 +7382,8 @@ const GroupMembershipRecordDetails = ({
     nextTierFormPageId,
     nextTierId,
     ...datepayload
-  }) => (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_9__.updateMembership)(record.ID, {
-    membership_post_id: record.ID,
+  }) => (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_9__.updateGroupMembership)(record.ID, {
+    group_post_id: record.ID,
     renewal_type: renewalType,
     next_tier_form_page_id: nextTierFormPageId,
     next_tier_id: nextTierId,
@@ -7421,8 +7417,8 @@ const GroupMembershipRecordDetails = ({
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipStatusSection__WEBPACK_IMPORTED_MODULE_6__["default"], {
     postId: record.ID,
     currentStatus: record.status,
-    fetchStatuses: _shared_services_api__WEBPACK_IMPORTED_MODULE_9__.fetchMembershipStatuses,
-    updateStatus: _shared_services_api__WEBPACK_IMPORTED_MODULE_9__.updateMembershipStatus,
+    fetchStatuses: _shared_services_api__WEBPACK_IMPORTED_MODULE_9__.fetchGroupMembershipStatuses,
+    updateStatus: _shared_services_api__WEBPACK_IMPORTED_MODULE_9__.updateGroupMembershipStatus,
     onStatusUpdated: handleStatusUpdated
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipActionsSection__WEBPACK_IMPORTED_MODULE_7__["default"], {
     actions: []
@@ -7566,8 +7562,8 @@ const buildColumns = pageData => [{
  * MembershipRecordsSection — group membership page adapter for
  * the shared MembershipRecordsSection UI component.
  *
- * Defines the column layout for the group context, maps individual
- * membership records from pageData, and wires the expanded detail panel
+ * Defines the column layout for the group context, maps the singular group
+ * membership record from pageData, and wires the expanded detail panel
  * so each row shows billing info, order details, status management,
  * actions, and date editing — matching the layout in members/edit.js.
  *
