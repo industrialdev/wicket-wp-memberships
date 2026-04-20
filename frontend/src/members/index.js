@@ -6,6 +6,7 @@ import { Spinner, Icon } from "@wordpress/components";
 import {
   fetchMembers,
   fetchTiersInfo,
+  fetchGroupsInfo,
   fetchMembershipFilters,
 } from "../shared/services/api";
 
@@ -39,6 +40,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierName }
   const [totalPages, setTotalPages] = useState(0);
 
   const [tiersInfo, setTiersInfo] = useState(null);
+  const [groupsInfo, setGroupsInfo] = useState(null);
   const [membershipFilters, setMembershipFilters] = useState(null);
 
   const [activeTab, setActiveTab] = useState('all');
@@ -84,6 +86,16 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierName }
         if (tiersInfo === null) {
           getTiersInfo(tierIds);
         }
+
+        const groupIds = [...new Set(
+          response.results
+            .map((member) => member.meta.membership_group_id)
+            .filter(Boolean)
+            .map(Number)
+        )];
+        if (groupsInfo === null) {
+          getGroupsInfo(groupIds);
+        }
       })
       .catch((error) => {
         console.error(error);
@@ -103,6 +115,24 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierName }
         console.log("Tiers Info Error:");
         console.log(error);
       });
+  };
+
+  const getGroupsInfo = (groupIds) => {
+    if (groupIds.length === 0) {
+      setGroupsInfo({});
+      return;
+    }
+    fetchGroupsInfo(groupIds)
+      .then((info) => setGroupsInfo(info))
+      .catch((error) => {
+        console.log("Groups Info Error:", error);
+        setGroupsInfo({});
+      });
+  };
+
+  const getGroupInfo = (groupId) => {
+    if (!groupsInfo || !groupsInfo.group_data) return null;
+    return groupsInfo.group_data[String(groupId)] ?? null;
   };
 
   const getMembershipFilters = () => {
@@ -396,6 +426,9 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierName }
                 onSort={handleSort}
               />
               <th scope="col" className="manage-column">{ __( 'Tier(s)', 'wicket-memberships' ) }</th>
+              { memberType === 'individual' && (
+                <th scope="col" className="manage-column">{ __( 'Group', 'wicket-memberships' ) }</th>
+              )}
               <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
             </tr>
           </thead>
@@ -404,7 +437,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierName }
               <tr className="alternate">
                 <td
                   className="column-columnname"
-                  colSpan={memberType === 'organization' ? 7 : 6}
+                  colSpan={memberType === 'organization' ? 7 : 7}
                 >
                   <Spinner />
                 </td>
@@ -412,7 +445,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierName }
             )}
             {!isLoading && members.length === 0 && (
               <tr className="alternate">
-                <td className="column-columnname" colSpan={memberType === 'organization' ? 7 : 5}>
+                <td className="column-columnname" colSpan={memberType === 'organization' ? 7 : 6}>
                   { __( 'No members found.', 'wicket-memberships' ) }
                 </td>
               </tr>
@@ -532,6 +565,17 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierName }
                       });
                     })()}
                   </td>
+                  { memberType === 'individual' && (
+                    <td>
+                      {groupsInfo === null && <Spinner />}
+                      {groupsInfo !== null && (() => {
+                        const groupId = member.meta.membership_group_id;
+                        if (!groupId) return <span>—</span>;
+                        const info = getGroupInfo(groupId);
+                        return <span>{info ? info.name : '—'}</span>;
+                      })()}
+                    </td>
+                  )}
                   <td>
                     <a target="_blank" href={member.user.mdp_link}>
                       {__("View", "wicket-memberships")}

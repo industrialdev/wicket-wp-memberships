@@ -57,6 +57,7 @@ source_files: ["includes/Membership_Controller.php"]
 - `get_members_list($type, $page, $posts_per_page, $status, $search = '', $filter = [], $order_col = null, $order_dir = null)`
 - `get_tier_info($tier_uuids, $properties = [])` (static)
 - `get_org_info($org_uuids, $properties = [])` (static)
+- `get_group_info($group_ids)` (static)
 - `get_members_filters($type)`
 - `daily_membership_expiry_hook()` (static)
 - `daily_membership_grace_period_hook()` (static)
@@ -204,6 +205,9 @@ Returns tier information and counts for the given UUIDs and properties.
 
 **get_org_info($org_uuids, $properties = [])** (static)
 Returns organization information and counts for the given UUIDs and properties.
+
+**get_group_info($group_ids)** (static)
+Returns group name data for the given array of WP post IDs (`wicket_membership_group` post type). Returns `['group_data' => [id => ['name' => ...], ...]]`.
 
 **get_members_filters($type)**
 Returns available filters for memberships by type (individual or organization).

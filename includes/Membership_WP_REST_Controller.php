@@ -92,6 +92,18 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     )
     );
     /**
+    * Get Group Data WP
+    * Filter by group post IDs
+    */
+    register_rest_route( $this->namespace, '/membership_group_info', array(
+      array(
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => array( $this, 'get_group_info' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+    )
+    );
+    /**
      * Get Tier by Product_ID
      */
     register_rest_route( $this->namespace, '/product_tiers/(?P<id>\d+)', array(
@@ -502,6 +514,12 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $org_info = Membership_Controller::get_org_info( $params['filter']['org_uuid'], $params['properties'] );
     return rest_ensure_response( $org_info );
+  }
+
+  public function get_group_info( \WP_REST_Request $request ) {
+    $params    = $request->get_params();
+    $group_ids = isset( $params['filter']['group_id'] ) ? (array) $params['filter']['group_id'] : [];
+    return rest_ensure_response( Membership_Controller::get_group_info( $group_ids ) );
   }
 
   public function get_org_data(  \WP_REST_Request $request  ) {

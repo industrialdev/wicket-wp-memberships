@@ -133,6 +133,22 @@ export const fetchTiersInfo = (tierIds = []) => {
 };
 
 /**
+ * Fetch Membership Groups Info
+ */
+export const fetchGroupsInfo = (groupIds = []) => {
+  if (groupIds.length === 0) {
+    return;
+  }
+  return apiFetch({
+    path: addQueryArgs(`${PLUGIN_API_URL}/membership_group_info`, {
+      filter: {
+        group_id: groupIds,
+      },
+    }),
+  });
+};
+
+/**
  * Fetch Membership Tiers
  */
 export const fetchMembershipTiers = (queryParams = {}) => {

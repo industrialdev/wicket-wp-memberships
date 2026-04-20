@@ -31,6 +31,7 @@ source_files: ["includes/Membership_WP_REST_Controller.php"]
 - `get_product_tiers($request)`
 - `get_orgs_mdp()`
 - `get_org_info($request)`
+- `get_group_info($request)`
 - `get_org_data($request)`
 - `get_tiers_mdp($request)`
 - `get_tier_info($request)`
@@ -103,6 +104,9 @@ Retrieves all organizations from the MDP.
 
 **get_org_info($request)**
 Retrieves organization info for a given org UUID and properties by delegating to the Membership_Controller.
+
+**get_group_info($request)**
+Retrieves group name data for given WP post IDs (`filter[group_id]`) by delegating to `Membership_Controller::get_group_info()`. Registered at `GET /wicket_member/v1/membership_group_info`.
 
 **get_org_data($request)**
 Retrieves organization data for a given org UUID by delegating to the Helper class.

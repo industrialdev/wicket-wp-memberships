@@ -2146,6 +2146,24 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
 
+  public static function get_group_info( $group_ids ) {
+    $group_data = [];
+    $group_ids  = array_filter( array_map( 'intval', (array) $group_ids ) );
+    if ( empty( $group_ids ) ) {
+      return [ 'group_data' => $group_data ];
+    }
+    $posts = get_posts( [
+      'post_type'      => Helper::get_membership_group_cpt_slug(),
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+      'post__in'       => $group_ids,
+    ] );
+    foreach ( $posts as $post ) {
+      $group_data[ $post->ID ] = [ 'name' => $post->post_title ];
+    }
+    return [ 'group_data' => $group_data ];
+  }
+
   public static function get_org_info( $org_uuids, $properties = [] ) {
     $self = new self();
     $mship_org_array = [];
