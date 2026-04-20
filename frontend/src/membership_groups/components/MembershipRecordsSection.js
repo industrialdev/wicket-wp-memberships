@@ -45,11 +45,12 @@ const buildColumns = (pageData) => [
  * actions, and date editing — matching the layout in members/edit.js.
  *
  * @param {object}       props
- * @param {object|null}  props.pageData        - Data returned by fetchGroupEditPageInfo.
- * @param {boolean}      props.isLoading       - Pass-through to the shared component.
- * @param {Function}     props.onOwnerUpdated  - Called with new owner data after a successful ownership change.
+ * @param {object|null}  props.pageData              - Data returned by fetchGroupEditPageInfo.
+ * @param {boolean}      props.isLoading             - Pass-through to the shared component.
+ * @param {Function}     props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
+ * @param {string}       props.individualMembersUrl  - URL of the individual members list page, passed to the expanded panel.
  */
-const MembershipRecordsSection = ({ pageData, isLoading, onOwnerUpdated }) => {
+const MembershipRecordsSection = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl }) => {
   // Keep a local copy of records so status/date changes update the collapsed
   // row summary (status badge, dates) without a full page reload.
   const [localRecords, setLocalRecords] = useState(null);
@@ -70,6 +71,7 @@ const MembershipRecordsSection = ({ pageData, isLoading, onOwnerUpdated }) => {
       groupPageData={pageData}
       onRecordUpdated={handleRecordUpdated}
       onOwnerUpdated={onOwnerUpdated}
+      individualMembersUrl={individualMembersUrl}
     />
   );
 

@@ -172,7 +172,7 @@ export const MembershipTable = styled.div`
   .membership_details {
     background: #F6F7F7;
 
-    td {
+    > td {
       padding: 15px;
     }
   }

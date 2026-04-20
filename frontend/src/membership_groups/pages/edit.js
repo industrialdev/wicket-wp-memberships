@@ -7,6 +7,7 @@ if (app) {
     <GroupMembershipPage
       postId={app.dataset.postId}
       listUrl={app.dataset.listUrl}
+      individualMembersUrl={app.dataset.individualMembersUrl}
     />
   );
 }

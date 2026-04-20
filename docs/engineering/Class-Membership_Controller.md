@@ -197,7 +197,7 @@ Adds a late fee product to a subscription renewal order if not already present.
 Returns the group by clause for member list queries (used for custom filters).
 
 **get_members_list($type, $page, $posts_per_page, $status, $search = '', $filter = [], $order_col = null, $order_dir = null)**
-Retrieves a paginated list of memberships, with filtering and user/tier data enrichment.
+Retrieves a paginated list of memberships, with filtering and user/tier data enrichment. The `$filter` array supports these keys: `membership_status`, `membership_tier` (mapped to `membership_tier_uuid`), `membership_group_id`, and `membership_tier_name`.
 
 **get_tier_info($tier_uuids, $properties = [])** (static)
 Returns tier information and counts for the given UUIDs and properties.

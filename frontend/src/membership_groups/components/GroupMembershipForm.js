@@ -13,15 +13,16 @@ import MembershipRecordsSection from "./MembershipRecordsSection";
  * prop — matching the layout of members/edit.js.
  *
  * @param {object}       props
- * @param {object|null}  props.pageData        - Data returned by fetchGroupEditPageInfo.
- * @param {boolean}      props.isLoading       - True while page data is pending.
- * @param {Function}     props.onOwnerUpdated  - Called with new owner data after a successful ownership change.
+ * @param {object|null}  props.pageData              - Data returned by fetchGroupEditPageInfo.
+ * @param {boolean}      props.isLoading             - True while page data is pending.
+ * @param {Function}     props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
+ * @param {string}       props.individualMembersUrl  - URL of the individual members list page.
  */
-const GroupMembershipForm = ({ pageData, isLoading, onOwnerUpdated }) => {
+const GroupMembershipForm = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl }) => {
   return (
     <>
       <IntroBlockSection pageData={pageData} isLoading={isLoading} />
-      <MembershipRecordsSection pageData={pageData} isLoading={isLoading} onOwnerUpdated={onOwnerUpdated} />
+      <MembershipRecordsSection pageData={pageData} isLoading={isLoading} onOwnerUpdated={onOwnerUpdated} individualMembersUrl={individualMembersUrl} />
     </>
   );
 };

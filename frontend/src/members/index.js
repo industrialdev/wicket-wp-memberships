@@ -26,7 +26,11 @@ const SortableHeader = ({ label, col, currentCol, currentDir, onSort }) => {
   );
 };
 
-const MemberList = ({ memberType, editMemberUrl }) => {
+// TODO: When group/tier filter dropdowns are added to this page, replace the
+// data-attribute-based initialFilter approach below with logic that drives the
+// dropdown selected value directly, so the active filter is visible and clearable
+// in the UI. See TODO.md for the matching entry.
+const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierName }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const [members, setMembers] = useState([]);
@@ -40,6 +44,10 @@ const MemberList = ({ memberType, editMemberUrl }) => {
   const [activeTab, setActiveTab] = useState('all');
   const [tabCounts, setTabCounts] = useState({ all: 0, pending: 0, grace_period: 0 });
 
+  const initialFilter = {};
+  if (filterGroupId) initialFilter.membership_group_id = filterGroupId;
+  if (filterTierName) initialFilter.membership_tier_name = filterTierName;
+
   const [searchParams, setSearchParams] = useState({
     type: memberType,
     page: 1,
@@ -47,11 +55,8 @@ const MemberList = ({ memberType, editMemberUrl }) => {
     status: "",
     order_col: "post_modified",
     order_dir: "DESC",
-    // filter: {
-    //   membership_status: '',
-    //   membership_tier: '',
-    // },
     search: "",
+    ...(Object.keys(initialFilter).length ? { filter: initialFilter } : {}),
   });
 
   const [tempSearchParams, setTempSearchParams] = useState(searchParams);

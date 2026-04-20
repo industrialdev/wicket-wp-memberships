@@ -133,13 +133,16 @@ class Membership_CPT_Hooks {
 
   function render_individual_members_page() {
     $edit_individual_member_page_url = admin_url( 'admin.php?page=' . self::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG );
+    $filter_group_id  = isset( $_GET['filter_group_id'] )  ? intval( $_GET['filter_group_id'] )                    : '';
+    $filter_tier_name = isset( $_GET['filter_tier_name'] ) ? sanitize_text_field( $_GET['filter_tier_name'] ) : '';
 
-    echo <<<HTML
-      <div
-        id="member_list"
-        data-edit-member-url="{$edit_individual_member_page_url}"
-        data-member-type="individual""></div>
-    HTML;
+    echo '<div
+      id="member_list"
+      data-edit-member-url="' . esc_url( $edit_individual_member_page_url ) . '"
+      data-member-type="individual"
+      data-filter-group-id="' . esc_attr( $filter_group_id ) . '"
+      data-filter-tier-name="' . esc_attr( $filter_tier_name ) . '"
+    ></div>';
   }
 
   function edit_group_member_page() {
@@ -169,12 +172,14 @@ class Membership_CPT_Hooks {
       return;
     }
 
-    $list_url = admin_url( 'admin.php?page=' . self::LIST_GROUP_MEMBER_PAGE_SLUG );
+    $list_url                = admin_url( 'admin.php?page=' . self::LIST_GROUP_MEMBER_PAGE_SLUG );
+    $individual_members_url  = admin_url( 'admin.php?page=' . self::LIST_INDIVIDUAL_MEMBER_PAGE_SLUG );
 
     echo '<div
       id="group_member_edit"
       data-post-id="' . esc_attr( $post_id ) . '"
       data-list-url="' . esc_url( $list_url ) . '"
+      data-individual-members-url="' . esc_url( $individual_members_url ) . '"
     ></div>';
   }
 

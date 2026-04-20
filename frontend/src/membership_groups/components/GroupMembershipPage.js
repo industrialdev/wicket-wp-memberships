@@ -7,7 +7,7 @@ import { getPrimaryErrorMessage } from "../utils/formUtils";
 import { useGroupMembershipBootstrap } from "../hooks/useGroupMembershipBootstrap";
 import GroupMembershipForm from "./GroupMembershipForm";
 
-const GroupMembershipPageContent = ({ postId, listUrl }) => {
+const GroupMembershipPageContent = ({ postId, listUrl, individualMembersUrl }) => {
   const { pageData, setPageData, requestState, retryLoad } = useGroupMembershipBootstrap({ postId });
 
   const isLoading = requestState.status === "loading";
@@ -42,6 +42,7 @@ const GroupMembershipPageContent = ({ postId, listUrl }) => {
         pageData={pageData}
         isLoading={isLoading}
         onOwnerUpdated={handleOwnerUpdated}
+        individualMembersUrl={individualMembersUrl}
       />
     </>
   );
@@ -54,10 +55,11 @@ const GroupMembershipPageContent = ({ postId, listUrl }) => {
  * GroupConfigPage in membership_group_configs/.
  *
  * @param {object} props
- * @param {string|number} props.postId  - WP post ID passed from the PHP mount point.
- * @param {string}        props.listUrl - URL of the group membership list page.
+ * @param {string|number} props.postId               - WP post ID passed from the PHP mount point.
+ * @param {string}        props.listUrl              - URL of the group membership list page.
+ * @param {string}        props.individualMembersUrl - URL of the individual members list page.
  */
-const GroupMembershipPage = ({ postId, listUrl }) => {
+const GroupMembershipPage = ({ postId, listUrl, individualMembersUrl }) => {
   const [errorBoundaryResetKey, setErrorBoundaryResetKey] = useState(0);
 
   return (
@@ -85,6 +87,7 @@ const GroupMembershipPage = ({ postId, listUrl }) => {
               key={errorBoundaryResetKey}
               listUrl={listUrl}
               postId={postId}
+              individualMembersUrl={individualMembersUrl}
             />
           </EditWrap>
         </AdminPageErrorBoundary>

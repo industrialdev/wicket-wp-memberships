@@ -1959,7 +1959,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
     if( ! empty( $filter ) ) {
       foreach($filter as $key => $val) {
-        if( in_array( $key,  ['membership_status', 'membership_tier'] )) {
+        if( in_array( $key, ['membership_status', 'membership_tier', 'membership_group_id', 'membership_tier_name'] )) {
           if( $key == 'membership_tier' ) {
             $key = 'membership_tier_uuid';
           }

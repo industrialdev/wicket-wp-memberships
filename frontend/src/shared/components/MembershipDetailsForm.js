@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { __ } from "@wordpress/i18n";
 import {
   Button,
+  FlexBlock,
   FlexItem,
   Flex,
   Icon,
@@ -48,6 +49,8 @@ const MarginedFlex = styled(Flex)`
  * @param {Function}     [props.onOwnerSave]        - Called with selectedOption when saving owner.
  *                                                    Must return a Promise<{ success?, error? }>.
  * @param {Function}     [props.onOwnerUpdated]     - Called with new owner data after a successful owner save.
+ * @param {Function}     [props.renderExtra]        - Optional. Called with no args, returns ReactNode rendered
+ *                                                    between the owner field and the Update button.
  */
 const MembershipDetailsForm = ({
   dates = null,
@@ -64,6 +67,7 @@ const MembershipDetailsForm = ({
   onLoadOwnerOptions = null,
   onOwnerSave = null,
   onOwnerUpdated = null,
+  renderExtra = null,
 }) => {
   const [startsAt, setStartsAt] = useState(null);
   const [endsAt, setEndsAt] = useState(null);
@@ -200,48 +204,60 @@ const MembershipDetailsForm = ({
           onChange={handleRenewalTypeChange}
         />
 
-        {onLoadOwnerOptions && (
-          <MarginedFlex direction="column" gap={2}>
-            <Flex align="center" justify="space-between">
-              <FlexItem>
-                <LabelWpStyled style={{ height: '20px' }}>
-                  {__('Group Membership Owner', 'wicket-memberships')}&nbsp;
-                  <Tooltip text={__('Represents the person responsible for managing and renewing this Group Membership.', 'wicket-memberships')}>
-                    <div><Icon icon="info" /></div>
-                  </Tooltip>
-                </LabelWpStyled>
-              </FlexItem>
-              <FlexItem>
-                <SwitchToButton switchToUrl={ownerSwitchToUrl} />
-              </FlexItem>
-            </Flex>
+        {(renderExtra || onLoadOwnerOptions) && (
+          <MarginedFlex align="start" justify="start" gap={6} direction={["column", "row"]}>
+            {renderExtra && (
+              <FlexBlock>
+                {renderExtra()}
+              </FlexBlock>
+            )}
 
-            <AsyncSelectWpStyled
-              id="membership_owner_id"
-              classNamePrefix="select"
-              name="membership_owner_uuid"
-              value={selectedOwner}
-              defaultOptions={initialOwnerOption ? [initialOwnerOption] : []}
-              loadOptions={debouncedLoadOwnerOptions}
-              isClearable={false}
-              isSearchable={true}
-              onChange={(selected) => setSelectedOwner(selected)}
-              isDisabled={disabled}
-            />
+            {onLoadOwnerOptions && (
+              <FlexItem style={{ minWidth: "260px" }}>
+                <Flex direction="column" gap={2}>
+                  <Flex align="center" justify="space-between">
+                    <FlexItem>
+                      <LabelWpStyled style={{ height: '20px' }}>
+                        {__('Group Membership Owner', 'wicket-memberships')}&nbsp;
+                        <Tooltip text={__('Represents the person responsible for managing and renewing this Group Membership.', 'wicket-memberships')}>
+                          <div><Icon icon="info" /></div>
+                        </Tooltip>
+                      </LabelWpStyled>
+                    </FlexItem>
+                    <FlexItem>
+                      <SwitchToButton switchToUrl={ownerSwitchToUrl} />
+                    </FlexItem>
+                  </Flex>
 
-            {ownerMdpLink && (
-              <Flex align="center" justify="start" gap={4}>
-                <FlexItem>
-                  <Button
-                    href={ownerMdpLink}
-                    target="_blank"
-                    variant="link"
-                  >
-                    {__('View in MDP', 'wicket-memberships')}
-                  </Button>
-                  &nbsp;<Icon icon="external" style={{ color: 'var(--wp-admin-theme-color)' }} />
-                </FlexItem>
-              </Flex>
+                  <AsyncSelectWpStyled
+                    id="membership_owner_id"
+                    classNamePrefix="select"
+                    name="membership_owner_uuid"
+                    value={selectedOwner}
+                    defaultOptions={initialOwnerOption ? [initialOwnerOption] : []}
+                    loadOptions={debouncedLoadOwnerOptions}
+                    isClearable={false}
+                    isSearchable={true}
+                    onChange={(selected) => setSelectedOwner(selected)}
+                    isDisabled={disabled}
+                  />
+
+                  {ownerMdpLink && (
+                    <Flex align="center" justify="start" gap={4}>
+                      <FlexItem>
+                        <Button
+                          href={ownerMdpLink}
+                          target="_blank"
+                          variant="link"
+                        >
+                          {__('View in MDP', 'wicket-memberships')}
+                        </Button>
+                        &nbsp;<Icon icon="external" style={{ color: 'var(--wp-admin-theme-color)' }} />
+                      </FlexItem>
+                    </Flex>
+                  )}
+                </Flex>
+              </FlexItem>
             )}
           </MarginedFlex>
         )}

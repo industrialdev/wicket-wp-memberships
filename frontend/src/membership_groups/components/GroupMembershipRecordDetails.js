@@ -1,6 +1,7 @@
 import { __ } from "@wordpress/i18n";
 import { Flex } from "@wordpress/components";
 import styled from "styled-components";
+import GroupMembersSection from "./GroupMembersSection";
 import MembershipBillingInfoSection from "../../shared/components/MembershipBillingInfoSection";
 import MembershipOrderDetailsSection from "../../shared/components/MembershipOrderDetailsSection";
 import MembershipStatusSection from "../../shared/components/MembershipStatusSection";
@@ -36,12 +37,13 @@ const DetailsWrap = styled.div`
  * returned by Group_Admin_Controller::get_group_edit_page_info).
  *
  * @param {object}   props
- * @param {object}   props.record          - Single membership record from pageData.membership_records.
- * @param {object}   props.groupPageData   - Full pageData for the group (subscription_id etc.).
- * @param {Function} props.onRecordUpdated - Called with the updated record after a save.
- * @param {Function} props.onOwnerUpdated  - Called with new owner data after a successful ownership change.
+ * @param {object}   props.record                - Single membership record from pageData.membership_records.
+ * @param {object}   props.groupPageData         - Full pageData for the group (subscription_id etc.).
+ * @param {Function} props.onRecordUpdated       - Called with the updated record after a save.
+ * @param {Function} props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
+ * @param {string}   props.individualMembersUrl  - URL of the individual members list page for group member links.
  */
-const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, onOwnerUpdated }) => {
+const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl }) => {
   // Group-level subscription and order data is shared across all records until
   // the API is enriched to return per-record billing data.
   // TODO: Switch to per-record subscription/order data once
@@ -156,6 +158,12 @@ const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, 
         onLoadOwnerOptions={loadOwnerOptions}
         onOwnerSave={handleOwnerSave}
         onOwnerUpdated={onOwnerUpdated}
+        renderExtra={() => (
+          <GroupMembersSection
+            pageData={groupPageData}
+            individualMembersUrl={individualMembersUrl}
+          />
+        )}
       />
     </DetailsWrap>
   );

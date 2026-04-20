@@ -150,6 +150,16 @@ export const fetchMdpPersons = (queryParams = {}) => {
 };
 
 /**
+ * Fetch group members broken down by tier for a given group post ID.
+ * GET /wicket_member/v1/group/{groupPostId}/members_by_tier
+ */
+export const fetchGroupMembersByTier = (groupPostId) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/group/${groupPostId}/members_by_tier`,
+  });
+};
+
+/**
  * Fetch Group Membership Filters
  */
 export const fetchGroupMembershipFilters = () => {
