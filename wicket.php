@@ -354,21 +354,10 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
     }
 
     public function set_onboarding_posted_data_to_wc_session() {
-        $log_ctx   = ['source' => 'wicket-cart-renewal'];
         $has_renew = !empty( $_REQUEST['membership_post_id_renew'] );
         $has_org   = isset( $_REQUEST['org_uuid'] );
 
         if ( is_page( 'cart' ) || is_cart() ) {
-            if ( $has_renew && ! $has_org && function_exists('Wicket') ) {
-                Wicket()->log()->info(
-                    sprintf(
-                        'set_onboarding_posted_data_to_wc_session: membership_post_id_renew=%s present without org_uuid — individual renewal, skipping session storage (handled via cart item data)',
-                        sanitize_text_field( $_REQUEST['membership_post_id_renew'] )
-                    ),
-                    $log_ctx
-                );
-            }
-
             if ( $has_org ) {
                 if ( isset($_REQUEST['org_uuid']) && ! empty($_REQUEST['org_uuid']) ) {
                     $values['org_uuid'] = sanitize_text_field($_REQUEST['org_uuid']);
@@ -379,12 +368,6 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
                 if ( ! empty($values)) {
                   foreach( $values as $key => $val ) {
                     WC()->session->set($key, $val );
-                  }
-                  if ( function_exists('Wicket') ) {
-                    Wicket()->log()->info(
-                      sprintf( 'set_onboarding_posted_data_to_wc_session: stored in WC session: %s', implode( ', ', array_map( fn($k,$v) => "{$k}={$v}", array_keys($values), $values ) ) ),
-                      $log_ctx
-                    );
                   }
                 }
             }
