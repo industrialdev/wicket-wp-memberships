@@ -95,6 +95,10 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 - Under no circumstances should you modify `wicket-wp-base-plugin` as part of memberships work unless the user explicitly changes that rule.
 - If a memberships change appears to require a base-plugin fix, stop at the boundary, document the dependency, and ask before editing outside this plugin.
 
+## Frontend UI Conventions
+
+- **All dates displayed in the admin UI must use `formatDateWithTooltip(isoString)` from `frontend/src/shared/constants.js`.** This renders the date in the MDP timezone with the full ISO 8601 string (including UTC offset) as a hover tooltip. Never render a raw date string directly. Pass the raw ISO string from PHP — do not pre-format dates to `Y-m-d` before sending them to the frontend, as that discards timezone information needed by the tooltip.
+
 ## Working Conventions
 
 - Check existing docs in `docs/` before changing class behavior so implementation and documentation stay aligned.

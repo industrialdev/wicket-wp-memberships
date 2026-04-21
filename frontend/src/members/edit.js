@@ -14,6 +14,8 @@ import he from 'he';
 import moment from 'moment-timezone';
 import { CreateRenewalOrderModal, getRenewalOrderAction } from './create_renewal_order';
 import MembershipActionsDropdown from '../shared/components/MembershipActionsDropdown';
+import GroupMembershipDetails from './GroupMembershipDetails';
+import GroupMembershipBadge from './GroupMembershipBadge';
 
 export const EditWrap = styled.div`
 	max-width: 1000px;
@@ -80,6 +82,7 @@ const RecordTopInfo = styled.div`
   padding: 15px;
   font-size: 14px;
 `;
+
 
 const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
@@ -578,6 +581,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                         >
                           <td className="column-columnname">
                             {membership.data.membership_tier_name}
+                            {membership.is_group_membership && (
+                              <GroupMembershipBadge groupName={membership.group_name} />
+                            )}
                           </td>
                           <td className="column-columnname">
                             {membership.ID}
@@ -612,6 +618,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                           style={{ display: membership.showRow ? 'table-row' : 'none' }}
                         >
                           <td colSpan={7} >
+                            {membership.is_group_membership ? (
+                              <GroupMembershipDetails membership={membership} />
+                            ) : (<>
                             {membership.subscription.id !== undefined &&
                             <Flex
                               align='end'
@@ -1033,6 +1042,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                 </MarginedFlex>
                               </form>
                             </BorderedBox>
+                            </>)}
                           </td>
                         </tr>
                       </React.Fragment>

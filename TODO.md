@@ -36,6 +36,14 @@ Remove the entry when the work is completed.
 | `includes/Group_Admin_Controller.php` | `get_group_edit_page_info()` | Replace mocked `subscription` payload with real linked WooCommerce subscription enrichment when group subscription implementation exists. | — |
 | `includes/Group_Admin_Controller.php` | `get_group_entity_records()` | Enrich the group entity response with WooCommerce subscription and order data. | — |
 
+## Individual Member Edit — Group Membership Details Panel (Frontend)
+
+| File | Method | Note | Asana |
+|---|---|---|---|
+| `frontend/src/members/GroupMembershipDetails.js` | `GroupMembershipDetails` | Wire "View in MDP" link to the real group membership MDP URL once group MDP sync is implemented — currently disabled (red, pointer-events: none). | — |
+| `frontend/src/members/GroupMembershipDetails.js` | `GroupMembershipDetails` | Implement "Move to Another Group" action — button is currently disabled (red, no-op). | — |
+| `frontend/src/members/GroupMembershipDetails.js` | `GroupMembershipDetails` | Implement "Remove from Group" action — button is currently disabled (red, no-op). | — |
+
 ## Group List (Frontend)
 
 | File | Method | Note | Asana |
