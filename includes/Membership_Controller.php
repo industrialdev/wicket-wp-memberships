@@ -2244,6 +2244,7 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   public function get_members_filters( $type ) {
+    $filters = [];
     $args = array(
       'post_type' => $this->membership_cpt_slug,
       'post_status' => 'publish',
