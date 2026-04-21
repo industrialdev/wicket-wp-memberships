@@ -724,19 +724,25 @@ class Group_Admin_Controller {
     $members = $group->get_individual_memberships();
     $counts  = [];
 
+    $counts = [];
     foreach ( $members as $member ) {
-      $tier_name           = (string) get_post_meta( $member->ID, 'membership_tier_name', true );
-      $counts[ $tier_name ] = ( $counts[ $tier_name ] ?? 0 ) + 1;
+      $tier_uuid = (string) get_post_meta( $member->ID, 'membership_tier_uuid', true );
+      $tier_name = (string) get_post_meta( $member->ID, 'membership_tier_name', true );
+      if ( $tier_uuid === '' ) {
+        continue;
+      }
+      if ( ! isset( $counts[ $tier_uuid ] ) ) {
+        $counts[ $tier_uuid ] = [ 'tier_name' => $tier_name, 'count' => 0 ];
+      }
+      $counts[ $tier_uuid ]['count']++;
     }
 
     $tiers = [];
-    foreach ( $counts as $tier_name => $count ) {
-      if ( $tier_name === '' ) {
-        continue;
-      }
+    foreach ( $counts as $tier_uuid => $data ) {
       $tiers[] = [
-        'tier_name'    => $tier_name,
-        'member_count' => $count,
+        'tier_uuid'    => $tier_uuid,
+        'tier_name'    => $data['tier_name'],
+        'member_count' => $data['count'],
       ];
     }
 

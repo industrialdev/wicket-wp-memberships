@@ -133,15 +133,15 @@ class Membership_CPT_Hooks {
 
   function render_individual_members_page() {
     $edit_individual_member_page_url = admin_url( 'admin.php?page=' . self::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG );
-    $filter_group_id  = isset( $_GET['filter_group_id'] )  ? intval( $_GET['filter_group_id'] )                    : '';
-    $filter_tier_name = isset( $_GET['filter_tier_name'] ) ? sanitize_text_field( $_GET['filter_tier_name'] ) : '';
+    $filter_group_id  = isset( $_GET['filter_group_id'] )  ? intval( $_GET['filter_group_id'] )                     : '';
+    $filter_tier_uuid = isset( $_GET['filter_tier_uuid'] ) ? sanitize_text_field( $_GET['filter_tier_uuid'] ) : '';
 
     echo '<div
       id="member_list"
       data-edit-member-url="' . esc_url( $edit_individual_member_page_url ) . '"
       data-member-type="individual"
       data-filter-group-id="' . esc_attr( $filter_group_id ) . '"
-      data-filter-tier-name="' . esc_attr( $filter_tier_name ) . '"
+      data-filter-tier-uuid="' . esc_attr( $filter_tier_uuid ) . '"
     ></div>';
   }
 

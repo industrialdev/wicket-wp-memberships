@@ -210,7 +210,10 @@ Returns organization information and counts for the given UUIDs and properties.
 Returns group name data for the given array of WP post IDs (`wicket_membership_group` post type). Returns `['group_data' => [id => ['name' => ...], ...]]`.
 
 **get_members_filters($type)**
-Returns available filters for memberships by type (individual or organization).
+Returns available filters for memberships by type (`individual` or `organization`). The returned array contains:
+- `tiers` — distinct tier UUIDs used by matching membership records (`[{ value: uuid }]`)
+- `membership_status` — distinct statuses used by matching records (`[{ name: slug, value: label }]`)
+- `groups` — (individual type only) distinct groups linked to matching records (`[{ value: post_id_string, label: group_name }]`)
 
 **daily_membership_expiry_hook()** (static)
 Daily cron hook to expire memberships whose expiration date was yesterday.

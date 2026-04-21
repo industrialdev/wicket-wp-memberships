@@ -42,12 +42,6 @@ Remove the entry when the work is completed.
 |---|---|---|---|
 | `frontend/src/members/group_list.js` | `GroupMemberList` | Enable the "Link to MDP" column once group membership MDP sync is implemented — link is currently rendered disabled (red, pointer-events: none). | — |
 
-## Individual Members Page — Filter Dropdowns (Frontend)
-
-| File | Method | Note | Asana |
-|---|---|---|---|
-| `frontend/src/members/index.js` | `MemberList` | When group/tier filter dropdowns are added to this page, replace the `filterGroupId`/`filterTierName` data-attribute initialisation with logic that drives the dropdown selected value directly, so the active filter is visually reflected and clearable by the user. | — |
-
 ## Group Membership Detail Page (Frontend)
 
 | File | Method | Note | Asana |

@@ -136,7 +136,7 @@ const GroupMembersSection = ({ pageData, isLoading, individualMembersUrl }) => {
               const viewUrl = individualMembersUrl
                 ? addQueryArgs(individualMembersUrl, {
                     filter_group_id: pageData?.ID,
-                    filter_tier_name: tier.tier_name,
+                    filter_tier_uuid: tier.tier_uuid,
                   })
                 : "";
               return (

@@ -2284,6 +2284,29 @@ function get_item_data ( $other_data, $cart_item ) {
     if( $type == 'organization' ) {
       // get locations assigned to membership records as filters???
     }
+
+    // groups assigned to membership records as filters (individual only)
+    if ( $type === 'individual' ) {
+      add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+      $args['meta_key'] = 'membership_group_id';
+      $group_query = new \WP_Query( $args );
+      remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+      foreach ( $group_query->posts as $post ) {
+        $group_id = $post->membership_group_id;
+        if ( ! empty( $group_id ) ) {
+          $group_name = (string) get_post_meta( (int) $group_id, 'membership_group_name', true );
+          if ( $group_name === '' ) {
+            $group_post = get_post( (int) $group_id );
+            $group_name = $group_post ? $group_post->post_title : "Group #{$group_id}";
+          }
+          $filters['groups'][] = [
+            'value' => (string) $group_id,
+            'label' => $group_name,
+          ];
+        }
+      }
+    }
+
     return $filters;
   }
 
