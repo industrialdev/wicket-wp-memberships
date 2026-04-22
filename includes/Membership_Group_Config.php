@@ -355,6 +355,11 @@ class Membership_Group_Config {
    * Follows the same logic as Membership_Config::get_membership_dates().
    *
    * @param array $membership Optional membership data array (empty for new memberships).
+   *   - `membership_ends_at` (string) — ISO 8601 end date of the current period; used to
+   *     calculate the renewal start as the following day.
+   *   - `start_date` (string) — ISO 8601 date override for a new membership start. When
+   *     provided on a new membership (no `membership_ends_at`), all date calculations are
+   *     anchored to this date instead of 'now'.
    * @return array { start_date, end_date, expires_at?, early_renew_at? }
    */
   public function get_membership_dates( $membership = [] ) {
@@ -392,14 +397,22 @@ class Membership_Group_Config {
 
     $grace_period_in_days = $this->get_late_fee_window_days();
     if ( ! empty( $grace_period_in_days ) ) {
-      $expires_at_utc      = new \DateTime( $dates['end_date'], new \DateTimeZone( 'UTC' ) );
+      $end_date_ymd        = ( new \DateTime( $dates['end_date'] ) )->format( 'Y-m-d' );
+      $expires_at_utc      = new \DateTime( $end_date_ymd, new \DateTimeZone( 'UTC' ) );
       $expires_date_string = $expires_at_utc->modify( '+' . $grace_period_in_days . ' days' )->format( 'Y-m-d' );
       $dates['expires_at'] = Utilities::get_mdp_day_end( $expires_date_string )->format( 'c' );
     }
 
     $early_renewal_in_days = $this->get_renewal_window_days();
     if ( ! empty( $early_renewal_in_days ) ) {
-      $early_renew_at_utc      = new \DateTime( $dates['start_date'], new \DateTimeZone( 'UTC' ) );
+      // For renewals, open the window relative to the current period end so the
+      // member can act before their existing membership lapses. For new memberships
+      // (no current end), fall back to the calculated next end date.
+      $early_renew_base        = ! empty( $membership['membership_ends_at'] )
+        ? $membership['membership_ends_at']
+        : $dates['end_date'];
+      $end_date_ymd            = ( new \DateTime( $early_renew_base ) )->format( 'Y-m-d' );
+      $early_renew_at_utc      = new \DateTime( $end_date_ymd, new \DateTimeZone( 'UTC' ) );
       $early_renew_date_string = $early_renew_at_utc->modify( '-' . $early_renewal_in_days . ' days' )->format( 'Y-m-d' );
       $dates['early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date_string )->format( 'c' );
     }
@@ -618,12 +631,14 @@ class Membership_Group_Config {
    * @return string ISO 8601 date string.
    */
   private function get_anniversary_start_date( $membership = [] ) {
-    $is_new_membership = empty( $membership );
+    $is_new_membership = empty( $membership ) || ! isset( $membership['membership_ends_at'] );
 
     if ( ! $is_new_membership ) {
       $datetime_string = strtotime( $membership['membership_ends_at'] . '+1 day' );
       $date            = date( 'Y-m-d', $datetime_string );
       $utc_date        = Utilities::get_mdp_day_start( $date );
+    } elseif ( ! empty( $membership['start_date'] ) ) {
+      $utc_date = Utilities::get_mdp_day_start( $membership['start_date'] );
     } else {
       $utc_date = Utilities::get_mdp_day_start( 'now' );
     }
@@ -638,12 +653,14 @@ class Membership_Group_Config {
    * @return string ISO 8601 date string.
    */
   private function get_seasonal_start_date( $membership = [] ) {
-    $is_new_membership = empty( $membership );
+    $is_new_membership = empty( $membership ) || ! isset( $membership['membership_ends_at'] );
 
     if ( ! $is_new_membership ) {
       $datetime_string = strtotime( $membership['membership_ends_at'] . '+1 day' );
       $date            = date( 'Y-m-d', $datetime_string );
       $utc_date        = Utilities::get_mdp_day_start( $date );
+    } elseif ( ! empty( $membership['start_date'] ) ) {
+      $utc_date = Utilities::get_mdp_day_start( $membership['start_date'] );
     } else {
       $utc_date = Utilities::get_mdp_day_start( 'now' );
     }
@@ -663,13 +680,18 @@ class Membership_Group_Config {
   private function get_seasonal_end_date( $membership = [] ) {
     $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
 
-    $is_new_membership = empty( $membership );
+    $is_new_membership = empty( $membership ) || ! isset( $membership['membership_ends_at'] );
     $seasons           = $this->get_calendar_seasons();
 
     if ( ! $is_new_membership ) {
       $datetime_string       = strtotime( $membership['membership_ends_at'] . '+1 day' );
       $date                  = date( 'Y-m-d', $datetime_string );
       $membership_start_dt   = Utilities::get_mdp_day_start( $date );
+      $membership_start_dt->setTimezone( $mdp_timezone );
+      $membership_default_end_dt = clone $membership_start_dt;
+      $membership_default_end_dt->modify( '+1 year' );
+    } elseif ( ! empty( $membership['start_date'] ) ) {
+      $membership_start_dt = Utilities::get_mdp_day_start( $membership['start_date'] );
       $membership_start_dt->setTimezone( $mdp_timezone );
       $membership_default_end_dt = clone $membership_start_dt;
       $membership_default_end_dt->modify( '+1 year' );

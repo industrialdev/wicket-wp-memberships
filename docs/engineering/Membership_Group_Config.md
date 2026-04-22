@@ -124,7 +124,11 @@ Returns `{ period_count, period_type }` based on cycle type. Defaults to `{ 1, '
 Checks whether the given date falls within the valid renewal window for the membership.
 
 **get_membership_dates($membership = [])**
-Calculates and returns membership start, end, grace-period expiry, and early-renewal dates. Pass an empty array for new memberships.
+Calculates and returns membership start, end, grace-period expiry, and early-renewal dates. Pass an empty array for new memberships that should start today.
+
+Supported `$membership` keys:
+- `membership_ends_at` (string) — ISO 8601 end date of the current period; used for renewals. The next period starts the day after this date.
+- `start_date` (string) — ISO 8601 date override for a new membership start. When provided (with no `membership_ends_at`), all date calculations are anchored to this date instead of `'now'`.
 
 **get_renewal_type()**
 Returns `'subscription'` or `'form_page'` from `group_config_data`, or false.
@@ -174,10 +178,10 @@ Loads `group_config_data` from post meta (contains renewal type and approval set
 Returns `group_config_data['approval_callout_data']` if set, false otherwise.
 
 **get_anniversary_start_date($membership = [])**
-Calculates the start date for an anniversary cycle. Renewal = day after existing membership ends; new = today. Returns ISO 8601.
+Calculates the start date for an anniversary cycle. Renewal = day after existing `membership_ends_at`; new with `start_date` key = that date; otherwise today. Returns ISO 8601.
 
 **get_seasonal_start_date($membership = [])**
-Calculates the start date for a calendar cycle. Same logic as anniversary start date.
+Calculates the start date for a calendar cycle. Same fallback order as `get_anniversary_start_date()`.
 
 **get_seasonal_end_date($membership = [])**
-Calculates the end date for a calendar cycle by matching the membership start against configured seasons. Falls back to start + 1 year. Returns ISO 8601.
+Calculates the end date for a calendar cycle by matching the membership start against configured seasons. Start date is derived with the same fallback order as `get_seasonal_start_date()`. Falls back to start + 1 year. Returns ISO 8601.

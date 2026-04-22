@@ -10,7 +10,7 @@ Remove the entry when the work is completed.
 
 | File | Method | Note | Asana |
 |---|---|---|---|
-| `includes/Membership_Group.php` | `create()` | Review bare-bones implementation before use in production | [task](https://app.asana.com/1/1138832104141584/project/1213403241762018/task/1213775558142167) |
+| `includes/Membership_Group.php` | `create()` | Create a WooCommerce subscription for this group. | — |
 | `includes/Membership_Group.php` | `add_individual_membership()` | Review implementation | [task](https://app.asana.com/1/1138832104141584/project/1213403241762018/task/1213781837058525) |
 | `includes/Membership_Group.php` | `apply_edit_fields()` | Review and consider replacing with typed getters/setters per field — current `array<string,mixed>` signature allows any meta key to be written without validation | — |
 

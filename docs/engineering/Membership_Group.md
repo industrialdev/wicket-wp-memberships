@@ -17,11 +17,37 @@ Loads the group by post ID. Sets `$post_id = 0` and `$meta_data = []` if the pos
 
 ## Static Methods
 
-### `create( array $args = [] ): static|false`
+### `create( string $name, int $membership_group_config_id, string $org_uuid, int $owner_user_id, string $start_date ): static|null`
 
-Creates a new membership group post via `wp_insert_post`. Accepts `title` and `status` keys in `$args`. Returns a new `Membership_Group` instance on success, `false` on failure.
+Creates a new membership group post and populates all required meta in a single call. All parameters are required. Returns a new `Membership_Group` instance on success, `null` on any failure (the partially-created post is deleted before returning). Errors are logged via `Wicket()->log()`.
 
-> **TODO:** Implementation should be reviewed before production use. See Asana task linked in source.
+**Parameters:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `$name` | `string` | Post title for the group (must be non-empty) |
+| `$membership_group_config_id` | `int` | Post ID of the linked `Membership_Group_Config` |
+| `$org_uuid` | `string` | MDP organisation UUID |
+| `$owner_user_id` | `int` | WP user ID of the group owner |
+| `$start_date` | `string` | ISO 8601 start date for the membership period (must be non-empty) |
+
+The post is created with `post_status = 'pending'`. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`.
+
+**Fields accessible on the returned object:**
+
+| Field | Access |
+|---|---|
+| Post ID | `$group->post_id` |
+| Post status (`pending`) | `get_post( $group->post_id )->post_status` |
+| Membership status | `$group->get_membership_status()` → `'pending'` |
+| Start date | `$group->get_dates()['starts_at']` |
+| End date | `$group->get_dates()['ends_at']` |
+| Expiration date | `$group->get_dates()['expires_at']` _(empty string if config has no grace period)_ |
+| Org UUID | `$group->get_org_uuid()` |
+| Owner user ID | `$group->get_owner_id()` |
+| Renewal type | `$group->get_config()->get_renewal_type()` _(not a direct field — via config)_ |
+
+> **TODO:** Create a WooCommerce subscription for this group inside `create()`.
 
 ---
 
@@ -72,6 +98,25 @@ Returns the full organization data array from `Helper::get_org_data()` for the s
 ### `get_config(): Membership_Group_Config|false`
 
 Returns the linked `Membership_Group_Config` object from `membership_group_config_id`, or `false` if not set.
+
+### `set_config( int $config_post_id ): bool`
+
+Validates that `$config_post_id` resolves to a valid `Membership_Group_Config`, writes `membership_group_config_id` meta, and reloads `$this->meta_data`. Returns `true` on success, logs and returns `false` on failure.
+
+### `set_dates( array $dates ): bool`
+
+Writes membership date meta. Accepts the same keys returned by `get_dates()`. Optional keys are skipped when `null`.
+
+```php
+[
+  'starts_at'      => string,       // required — membership_starts_at
+  'ends_at'        => string,       // required — membership_ends_at
+  'expires_at'     => string|null,  // optional — membership_expires_at
+  'early_renew_at' => string|null,  // optional — membership_early_renew_at
+]
+```
+
+Reloads `$this->meta_data` on success. Returns `true` on success, logs and returns `false` on failure.
 
 ### `get_parent_order_id(): int|false`
 

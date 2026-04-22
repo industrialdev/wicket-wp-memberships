@@ -101,6 +101,8 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 
 ## Working Conventions
 
+- **Inline comments on non-trivial methods:** For methods that involve multiple logical phases (validation, DB writes, rollback, derived calculations, etc.), add a short inline comment before each phase explaining *why* it exists — not what the code does. This applies especially to static factory methods like `Membership_Group::create()` where the sequence of operations and their failure modes are not obvious from reading the code alone. Comments should explain constraints, invariants, and rollback guarantees; they should not restate what the method call already says.
+
 - Check existing docs in `docs/` before changing class behavior so implementation and documentation stay aligned.
 - Prefer extending existing classes/files over adding new abstractions unless the current structure is clearly insufficient.
 - Keep public hooks, meta keys, option names, and status transitions backward-compatible unless the user asks for a breaking change.

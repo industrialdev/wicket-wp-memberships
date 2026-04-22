@@ -41,32 +41,109 @@ class Membership_Group {
   }
 
   /**
-   * Create a new membership group post.
+   * Create a new membership group post with all required data.
    *
-   * @param array $args Post arguments (title, meta, etc.)
-   * @return static|false Returns a new Membership_Group instance on success, false on failure
-   * @todo Implement creation of a new membership group record
+   * Returns null and logs the reason on any failure; any partially-created post is deleted
+   * before returning.
+   *
+   * @param string $name                       Post title for the group.
+   * @param int    $membership_group_config_id Post ID of the linked Membership_Group_Config.
+   * @param string $org_uuid                   MDP organisation UUID.
+   * @param int    $owner_user_id              WP user ID of the group owner.
+   * @param string $start_date                 ISO 8601 start date for the membership period.
+   * @return static|null New Membership_Group instance on success, null on failure.
    */
-  public static function create( $args = [] ) {
-    // TODO: review this implementation before use in production https://app.asana.com/1/1138832104141584/project/1213403241762018/task/1213775558142167
+  public static function create(
+    string $name,
+    int $membership_group_config_id,
+    string $org_uuid,
+    int $owner_user_id,
+    string $start_date
+  ): ?static {
+    // Validate all inputs before touching the database.
+    if ( empty( $name ) ) {
+      Wicket()->log()->error( 'Membership_Group::create: name is empty', ['source' => 'wicket-memberships'] );
+      return null;
+    }
 
+    // Confirm the config post exists and is the correct CPT type.
+    $config_check = new Membership_Group_Config( $membership_group_config_id );
+    if ( $config_check->get_post_id() <= 0 ) {
+      Wicket()->log()->error( 'Membership_Group::create: membership_group_config_id does not resolve to a valid config', ['source' => 'wicket-memberships', 'config_post_id' => $membership_group_config_id] );
+      return null;
+    }
+
+    // Confirm the org UUID is a well-formed UUID before attempting an MDP lookup later.
+    if ( ! isValidUuid( $org_uuid ) ) {
+      Wicket()->log()->error( 'Membership_Group::create: invalid org_uuid', ['source' => 'wicket-memberships', 'org_uuid' => $org_uuid] );
+      return null;
+    }
+
+    // Confirm the owner exists in WordPress before linking them to the post.
+    if ( ! get_user_by( 'id', $owner_user_id ) ) {
+      Wicket()->log()->error( 'Membership_Group::create: owner_user_id does not exist', ['source' => 'wicket-memberships', 'owner_user_id' => $owner_user_id] );
+      return null;
+    }
+
+    if ( empty( $start_date ) ) {
+      Wicket()->log()->error( 'Membership_Group::create: start_date is empty', ['source' => 'wicket-memberships'] );
+      return null;
+    }
+
+    // Insert the CPT post shell. All meta is written via setters below.
     $post_id = wp_insert_post( [
       'post_type'   => Helper::get_membership_group_cpt_slug(),
-      'post_title'  => $args['title'] ?? '',
-      'post_status' => $args['status'] ?? 'publish',
+      'post_title'  => $name,
+      'post_status' => 'pending',
     ], true );
 
     if ( is_wp_error( $post_id ) ) {
-      Wicket()->log()->error( 'Membership_Group: Failed to create post', ['source' => 'wicket-memberships', 'error' => $post_id->get_error_message(), 'args' => $args] );
-      return false;
+      Wicket()->log()->error( 'Membership_Group::create: wp_insert_post failed', ['source' => 'wicket-memberships', 'error' => $post_id->get_error_message()] );
+      return null;
     }
 
     if ( empty( $post_id ) ) {
-      Wicket()->log()->error( 'Membership_Group: wp_insert_post returned empty ID', ['source' => 'wicket-memberships', 'args' => $args] );
-      return false;
+      Wicket()->log()->error( 'Membership_Group::create: wp_insert_post returned empty ID', ['source' => 'wicket-memberships'] );
+      return null;
     }
 
-    return new static( $post_id );
+    // Wrap the new post in a Membership_Group instance so we can use its setters.
+    $group = new static( $post_id );
+
+    // Write status, owner, org, and config meta. Any failure rolls back the post entirely
+    // so we never leave a partially-populated group in the database.
+    if ( ! $group->set_membership_status( 'pending' )
+      || ! $group->set_owner( $owner_user_id )
+      || ! $group->set_organization( $org_uuid )
+      || ! $group->set_config( $membership_group_config_id )
+    ) {
+      Wicket()->log()->error( 'Membership_Group::create: failed to set group data, rolling back post', ['source' => 'wicket-memberships', 'post_id' => $post_id] );
+      wp_delete_post( $post_id, true );
+      return null;
+    }
+
+    // Derive the membership date range from the config, anchored to the supplied start date.
+    // expires_at and early_renew_at are only present when grace period / renewal window are configured.
+    $config = $group->get_config();
+    $dates  = $config->get_membership_dates( [ 'start_date' => $start_date ] );
+
+    if ( ! $group->set_dates( [
+      'starts_at'      => $dates['start_date'],
+      'ends_at'        => $dates['end_date'],
+      'expires_at'     => $dates['expires_at'] ?? null,
+      'early_renew_at' => $dates['early_renew_at'] ?? null,
+    ] ) ) {
+      Wicket()->log()->error( 'Membership_Group::create: failed to set dates, rolling back post', ['source' => 'wicket-memberships', 'post_id' => $post_id] );
+      wp_delete_post( $post_id, true );
+      return null;
+    }
+
+    // TODO: Create a WooCommerce subscription for this group.
+
+    // Reload meta so the returned instance reflects everything written above.
+    $group->meta_data = get_post_meta( $post_id );
+
+    return $group;
   }
 
   // Group membership relations.
@@ -250,6 +327,70 @@ class Membership_Group {
 
     $config = new Membership_Group_Config( $config_id );
     return $config->get_post_id() > 0 ? $config : false;
+  }
+
+  /**
+   * Set the linked membership group config for this group.
+   *
+   * @param int $config_post_id Post ID of the Membership_Group_Config to link.
+   * @return bool True on success, false on failure.
+   */
+  public function set_config( int $config_post_id ): bool {
+    $config = new Membership_Group_Config( $config_post_id );
+    if ( $config->get_post_id() <= 0 ) {
+      Wicket()->log()->error( 'Membership_Group: Invalid config post ID', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'config_post_id' => $config_post_id] );
+      return false;
+    }
+
+    if ( update_post_meta( $this->post_id, 'membership_group_config_id', $config_post_id ) === false ) {
+      Wicket()->log()->error( 'Membership_Group: Failed to save membership_group_config_id', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'config_post_id' => $config_post_id] );
+      return false;
+    }
+
+    $this->meta_data = get_post_meta( $this->post_id );
+
+    return true;
+  }
+
+  /**
+   * Set the date fields for this membership group.
+   *
+   * Accepts the same keys returned by get_dates(). Optional keys are skipped when null.
+   *
+   * @param array<string, string|null> $dates {
+   *   @type string      $starts_at      Required. ISO 8601 membership start date.
+   *   @type string      $ends_at        Required. ISO 8601 membership end date.
+   *   @type string|null $expires_at     Optional. ISO 8601 expiration date (end + grace period).
+   *   @type string|null $early_renew_at Optional. ISO 8601 early-renewal window start.
+   * }
+   * @return bool True on success, false on failure.
+   */
+  public function set_dates( array $dates ): bool {
+    $field_map = [
+      'starts_at'      => 'membership_starts_at',
+      'ends_at'        => 'membership_ends_at',
+      'expires_at'     => 'membership_expires_at',
+      'early_renew_at' => 'membership_early_renew_at',
+    ];
+
+    foreach ( $field_map as $date_key => $meta_key ) {
+      if ( ! array_key_exists( $date_key, $dates ) || null === $dates[ $date_key ] ) {
+        continue;
+      }
+
+      if ( update_post_meta( $this->post_id, $meta_key, $dates[ $date_key ] ) === false ) {
+        Wicket()->log()->error( 'Membership_Group: Failed to persist date field', [
+          'source'   => 'wicket-memberships',
+          'post_id'  => $this->post_id,
+          'meta_key' => $meta_key,
+        ] );
+        return false;
+      }
+    }
+
+    $this->meta_data = get_post_meta( $this->post_id );
+
+    return true;
   }
 
   /**
