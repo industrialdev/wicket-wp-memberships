@@ -859,7 +859,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         name='membership_starts_at'
                                         dateFormat={DEFAULT_DATE_FORMAT}
                                         showMonthDropdown
-                                        locale="UTC"
                                         showYearDropdown
                                         dropdownMode="select"
                                         selected={ getDatePickerValue(membership.data.membership_starts_at) }
