@@ -317,18 +317,23 @@ class Group_Admin_Controller {
 
     $status_slug = $meta['membership_status'] ?? '';
 
+    // Parse stored date strings into DateTime objects so legacy non-ISO values
+    // are normalised before being re-emitted as ISO 8601.
+    $starts_at   = ! empty( $meta['membership_starts_at'] )    ? new \DateTime( $meta['membership_starts_at'] )    : null;
+    $ends_at     = ! empty( $meta['membership_ends_at'] )      ? new \DateTime( $meta['membership_ends_at'] )      : null;
+    $expires_at  = ! empty( $meta['membership_expires_at'] )   ? new \DateTime( $meta['membership_expires_at'] )   : null;
+    $early_renew = ! empty( $meta['membership_early_renew_at'] ) ? new \DateTime( $meta['membership_early_renew_at'] ) : null;
+
     return [
       'ID'                 => $group_post_id,
       'title'              => get_the_title( $group_post_id ),
       'data'               => array_merge( $meta, [
-        'membership_status'      => $statuses[ $status_slug ]['name'] ?? $status_slug,
-        'membership_status_slug' => $status_slug,
-        'membership_starts_at'   => ! empty( $meta['membership_starts_at'] )
-          ? date( 'm/d/Y', strtotime( $meta['membership_starts_at'] ) ) : '',
-        'membership_ends_at'     => ! empty( $meta['membership_ends_at'] )
-          ? date( 'm/d/Y', strtotime( $meta['membership_ends_at'] ) ) : '',
-        'membership_expires_at'  => ! empty( $meta['membership_expires_at'] )
-          ? date( 'm/d/Y', strtotime( $meta['membership_expires_at'] ) ) : '',
+        'membership_status'         => $statuses[ $status_slug ]['name'] ?? $status_slug,
+        'membership_status_slug'    => $status_slug,
+        'membership_starts_at'      => $starts_at   ? $starts_at->format( 'c' )   : '',
+        'membership_ends_at'        => $ends_at     ? $ends_at->format( 'c' )     : '',
+        'membership_expires_at'     => $expires_at  ? $expires_at->format( 'c' )  : '',
+        'membership_early_renew_at' => $early_renew ? $early_renew->format( 'c' ) : '',
       ] ),
       'individual_members' => array_map( fn( $p ) => $p->ID, $group->get_individual_memberships() ),
     ];
@@ -670,6 +675,7 @@ class Group_Admin_Controller {
         'starts_at'              => (string) ( $meta['membership_starts_at'] ?? '' ),
         'ends_at'                => (string) ( $meta['membership_ends_at'] ?? '' ),
         'expires_at'             => (string) ( $meta['membership_expires_at'] ?? '' ),
+        'early_renew_at'         => (string) ( $meta['membership_early_renew_at'] ?? '' ),
         'renewal_type'           => (string) ( $meta['membership_renewal_type'] ?? '' ),
         'next_tier_form_page_id' => (int) ( $meta['membership_next_tier_form_page_id'] ?? 0 ) ?: null,
         'next_tier_id'           => (int) ( $meta['membership_next_tier_id'] ?? 0 ) ?: null,
