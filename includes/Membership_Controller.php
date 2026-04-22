@@ -58,9 +58,12 @@ function add_cart_item_data( $cart_item_meta, $product_id ) {
     if ( isset( $_REQUEST ['org_uuid'] ) ) {
       $cart_item_meta[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
     }
+
     if( isset( $_REQUEST['membership_post_id_renew']) && !is_array($_REQUEST['membership_post_id_renew'])) {
-      $cart_item_meta[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
+      $renew_id = sanitize_text_field( $_REQUEST['membership_post_id_renew'] );
+      $cart_item_meta[ 'membership_post_id_renew' ] = $renew_id;
     }
+
     return $cart_item_meta;
 }
 
@@ -76,15 +79,18 @@ function get_item_data ( $other_data, $cart_item ) {
 }
 
   function add_order_item_meta ( $item_id, $values ) {
-  if(is_array($values)) {
-    if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
-      wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
-    }
-    if(empty(wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)) && !empty($values['membership_post_id_renew'])) {
-      wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $values['membership_post_id_renew'] );
+    if(is_array($values)) {
+      if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
+        wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
+      }
+
+      if ( !empty( $values['membership_post_id_renew'] ) ) {
+        if ( empty( wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true ) ) ) {
+          wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $values['membership_post_id_renew'] );
+        }
+      }
     }
   }
-}
 
   /**
    * Resolve subscriptions for an order, with a direct child-post fallback for

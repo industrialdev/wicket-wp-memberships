@@ -157,7 +157,7 @@ class Utilities {
   /**
    * Show error notice for bulk product trash protection on the product list page.
    */
-  
+
   public function display_autopay_status_row_admin($order) {
     if (!is_object($order) || !method_exists($order, 'get_type')) {
       return;
@@ -203,7 +203,7 @@ class Utilities {
     if(is_array( $data )) {
       $data = wc_print_r( $data, true );
     }
-    Wicket()->log($level, $data, ['source' => 'wicket-membership-plugin']);
+    \Wicket()->log($level, $data, ['source' => 'wicket-membership-plugin']);
   }
 
    /**
@@ -1056,7 +1056,7 @@ function wicket_sub_org_select_callback( $subscription ) {
 
     <script>
       jQuery(document).ready(function($) {
-          
+
           // Update the Gravity Forms hidden field text field "Autorenew Selected". It must also have a custom CSS class set to "autorenew_selected"
           // This is used mainly for confirmation redirects
           function sync_autorenew_field() {
@@ -1072,7 +1072,7 @@ function wicket_sub_org_select_callback( $subscription ) {
 
           $('#wicket-wc-toggle').on('change', function() {
               var isChecked = $(this).is(':checked') ? 1 : 0;
-              
+
               sync_autorenew_field();
               console.log('wicket-wc-toggle changed');
 
@@ -1196,16 +1196,16 @@ function wicket_sub_org_select_callback( $subscription ) {
   {
     // Get MDP timezone from environment variable, fallback to UTC
     $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
-    
+
     // Create DateTime (timezone in string may override $mdp_timezone parameter)
     $mdp_date = new \DateTime($date_string);
-    
+
     // Force timezone to MDP (handles cases where input string contains timezone info)
     $mdp_date->setTimezone($mdp_timezone);
-    
+
     // Set to start of day (midnight) in MDP timezone
     $mdp_date->setTime(0, 0, 0);
-    
+
     // Convert to UTC and return
     return $mdp_date->setTimezone(new \DateTimeZone('UTC'));
   }
@@ -1221,16 +1221,16 @@ function wicket_sub_org_select_callback( $subscription ) {
   {
     // Get MDP timezone from environment variable, fallback to UTC
     $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
-    
+
     // Create DateTime (timezone in string may override $mdp_timezone parameter)
     $mdp_date = new \DateTime($date_string);
-    
+
     // Force timezone to MDP (handles cases where input string contains timezone info)
     $mdp_date->setTimezone($mdp_timezone);
-    
+
     // Set to end of day (23:59:59) in MDP timezone
     $mdp_date->setTime(23, 59, 59);
-    
+
     // Convert to UTC and return
     return $mdp_date->setTimezone(new \DateTimeZone('UTC'));
   }

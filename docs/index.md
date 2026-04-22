@@ -3,12 +3,20 @@ title: "Wicket Memberships Documentation Index"
 audience: [implementer, support, developer, end-user]
 ---
 
+---
+title: "Wicket Memberships Documentation Index"
+audience: [implementer, support, developer, end-user]
+---
+
 # Wicket Memberships Documentation
 
 ## Product Docs (Operators & Support)
 - [Overview](product/overview.md) — What the plugin does, CPTs, lifecycle, feature flags, requirements
+- [Overview](product/overview.md) — What the plugin does, CPTs, lifecycle, feature flags, requirements
 
 ## Engineering Docs (Developers & Agents)
+
+### Data Structures
 
 ### Data Structures
 - [Membership_Config Data Structure](engineering/membership_config_data_structure.md) — Renewal windows, late fees, calendar/anniversary cycles

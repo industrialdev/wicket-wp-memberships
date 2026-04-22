@@ -359,12 +359,15 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
     }
 
     public function set_onboarding_posted_data_to_wc_session() {
+        $has_renew = !empty( $_REQUEST['membership_post_id_renew'] );
+        $has_org   = isset( $_REQUEST['org_uuid'] );
+
         if ( is_page( 'cart' ) || is_cart() ) {
-            if ( isset($_REQUEST['org_uuid']) ) {
+            if ( $has_org ) {
                 if ( isset($_REQUEST['org_uuid']) && ! empty($_REQUEST['org_uuid']) ) {
                     $values['org_uuid'] = sanitize_text_field($_REQUEST['org_uuid']);
                 }
-                if ( isset($_REQUEST['membership_post_id_renew']) && ! empty($_REQUEST['membership_post_id_renew']) ) {
+                if ( $has_renew ) {
                   $values['membership_post_id_renew'] = sanitize_text_field($_REQUEST['membership_post_id_renew']);
                 }
                 if ( ! empty($values)) {

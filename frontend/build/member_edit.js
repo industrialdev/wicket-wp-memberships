@@ -6801,15 +6801,23 @@ function safePolygon(options) {
 
 /***/ }),
 
+<<<<<<< HEAD
 /***/ "./src/members/GroupMembershipBadge.js":
 /*!*********************************************!*\
   !*** ./src/members/GroupMembershipBadge.js ***!
   \*********************************************/
+=======
+/***/ "./src/constants.js":
+/*!**************************!*\
+  !*** ./src/constants.js ***!
+  \**************************/
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+<<<<<<< HEAD
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
@@ -7107,6 +7115,23 @@ const ManageStatusModal = ({
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Update Status', 'wicket-memberships')))))));
 };
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (ManageStatusModal);
+=======
+/* harmony export */   API_URL: () => (/* binding */ API_URL),
+/* harmony export */   DEFAULT_DATE_FORMAT: () => (/* binding */ DEFAULT_DATE_FORMAT),
+/* harmony export */   PLUGIN_API_URL: () => (/* binding */ PLUGIN_API_URL),
+/* harmony export */   PLUGIN_SETTINGS: () => (/* binding */ PLUGIN_SETTINGS),
+/* harmony export */   TIER_CPT_SLUG: () => (/* binding */ TIER_CPT_SLUG),
+/* harmony export */   WC_API_V3_URL: () => (/* binding */ WC_API_V3_URL),
+/* harmony export */   WC_PRODUCT_TYPES: () => (/* binding */ WC_PRODUCT_TYPES)
+/* harmony export */ });
+const API_URL = "/wp/v2";
+const WC_API_V3_URL = "/wc/v3";
+const PLUGIN_API_URL = "/wicket_member/v1";
+const TIER_CPT_SLUG = "wicket_mship_tier";
+const DEFAULT_DATE_FORMAT = "yyyy-MM-dd";
+const WC_PRODUCT_TYPES = ["subscription", "variable-subscription"];
+const PLUGIN_SETTINGS = wicketMembershipsSettings;
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 
 /***/ }),
 
@@ -7119,20 +7144,33 @@ const ManageStatusModal = ({
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+<<<<<<< HEAD
 /* harmony export */   CreateRenewalOrderModal: () => (/* binding */ CreateRenewalOrderModal),
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__),
 /* harmony export */   getRenewalOrderAction: () => (/* binding */ getRenewalOrderAction)
+=======
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 /* harmony export */ });
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
 /* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
 /* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+<<<<<<< HEAD
 /* harmony import */ var _shared_constants__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../shared/constants */ "./src/shared/constants.js");
 /* harmony import */ var _shared_styled_elements__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../shared/styled_elements */ "./src/shared/styled_elements.js");
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__);
 /* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
 /* harmony import */ var _shared_services_api__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../shared/services/api */ "./src/shared/services/api.js");
+=======
+/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants */ "./src/constants.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! ../styled_elements */ "./src/styled_elements.js");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _services_api__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../services/api */ "./src/services/api.js");
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 
 
 
@@ -7144,6 +7182,7 @@ __webpack_require__.r(__webpack_exports__);
 const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_6__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Flex))`
   margin-top: 15px;
 `;
+<<<<<<< HEAD
 
 /**
  * CreateRenewalOrderModal
@@ -7162,6 +7201,12 @@ const CreateRenewalOrderModal = ({
   isOpen,
   onClose
 }) => {
+=======
+const CreateRenewalOrder = ({
+  membership
+}) => {
+  const [isCreateRenewalOrderModalOpen, setIsCreateRenewalOrderModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
   const [createRenewalOrderErrors, setCreateRenewalOrderErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [createRenewalOrderFormData, setCreateRenewalOrderFormData] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     product_id: null,
@@ -7173,6 +7218,7 @@ const CreateRenewalOrderModal = ({
 
   const [productVariations, setProductVariations] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { product_id: [] }
 
+<<<<<<< HEAD
   // Fetch products the first time the modal opens
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     if (isOpen && wcProductOptions.length === 0) {
@@ -7180,19 +7226,44 @@ const CreateRenewalOrderModal = ({
     }
   }, [isOpen]);
   const closeModal = () => {
+=======
+  /**
+   * Open the Create Renewal Order Modal
+   */
+  const openCreateRenewalOrderModal = () => {
+    // If there are no WooCommerce products, fetch them
+    if (wcProductOptions.length === 0) {
+      getAllWcProducts();
+    }
+    setIsCreateRenewalOrderModalOpen(true);
+  };
+
+  /**
+   * Close the Create Renewal Order Modal
+   */
+  const closeCreateRenewalOrderModalOpen = () => {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     setCreateRenewalOrderFormData({
       product_id: null,
       variation_id: null,
       order_link: null
     });
+<<<<<<< HEAD
     onClose();
+=======
+    setIsCreateRenewalOrderModalOpen(false);
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
   };
 
   /**
    * Fetch all WooCommerce products
    */
   const getAllWcProducts = async () => {
+<<<<<<< HEAD
     const promises = _shared_constants__WEBPACK_IMPORTED_MODULE_2__.WC_PRODUCT_TYPES.map(type => (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_5__.fetchWcProducts)({
+=======
+    const promises = _constants__WEBPACK_IMPORTED_MODULE_2__.WC_PRODUCT_TYPES.map(type => (0,_services_api__WEBPACK_IMPORTED_MODULE_5__.fetchWcProducts)({
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
       status: "publish",
       per_page: 100,
       type: type
@@ -7214,6 +7285,10 @@ const CreateRenewalOrderModal = ({
    * Get the product id of the selected product (in the modal)
    */
   const getSelectedProductId = () => {
+<<<<<<< HEAD
+=======
+    // return null if there is no product
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     if (createRenewalOrderFormData.product_id === null) {
       return null;
     }
@@ -7224,6 +7299,10 @@ const CreateRenewalOrderModal = ({
    * Get the variation id of the selected product (in the modal)
    */
   const getSelectedProductVariationId = () => {
+<<<<<<< HEAD
+=======
+    // return null if there are no products
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     if (createRenewalOrderFormData.variation_id === null) {
       return null;
     }
@@ -7251,10 +7330,18 @@ const CreateRenewalOrderModal = ({
    * Fetch variations for the selected product id
    */
   const getProductVariations = productId => {
+<<<<<<< HEAD
     if (productId === null || productVariations[productId]) {
       return;
     }
     (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_5__.fetchProductVariations)(productId, {
+=======
+    // check if we already have variations for this product
+    if (productId === null || productVariations[productId]) {
+      return;
+    }
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_5__.fetchProductVariations)(productId, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
       per_page: 100,
       status: "publish"
     }).then(variations => {
@@ -7271,7 +7358,11 @@ const CreateRenewalOrderModal = ({
   const handleCreateRenewalOrderModalSubmit = event => {
     event.preventDefault();
     setIsLoading(true);
+<<<<<<< HEAD
     (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_5__.createRenewalOrder)(membership.ID, createRenewalOrderFormData.product_id, createRenewalOrderFormData.variation_id).then(response => {
+=======
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_5__.createRenewalOrder)(membership.ID, createRenewalOrderFormData.product_id, createRenewalOrderFormData.variation_id).then(response => {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
       console.log(response);
       setIsLoading(false);
       if (response.success) {
@@ -7288,7 +7379,11 @@ const CreateRenewalOrderModal = ({
   };
 
   /**
+<<<<<<< HEAD
    * Get the product type of the selected product
+=======
+   * Get the product id of the selected product
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
    */
   const getSelectedCreateRenewalOrderProductType = () => {
     if (createRenewalOrderFormData.product_id === null) {
@@ -7297,17 +7392,42 @@ const CreateRenewalOrderModal = ({
     const product = wcProductOptions.find(option => option.value === createRenewalOrderFormData.product_id);
     return product.type;
   };
+<<<<<<< HEAD
   if (!isOpen) {
     return null;
   }
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Modal, {
     title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Create Renewal Order", "wicket-memberships"),
     onRequestClose: closeModal,
+=======
+  console.log(createRenewalOrderFormData);
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.BorderedBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      textAlign: "left"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Renewal", "wicket-memberships"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Button, {
+    variant: "secondary"
+    // Disable the button if the membership is not "Active, Grace Period, or Delayed"
+    ,
+    disabled: membership.data.membership_status_slug !== "active" && membership.data.membership_status_slug !== "grace_period" && membership.data.membership_status_slug !== "delayed",
+    onClick: () => {
+      openCreateRenewalOrderModal();
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Icon, {
+    icon: "update"
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Create Renewal Order", "wicket-memberships"))))), isCreateRenewalOrderModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Modal, {
+    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Create Renewal Order", "wicket-memberships"),
+    onRequestClose: closeCreateRenewalOrderModalOpen,
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     style: {
       maxWidth: "650px",
       width: "100%"
     }
+<<<<<<< HEAD
   }, createRenewalOrderErrors.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_3__.ErrorsRow, null, createRenewalOrderErrors.map((errorMessage, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Notice, {
+=======
+  }, createRenewalOrderErrors.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.ErrorsRow, null, createRenewalOrderErrors.map((errorMessage, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Notice, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     isDismissible: false,
     key: index,
     status: "warning"
@@ -7330,9 +7450,15 @@ const CreateRenewalOrderModal = ({
     justify: "start",
     gap: 5,
     direction: ["column", "row"]
+<<<<<<< HEAD
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, {
     htmlFor: "create_renewal_order_product_id"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Product", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_3__.SelectWpStyled, {
+=======
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, {
+    htmlFor: "create_renewal_order_product_id"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Product", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.SelectWpStyled, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     id: "create_renewal_order_product_id",
     classNamePrefix: "select",
     value: wcProductOptions.find(option => option.value === createRenewalOrderFormData.product_id),
@@ -7360,9 +7486,15 @@ const CreateRenewalOrderModal = ({
         getProductVariations(selected.value);
       }
     }
+<<<<<<< HEAD
   }))), getSelectedCreateRenewalOrderProductType() === "variable-subscription" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, {
     htmlFor: "create_order_renewal_variation_id"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Variable", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_3__.SelectWpStyled, {
+=======
+  }))), getSelectedCreateRenewalOrderProductType() === "variable-subscription" && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.LabelWpStyled, {
+    htmlFor: "create_order_renewal_variation_id"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Variable", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.SelectWpStyled, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     id: "create_order_renewal_variation_id",
     classNamePrefix: "select",
     value: getSelectedVariationOption(),
@@ -7388,7 +7520,11 @@ const CreateRenewalOrderModal = ({
         variation_id: selected.value
       });
     }
+<<<<<<< HEAD
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_3__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Flex, {
+=======
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Flex, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     align: "end",
     gap: 5,
     direction: ["column", "row"]
@@ -7397,6 +7533,7 @@ const CreateRenewalOrderModal = ({
     type: "submit",
     isBusy: isLoading,
     disabled: getSelectedProductId() === null || getSelectedCreateRenewalOrderProductType() === "variable-subscription" && getSelectedProductVariationId() === null || isLoading || createRenewalOrderFormData.order_link !== null
+<<<<<<< HEAD
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Create Order", "wicket-memberships")))))));
 };
 
@@ -7449,10 +7586,15 @@ const getRenewalOrderAction = (membership, onOpen) => ({
   disabled: membership.data.membership_status_slug !== "active" && membership.data.membership_status_slug !== "grace_period" && membership.data.membership_status_slug !== "delayed",
   onClick: onOpen
 });
+=======
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Create Order", "wicket-memberships"))))))));
+};
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (CreateRenewalOrder);
 
 /***/ }),
 
+<<<<<<< HEAD
 /***/ "./src/shared/components/MembershipActionsDropdown.js":
 /*!************************************************************!*\
   !*** ./src/shared/components/MembershipActionsDropdown.js ***!
@@ -7696,18 +7838,27 @@ const formatDateWithTooltip = isoString => {
 /*!************************************!*\
   !*** ./src/shared/services/api.js ***!
   \************************************/
+=======
+/***/ "./src/services/api.js":
+/*!*****************************!*\
+  !*** ./src/services/api.js ***!
+  \*****************************/
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   createRenewalOrder: () => (/* binding */ createRenewalOrder),
+<<<<<<< HEAD
 /* harmony export */   fetchGroupEditPageInfo: () => (/* binding */ fetchGroupEditPageInfo),
 /* harmony export */   fetchGroupMembersByTier: () => (/* binding */ fetchGroupMembersByTier),
 /* harmony export */   fetchGroupMembershipFilters: () => (/* binding */ fetchGroupMembershipFilters),
 /* harmony export */   fetchGroupMembershipStatuses: () => (/* binding */ fetchGroupMembershipStatuses),
 /* harmony export */   fetchGroupMemberships: () => (/* binding */ fetchGroupMemberships),
 /* harmony export */   fetchGroupsInfo: () => (/* binding */ fetchGroupsInfo),
+=======
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 /* harmony export */   fetchMdpPersons: () => (/* binding */ fetchMdpPersons),
 /* harmony export */   fetchMemberInfo: () => (/* binding */ fetchMemberInfo),
 /* harmony export */   fetchMembers: () => (/* binding */ fetchMembers),
@@ -7719,9 +7870,12 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   fetchTiers: () => (/* binding */ fetchTiers),
 /* harmony export */   fetchTiersInfo: () => (/* binding */ fetchTiersInfo),
 /* harmony export */   fetchWcProducts: () => (/* binding */ fetchWcProducts),
+<<<<<<< HEAD
 /* harmony export */   updateGroupChangeOwnership: () => (/* binding */ updateGroupChangeOwnership),
 /* harmony export */   updateGroupMembership: () => (/* binding */ updateGroupMembership),
 /* harmony export */   updateGroupMembershipStatus: () => (/* binding */ updateGroupMembershipStatus),
+=======
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 /* harmony export */   updateMembership: () => (/* binding */ updateMembership),
 /* harmony export */   updateMembershipStatus: () => (/* binding */ updateMembershipStatus)
 /* harmony export */ });
@@ -7729,7 +7883,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0__);
 /* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/url */ "@wordpress/url");
 /* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_url__WEBPACK_IMPORTED_MODULE_1__);
+<<<<<<< HEAD
 /* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants */ "./src/shared/constants.js");
+=======
+/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! ../constants */ "./src/constants.js");
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 
 
 
@@ -7826,6 +7984,7 @@ const fetchMembers = (params = null) => {
 };
 
 /**
+<<<<<<< HEAD
  * Fetch Group Memberships
  */
 const fetchGroupMemberships = (params = null) => {
@@ -7838,6 +7997,8 @@ const fetchGroupMemberships = (params = null) => {
 };
 
 /**
+=======
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
  * Fetch Membership Tiers Info
  */
 const fetchTiersInfo = (tierIds = []) => {
@@ -7854,6 +8015,7 @@ const fetchTiersInfo = (tierIds = []) => {
 };
 
 /**
+<<<<<<< HEAD
  * Fetch Membership Groups Info
  */
 const fetchGroupsInfo = (groupIds = []) => {
@@ -7870,6 +8032,8 @@ const fetchGroupsInfo = (groupIds = []) => {
 };
 
 /**
+=======
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
  * Fetch Membership Tiers
  */
 const fetchMembershipTiers = (queryParams = {}) => {
@@ -7892,6 +8056,7 @@ const fetchMdpPersons = (queryParams = {}) => {
 };
 
 /**
+<<<<<<< HEAD
  * Fetch group members broken down by tier for a given group post ID.
  * GET /wicket_member/v1/group/{groupPostId}/members_by_tier
  */
@@ -7911,6 +8076,8 @@ const fetchGroupMembershipFilters = () => {
 };
 
 /**
+=======
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
  * Fetch Membership Filters
  */
 const fetchMembershipFilters = (memberType = null) => {
@@ -7957,6 +8124,7 @@ const createRenewalOrder = (membershipId, productId, variationId) => {
   });
 };
 
+<<<<<<< HEAD
 /**
  * Fetch all data required to populate the group membership detail/edit page.
  *
@@ -8049,6 +8217,14 @@ const updateGroupChangeOwnership = (groupPostId, newOwnerUuid) => {
 /*!***************************************!*\
   !*** ./src/shared/styled_elements.js ***!
   \***************************************/
+=======
+/***/ }),
+
+/***/ "./src/styled_elements.js":
+/*!********************************!*\
+  !*** ./src/styled_elements.js ***!
+  \********************************/
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 /***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
 
 "use strict";
@@ -8059,6 +8235,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   AsyncSelectWpStyled: () => (/* binding */ AsyncSelectWpStyled),
 /* harmony export */   BorderedBox: () => (/* binding */ BorderedBox),
 /* harmony export */   CustomDisabled: () => (/* binding */ CustomDisabled),
+<<<<<<< HEAD
 /* harmony export */   EditWrap: () => (/* binding */ EditWrap),
 /* harmony export */   ErrorsRow: () => (/* binding */ ErrorsRow),
 /* harmony export */   FormFlex: () => (/* binding */ FormFlex),
@@ -8067,6 +8244,13 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   ModalStyled: () => (/* binding */ ModalStyled),
 /* harmony export */   ReactDatePickerStyledWrap: () => (/* binding */ ReactDatePickerStyledWrap),
 /* harmony export */   RecordTopInfo: () => (/* binding */ RecordTopInfo),
+=======
+/* harmony export */   ErrorsRow: () => (/* binding */ ErrorsRow),
+/* harmony export */   FormFlex: () => (/* binding */ FormFlex),
+/* harmony export */   LabelWpStyled: () => (/* binding */ LabelWpStyled),
+/* harmony export */   ModalStyled: () => (/* binding */ ModalStyled),
+/* harmony export */   ReactDatePickerStyledWrap: () => (/* binding */ ReactDatePickerStyledWrap),
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 /* harmony export */   SelectWpStyled: () => (/* binding */ SelectWpStyled),
 /* harmony export */   Wrap: () => (/* binding */ Wrap)
 /* harmony export */ });
@@ -8109,9 +8293,12 @@ const CustomDisabled = (0,styled_components__WEBPACK_IMPORTED_MODULE_3__["defaul
 const Wrap = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].div`
   max-width: 600px;
 `;
+<<<<<<< HEAD
 const EditWrap = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].div`
   max-width: 1000px;
 `;
+=======
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 const ActionRow = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].div`
   margin-top: 30px;
 `;
@@ -8223,6 +8410,7 @@ const ModalStyled = (0,styled_components__WEBPACK_IMPORTED_MODULE_3__["default"]
     overflow: visible;
   }
 `;
+<<<<<<< HEAD
 const RecordTopInfo = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"].div`
   background: #F0F6FC;
   margin-top: 15px;
@@ -8254,6 +8442,8 @@ const MembershipTable = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"
     }
   }
 `;
+=======
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 
 /***/ }),
 
@@ -44468,6 +44658,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3__);
 /* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! @wordpress/url */ "@wordpress/url");
 /* harmony import */ var _wordpress_url__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_url__WEBPACK_IMPORTED_MODULE_4__);
+<<<<<<< HEAD
 /* harmony import */ var _shared_constants__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../shared/constants */ "./src/shared/constants.js");
 /* harmony import */ var _shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../shared/styled_elements */ "./src/shared/styled_elements.js");
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
@@ -44485,6 +44676,21 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _shared_components_MembershipActionsDropdown__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ../shared/components/MembershipActionsDropdown */ "./src/shared/components/MembershipActionsDropdown.js");
 /* harmony import */ var _GroupMembershipDetails__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! ./GroupMembershipDetails */ "./src/members/GroupMembershipDetails.js");
 /* harmony import */ var _GroupMembershipBadge__WEBPACK_IMPORTED_MODULE_15__ = __webpack_require__(/*! ./GroupMembershipBadge */ "./src/members/GroupMembershipBadge.js");
+=======
+/* harmony import */ var _constants__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../constants */ "./src/constants.js");
+/* harmony import */ var _styled_elements__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../styled_elements */ "./src/styled_elements.js");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_7___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__);
+/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! react-datepicker */ "./node_modules/react-datepicker/dist/react-datepicker.min.js");
+/* harmony import */ var react_datepicker__WEBPACK_IMPORTED_MODULE_13___default = /*#__PURE__*/__webpack_require__.n(react_datepicker__WEBPACK_IMPORTED_MODULE_13__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _services_api__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../services/api */ "./src/services/api.js");
+/* harmony import */ var he__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! he */ "./node_modules/he/he.js");
+/* harmony import */ var he__WEBPACK_IMPORTED_MODULE_9___default = /*#__PURE__*/__webpack_require__.n(he__WEBPACK_IMPORTED_MODULE_9__);
+/* harmony import */ var moment_timezone__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! moment-timezone */ "./node_modules/moment-timezone/index.js");
+/* harmony import */ var moment_timezone__WEBPACK_IMPORTED_MODULE_10___default = /*#__PURE__*/__webpack_require__.n(moment_timezone__WEBPACK_IMPORTED_MODULE_10__);
+/* harmony import */ var _create_renewal_order__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ./create_renewal_order */ "./src/members/create_renewal_order.js");
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 
 
 
@@ -44500,6 +44706,7 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+<<<<<<< HEAD
 
 
 
@@ -44514,6 +44721,18 @@ const WhiteBorderedBox = (0,styled_components__WEBPACK_IMPORTED_MODULE_16__["def
   background: #fff;
 `;
 const MembershipTable = styled_components__WEBPACK_IMPORTED_MODULE_16__["default"].div`
+=======
+const EditWrap = styled_components__WEBPACK_IMPORTED_MODULE_12__["default"].div`
+	max-width: 1000px;
+`;
+const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_12__["default"])((0,_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex))`
+	margin-top: 15px;
+`;
+const WhiteBorderedBox = (0,styled_components__WEBPACK_IMPORTED_MODULE_12__["default"])((0,_styled_elements__WEBPACK_IMPORTED_MODULE_6__.BorderedBox))`
+  background: #fff;
+`;
+const MembershipTable = styled_components__WEBPACK_IMPORTED_MODULE_12__["default"].div`
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
   margin-top: 20px;
 
   .membership_details {
@@ -44538,7 +44757,11 @@ const MembershipTable = styled_components__WEBPACK_IMPORTED_MODULE_16__["default
     }
   }
 `;
+<<<<<<< HEAD
 const SeatsBox = styled_components__WEBPACK_IMPORTED_MODULE_16__["default"].div`
+=======
+const SeatsBox = styled_components__WEBPACK_IMPORTED_MODULE_12__["default"].div`
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
   border: 1px solid #949494;
   display: flex;
 
@@ -44558,7 +44781,11 @@ const SeatsBox = styled_components__WEBPACK_IMPORTED_MODULE_16__["default"].div`
     }
   }
 `;
+<<<<<<< HEAD
 const RecordTopInfo = styled_components__WEBPACK_IMPORTED_MODULE_16__["default"].div`
+=======
+const RecordTopInfo = styled_components__WEBPACK_IMPORTED_MODULE_12__["default"].div`
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
   background: #F0F6FC;
   margin-top: 15px;
   padding: 15px;
@@ -44585,6 +44812,21 @@ const MemberEdit = ({
     label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Current Tier', 'wicket-memberships'),
     value: 'current_tier'
   }];
+<<<<<<< HEAD
+=======
+
+  // Helper: Format date as Y-m-d with ISO 8601 tooltip (in MDP timezone)
+  const formatDateWithTooltip = isoString => {
+    if (!isoString) return '';
+    const mdpTimezone = _constants__WEBPACK_IMPORTED_MODULE_5__.PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+    const m = moment_timezone__WEBPACK_IMPORTED_MODULE_10___default().tz(isoString, mdpTimezone);
+    const dateDisplay = m.format('YYYY-MM-DD'); // Y-m-d format in MDP timezone
+    const isoFull = m.format(); // ISO 8601 with MDP timezone: 2025-12-31T00:00:00-05:00
+    return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+      title: isoFull
+    }, dateDisplay);
+  };
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
   const [isLoading, setIsLoading] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(true);
   const [wpPagesOptions, setWpPagesOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
   const [wpTierOptions, setWpTierOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]); // { id, name }
@@ -44592,15 +44834,29 @@ const MemberEdit = ({
   const [memberships, setMemberships] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [membershipOwnerOptions, setMembershipOwnerOptions] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+<<<<<<< HEAD
   const [manageStatusTarget, setManageStatusTarget] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     postId: null,
     currentStatus: ''
+=======
+  const [manageStatusErrors, setManageStatusErrors] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)([]);
+  const [statusChangeConfirmed, setStatusChangeConfirmed] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
+  const [manageStatusFormData, setManageStatusFormData] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
+    postId: null,
+    currentStatus: '',
+    newStatus: '',
+    availableStatuses: []
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
   });
   const loadMembershipOwnerOptions = (inputValue, callback) => {
     if (inputValue.length < 3) {
       return;
     }
+<<<<<<< HEAD
     (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_9__.fetchMdpPersons)({
+=======
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.fetchMdpPersons)({
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
       term: inputValue
     }).then(response => {
       const options = response.map(person => {
@@ -44614,6 +44870,7 @@ const MemberEdit = ({
       console.error(error);
     });
   };
+<<<<<<< HEAD
   const openManageStatusModal = membershipIndex => {
     setManageStatusTarget({
       postId: memberships[membershipIndex].data.membership_post_id,
@@ -44638,6 +44895,75 @@ const MemberEdit = ({
   const getMemberships = () => {
     setIsLoading(true);
     (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_9__.fetchMemberships)(recordId).then(response => {
+=======
+  const openManageStatusModalOpen = membershipIndex => {
+    setManageStatusFormData({
+      postId: memberships[membershipIndex].data.membership_post_id,
+      currentStatus: memberships[membershipIndex].data.membership_status,
+      newStatus: '',
+      availableStatuses: []
+    });
+    setStatusChangeConfirmed(false);
+    getMembershipStatuses(membershipIndex);
+    setIsManageStatusModalOpen(true);
+  };
+
+  /**
+   * Close the Manage Status Modal
+   */
+  const closeManageStatusModalOpen = () => {
+    setStatusChangeConfirmed(false);
+    setIsManageStatusModalOpen(false);
+  };
+  const getMembershipStatusOptions = () => {
+    let statuses = Object.keys(manageStatusFormData.availableStatuses).map(status => {
+      return {
+        label: manageStatusFormData.availableStatuses[status].name,
+        value: manageStatusFormData.availableStatuses[status].slug
+      };
+    });
+
+    // prepend the empty option
+    statuses.unshift({
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Select Status', 'wicket-memberships'),
+      value: ''
+    });
+    return statuses;
+  };
+  const statusRequiresConfirmation = status => {
+    return ['cancelled', 'expired'].includes(status);
+  };
+  const handleManageStatusModalSubmit = event => {
+    event.preventDefault();
+    if (statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed) {
+      return;
+    }
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.updateMembershipStatus)(manageStatusFormData.postId, manageStatusFormData.newStatus).then(response => {
+      if (response.success) {
+        closeManageStatusModalOpen();
+
+        // update status for this membership
+        setMemberships(memberships.map(m => {
+          if (m.ID == manageStatusFormData.postId) {
+            m.data.membership_status = manageStatusFormData.newStatus;
+            m.data.membership_ends_at = moment_timezone__WEBPACK_IMPORTED_MODULE_10___default().utc(response.response.membership_ends_at).endOf('day').toISOString();
+            m.data.membership_expires_at = moment_timezone__WEBPACK_IMPORTED_MODULE_10___default().utc(response.response.membership_expires_at).endOf('day').toISOString();
+            m.updatedNow = true;
+          }
+          return m;
+        }));
+      } else {
+        console.log(response);
+        setManageStatusErrors([response.error]);
+      }
+    }).catch(error => {
+      console.error(error);
+    });
+  };
+  const getMemberships = () => {
+    setIsLoading(true);
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.fetchMemberships)(recordId).then(response => {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
       console.log(response);
       let tempMembershipOwnerOptions = [];
 
@@ -44695,18 +45021,42 @@ const MemberEdit = ({
       console.error(error);
     });
   };
+<<<<<<< HEAD
+=======
+  const getMembershipStatuses = membershipIndex => {
+    const membership = memberships[membershipIndex];
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.fetchMembershipStatuses)(membership.data.membership_post_id).then(response => {
+      setManageStatusFormData({
+        postId: membership.data.membership_post_id,
+        currentStatus: membership.data.membership_status,
+        newStatus: '',
+        availableStatuses: response
+      });
+    }).catch(error => {
+      console.error(error);
+    });
+  };
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 
   // Fetch Local WP Pages
   const getLocalWpPages = () => {
     _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
+<<<<<<< HEAD
       path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_shared_constants__WEBPACK_IMPORTED_MODULE_5__.API_URL}/pages`, {
+=======
+      path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_5__.API_URL}/pages`, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
         _fields: 'id,title',
         status: 'publish',
         per_page: -1
       })
     }).then(posts => {
       let options = posts.map(post => {
+<<<<<<< HEAD
         const decodedTitle = he__WEBPACK_IMPORTED_MODULE_10___default().decode(post.title.rendered);
+=======
+        const decodedTitle = he__WEBPACK_IMPORTED_MODULE_9___default().decode(post.title.rendered);
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
         return {
           label: `${decodedTitle} | ID: ${post.id}`,
           value: post.id
@@ -44718,9 +45068,15 @@ const MemberEdit = ({
 
   // Fetch Local Membership Tiers Posts
   const getWpTierOptions = () => {
+<<<<<<< HEAD
     (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_9__.fetchTiers)().then(tiers => {
       let options = tiers.map(tier => {
         const decodedTitle = he__WEBPACK_IMPORTED_MODULE_10___default().decode(tier.title.rendered);
+=======
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.fetchTiers)().then(tiers => {
+      let options = tiers.map(tier => {
+        const decodedTitle = he__WEBPACK_IMPORTED_MODULE_9___default().decode(tier.title.rendered);
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
         return {
           label: `${decodedTitle} | ID: ${tier.id}`,
           value: tier.id
@@ -44779,7 +45135,11 @@ const MemberEdit = ({
     }));
     console.log("Updating with");
     console.log(data);
+<<<<<<< HEAD
     (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_9__.updateMembership)(membershipId, data).then(response => {
+=======
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.updateMembership)(membershipId, data).then(response => {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
       console.log(response);
       let updateMessage = '';
       if (response.success) {
@@ -44804,8 +45164,13 @@ const MemberEdit = ({
   // Helper: Convert ISO string to MDP timezone date for date picker display
   const getDatePickerValue = isoString => {
     if (!isoString) return null;
+<<<<<<< HEAD
     const mdpTimezone = _shared_constants__WEBPACK_IMPORTED_MODULE_5__.PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
     const mdpMoment = moment_timezone__WEBPACK_IMPORTED_MODULE_11___default().tz(isoString, mdpTimezone);
+=======
+    const mdpTimezone = _constants__WEBPACK_IMPORTED_MODULE_5__.PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+    const mdpMoment = moment_timezone__WEBPACK_IMPORTED_MODULE_10___default().tz(isoString, mdpTimezone);
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     return new Date(mdpMoment.year(), mdpMoment.month(), mdpMoment.date());
   };
 
@@ -44813,8 +45178,13 @@ const MemberEdit = ({
   // Start date stays at start-of-day; end/expiry dates are stored at end-of-day.
   const convertDateForField = (dateValue, field) => {
     if (!dateValue) return dateValue;
+<<<<<<< HEAD
     const mdpTimezone = _shared_constants__WEBPACK_IMPORTED_MODULE_5__.PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
     const mdpDate = moment_timezone__WEBPACK_IMPORTED_MODULE_11___default().tz([dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()], mdpTimezone);
+=======
+    const mdpTimezone = _constants__WEBPACK_IMPORTED_MODULE_5__.PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+    const mdpDate = moment_timezone__WEBPACK_IMPORTED_MODULE_10___default().tz([dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()], mdpTimezone);
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     if (['membership_ends_at', 'membership_expires_at'].includes(field)) {
       mdpDate.endOf('day');
     } else {
@@ -44840,7 +45210,11 @@ const MemberEdit = ({
     }));
   };
   const getMemberInfo = () => {
+<<<<<<< HEAD
     (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_9__.fetchMemberInfo)(recordId).then(response => {
+=======
+    (0,_services_api__WEBPACK_IMPORTED_MODULE_8__.fetchMemberInfo)(recordId).then(response => {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
       console.log('memberInfo');
       console.log(response);
       setMemberInfo(response);
@@ -44885,8 +45259,14 @@ const MemberEdit = ({
       return subscription.next_payment_date;
     }
   };
+<<<<<<< HEAD
   console.log('MEMBERSHIPS', memberships);
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.AppWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+=======
+  console.log('manageStatusFormData', manageStatusFormData);
+  console.log('MEMBERSHIPS', memberships);
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.AppWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     className: "wrap"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("h1", {
     className: "wp-heading-inline"
@@ -44901,14 +45281,22 @@ const MemberEdit = ({
     level: 3
   }, memberType === 'individual' ? getIndividualName() : memberInfo === null ? '' : memberInfo.org_name)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex, {
     gap: 3
+<<<<<<< HEAD
   }, memberType === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.CustomDisabled, {
+=======
+  }, memberType === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.CustomDisabled, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     isDisabled: memberInfo === null || !memberInfo.switch_to_url
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
     variant: "secondary",
     href: memberInfo === null || !memberInfo.switch_to_url ? '' : memberInfo.switch_to_url.replaceAll("&amp;", "&")
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Icon, {
     icon: "update"
+<<<<<<< HEAD
   }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Switch to', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.CustomDisabled, {
+=======
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Switch to', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.CustomDisabled, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     isDisabled: memberInfo === null
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
     variant: "secondary",
@@ -44956,19 +45344,31 @@ const MemberEdit = ({
     key: index
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
+<<<<<<< HEAD
   }, membership.data.membership_tier_name, membership.is_group_membership && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_GroupMembershipBadge__WEBPACK_IMPORTED_MODULE_15__["default"], {
     groupName: membership.group_name
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+=======
+  }, membership.data.membership_tier_name), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     className: "column-columnname"
   }, membership.ID), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
   }, membership.data.membership_status), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
+<<<<<<< HEAD
   }, (0,_shared_constants__WEBPACK_IMPORTED_MODULE_5__.formatDateWithTooltip)(membership.data.membership_starts_at)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
   }, (0,_shared_constants__WEBPACK_IMPORTED_MODULE_5__.formatDateWithTooltip)(membership.data.membership_ends_at)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
   }, (0,_shared_constants__WEBPACK_IMPORTED_MODULE_5__.formatDateWithTooltip)(membership.data.membership_expires_at)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
+=======
+  }, formatDateWithTooltip(membership.data.membership_starts_at)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, formatDateWithTooltip(membership.data.membership_ends_at)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, formatDateWithTooltip(membership.data.membership_expires_at)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     variant: "primary",
     icon: membership.showRow ? 'minus' : 'plus-alt2',
     onClick: () => {
@@ -44982,9 +45382,13 @@ const MemberEdit = ({
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     colSpan: 7
+<<<<<<< HEAD
   }, membership.is_group_membership ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_GroupMembershipDetails__WEBPACK_IMPORTED_MODULE_14__["default"], {
     membership: membership
   }) : (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, membership.subscription.id !== undefined && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex, {
+=======
+  }, membership.subscription.id !== undefined && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     align: "end",
     justify: "start",
     gap: 6,
@@ -45017,16 +45421,26 @@ const MemberEdit = ({
     href: membership.order.link
   }, "#", membership.order.id)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
+<<<<<<< HEAD
   }, (0,_shared_constants__WEBPACK_IMPORTED_MODULE_5__.formatDateWithTooltip)(membership.order.date_created)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
     className: "column-columnname"
   }, (0,_shared_constants__WEBPACK_IMPORTED_MODULE_5__.formatCurrency)(membership.order.total)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+=======
+  }, formatDateWithTooltip(membership.order.date_created)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+    className: "column-columnname"
+  }, membership.order.total), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     className: "column-columnname"
   }, membership.order.status)))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex, {
     align: "normal",
     justify: "start",
     gap: 6,
     direction: ['column', 'row']
+<<<<<<< HEAD
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.BorderedBox, {
+=======
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.BorderedBox, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     style: {
       flex: '1'
     }
@@ -45047,6 +45461,7 @@ const MemberEdit = ({
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
     variant: "secondary",
     onClick: () => {
+<<<<<<< HEAD
       openManageStatusModal(index);
     }
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Manage Status', 'wicket-memberships'))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipActionsDropdown__WEBPACK_IMPORTED_MODULE_13__["default"], {
@@ -45062,6 +45477,13 @@ const MemberEdit = ({
       setMemberships([...memberships]);
     }
   })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.BorderedBox, null, membership.updateResult.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ErrorsRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Notice, {
+=======
+      openManageStatusModalOpen(index);
+    }
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Manage Status', 'wicket-memberships'))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_create_renewal_order__WEBPACK_IMPORTED_MODULE_11__["default"], {
+    membership: membership
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.BorderedBox, null, membership.updateResult.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ErrorsRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Notice, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     isDismissible: true,
     onDismiss: () => {
       setMemberships(memberships.map(m => {
@@ -45080,6 +45502,7 @@ const MemberEdit = ({
     justify: "start",
     gap: 6,
     direction: ['column', 'row']
+<<<<<<< HEAD
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
     htmlFor: "membership_starts_at"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_17___default()), {
@@ -45088,18 +45511,36 @@ const MemberEdit = ({
     dateFormat: _shared_constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
     showMonthDropdown: true,
     locale: "UTC",
+=======
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
+    htmlFor: "membership_starts_at"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_13___default()), {
+    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Start Date', 'wicket-memberships'),
+    name: "membership_starts_at",
+    dateFormat: _constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
+    showMonthDropdown: true,
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     showYearDropdown: true,
     dropdownMode: "select",
     selected: getDatePickerValue(membership.data.membership_starts_at),
     onChange: value => {
       handleMembershipFieldChange(membership.ID, 'membership_starts_at', value);
     }
+<<<<<<< HEAD
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
     htmlFor: "membership_ends_at"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_17___default()), {
     "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships'),
     name: "membership_ends_at",
     dateFormat: _shared_constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
+=======
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
+    htmlFor: "membership_ends_at"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_13___default()), {
+    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('End Date', 'wicket-memberships'),
+    name: "membership_ends_at",
+    dateFormat: _constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     showMonthDropdown: true,
     showYearDropdown: true,
     dropdownMode: "select",
@@ -45107,12 +45548,21 @@ const MemberEdit = ({
     onChange: value => {
       handleMembershipFieldChange(membership.ID, 'membership_ends_at', value);
     }
+<<<<<<< HEAD
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
     htmlFor: "membership_expires_at"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Expiration Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_17___default()), {
     "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Expiration Date', 'wicket-memberships'),
     name: "membership_expires_at",
     dateFormat: _shared_constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
+=======
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
+    htmlFor: "membership_expires_at"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Expiration Date', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_13___default()), {
+    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Expiration Date', 'wicket-memberships'),
+    name: "membership_expires_at",
+    dateFormat: _constants__WEBPACK_IMPORTED_MODULE_5__.DEFAULT_DATE_FORMAT,
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     showMonthDropdown: true,
     showYearDropdown: true,
     dropdownMode: "select",
@@ -45120,9 +45570,15 @@ const MemberEdit = ({
     onChange: value => {
       handleMembershipFieldChange(membership.ID, 'membership_expires_at', value);
     }
+<<<<<<< HEAD
   })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
     htmlFor: "renewal_type"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renewal Type', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.SelectWpStyled, {
+=======
+  })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
+    htmlFor: "renewal_type"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Renewal Type', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.SelectWpStyled, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     id: "renewal_type",
     classNamePrefix: "select",
     name: "renewal_type",
@@ -45137,9 +45593,15 @@ const MemberEdit = ({
     style: {
       marginTop: '5px'
     }
+<<<<<<< HEAD
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("small", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Inherited Renewal Type: ', 'wicket-memberships'), " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, renewalTypeOptions.find(option => option.value == membership.data.tierRenewalType).label))))), membership.data.renewalType === 'form_flow' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
     htmlFor: "next_tier_form_page_id"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Form Page', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.SelectWpStyled, {
+=======
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("small", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Inherited Renewal Type: ', 'wicket-memberships'), " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("strong", null, renewalTypeOptions.find(option => option.value == membership.data.tierRenewalType).label))))), membership.data.renewalType === 'form_flow' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
+    htmlFor: "next_tier_form_page_id"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Form Page', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.SelectWpStyled, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     id: "next_tier_form_page_id",
     name: "next_tier_form_page_id",
     classNamePrefix: "select",
@@ -45150,9 +45612,15 @@ const MemberEdit = ({
     onChange: selected => {
       handleMembershipFieldChange(membership.ID, 'membership_next_tier_form_page_id', selected.value);
     }
+<<<<<<< HEAD
   }))), membership.data.renewalType === 'sequential_logic' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
     htmlFor: "next_tier_id"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Sequential Tier', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.SelectWpStyled, {
+=======
+  }))), membership.data.renewalType === 'sequential_logic' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
+    htmlFor: "next_tier_id"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Sequential Tier', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.SelectWpStyled, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     id: "next_tier_id",
     name: "next_tier_id",
     classNamePrefix: "select",
@@ -45175,7 +45643,11 @@ const MemberEdit = ({
     style: {
       flexGrow: 2
     }
+<<<<<<< HEAD
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
+=======
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     style: {
       height: '20px'
     }
@@ -45198,7 +45670,11 @@ const MemberEdit = ({
     style: {
       color: 'var(--wp-admin-theme-color)'
     }
+<<<<<<< HEAD
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
+=======
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.LabelWpStyled, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     style: {
       height: '20px'
     }
@@ -45218,7 +45694,11 @@ const MemberEdit = ({
     style: {
       color: 'var(--wp-admin-theme-color)'
     }
+<<<<<<< HEAD
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__.AsyncSelectWpStyled, {
+=======
+  }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.AsyncSelectWpStyled, {
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
     id: "membership_owner_id",
     classNamePrefix: "select",
     name: "new_owner_uuid",
@@ -45255,6 +45735,7 @@ const MemberEdit = ({
     type: "submit",
     disabled: membership.updatingNow || membership.updatedNow || membership.data.membership_status.toLowerCase() == 'cancelled',
     isBusy: membership.updatingNow
+<<<<<<< HEAD
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Update Membership', 'wicket-memberships'))))))))))))))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_ManageStatusModal__WEBPACK_IMPORTED_MODULE_8__["default"], {
     isOpen: isManageStatusModalOpen,
     onClose: closeManageStatusModal,
@@ -45262,6 +45743,71 @@ const MemberEdit = ({
     currentStatus: manageStatusTarget.currentStatus,
     onStatusUpdated: handleStatusUpdated
   }));
+=======
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Update Membership', 'wicket-memberships')))))))))))))))), isManageStatusModalOpen && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Modal, {
+    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Change Status', 'wicket-memberships'),
+    onRequestClose: closeManageStatusModalOpen,
+    style: {
+      maxWidth: '840px',
+      width: '100%'
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("form", {
+    onSubmit: handleManageStatusModalSubmit
+  }, manageStatusErrors.length > 0 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ErrorsRow, null, manageStatusErrors.map((errorMessage, index) => (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Notice, {
+    isDismissible: false,
+    key: index,
+    status: "warning"
+  }, errorMessage))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, {
+    align: "end",
+    justify: "start",
+    gap: 5,
+    direction: ['column', 'row']
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.TextControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Current Status', 'wicket-memberships'),
+    disabled: true,
+    style: {
+      backgroundColor: '#F6F7F7'
+    },
+    value: manageStatusFormData.currentStatus,
+    __nextHasNoMarginBottom: true
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      fontWeight: 500,
+      marginBottom: '5px'
+    }
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('To', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.SelectControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('New Status', 'wicket-memberships'),
+    value: manageStatusFormData.newStatus,
+    onChange: value => {
+      setManageStatusFormData({
+        ...manageStatusFormData,
+        newStatus: value
+      });
+      setStatusChangeConfirmed(false);
+    },
+    options: getMembershipStatusOptions(),
+    __nextHasNoMarginBottom: true
+  }))), statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, {
+    direction: "column",
+    gap: 3
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Notice, {
+    isDismissible: false,
+    status: "warning"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.sprintf)( /* translators: %s: status name (cancelled or expired) */
+  (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Once a membership status is changed to '%s' it cannot be undone. Are you certain you would like to proceed?", 'wicket-memberships'), manageStatusFormData.newStatus)), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
+    variant: "secondary",
+    isDestructive: true,
+    onClick: () => setStatusChangeConfirmed(true)
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Confirm Action', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_6__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Flex, {
+    align: "end",
+    gap: 5,
+    direction: ['column', 'row']
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_7__.Button, {
+    variant: "primary",
+    type: "submit",
+    disabled: manageStatusFormData.newStatus === '' || statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Update Status', 'wicket-memberships'))))))));
+>>>>>>> feature/users-multi-tier-renewal-subscriptions-merged
 };
 const app = document.getElementById('edit_member');
 if (app) {
