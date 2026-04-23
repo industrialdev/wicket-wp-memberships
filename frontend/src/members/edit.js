@@ -1,4 +1,4 @@
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
 import apiFetch from '@wordpress/api-fetch';
@@ -108,6 +108,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const [membershipOwnerOptions, setMembershipOwnerOptions] = useState([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
   const [manageStatusErrors, setManageStatusErrors] = useState([]);
+  const [statusChangeConfirmed, setStatusChangeConfirmed] = useState(false);
   const [manageStatusFormData, setManageStatusFormData] = useState({
     postId: null,
     currentStatus: '',
@@ -141,6 +142,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       newStatus: '',
       availableStatuses: []
     });
+    setStatusChangeConfirmed(false);
     getMembershipStatuses(membershipIndex);
     setIsManageStatusModalOpen(true);
   }
@@ -150,6 +152,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
    * Close the Manage Status Modal
    */
   const closeManageStatusModalOpen = () => {
+    setStatusChangeConfirmed(false);
     setIsManageStatusModalOpen(false);
   }
 
@@ -170,8 +173,16 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     return statuses;
   }
 
+  const statusRequiresConfirmation = (status) => {
+    return ['cancelled', 'expired'].includes(status);
+  };
+
   const handleManageStatusModalSubmit = (event) => {
     event.preventDefault();
+
+    if (statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed) {
+      return;
+    }
 
     updateMembershipStatus(manageStatusFormData.postId, manageStatusFormData.newStatus)
       .then((response) => {
@@ -538,11 +549,11 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 <Flex gap={3}>
                   {memberType === 'individual' && (
                     <CustomDisabled
-                      isDisabled={memberInfo === null || memberInfo.switch_to_url === ''}
+                      isDisabled={memberInfo === null || !memberInfo.switch_to_url}
                     >
                       <Button
                         variant='secondary'
-                        href={memberInfo === null ? '' : memberInfo.switch_to_url.replaceAll("&amp;", "&")}
+                        href={memberInfo === null || !memberInfo.switch_to_url ? '' : memberInfo.switch_to_url.replaceAll("&amp;", "&")}
                       >
                         <Icon icon='update' />&nbsp;
                         {__('Switch to', 'wicket-memberships')}
@@ -848,7 +859,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         name='membership_starts_at'
                                         dateFormat={DEFAULT_DATE_FORMAT}
                                         showMonthDropdown
-                                        locale="UTC"
                                         showYearDropdown
                                         dropdownMode="select"
                                         selected={ getDatePickerValue(membership.data.membership_starts_at) }
@@ -1032,7 +1042,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         </LabelWpStyled>
                                         <FlexItem>
                                           <Button
-                                            href={membership.switch_to_url.replaceAll("&amp;", "&")}
+                                            href={(membership.switch_to_url || '').replaceAll("&amp;", "&")}
                                             variant='link'
                                             style={{ textTransform: 'initial', marginLeft: '20px' }}
                                           >
@@ -1165,6 +1175,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                       ...manageStatusFormData,
                       newStatus: value
                     });
+                    setStatusChangeConfirmed(false);
                   }}
                   options={
                     getMembershipStatusOptions()
@@ -1173,6 +1184,27 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 />
               </FlexBlock>
 						</MarginedFlex>
+
+						{statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed && (
+							<MarginedFlex direction='column' gap={3}>
+								<Notice isDismissible={false} status="warning">
+									{sprintf(
+										/* translators: %s: status name (cancelled or expired) */
+										__("Once a membership status is changed to '%s' it cannot be undone. Are you certain you would like to proceed?", 'wicket-memberships'),
+										manageStatusFormData.newStatus
+									)}
+								</Notice>
+								<FlexItem>
+									<Button
+										variant="secondary"
+										isDestructive
+										onClick={() => setStatusChangeConfirmed(true)}
+									>
+										{__('Confirm Action', 'wicket-memberships')}
+									</Button>
+								</FlexItem>
+							</MarginedFlex>
+						)}
 
 						<ActionRow>
 							<Flex
@@ -1187,7 +1219,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 									<Button
                     variant="primary"
                     type='submit'
-                    disabled={manageStatusFormData.newStatus === ''}
+                    disabled={manageStatusFormData.newStatus === '' || (statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed)}
                   >
 										{__('Update Status', 'wicket-memberships')}
 									</Button>

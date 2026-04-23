@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.106
+ * Version: 1.0.108
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
@@ -354,12 +354,15 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
     }
 
     public function set_onboarding_posted_data_to_wc_session() {
+        $has_renew = !empty( $_REQUEST['membership_post_id_renew'] );
+        $has_org   = isset( $_REQUEST['org_uuid'] );
+
         if ( is_page( 'cart' ) || is_cart() ) {
-            if ( isset($_REQUEST['org_uuid']) ) {
+            if ( $has_org ) {
                 if ( isset($_REQUEST['org_uuid']) && ! empty($_REQUEST['org_uuid']) ) {
                     $values['org_uuid'] = sanitize_text_field($_REQUEST['org_uuid']);
                 }
-                if ( isset($_REQUEST['membership_post_id_renew']) && ! empty($_REQUEST['membership_post_id_renew']) ) {
+                if ( $has_renew ) {
                   $values['membership_post_id_renew'] = sanitize_text_field($_REQUEST['membership_post_id_renew']);
                 }
                 if ( ! empty($values)) {

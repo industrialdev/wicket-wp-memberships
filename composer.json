@@ -1,6 +1,7 @@
 {
   "name": "industrialdev/wicket-wp-memberships",
   "description": "Wicket Memberships",
+  "version": "1.0.108",
   "keywords": ["wordpress", "plugin"],
   "homepage": "https://github.com/industrialdev/wicket-wp-memberships",
   "authors": [
@@ -17,10 +18,5 @@
   },
   "require": {
     "php": ">=8.0"
-  },
-  "require-dev": {
-    "phpunit/phpunit": "^8",
-    "yoast/phpunit-polyfills": "^4.0",
-    "brain/monkey": "^2.6"
   }
 }

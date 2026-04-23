@@ -9,7 +9,7 @@ class Membership_Tier {
   public function __construct( $post_id ) {
     if ( ! get_post( $post_id ) ) {
       //throw new \Exception( 'Invalid post ID' );
-      error_log('Membership_Tier: Invalid post ID: ' . $post_id);
+      \Wicket()->log()->error('Membership_Tier: Invalid post ID: ' . $post_id, ['source' => 'wicket-memberships']);
 
       $this->post_id = 0;
       $this->tier_data = [];
@@ -19,6 +19,7 @@ class Membership_Tier {
 
     if ( get_post_type( $post_id ) !== Helper::get_membership_tier_cpt_slug() ) {
       //throw new \Exception( 'Invalid post type' );
+      \Wicket()->log()->error('Membership_Tier: Invalid post type for ID: ' . $post_id, ['source' => 'wicket-memberships']);
       return;
     }
 
