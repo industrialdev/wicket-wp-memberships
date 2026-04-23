@@ -1,3 +1,10 @@
+---
+title: "Admin_Controller Class Reference"
+audience: [developer]
+php_class: Admin_Controller
+source_files: ["includes/Admin_Controller.php"]
+---
+
 # Admin_Controller Class Index
 
 **File:** includes/Admin_Controller.php

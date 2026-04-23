@@ -9,7 +9,7 @@ class Membership_Tier {
   public function __construct( $post_id ) {
     if ( ! get_post( $post_id ) ) {
       //throw new \Exception( 'Invalid post ID' );
-      Wicket()->log()->error('Membership_Tier: Invalid post ID: ' . $post_id, ['source' => 'wicket-memberships']);
+      Utilities::wc_log_mship_error('Membership_Tier: Invalid post ID: ' . $post_id);
 
       $this->post_id = 0;
       $this->tier_data = [];
@@ -19,6 +19,7 @@ class Membership_Tier {
 
     if ( get_post_type( $post_id ) !== Helper::get_membership_tier_cpt_slug() ) {
       //throw new \Exception( 'Invalid post type' );
+      Utilities::wc_log_mship_error('Membership_Tier: Invalid post type for ID: ' . $post_id);
       return;
     }
 
@@ -506,6 +507,17 @@ class Membership_Tier {
   public function is_approval_required() {
     if ( isset( $this->tier_data['approval_required'] ) && $this->tier_data['approval_required'] == 1 ) {
       return $this->tier_data['approval_required'];
+    }
+
+    return false;
+  }
+
+  /**
+   * Check if approval is required for this tier
+   */
+  public function is_renew_approval_required() {
+    if ( isset( $this->tier_data['renew_approval_required'] ) && $this->tier_data['renew_approval_required'] == 1 ) {
+      return $this->tier_data['renew_approval_required'];
     }
 
     return false;

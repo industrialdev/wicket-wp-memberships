@@ -57,9 +57,12 @@ function add_cart_item_data( $cart_item_meta, $product_id ) {
     if ( isset( $_REQUEST ['org_uuid'] ) ) {
       $cart_item_meta[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
     }
+
     if( isset( $_REQUEST['membership_post_id_renew']) && !is_array($_REQUEST['membership_post_id_renew'])) {
-      $cart_item_meta[ 'membership_post_id_renew' ] = isset( $_REQUEST['membership_post_id_renew'] ) ? sanitize_text_field ( $_REQUEST['membership_post_id_renew'] ): "" ;
+      $renew_id = sanitize_text_field( $_REQUEST['membership_post_id_renew'] );
+      $cart_item_meta[ 'membership_post_id_renew' ] = $renew_id;
     }
+
     return $cart_item_meta;
 }
 
@@ -75,15 +78,18 @@ function get_item_data ( $other_data, $cart_item ) {
 }
 
   function add_order_item_meta ( $item_id, $values ) {
-  if(is_array($values)) {
-    if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
-      wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
-    }
-    if(empty(wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)) && !empty($values['membership_post_id_renew'])) {
-      wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $values['membership_post_id_renew'] );
+    if(is_array($values)) {
+      if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
+        wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
+      }
+
+      if ( !empty( $values['membership_post_id_renew'] ) ) {
+        if ( empty( wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true ) ) ) {
+          wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $values['membership_post_id_renew'] );
+        }
+      }
     }
   }
-}
 
   /**
    * Resolve subscriptions for an order, with a direct child-post fallback for
@@ -727,7 +733,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
     $tier = new Membership_Tier( $membership['membership_tier_post_id'] );
     //we only create the mdp record if tier not pending approval | tier pending approval and is renewal
-    if( ! $tier->is_approval_required() || ( $tier->is_approval_required() && $self->processing_renewal )) {
+    if( ! $tier->is_approval_required() || ( ! $tier->is_renew_approval_required() && $tier->is_approval_required() && $self->processing_renewal )) {
       $membership_wicket_uuid = $self->create_mdp_record( $membership );
     }
 
@@ -755,7 +761,9 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     //we are pending approval so change some statuses and send email
-    if( $tier->is_approval_required() && ! $self->processing_renewal ) {
+    if( ($tier->is_approval_required() && ! $self->processing_renewal) 
+      || ($tier->is_renew_approval_required()  && $self->processing_renewal) 
+    ) {
       $self->update_subscription_status( $membership['membership_subscription_id'], 'on-hold', 'Subscription pending approval.');
       //update membership status to pending approval
       $self->update_membership_status( $membership['membership_post_id'], Wicket_Memberships::STATUS_PENDING);
@@ -1121,6 +1129,43 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   public function update_local_membership_record( $membership_post_id, $meta_data ) {
+
+    // Determine membership status based on today's date vs. start/end/expiry dates.
+    $today             = current_time( 'timestamp' );
+    $starts_at         = ! empty( $meta_data['membership_starts_at'] )
+      ? strtotime( $meta_data['membership_starts_at'] )
+      : strtotime( (string) get_post_meta( $membership_post_id, 'membership_starts_at', true ) );
+    $ends_at           = ! empty( $meta_data['membership_ends_at'] )
+      ? strtotime( $meta_data['membership_ends_at'] )
+      : strtotime( (string) get_post_meta( $membership_post_id, 'membership_ends_at', true ) );
+    // Prefer the explicit expiry date if provided; otherwise calculate from grace period days.
+    if ( ! empty( $meta_data['membership_expires_at'] ) ) {
+      $expiry_at = strtotime( $meta_data['membership_expires_at'] );
+    } else {
+      $stored_expiry = get_post_meta( $membership_post_id, 'membership_expires_at', true );
+      if ( ! empty( $stored_expiry ) ) {
+        $expiry_at = strtotime( $stored_expiry );
+      } else {
+        $grace_period_days = isset( $meta_data['membership_grace_period_days'] )
+          ? (int) $meta_data['membership_grace_period_days']
+          : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
+        $expiry_at = strtotime( "+{$grace_period_days} days", $ends_at );
+      }
+    }
+    $grace_period_days = isset( $grace_period_days ) ? $grace_period_days : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
+
+    if ( $starts_at && $ends_at ) {
+      if ( $today < $starts_at ) {
+        $meta_data['membership_status'] = Wicket_Memberships::STATUS_DELAYED;
+      } elseif ( $today <= $ends_at ) {
+        $meta_data['membership_status'] = Wicket_Memberships::STATUS_ACTIVE;
+      } elseif ( $grace_period_days > 0 && $today <= $expiry_at ) {
+        $meta_data['membership_status'] = Wicket_Memberships::STATUS_GRACE;
+      } else {
+        $meta_data['membership_status'] = Wicket_Memberships::STATUS_EXPIRED;
+      }
+    }
+
     $return = wp_update_post([
       'ID' => $membership_post_id,
       'post_type' => $this->membership_cpt_slug,
@@ -1171,7 +1216,9 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     $current_date = Utilities::get_utc_datetime()->format('c');
-    if( ! $this->processing_renewal && ! $skip_approval && (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() ) {
+    if( (! $this->processing_renewal && ! $skip_approval && (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_approval_required() )
+      || ( $this->processing_renewal && ! $skip_approval && (new Membership_Tier( $membership['membership_tier_post_id'] ))->is_renew_approval_required() )
+    ){
       $status = Wicket_Memberships::STATUS_PENDING;
     } else if( strtotime( $membership['membership_starts_at'] ) > strtotime( $current_date ) ) {
       $status = Wicket_Memberships::STATUS_DELAYED;

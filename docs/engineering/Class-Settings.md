@@ -1,3 +1,9 @@
+---
+title: "Settings Class Reference"
+audience: [developer]
+php_class: Settings
+source_files: ["includes/Settings.php"]
+---
 
 # Settings Class Index
 
@@ -7,15 +13,18 @@
 
 - `wicket_membership_add_settings_page()` (static)
 - `wicket_membership_render_plugin_settings_page()` (static)
+- `get_next_scheduled_membership_activation()`
 - `get_next_scheduled_membership_grace_period()`
 - `get_next_scheduled_membership_expiry()`
 - `wicket_membership_register_settings()` (static)
+- `wicket_mship_membership_merge_key()` (static)
 - `wicket_mship_multi_tier_renewal()` (static)
 - `wicket_mship_disable_renewal()` (static)
 - `wicket_mship_assign_subscription()` (static)
 - `wicket_show_mship_order_org_search()` (static)
 - `bypass_wicket()` (static)
 - `wicket_mship_autorenew_toggle()` (static)
+- `wicket_mship_mdp_timezone()` (static)
 - `wicket_mship_subscription_renew()` (static)
 - `wicket_memberships_debug_acc()` (static)
 - `wicket_memberships_debug_renew()` (static)
@@ -29,6 +38,8 @@
 - `wicket_plugin_section_debug_text()` (static)
 - `wicket_plugin_status_change_reporting()` (static)
 - `check_migrate_tier_slugs()` (static)
+- `ensure_timezone_default($force_api_call = false)` (static)
+- `fetch_mdp_timezone_from_api()` (static)
 
 ## Method Descriptions
 
@@ -38,6 +49,9 @@ Adds the Wicket Memberships settings page to the WordPress admin options menu.
 **wicket_membership_render_plugin_settings_page()** (static)
 Renders the HTML form for the plugin settings page, including all settings sections and fields.
 
+**get_next_scheduled_membership_activation()**
+Returns the next scheduled run time for the membership activation Action Scheduler hook.
+
 **get_next_scheduled_membership_grace_period()**
 Returns the next scheduled run time for the membership grace period Action Scheduler hook.
 
@@ -46,6 +60,9 @@ Returns the next scheduled run time for the membership expiry Action Scheduler h
 
 **wicket_membership_register_settings()** (static)
 Registers all plugin settings, sections, and fields for the Wicket Memberships plugin.
+
+**wicket_mship_membership_merge_key()** (static)
+Outputs a text field for the merge webhook HMAC-SHA256 authentication key, displayed alongside the webhook endpoint URL.
 
 **wicket_mship_multi_tier_renewal()** (static)
 Outputs a checkbox to enable multi-tier renewal logic and related UI in the plugin.
@@ -64,6 +81,9 @@ Outputs a checkbox to disable creation of memberships in the Wicket MDP (bypass 
 
 **wicket_mship_autorenew_toggle()** (static)
 Outputs a checkbox to enable the user-facing Autorenew toggle for subscriptions, including a shortcode for front-end use.
+
+**wicket_mship_mdp_timezone()** (static)
+Outputs a timezone selector dropdown. Sets the MDP operating timezone used for date calculations across the plugin.
 
 **wicket_mship_subscription_renew()** (static)
 Outputs a checkbox to enable the [BETA] subscription renewal flow for tiers.
@@ -103,3 +123,9 @@ Outputs information and controls for scheduled membership status change actions 
 
 **check_migrate_tier_slugs()** (static)
 Checks all membership tiers for missing slugs and adds them if needed (data migration utility).
+
+**ensure_timezone_default($force_api_call = false)** (static)
+Initializes the MDP timezone option if not already set. Fetches from the MDP API (`app_config`) and falls back to UTC. Called on the `init` hook.
+
+**fetch_mdp_timezone_from_api()** (static)
+Fetches the MDP timezone string from `app_config` via the Wicket API client. Returns null on failure. Filterable via `wicket_mship_mdp_timezone_from_api`.

@@ -6,10 +6,10 @@
  * 2) Add the Order/Subscription membership json blob in the post_meta ('_wicket_membership_'.$product_id )
  * 3) Update the Customer membership json blob in the user_meta ( '_wicket_membership_'.$membership_post_id )
  *
- * Browser :: https://{domain}/?mship_subscription_sync=1 
+ * Browser :: https://{domain}/?mship_subscription_sync=1
  * Review :: simulate with results dumped to page
  * Run:: with 'no_debug' to make live updates
- * 
+ *
  * NOTE: Without query_var: no_debug=1 it will always run in debug by default.
  */
 
@@ -55,7 +55,7 @@ function wicket_sync_subscriptions() {
       $argv['date_created'] = '>=' . $created_after;
     }
     $subscription_ids = wcs_get_subscriptions($argv);
-    
+
     // Filter subscriptions with products in "Membership products" category
     $membership_subscriptions = [];
     foreach($subscription_ids as $sub_id) {
@@ -72,7 +72,7 @@ function wicket_sync_subscriptions() {
         }
       }
     }
-    
+
     echo 'Total Active Subscriptions: '.count($subscription_ids)."\n<BR>";
     echo 'Subscriptions with Membership Products: '.count($membership_subscriptions)."\n<BR>";
     die();
@@ -113,7 +113,7 @@ function wicket_sync_subscriptions() {
       continue;
     }
     $user = get_user_by('id', $user_id);
-    if (empty($user)) { 
+    if (empty($user)) {
       $log[] = 'Failed Sub ID:' . $sub->ID . ' | User Missing';
       echo 'Failed Sub ID:' . $sub->ID . ' | User Missing' . "\n<br>";
       continue;
@@ -174,9 +174,9 @@ function wicket_sync_subscriptions() {
           echo '<span style="color:red">No Membership found for User ID ' . $user_id . ' on Tier ID ' . $tier_id  . ' for productID: ' . $mapped_product_id . " with Product Name: <u>" . $product_name . "</u>" .  "</span>\n<br>";
           continue;
         }
-          $log[] = 'Found Membership ( ID: '.$user_memberships[0]->ID.' ) for User ID ' . $user_id . ' on Tier ID ' . $tier_id; 
+          $log[] = 'Found Membership ( ID: '.$user_memberships[0]->ID.' ) for User ID ' . $user_id . ' on Tier ID ' . $tier_id;
           echo 'Found '.count($user_memberships). 'Membership <a target="_blank" href="/wp/wp-admin/post.php?action=edit&post='.$user_memberships[0]->ID.'"> '.$user_memberships[0]->ID.'</a>for User ID ' . $user_id . ' on Tier ID ' . $tier_id . "with Product Name: <u>" . $product_name . "</u> (ID: " . $mapped_product_id . ")\n";
-          
+
           $meta_check = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true);
           if(!empty($meta_check)) {
             $log[] = 'ITEM Meta _membership_post_id_renew ALREADY SET to '.$meta_check;
@@ -206,8 +206,8 @@ function wicket_sync_subscriptions() {
             }
           }
           //update membership json from post data
-          wicket_update_membership_json_data( $user_memberships[0]->ID, $debug, $membership_update_array);          
-          
+          wicket_update_membership_json_data( $user_memberships[0]->ID, $debug, $membership_update_array);
+
           //FOR Org Memberships with Per Seat ONLY we sync product quantity to MDP seats
           if($Tier->is_organization_tier() && $Tier->is_per_seat() && (!empty($wicket_api_client) || !empty($debug))) {
             $quantity = $item->get_quantity();
@@ -226,7 +226,7 @@ function wicket_sync_subscriptions() {
               }
             }
           }
-          
+
           #if(empty($debug)) {
             //wicket_wc_log_mship_sync( $log, $page_number . '-' . $page_length );
           #}
@@ -290,7 +290,7 @@ function wicket_update_membership_json_data( $post_id, $debug = 0, $membership_i
     echo 'JSON Updated:<br><pre>';
     var_dump($membership_json);
     echo '</pre><br>';
-    return;  
+    return;
   }
 
   delete_post_meta( $order_id, '_wicket_membership_'.$product_id );
@@ -322,5 +322,10 @@ function wicket_update_membership_json_data( $post_id, $debug = 0, $membership_i
     if(is_array( $data )) {
       $data = wc_print_r( $data, true );
     }
-    Wicket()->log($level, $data, ['source' => 'wicket-membership-sync-'.time().'-'.$append_file_name]);
+    if( class_exists( '\Wicket' ) ) {
+      \Wicket()->log($level, $data, ['source' => 'wicket-membership-sync-'.time().'-'.$append_file_name]);
+    } else if (class_exists('WC_Logger')) {
+      $logger = new \WC_Logger();
+      $logger->log($level, $data, ['source' => 'wicket-membership-sync-'.time().'-'.$append_file_name]);
   }
+ }

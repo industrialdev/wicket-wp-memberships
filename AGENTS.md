@@ -74,7 +74,7 @@ Key endpoint groups:
 - Tests live in `tests/` with custom factories in `tests/factories/` for products, tiers, configs, and memberships.
 - Base test class: `MembershipsBaseTest` (sets up factories and environment).
 - Key test areas: membership creation, merge webhook, admin status transitions, factory functionality, helper utilities.
-- When adding tests, prefer using the centralized QA suite at `./qa` per the stack CLAUDE.md.
+- When adding tests, prefer using the centralized QA suite at `./qa` per the stack AGENTS.md.
 
 ## Membership Lifecycle
 Understanding the lifecycle is essential for working on this plugin:

@@ -1,3 +1,9 @@
+---
+title: "Membership_Config Data Structure"
+audience: [developer]
+php_class: Membership_Config
+source_files: ["includes/Membership_Config.php"]
+---
 
 # Membership_Config Data Structure, Types, and Renewal Logic
 
@@ -8,13 +14,13 @@ This document summarizes the different types of config values, data structures, 
 There are two types of configs that support memberships:
 
 ### 1. Anniversary-Based Configs
-- Memberships renew based on the anniversary of the member’s join/start date.
+- Memberships renew based on the anniversary of the member's join/start date.
 - The config stores rules for how long a period lasts (e.g., 1 year, 6 months).
 - Methods in the `Membership_Config` class handle how start/end/renewal dates are calculated for each member based on their unique start date.
 
 ### 2. Calendar-Based Configs
-- Memberships renew on fixed calendar dates, defined by “seasons” (e.g., Jan 1–Dec 31, or custom periods).
-- The config defines one or more calendar “seasons” with start and end dates.
+- Memberships renew on fixed calendar dates, defined by "seasons" (e.g., Jan 1–Dec 31, or custom periods).
+- The config defines one or more calendar "seasons" with start and end dates.
 - Methods in the `Membership_Config` class determine which season applies and how renewal/expiration is handled for all members in that config.
 
 Both config types define how memberships renew, and the `Membership_Config` class contains specific methods to calculate and use these dates to support membership logic.
@@ -126,8 +132,8 @@ These methods define how each config type (anniversary or calendar) controls mem
 
 ### Calendar-Based Methods
 
-- `get_calendar_seasons()` (public): Returns an array of all defined calendar “seasons” (periods with start/end dates and active status), with dates in ISO 8601 format.
-- `get_current_calendar_season()` (public): Returns the current active season (if any) based on today’s date.
+- `get_calendar_seasons()` (public): Returns an array of all defined calendar "seasons" (periods with start/end dates and active status), with dates in ISO 8601 format.
+- `get_current_calendar_season()` (public): Returns the current active season (if any) based on today's date.
 - `get_seasonal_start_date($membership = [])` (private): Returns the start date for a membership in a calendar-based config.
 - `get_seasonal_end_date($membership = [])` (private): Returns the end date for a membership in a calendar-based config.
 
@@ -139,12 +145,12 @@ These methods define how each config type (anniversary or calendar) controls mem
 ### General Membership Date Methods
 
 - `get_membership_dates($membership = [])` (public): Main method to determine membership start and end dates. Uses `get_cycle_type()` to choose between anniversary and calendar logic. Also calculates early renewal and expiration dates based on config.
-- `is_valid_renewal_date($membership, $date = null)` (public): Checks if a given date is within the valid renewal window for a membership, using the config’s rules.
+- `is_valid_renewal_date($membership, $date = null)` (public): Checks if a given date is within the valid renewal window for a membership, using the config's rules.
 
 ---
 
 **How to Use:**
-- When implementing or testing membership renewal, always check the config’s type with `get_cycle_type()`.
+- When implementing or testing membership renewal, always check the config's type with `get_cycle_type()`.
 - Use the appropriate methods above to calculate start, end, renewal, and expiration dates for memberships.
 - Refer to this doc and the method summaries to understand the logic and data flow for each config type.
 
@@ -161,13 +167,13 @@ This document summarizes the different types of config values, data structures, 
 There are two types of configs that support memberships:
 
 ### 1. Anniversary-Based Configs
-- Memberships renew based on the anniversary of the member’s join/start date.
+- Memberships renew based on the anniversary of the member's join/start date.
 - The config stores rules for how long a period lasts (e.g., 1 year, 6 months).
 - Methods in the `Membership_Config` class handle how start/end/renewal dates are calculated for each member based on their unique start date.
 
 ### 2. Calendar-Based Configs
-- Memberships renew on fixed calendar dates, defined by “seasons” (e.g., Jan 1–Dec 31, or custom periods).
-- The config defines one or more calendar “seasons” with start and end dates.
+- Memberships renew on fixed calendar dates, defined by "seasons" (e.g., Jan 1–Dec 31, or custom periods).
+- The config defines one or more calendar "seasons" with start and end dates.
 - Methods in the `Membership_Config` class determine which season applies and how renewal/expiration is handled for all members in that config.
 
 Both config types define how memberships renew, and the `Membership_Config` class contains specific methods to calculate and use these dates to support membership logic.
@@ -259,25 +265,25 @@ These methods define how each config type (anniversary or calendar) controls mem
 - Determines which renewal logic to use for a membership.
 
 ### 2. `get_calendar_seasons()`
-- Returns an array of all defined calendar “seasons” (periods with start/end dates and active status).
+- Returns an array of all defined calendar "seasons" (periods with start/end dates and active status).
 - Converts season dates to ISO 8601 format.
 - Used to determine which season applies to a membership.
 
 ### 3. `get_current_calendar_season()`
-- Returns the current active season (if any) based on today’s date.
+- Returns the current active season (if any) based on today's date.
 - Used to determine which calendar period a membership is in.
 
 ### 4. `get_seasonal_start_date($membership = [])` (private)
 - Returns the start date for a membership in a calendar-based config.
-- Uses today’s date or the day after the previous membership’s end.
+- Uses today's date or the day after the previous membership's end.
 
 ### 5. `get_seasonal_end_date($membership = [])` (private)
 - Returns the end date for a membership in a calendar-based config.
-- Finds the season that matches the membership’s start time.
+- Finds the season that matches the membership's start time.
 
 ### 6. `get_anniversary_start_date($membership = [])` (private)
 - Returns the start date for a membership in an anniversary-based config.
-- Uses today’s date or the day after the previous membership’s end.
+- Uses today's date or the day after the previous membership's end.
 
 ### 7. `get_period_data()`
 - Returns the period count and type (e.g., 1 year) for anniversary configs.
@@ -291,12 +297,12 @@ These methods define how each config type (anniversary or calendar) controls mem
 - Also calculates early renewal and expiration dates based on config.
 
 ### 9. `is_valid_renewal_date($membership, $date = null)`
-- Checks if a given date is within the valid renewal window for a membership, using the config’s rules.
+- Checks if a given date is within the valid renewal window for a membership, using the config's rules.
 
 ---
 
 **How to Use:**
-- When implementing or testing membership renewal, always check the config’s type with `get_cycle_type()`.
+- When implementing or testing membership renewal, always check the config's type with `get_cycle_type()`.
 - Use the appropriate methods above to calculate start, end, renewal, and expiration dates for memberships.
 - Refer to this doc and the method summaries to understand the logic and data flow for each config type.
 
