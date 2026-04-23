@@ -204,11 +204,15 @@ class Membership_Group {
       return false;
     }
 
+    // Keep post_author in sync with user_id meta so WordPress-level queries and
+    // capabilities that rely on post_author continue to resolve to the correct user.
     wp_update_post( [
       'ID'          => $this->post_id,
       'post_author' => $user->ID,
     ] );
 
+    // Reassign the WC order and subscription so billing and payment processing
+    // continue to target the new owner's account rather than the previous one.
     $this->reassign_order_customer( $user->ID );
     $this->reassign_subscription_customer( $user->ID );
 
@@ -281,6 +285,9 @@ class Membership_Group {
       return false;
     }
 
+    // org_name is denormalised here so list/detail views can display the org name
+    // without an extra MDP API call on every page load. It may drift if the org is
+    // renamed in MDP, but that is an acceptable trade-off given the read frequency.
     $uuid_result = update_post_meta( $this->post_id, 'org_uuid', $org_uuid );
     $name_result = update_post_meta( $this->post_id, 'org_name', $org_data['name'] );
 
@@ -495,6 +502,7 @@ class Membership_Group {
    * @return array{success_message: string, bypassed: bool}|false
    */
   public function transition_to( string $new_status ) {
+    // Bypass path skips lifecycle rules entirely — for dev/testing only.
     if ( ! empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
       if ( ! $this->set_membership_status( $new_status ) ) {
         return false;
@@ -506,15 +514,20 @@ class Membership_Group {
       ];
     }
 
+    // Guard against illegal transitions before touching any state.
     if ( ! $this->can_transition_to( $new_status ) ) {
       return false;
     }
 
+    // Compute the dates and side-effect flags for this specific transition path
+    // before any writes, so a planning failure is still fully reversible.
     $transition_plan = $this->plan_status_transition( $new_status );
     if ( false === $transition_plan ) {
       return false;
     }
 
+    // Activate the WC subscription first — if this fails the caller can detect
+    // it without also having to undo a status write.
     if ( ! empty( $transition_plan['activate_subscription'] ) ) {
       $this->activate_subscription_for_dates(
         $transition_plan['transition_dates']['starts_at'],
@@ -523,10 +536,13 @@ class Membership_Group {
       );
     }
 
+    // Write status and dates atomically via apply_status_transition.
     if ( ! $this->apply_status_transition( $new_status, $transition_plan['transition_dates'] ) ) {
       return false;
     }
 
+    // Propagate the new status down to child memberships last, after the group
+    // record is already in its final state so children see a consistent parent.
     $this->cascade_status_to_members( $new_status );
 
     return [
@@ -754,6 +770,8 @@ class Membership_Group {
   private function plan_status_transition( string $new_status ) {
     $current_status = $this->get_membership_status();
 
+    // pending → active: derive fresh dates from the config so the subscription
+    // period reflects the current cycle, not whatever was stored at creation time.
     if ( $current_status === Wicket_Memberships::STATUS_PENDING && $new_status === Wicket_Memberships::STATUS_ACTIVE ) {
       $config = $this->get_config();
       $dates  = $config ? $config->get_membership_dates() : [];
@@ -762,6 +780,7 @@ class Membership_Group {
         'transition_dates' => [
           'starts_at'      => $dates['start_date'] ?? Utilities::get_mdp_day_start( 'now' )->format( 'c' ),
           'ends_at'        => $dates['end_date'] ?? Utilities::get_mdp_day_end( 'now' )->format( 'c' ),
+          // expires_at / early_renew_at fall back to end_date when no grace/window is configured.
           'expires_at'     => $dates['expires_at'] ?? ( $dates['end_date'] ?? Utilities::get_mdp_day_end( 'now' )->format( 'c' ) ),
           'early_renew_at' => $dates['early_renew_at'] ?? ( $dates['end_date'] ?? Utilities::get_mdp_day_end( 'now' )->format( 'c' ) ),
         ],
@@ -771,6 +790,9 @@ class Membership_Group {
     }
 
     if ( $new_status === Wicket_Memberships::STATUS_CANCELLED ) {
+      // Cancelling before any active period: backdate starts_at by one day so the
+      // membership record reflects a zero-length period in MDP rather than appearing
+      // to have been active today.
       if ( in_array( $current_status, [ Wicket_Memberships::STATUS_PENDING, Wicket_Memberships::STATUS_DELAYED ], true ) ) {
         return [
           'transition_dates' => [
@@ -784,6 +806,8 @@ class Membership_Group {
         ];
       }
 
+      // Cancelling during grace period: preserve the original ends_at so the member's
+      // paid period is not retroactively shortened; collapse expires_at to now.
       if ( $current_status === Wicket_Memberships::STATUS_GRACE ) {
         $current_end = get_post_meta( $this->post_id, 'membership_ends_at', true );
 
@@ -799,6 +823,9 @@ class Membership_Group {
         ];
       }
 
+      // Cancelling from active or any other status: give a one-day notice window
+      // so downstream systems processing the webhook have time to react before the
+      // record is fully closed.
       return [
         'transition_dates' => [
           'starts_at'      => null,
@@ -811,6 +838,7 @@ class Membership_Group {
       ];
     }
 
+    // Expiring: same one-day notice window as cancellation for the same reason.
     if ( $new_status === Wicket_Memberships::STATUS_EXPIRED ) {
       return [
         'transition_dates' => [

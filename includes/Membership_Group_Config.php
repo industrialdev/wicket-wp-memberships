@@ -275,6 +275,9 @@ class Membership_Group_Config {
 
     $seasons = $this->cycle_data['calendar_items'];
 
+    // Raw stored dates are plain Y-m-d strings with no timezone. Convert to full
+    // ISO 8601 with the MDP timezone offset here so all callers receive a consistent
+    // format and never need to guess the implicit timezone.
     foreach ( $seasons as $key => $season ) {
       $start_date = date( 'Y-m-d', strtotime( $season['start_date'] ) );
       $end_date   = date( 'Y-m-d', strtotime( $season['end_date'] ) );
@@ -344,6 +347,10 @@ class Membership_Group_Config {
 
     $dates = $this->get_membership_dates( $membership );
 
+    // A renewal is only valid inside the window between early_renew_at and expires_at.
+    // Outside that window the member is either too early (before the window opens) or
+    // too late (past the grace period). Returning the early_renew_at date tells the
+    // caller when the window will open rather than just returning a generic false.
     if ( ( $current_timestamp <= strtotime( $dates['early_renew_at'] ) ) || ( $current_timestamp >= strtotime( $dates['expires_at'] ) ) ) {
       return $membership['membership_early_renew_at'];
     }
@@ -365,6 +372,8 @@ class Membership_Group_Config {
   public function get_membership_dates( $membership = [] ) {
     $cycle_data = $this->get_cycle_data();
 
+    // Anniversary cycle: end date is calculated relative to the individual member's
+    // start date, so each member has their own personal period.
     if ( $cycle_data['cycle_type'] == 'anniversary' ) {
       $dates['start_date'] = $this->get_anniversary_start_date( $membership );
       $period_count = ! empty( $cycle_data['anniversary_data']['period_count'] ) && is_numeric( $cycle_data['anniversary_data']['period_count'] )
@@ -373,6 +382,9 @@ class Membership_Group_Config {
         ? 'year' : $cycle_data['anniversary_data']['period_type'];
       $the_end_date = date( 'Y-m-d', strtotime( $dates['start_date'] . '+' . $period_count . ' ' . $period_type ) );
 
+      // End-date alignment snaps the calculated end to a predictable day within the
+      // month so admins can batch-process renewals on a fixed schedule. Only applies
+      // to year/month periods — day periods are already precise enough.
       if ( in_array( $period_type, [ 'year', 'month' ] )
         && ( ! empty( $cycle_data['anniversary_data']['align_end_dates_enabled'] ) && $cycle_data['anniversary_data']['align_end_dates_enabled'] !== false )
       ) {
@@ -395,6 +407,8 @@ class Membership_Group_Config {
       $dates['end_date']   = $this->get_seasonal_end_date( $membership );
     }
 
+    // Grace period extends the expiration beyond the nominal end date, giving members
+    // time to renew after lapsing without immediately losing access in MDP.
     $grace_period_in_days = $this->get_late_fee_window_days();
     if ( ! empty( $grace_period_in_days ) ) {
       $end_date_ymd        = ( new \DateTime( $dates['end_date'] ) )->format( 'Y-m-d' );
@@ -403,11 +417,12 @@ class Membership_Group_Config {
       $dates['expires_at'] = Utilities::get_mdp_day_end( $expires_date_string )->format( 'c' );
     }
 
+    // Renewal window opens a self-serve renewal portal before the period ends so
+    // the member can renew without a lapse. For renewals, anchor to the current
+    // period end; for new memberships (no current end), fall back to the calculated
+    // next end date.
     $early_renewal_in_days = $this->get_renewal_window_days();
     if ( ! empty( $early_renewal_in_days ) ) {
-      // For renewals, open the window relative to the current period end so the
-      // member can act before their existing membership lapses. For new memberships
-      // (no current end), fall back to the calculated next end date.
       $early_renew_base        = ! empty( $membership['membership_ends_at'] )
         ? $membership['membership_ends_at']
         : $dates['end_date'];
@@ -476,6 +491,11 @@ class Membership_Group_Config {
    * Check whether approval is required for this group config.
    *
    * @return int|false 1 if required, false otherwise.
+   *
+   * @refactor-candidate Return type should be bool (true/false) rather than int|false.
+   *   The meta value is stored as int 1 and returned as-is, which makes the return type
+   *   inconsistent with a method named is_*(). Before changing, audit all callers for
+   *   strict comparisons (=== 1, !== 1) that would silently break if the return became true.
    */
   public function is_approval_required() {
     if ( isset( $this->group_config_data['approval_required'] ) && $this->group_config_data['approval_required'] == 1 ) {
@@ -489,6 +509,10 @@ class Membership_Group_Config {
    * Check whether grant owner assignment is enabled for this group config.
    *
    * @return int|false 1 if enabled, false otherwise.
+   *
+   * @refactor-candidate Return type should be bool (true/false) rather than int|false.
+   *   Same pattern as is_approval_required() — audit callers for strict int comparisons
+   *   before changing.
    */
   public function is_grant_owner_assignment() {
     if ( isset( $this->group_config_data['grant_owner_assignment'] ) && $this->group_config_data['grant_owner_assignment'] == 1 ) {
