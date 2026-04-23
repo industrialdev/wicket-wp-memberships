@@ -63,31 +63,40 @@ class Membership_Group {
     // Validate all inputs before touching the database.
     if ( empty( $name ) ) {
       Wicket()->log()->error( 'Membership_Group::create: name is empty', ['source' => 'wicket-memberships'] );
-      return null;
+      throw new \RuntimeException( 'name is empty.' );
     }
 
     // Confirm the config post exists and is the correct CPT type.
     $config_check = new Membership_Group_Config( $membership_group_config_id );
     if ( $config_check->get_post_id() <= 0 ) {
       Wicket()->log()->error( 'Membership_Group::create: membership_group_config_id does not resolve to a valid config', ['source' => 'wicket-memberships', 'config_post_id' => $membership_group_config_id] );
-      return null;
+      throw new \RuntimeException( 'membership_group_config_id does not resolve to a valid config.' );
     }
 
     // Confirm the org UUID is a well-formed UUID before attempting an MDP lookup later.
     if ( ! isValidUuid( $org_uuid ) ) {
       Wicket()->log()->error( 'Membership_Group::create: invalid org_uuid', ['source' => 'wicket-memberships', 'org_uuid' => $org_uuid] );
-      return null;
+      throw new \RuntimeException( 'org_uuid is not a valid UUID.' );
     }
 
     // Confirm the owner exists in WordPress before linking them to the post.
     if ( ! get_user_by( 'id', $owner_user_id ) ) {
       Wicket()->log()->error( 'Membership_Group::create: owner_user_id does not exist', ['source' => 'wicket-memberships', 'owner_user_id' => $owner_user_id] );
-      return null;
+      throw new \RuntimeException( 'owner_user_id does not exist.' );
     }
 
+    // Validate start_date is parseable and normalize to UTC ISO 8601.
     if ( empty( $start_date ) ) {
       Wicket()->log()->error( 'Membership_Group::create: start_date is empty', ['source' => 'wicket-memberships'] );
-      return null;
+      throw new \RuntimeException( 'start_date is empty.' );
+    }
+    try {
+      $start_dt = new \DateTime( $start_date );
+      $start_dt->setTimezone( new \DateTimeZone( 'UTC' ) );
+      $start_date = $start_dt->format( 'Y-m-d\TH:i:s\Z' );
+    } catch ( \Exception $e ) {
+      Wicket()->log()->error( 'Membership_Group::create: start_date could not be parsed', ['source' => 'wicket-memberships', 'start_date' => $start_date] );
+      throw new \RuntimeException( 'start_date is not a valid date string.' );
     }
 
     // Insert the CPT post shell. All meta is written via setters below.

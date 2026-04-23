@@ -220,6 +220,47 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
       ],
     ] );
 
+    /**
+     * Create a new group membership.
+     *
+     * POST /wicket_member/v1/group
+     * Body: { name, membership_group_config_id, org_uuid, owner_user_id, start_date }
+     */
+    register_rest_route( $this->namespace, '/group', [
+      [
+        'methods'             => \WP_REST_Server::CREATABLE,
+        'callback'            => [ $this, 'create_group_membership' ],
+        'permission_callback' => [ $this, 'permissions_check_write' ],
+        'args'                => [
+          'name' => [
+            'required'    => true,
+            'type'        => 'string',
+            'description' => 'Post title for the group.',
+          ],
+          'membership_group_config_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the linked Membership_Group_Config.',
+          ],
+          'org_uuid' => [
+            'required'    => true,
+            'type'        => 'string',
+            'description' => 'MDP organisation UUID.',
+          ],
+          'owner_user_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'WP user ID of the group owner.',
+          ],
+          'start_date' => [
+            'required'    => true,
+            'type'        => 'string',
+            'description' => 'ISO 8601 date string. Normalized to UTC before use.',
+          ],
+        ],
+      ],
+    ] );
+
     // -------------------------------------------------------------------------
     // TODO stubs — no backing business logic yet (see TODO.md)
     // -------------------------------------------------------------------------
@@ -227,7 +268,6 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     //       line item structure being finalised.
 
     // TODO: GET  /get_group_membership_callouts  — group-level renewal/grace callouts
-    // TODO: POST /group                          — create a new group membership
     // TODO: POST /group/{id}/add_member          — add individual to group
     // TODO: POST /group/{id}/remove_member       — remove individual from group (cancel or continue)
     // TODO: POST /group/{id}/move_member         — move individual to another group
@@ -321,6 +361,34 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     $params = $request->get_params();
     $response = Group_Admin_Controller::get_group_members_by_tier( (int) $params['group_post_id'] );
     return rest_ensure_response( $response );
+  }
+
+  /**
+   * POST /group
+   */
+  public function create_group_membership( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+
+    try {
+      $group = Membership_Group::create(
+        sanitize_text_field( $params['name'] ?? '' ),
+        (int) ( $params['membership_group_config_id'] ?? 0 ),
+        sanitize_text_field( $params['org_uuid'] ?? '' ),
+        (int) ( $params['owner_user_id'] ?? 0 ),
+        sanitize_text_field( $params['start_date'] ?? '' )
+      );
+    } catch ( \RuntimeException $e ) {
+      return new WP_REST_Response( [ 'error' => $e->getMessage() ], 400 );
+    }
+
+    if ( null === $group ) {
+      return new WP_REST_Response( [ 'error' => 'Failed to create group membership. Check server logs for details.' ], 500 );
+    }
+
+    return new WP_REST_Response( [
+      'success'  => 'Group membership created.',
+      'response' => Group_Admin_Controller::get_group_entity_records( $group->post_id ),
+    ], 200 );
   }
 
   /**
