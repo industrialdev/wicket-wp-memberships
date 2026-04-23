@@ -212,7 +212,6 @@ class Utilities {
       }
       $logger->log($level, $data, ['source' => 'wicket-membership-plugin']);
     }
-    Wicket()->log($level, $data, ['source' => 'wicket-membership-plugin']);
   }
 
    /**
