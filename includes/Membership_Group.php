@@ -103,7 +103,7 @@ class Membership_Group {
     $post_id = wp_insert_post( [
       'post_type'   => Helper::get_membership_group_cpt_slug(),
       'post_title'  => $name,
-      'post_status' => 'pending',
+      'post_status' => 'publish',
     ], true );
 
     if ( is_wp_error( $post_id ) ) {
