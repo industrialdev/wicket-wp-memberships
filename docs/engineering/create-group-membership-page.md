@@ -48,9 +48,9 @@ This document tracks the design and implementation of the **Create Group Members
 | Step | Status |
 |------|--------|
 | PHP: `Membership_Group::create()` signature `owner_user_id` → `owner_uuid` | Done (pulled forward during Commit 1 fixes) |
-| PHP: `POST /wicket_member/v1/group` param `owner_user_id` → `owner_uuid` | Not started |
-| PHP: Disable native WP REST routes for group membership CPT | Not started |
-| Tests: Update all `owner_user_id` REST test params → `owner_uuid` | Not started |
+| PHP: `POST /wicket_member/v1/group` param `owner_user_id` → `owner_uuid` | Done |
+| PHP: Disable native WP REST routes for group membership CPT | Done |
+| Tests: Update all `owner_user_id` REST test params → `owner_uuid` | Done |
 
 ### Commit 4 — Extract `MembershipDatePicker`
 | Step | Status |

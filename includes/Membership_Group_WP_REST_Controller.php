@@ -25,7 +25,28 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
 
   public function __construct() {
     add_action( 'rest_api_init', [ $this, 'register_routes' ] );
+    // Remove the native WP REST collection and single-item routes for the group
+    // membership CPT so all create/read/update goes through our dedicated routes.
+    add_filter( 'rest_endpoints', [ $this, 'remove_native_group_cpt_routes' ] );
     $this->namespace = 'wicket_member/v1';
+  }
+
+  /**
+   * Drop the auto-registered WP REST routes for the group membership CPT.
+   *
+   * WordPress registers /wp/v2/{slug} (collection) and /wp/v2/{slug}/(?P<id>[\d]+)
+   * (single item) for any CPT with show_in_rest => true. Those routes allow
+   * arbitrary creation and mutation that bypasses our validation logic, so we
+   * remove them here.
+   *
+   * @param array $endpoints
+   * @return array
+   */
+  public function remove_native_group_cpt_routes( array $endpoints ): array {
+    $slug = Helper::get_membership_group_cpt_slug();
+    unset( $endpoints[ '/wp/v2/' . $slug ] );
+    unset( $endpoints[ '/wp/v2/' . $slug . '/(?P<id>[\d]+)' ] );
+    return $endpoints;
   }
 
   /**
