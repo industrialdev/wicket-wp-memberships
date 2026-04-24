@@ -33,7 +33,7 @@ frontend/
 │   │   ├── hooks/                   # Custom hooks for this page
 │   │   ├── pages/                   # Webpack entry points (one file per WP admin page)
 │   │   └── utils/                   # Page-scoped utility and helper functions
-│   ├── membership_groups/           # Group membership detail page (modern)
+│   ├── membership_groups/           # Membership group detail page (modern)
 │   │   ├── components/              # Thin adapter components — map page data to shared UI
 │   │   ├── hooks/                   # Custom hooks for this page
 │   │   ├── pages/                   # Webpack entry points (one file per WP admin page)
@@ -63,8 +63,8 @@ frontend/
 | `membership_tier_create` | `membership_tiers/edit.js` | Tier create/edit |
 | `member_list` | `members/index.js` | Member list |
 | `member_edit` | `members/edit.js` | Member detail/edit |
-| `group_member_list` | `members/group_list.js` | Group membership list |
-| `group_member_edit` | `membership_groups/pages/edit.js` | Group membership detail/edit |
+| `group_member_list` | `members/group_list.js` | Membership group list |
+| `group_member_edit` | `membership_groups/pages/edit.js` | Membership group detail/edit |
 | `tier_member_count` | `membership_tiers/member_count.js` | Inline tier table cell |
 | `wicket_memberships_tier_cell_info` | `membership_tiers/tier_cell_info.js` | Inline tier table cell |
 

@@ -5,16 +5,16 @@ const REQUEST_LOADING = { status: "loading", error: null };
 const REQUEST_SUCCESS = { status: "success", error: null };
 
 /**
- * useGroupMembershipBootstrap
+ * useMembershipGroupBootstrap
  *
- * Loads all data required to populate the group membership detail page.
+ * Loads all data required to populate the membership group detail page.
  * Calls fetchGroupEditPageInfo from api.js — never calls apiFetch directly.
  *
  * @param {object} params
  * @param {string|number} params.postId - WP post ID of the membership group.
  * @returns {{ pageData: object|null, setPageData: Function, requestState: object, retryLoad: function }}
  */
-export const useGroupMembershipBootstrap = ({ postId }) => {
+export const useMembershipGroupBootstrap = ({ postId }) => {
   const [pageData, setPageData] = useState(null);
   const [requestState, setRequestState] = useState(REQUEST_LOADING);
 

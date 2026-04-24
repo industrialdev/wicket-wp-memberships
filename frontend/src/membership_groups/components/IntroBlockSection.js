@@ -2,7 +2,7 @@ import { __ } from "@wordpress/i18n";
 import IntroBlock from "../../shared/components/IntroBlock";
 
 /**
- * IntroBlockSection — group membership page adapter for IntroBlock.
+ * IntroBlockSection — membership group page adapter for IntroBlock.
  *
  * Reads group page data and maps it to the flat props that the shared
  * IntroBlock UI component expects. Contains no JSX of its own beyond
@@ -22,8 +22,8 @@ const IntroBlockSection = ({ pageData, isLoading }) => {
     },
   ];
 
-  // TODO: Replace org MDP link with the correct group membership MDP link once
-  // group membership MDP sync is implemented — see TODO.md.
+  // TODO: Replace org MDP link with the correct membership group MDP link once
+  // membership group MDP sync is implemented — see TODO.md.
   const actions = [
     {
       label: __("View in MDP", "wicket-memberships"),

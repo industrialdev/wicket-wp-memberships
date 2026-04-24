@@ -9,10 +9,10 @@ import MembershipActionsSection from "../../shared/components/MembershipActionsS
 import MembershipDetailsForm from "../../shared/components/MembershipDetailsForm";
 import {
   fetchMdpPersons,
-  fetchGroupMembershipStatuses,
+  fetchMembershipGroupStatuses,
   updateGroupChangeOwnership,
-  updateGroupMembershipStatus,
-  updateGroupMembership,
+  updateMembershipGroupStatus,
+  updateMembershipGroup,
 } from "../../shared/services/api";
 
 const DetailsWrap = styled.div`
@@ -20,7 +20,7 @@ const DetailsWrap = styled.div`
 `;
 
 /**
- * GroupMembershipRecordDetails — expanded panel content for a single group
+ * MembershipGroupRecordDetails — expanded panel content for a single group
  * membership record row.
  *
  * Rendered inside the detail <tr> of MembershipRecordsSection when the user
@@ -33,7 +33,7 @@ const DetailsWrap = styled.div`
  *  4. Dates          — start / end / expiry date pickers + save
  *  5. Renewal Type   — renewal type selector with conditional sub-fields
  *
- * `record` is the group membership record entry from pageData.membership_records
+ * `record` is the membership group record entry from pageData.membership_records
  * (the shape returned by Group_Admin_Controller::get_group_edit_page_info).
  *
  * @param {object}   props
@@ -43,7 +43,7 @@ const DetailsWrap = styled.div`
  * @param {Function} props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}   props.individualMembersUrl  - URL of the individual members list page for group member links.
  */
-const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl }) => {
+const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl }) => {
   // Group-level subscription and order data is shared across all records until
   // the API is enriched to return per-record billing data.
   // TODO: Switch to per-record subscription/order data once
@@ -73,7 +73,7 @@ const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, 
         );
       })
       .catch((error) => {
-        console.error('[GroupMembershipRecordDetails] loadOwnerOptions error', error);
+        console.error('[MembershipGroupRecordDetails] loadOwnerOptions error', error);
       });
   };
 
@@ -97,7 +97,7 @@ const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, 
   };
 
   const handleSave = ({ renewalType, nextTierFormPageId, nextTierId, ...datepayload }) =>
-    updateGroupMembership(record.ID, {
+    updateMembershipGroup(record.ID, {
       group_post_id: record.ID,
       renewal_type: renewalType,
       next_tier_form_page_id: nextTierFormPageId,
@@ -133,8 +133,8 @@ const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, 
         <MembershipStatusSection
           postId={record.ID}
           currentStatus={record.status}
-          fetchStatuses={fetchGroupMembershipStatuses}
-          updateStatus={updateGroupMembershipStatus}
+          fetchStatuses={fetchMembershipGroupStatuses}
+          updateStatus={updateMembershipGroupStatus}
           onStatusUpdated={handleStatusUpdated}
         />
 
@@ -171,4 +171,4 @@ const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, 
   );
 };
 
-export default GroupMembershipRecordDetails;
+export default MembershipGroupRecordDetails;

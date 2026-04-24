@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { __ } from "@wordpress/i18n";
 import SharedMembershipRecordsSection from "../../shared/components/MembershipRecordsSection";
-import GroupMembershipRecordDetails from "./GroupMembershipRecordDetails";
+import MembershipGroupRecordDetails from "./MembershipGroupRecordDetails";
 import { formatDateWithTooltip } from "../../shared/constants";
 
 const buildColumns = (pageData) => [
@@ -36,7 +36,7 @@ const buildColumns = (pageData) => [
 ];
 
 /**
- * MembershipRecordsSection — group membership page adapter for
+ * MembershipRecordsSection — membership group page adapter for
  * the shared MembershipRecordsSection UI component.
  *
  * Defines the column layout for the group context, maps the singular group
@@ -66,7 +66,7 @@ const MembershipRecordsSection = ({ pageData, isLoading, onOwnerUpdated, individ
   };
 
   const renderExpandedContent = (record) => (
-    <GroupMembershipRecordDetails
+    <MembershipGroupRecordDetails
       record={record}
       groupPageData={pageData}
       onRecordUpdated={handleRecordUpdated}

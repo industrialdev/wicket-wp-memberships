@@ -570,14 +570,14 @@ class Admin_Controller {
         $group_admin_id    = get_post_meta( (int) $group_id, 'user_id', true );
         $group_admin_user  = $group_admin_id ? get_userdata( (int) $group_admin_id ) : null;
         $group_starts_at   = get_post_meta( (int) $group_id, 'membership_starts_at', true );
-        $membership_item['is_group_membership'] = true;
+        $membership_item['is_membership_group'] = true;
         $membership_item['group_id']            = (int) $group_id;
         $membership_item['group_name']          = $group_post ? $group_post->post_title : '';
         $membership_item['group_admin_name']    = $group_admin_user ? $group_admin_user->display_name : '';
         $membership_item['group_starts_at']     = $group_starts_at ?? '';
         $membership_item['group_edit_url']      = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_GROUP_MEMBER_PAGE_SLUG . '&id=' . (int) $group_id );
       } else {
-        $membership_item['is_group_membership'] = false;
+        $membership_item['is_membership_group'] = false;
       }
 
       $membership_items[] = $membership_item;

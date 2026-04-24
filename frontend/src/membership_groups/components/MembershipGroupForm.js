@@ -2,7 +2,7 @@ import IntroBlockSection from "./IntroBlockSection";
 import MembershipRecordsSection from "./MembershipRecordsSection";
 
 /**
- * GroupMembershipForm — form orchestrator for the group membership detail page.
+ * MembershipGroupForm — form orchestrator for the membership group detail page.
  *
  * Renders all section components in order. Mirrors the role of GroupConfigForm
  * in membership_group_configs/. Each section component is a thin adapter that
@@ -18,7 +18,7 @@ import MembershipRecordsSection from "./MembershipRecordsSection";
  * @param {Function}     props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}       props.individualMembersUrl  - URL of the individual members list page.
  */
-const GroupMembershipForm = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl }) => {
+const MembershipGroupForm = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl }) => {
   return (
     <>
       <IntroBlockSection pageData={pageData} isLoading={isLoading} />
@@ -27,4 +27,4 @@ const GroupMembershipForm = ({ pageData, isLoading, onOwnerUpdated, individualMe
   );
 };
 
-export default GroupMembershipForm;
+export default MembershipGroupForm;

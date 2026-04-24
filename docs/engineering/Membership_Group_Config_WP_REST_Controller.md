@@ -29,7 +29,7 @@ Routes registered:
 | `GET` | `/group_config/{id}/membership_dates` | Calculate membership dates from a group config |
 
 **get_group_config_membership_dates($request)**
-Calculates and returns membership dates (`start_date`, `end_date`, `expires_at`, `early_renew_at`) by delegating to `Membership_Group_Config::get_membership_dates()`. Accepts an optional `membership` param (array) for renewal date calculation on existing group memberships. Returns 404 if the post does not exist or is the wrong post type.
+Calculates and returns membership dates (`start_date`, `end_date`, `expires_at`, `early_renew_at`) by delegating to `Membership_Group_Config::get_membership_dates()`. Accepts an optional `membership` param (array) for renewal date calculation on existing membership groups. Returns 404 if the post does not exist or is the wrong post type.
 
 **permissions_check_read($request)**
 Checks if the current user has permission to read group config data via the REST API. Bypassed when `ALLOW_LOCAL_IMPORTS` env flag is set.

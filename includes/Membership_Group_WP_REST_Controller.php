@@ -32,7 +32,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
   }
 
   /**
-   * Drop the auto-registered WP REST routes for the group membership CPT.
+   * Drop the auto-registered WP REST routes for the membership group CPT.
    *
    * WordPress registers /wp/v2/{slug} (collection) and /wp/v2/{slug}/(?P<id>[\d]+)
    * (single item) for any CPT with show_in_rest => true. Those routes allow
@@ -50,7 +50,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
   }
 
   /**
-   * Register all group membership REST routes.
+   * Register all membership group REST routes.
    */
   public function register_routes() {
 
@@ -59,14 +59,14 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     // -------------------------------------------------------------------------
 
     /**
-     * List/search/filter group memberships grouped by organisation.
+     * List/search/filter membership groups grouped by organisation.
      *
-     * GET /wicket_member/v1/group_memberships
+     * GET /wicket_member/v1/membership_groups
      */
-    register_rest_route( $this->namespace, '/group_memberships', [
+    register_rest_route( $this->namespace, '/membership_groups', [
       [
         'methods'             => \WP_REST_Server::READABLE,
-        'callback'            => [ $this, 'get_group_memberships' ],
+        'callback'            => [ $this, 'get_membership_groups' ],
         'permission_callback' => [ $this, 'permissions_check_read' ],
         'args'                => [
           'page' => [
@@ -103,11 +103,11 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
-     * Get a group membership record by its post ID.
+     * Get a membership group record by its post ID.
      *
-     * GET /wicket_member/v1/group_membership_entity?group_post_id=123
+     * GET /wicket_member/v1/membership_group_entity?group_post_id=123
      */
-    register_rest_route( $this->namespace, '/group_membership_entity', [
+    register_rest_route( $this->namespace, '/membership_group_entity', [
       [
         'methods'             => \WP_REST_Server::READABLE,
         'callback'            => [ $this, 'get_group_entity' ],
@@ -123,11 +123,11 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
-     * Update editable fields on a group membership post.
+     * Update editable fields on a membership group post.
      *
-     * POST /wicket_member/v1/group_membership_entity/{id}/update
+     * POST /wicket_member/v1/membership_group_entity/{id}/update
      */
-    register_rest_route( $this->namespace, '/group_membership_entity/(?P<group_post_id>\d+)/update', [
+    register_rest_route( $this->namespace, '/membership_group_entity/(?P<group_post_id>\d+)/update', [
       [
         'methods'             => \WP_REST_Server::CREATABLE,
         'callback'            => [ $this, 'update_group_entity' ],
@@ -153,7 +153,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
-     * Transition a group membership to a new status.
+     * Transition a membership group to a new status.
      *
      * POST /wicket_member/v1/group/admin/manage_status
      * Body: { group_post_id, status }
@@ -171,7 +171,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     // -------------------------------------------------------------------------
 
     /**
-     * Get all data needed to populate the group membership edit form.
+     * Get all data needed to populate the membership group edit form.
      *
      * GET /wicket_member/v1/group/admin/get_edit_page_info?group_post_id=123
      */
@@ -209,14 +209,14 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
-     * Return available filter options for the group membership list UI.
+     * Return available filter options for the membership group list UI.
      *
-     * GET /wicket_member/v1/group_membership_filters
+     * GET /wicket_member/v1/membership_group_filters
      */
-    register_rest_route( $this->namespace, '/group_membership_filters', [
+    register_rest_route( $this->namespace, '/membership_group_filters', [
       [
         'methods'             => \WP_REST_Server::READABLE,
-        'callback'            => [ $this, 'get_group_membership_filters' ],
+        'callback'            => [ $this, 'get_membership_group_filters' ],
         'permission_callback' => [ $this, 'permissions_check_read' ],
       ],
     ] );
@@ -242,7 +242,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
-     * Create a new group membership.
+     * Create a new membership group.
      *
      * POST /wicket_member/v1/group
      * Body: { name, membership_group_config_id, org_uuid, owner_uuid, start_date }
@@ -250,7 +250,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     register_rest_route( $this->namespace, '/group', [
       [
         'methods'             => \WP_REST_Server::CREATABLE,
-        'callback'            => [ $this, 'create_group_membership' ],
+        'callback'            => [ $this, 'create_membership_group' ],
         'permission_callback' => [ $this, 'permissions_check_write' ],
         'args'                => [
           'name' => [
@@ -288,7 +288,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     // TODO: POST /group/{id}/create_renewal_order — blocked on group subscription
     //       line item structure being finalised.
 
-    // TODO: GET  /get_group_membership_callouts  — group-level renewal/grace callouts
+    // TODO: GET  /get_membership_group_callouts  — group-level renewal/grace callouts
     // TODO: POST /group/{id}/add_member          — add individual to group
     // TODO: POST /group/{id}/remove_member       — remove individual from group (cancel or continue)
     // TODO: POST /group/{id}/move_member         — move individual to another group
@@ -302,11 +302,11 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
   // ---------------------------------------------------------------------------
 
   /**
-   * GET /group_memberships
+   * GET /membership_groups
    */
-  public function get_group_memberships( \WP_REST_Request $request ) {
+  public function get_membership_groups( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Group_Admin_Controller::get_group_memberships_list(
+    $response = Group_Admin_Controller::get_membership_groups_list(
       $params['page'] ?? 1,
       $params['posts_per_page'] ?? 25,
       $params['status'] ?? 'all',
@@ -319,7 +319,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
   }
 
   /**
-   * GET /group_membership_entity
+   * GET /membership_group_entity
    */
   public function get_group_entity( \WP_REST_Request $request ) {
     $params = $request->get_params();
@@ -328,7 +328,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
   }
 
   /**
-   * POST /group_membership_entity/{group_post_id}/update
+   * POST /membership_group_entity/{group_post_id}/update
    */
   public function update_group_entity( \WP_REST_Request $request ) {
     $params = $request->get_params();
@@ -368,10 +368,10 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
   }
 
   /**
-   * GET /group_membership_filters
+   * GET /membership_group_filters
    */
-  public function get_group_membership_filters( \WP_REST_Request $request ) {
-    $response = Group_Admin_Controller::get_group_membership_filters();
+  public function get_membership_group_filters( \WP_REST_Request $request ) {
+    $response = Group_Admin_Controller::get_membership_group_filters();
     return rest_ensure_response( $response );
   }
 
@@ -387,7 +387,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
   /**
    * POST /group
    */
-  public function create_group_membership( \WP_REST_Request $request ) {
+  public function create_membership_group( \WP_REST_Request $request ) {
     $params = $request->get_params();
 
     try {
@@ -403,11 +403,11 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     }
 
     if ( null === $group ) {
-      return new WP_REST_Response( [ 'error' => 'Failed to create group membership. Check server logs for details.' ], 500 );
+      return new WP_REST_Response( [ 'error' => 'Failed to create membership group. Check server logs for details.' ], 500 );
     }
 
     return new WP_REST_Response( [
-      'success'  => 'Group membership created.',
+      'success'  => 'Membership group created.',
       'response' => Group_Admin_Controller::get_group_entity_records( $group->post_id ),
     ], 200 );
   }

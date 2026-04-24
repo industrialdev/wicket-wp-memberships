@@ -188,7 +188,7 @@ Returns all individual membership CPT posts that have `membership_group_id` set 
 | `user_id` | `int` | WP user ID of the group owner — the only owner field stored; derive email/name/UUID from the WP user at runtime |
 | `org_uuid` | `string` | MDP organisation UUID |
 | `org_name` | `string` | MDP organisation legal name (cached) |
-| `membership_status` | `string` | Group membership status (see vocabulary above) |
+| `membership_status` | `string` | Membership group status (see vocabulary above) |
 | `membership_group_config_id` | `int` | Linked membership group config post ID |
 | `membership_parent_order_id` | `int` | Linked WooCommerce order ID |
 | `membership_subscription_id` | `int` | Linked WooCommerce subscription ID |

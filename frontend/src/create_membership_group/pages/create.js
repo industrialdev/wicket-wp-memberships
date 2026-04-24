@@ -1,10 +1,10 @@
 import { createRoot } from "react-dom/client";
-import CreateGroupMembershipPage from "../components/CreateGroupMembershipPage";
+import CreateMembershipGroupPage from "../components/CreateMembershipGroupPage";
 
-const app = document.getElementById("create_group_membership");
+const app = document.getElementById("create_membership_group");
 if (app) {
   createRoot(app).render(
-    <CreateGroupMembershipPage
+    <CreateMembershipGroupPage
       groupConfigCptSlug={app.dataset.groupConfigCptSlug}
       listUrl={app.dataset.listUrl}
       editGroupBaseUrl={app.dataset.editGroupBaseUrl}

@@ -14,7 +14,7 @@ import { pickerDateToIso } from "../../shared/components/MembershipDatesSection"
 import {
   fetchMdpPersons,
   fetchSearchOrgs,
-  createGroupMembership,
+  createMembershipGroup,
 } from "../../shared/services/api";
 import { API_URL } from "../../shared/constants";
 import he from "he";
@@ -77,14 +77,14 @@ const buildValidationAlertMessage = (errors) => {
 };
 
 /**
- * CreateGroupMembershipPage — form for creating a new Membership Group post.
+ * CreateMembershipGroupPage — form for creating a new Membership Group post.
  *
  * @param {object} props
  * @param {string} props.groupConfigCptSlug  - CPT slug for group configs (from data attribute).
- * @param {string} props.listUrl             - URL of the group membership list page.
+ * @param {string} props.listUrl             - URL of the membership group list page.
  * @param {string} props.editGroupBaseUrl    - Base URL for the group edit page (id appended on success).
  */
-const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGroupBaseUrl }) => {
+const CreateMembershipGroupPageContent = ({ groupConfigCptSlug, listUrl, editGroupBaseUrl }) => {
   const [form, setForm]           = useState(EMPTY_FORM);
   const [orgOption, setOrgOption] = useState(null);
   const [errors, setErrors]       = useState({});
@@ -127,7 +127,7 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
         callback(response.map((person) => ({ label: person.full_name, value: person.id })));
       })
       .catch((error) => {
-        console.error("[CreateGroupMembershipPage] loadOwnerOptions error", error);
+        console.error("[CreateMembershipGroupPage] loadOwnerOptions error", error);
       });
   };
 
@@ -144,7 +144,7 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
         );
       })
       .catch((error) => {
-        console.error("[CreateGroupMembershipPage] loadOrgOptions error", error);
+        console.error("[CreateMembershipGroupPage] loadOrgOptions error", error);
         callback([]);
       });
   }, []);
@@ -167,7 +167,7 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
     setSubmitError(null);
 
     try {
-      const response = await createGroupMembership({
+      const response = await createMembershipGroup({
         name:                       form.name.trim(),
         membership_group_config_id: form.groupConfig.value,
         org_uuid:                   form.orgUuid.trim(),
@@ -199,7 +199,7 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
         <div style={{ marginBottom: "16px" }}>
           <TextControl
             label={<RequiredLabel text={__("Name", "wicket-memberships")} />}
-            placeholder={__("Group Membership Name", "wicket-memberships")}
+            placeholder={__("Membership Group Name", "wicket-memberships")}
             value={form.name}
             onChange={set("name")}
           />
@@ -265,7 +265,7 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
           disabled={isSubmitting}
           isBusy={isSubmitting}
         >
-          {__("Create Group Membership", "wicket-memberships")}
+          {__("Create Membership Group", "wicket-memberships")}
         </Button>
 
       </form>
@@ -273,21 +273,21 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
   );
 };
 
-const CreateGroupMembershipPage = ({ groupConfigCptSlug, listUrl, editGroupBaseUrl }) => {
+const CreateMembershipGroupPage = ({ groupConfigCptSlug, listUrl, editGroupBaseUrl }) => {
   const [errorBoundaryResetKey, setErrorBoundaryResetKey] = useState(0);
 
   return (
     <AppWrap>
       <div className="wrap">
         <h1 className="wp-heading-inline">
-          {__("Create Group Membership", "wicket-memberships")}
+          {__("Create Membership Group", "wicket-memberships")}
         </h1>
         <hr className="wp-header-end" />
 
         {listUrl && (
           <p>
             <a href={listUrl}>
-              &larr; {__("Back to Group Memberships", "wicket-memberships")}
+              &larr; {__("Back to Membership Groups", "wicket-memberships")}
             </a>
           </p>
         )}
@@ -297,7 +297,7 @@ const CreateGroupMembershipPage = ({ groupConfigCptSlug, listUrl, editGroupBaseU
           resetKey={errorBoundaryResetKey}
         >
           <EditWrap>
-            <CreateGroupMembershipPageContent
+            <CreateMembershipGroupPageContent
               key={errorBoundaryResetKey}
               groupConfigCptSlug={groupConfigCptSlug}
               listUrl={listUrl}
@@ -310,4 +310,4 @@ const CreateGroupMembershipPage = ({ groupConfigCptSlug, listUrl, editGroupBaseU
   );
 };
 
-export default CreateGroupMembershipPage;
+export default CreateMembershipGroupPage;

@@ -12,7 +12,7 @@ audience: [implementer, support, developer, end-user]
 
 ## Terminology Note
 
-Use `membership group` as the preferred term throughout this plugin's documentation and implementation notes. If older content says `group membership`, read it as `membership group` unless the wording is part of a backward-compatible identifier or external contract that cannot be renamed safely.
+Use `membership group` as the preferred term throughout this plugin's documentation and implementation notes. If older content says `membership group`, read it as `membership group` unless the wording is part of a backward-compatible identifier or external contract that cannot be renamed safely.
 
 ## Product Docs (Operators & Support)
 - [Overview](product/overview.md) — What the plugin does, CPTs, lifecycle, feature flags, requirements
@@ -27,7 +27,7 @@ Use `membership group` as the preferred term throughout this plugin's documentat
 - [Membership_Tier Data Structure](engineering/membership_tier_data_structure.md) — Tier-to-product linkage, renewal types, approval flows
 
 ### Feature Plans
-- [Create Group Membership Page](engineering/create-group-membership-page.md) — Implementation plan and progress tracker for the new group membership creation flow
+- [Create Membership Group Page](engineering/create-membership-group-page.md) — Implementation plan and progress tracker for the new membership group creation flow
 
 ### Class Reference
 - [Admin_Controller](engineering/Class-Admin_Controller.md) — Admin menu pages, status transition validation, React app mounting
@@ -42,8 +42,8 @@ Use `membership group` as the preferred term throughout this plugin's documentat
 - [Membership_Tier](engineering/Class-Membership_Tier.md) — Model for tier posts: product linkage, renewal type, MDP UUID lookup
 - [Membership_Tier_CPT_Hooks](engineering/Class-Membership_Tier_CPT_Hooks.md) — Admin UI for tiers: list columns, trash protection, React edit page
 - [Membership_WP_REST_Controller](engineering/Class-Membership_WP_REST_Controller.md) — REST API (wicket_member/v1): search, CRUD, status management, merge webhook
-- [Group_Admin_Controller](engineering/Group_Admin_Controller.md) — Admin business logic for group membership posts (status, dates, ownership, renewal orders)
-- [Membership_Group_WP_REST_Controller](engineering/Membership_Group_WP_REST_Controller.md) — REST endpoints for group membership operations
+- [Group_Admin_Controller](engineering/Group_Admin_Controller.md) — Admin business logic for membership group posts (status, dates, ownership, renewal orders)
+- [Membership_Group_WP_REST_Controller](engineering/Membership_Group_WP_REST_Controller.md) — REST endpoints for membership group operations
 - [Settings](engineering/Class-Settings.md) — Plugin options page: feature flags, debug toggles, scheduled action status
 - [Utilities](engineering/Class-Utilities.md) — WooCommerce integration hooks: cart/checkout modifications, product protection, timezone date helpers
 

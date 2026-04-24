@@ -27,7 +27,7 @@ This file applies to work inside `src/web/app/plugins/wicket-wp-memberships`.
 - `docs/class-index/`: markdown reference docs for the classes in `includes/`. Every PHP class file in `includes/` must have a corresponding `.md` file here — 1:1 mapping is required.
 - `docs/membership_config_data_structure.md`: membership config data shape reference.
 - `docs/membership_tier_data_structure.md`: membership tier data shape reference.
-- `CURRENT_SCOPE.md`: active product-scope document for features in development. Read this before working on group membership features.
+- `CURRENT_SCOPE.md`: active product-scope document for features in development. Read this before working on membership group features.
 - `frontend/src/`: React/admin UI source.
 - `frontend/build/`: built frontend assets (committed, do not edit manually).
 - `assets/`: plugin CSS/JS assets loaded by WordPress.
@@ -43,13 +43,13 @@ This file applies to work inside `src/web/app/plugins/wicket-wp-memberships`.
 - Key test areas: membership creation, merge webhook, admin status transitions, factory functionality, helper utilities.
 - When adding tests, prefer using the centralized QA suite at `./qa` per the stack AGENTS.md.
 
-`CURRENT_SCOPE.md` describes the **Group Memberships** feature currently in development. Key concepts:
+`CURRENT_SCOPE.md` describes the **Membership Groups** feature currently in development. Key concepts:
 - A **Membership Group** is a container (WP custom post) that holds individual membership records and is linked to an MDP organisation.
 - A **Membership Group Config** defines date calculation, renewal windows, grace periods, and renewal type for groups.
 - Membership Groups have their own WooCommerce subscription; individual memberships within a group are represented as line items on that subscription.
 - Admin flows covered: Create Group, Add/Remove/Move members, Bulk CSV import, Cancel Group, and detail/list views.
 
-Read `CURRENT_SCOPE.md` in full before modifying anything related to group memberships or the group subscription model.
+Read `CURRENT_SCOPE.md` in full before modifying anything related to membership groups or the group subscription model.
 
 ## Membership Status Vocabulary
 
@@ -62,9 +62,9 @@ When CURRENT_SCOPE.md refers to statuses, it uses the same terms. Do not invent 
 ## Terminology Convention
 
 - Use `membership group` as the preferred term everywhere going forward.
-- Treat `group membership` as legacy or incorrect wording unless it is required for backward compatibility with an existing identifier, route, hook, meta key, or external dependency.
-- When new instructions, docs, UI copy, comments, or implementation notes say `group membership`, interpret and rewrite that as `membership group` by default.
-- Before changing compatibility-sensitive identifiers, confirm whether the string is user-facing terminology or part of a stable API/contract that must remain unchanged.
+- Do not introduce the previous terminology in new code, docs, UI copy, comments, or implementation notes.
+- When older context or comments use outdated wording, rewrite that to `membership group`.
+- If a rename touches identifiers, keep the implementation internally consistent across PHP, JS, docs, and QA.
 
 ## Plugin Environment Flags
 
@@ -134,7 +134,7 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 - If a new class was added to `includes/`, was `composer dump-autoload` run?
 - Did the work reference `wicket-wp-base-plugin` without modifying it?
 - If tests were added or updated, were they placed in `qa/` and run from there when possible?
-- If the change touches group membership logic, was `CURRENT_SCOPE.md` consulted first?
+- If the change touches membership group logic, was `CURRENT_SCOPE.md` consulted first?
 
 ## Current Branch Scope
 

@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import moment from "moment";
 import { Spinner } from "@wordpress/components";
 import { addQueryArgs } from "@wordpress/url";
-import { fetchGroupMemberships, fetchGroupMembershipFilters } from "../shared/services/api";
+import { fetchMembershipGroups, fetchMembershipGroupFilters } from "../shared/services/api";
 import { SelectWpStyled } from "../shared/styled_elements";
 
 const SortableHeader = ({ label, col, currentCol, currentDir, onSort }) => {
@@ -44,7 +44,7 @@ const GroupMemberList = ({ editGroupUrl }) => {
   const getGroups = (params) => {
     setIsLoading(true);
 
-    fetchGroupMemberships(params)
+    fetchMembershipGroups(params)
       .then((response) => {
         setGroups(response.results || []);
         setTotalGroups(response.count || 0);
@@ -69,7 +69,7 @@ const GroupMemberList = ({ editGroupUrl }) => {
 
   useEffect(() => {
     getGroups(searchParams);
-    fetchGroupMembershipFilters()
+    fetchMembershipGroupFilters()
       .then((filters) => setGroupFilters(filters))
       .catch((error) => console.error(error));
   }, []);
@@ -196,7 +196,7 @@ const GroupMemberList = ({ editGroupUrl }) => {
           )}
           {!isLoading && groups.length === 0 && (
             <tr className="alternate">
-              <td colSpan={6}>{__("No group memberships found.", "wicket-memberships")}</td>
+              <td colSpan={6}>{__("No membership groups found.", "wicket-memberships")}</td>
             </tr>
           )}
           {!isLoading && groups.length > 0 && groups.map((group) => (
@@ -216,7 +216,7 @@ const GroupMemberList = ({ editGroupUrl }) => {
               <td>{group.owner?.name || group.owner?.email || "-"}</td>
               <td>{group.status?.label || "-"}</td>
               <td>{group.last_updated ? moment(group.last_updated).format("MMMM D, YYYY") : "-"}</td>
-              {/* TODO: enable MDP link once group membership MDP sync is implemented */}
+              {/* TODO: enable MDP link once membership group MDP sync is implemented */}
               <td>{group.mdp_link ? <span style={{ color: "red", opacity: 0.5 }}>{__("View in MDP", "wicket-memberships")}</span> : "-"}</td>
             </tr>
           ))}

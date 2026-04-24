@@ -3,7 +3,7 @@ import MembershipOwnerSection from "../../shared/components/MembershipOwnerSecti
 import { fetchMdpPersons, updateGroupChangeOwnership } from "../../shared/services/api";
 
 /**
- * GroupMembershipOwnerSection — group page adapter for MembershipOwnerSection.
+ * MembershipGroupOwnerSection — group page adapter for MembershipOwnerSection.
  *
  * Maps group pageData to the flat props expected by the shared UI component and
  * injects the group-specific API call and copy.
@@ -13,7 +13,7 @@ import { fetchMdpPersons, updateGroupChangeOwnership } from "../../shared/servic
  * @param {boolean}      props.isLoading       - True while page data is pending.
  * @param {Function}     props.onOwnerUpdated  - Called with new owner data after a successful save.
  */
-const GroupMembershipOwnerSection = ({ pageData, isLoading, onOwnerUpdated }) => {
+const MembershipGroupOwnerSection = ({ pageData, isLoading, onOwnerUpdated }) => {
   if ( isLoading || ! pageData ) { return null; }
 
   const groupPostId = pageData.ID;
@@ -33,7 +33,7 @@ const GroupMembershipOwnerSection = ({ pageData, isLoading, onOwnerUpdated }) =>
         );
       })
       .catch((error) => {
-        console.error('[GroupMembershipOwnerSection] loadOptions error', error);
+        console.error('[MembershipGroupOwnerSection] loadOptions error', error);
       });
   };
 
@@ -51,8 +51,8 @@ const GroupMembershipOwnerSection = ({ pageData, isLoading, onOwnerUpdated }) =>
 
   return (
     <MembershipOwnerSection
-      title={__('Group Membership Owner', 'wicket-memberships')}
-      tooltipText={__('Represents the person responsible for managing and renewing this Group Membership.', 'wicket-memberships')}
+      title={__('Membership Group Owner', 'wicket-memberships')}
+      tooltipText={__('Represents the person responsible for managing and renewing this Membership Group.', 'wicket-memberships')}
       ownerOption={ownerOption}
       mdpLink={owner?.mdp_link ?? null}
       switchToUrl={owner?.switch_to_url ?? null}
@@ -62,4 +62,4 @@ const GroupMembershipOwnerSection = ({ pageData, isLoading, onOwnerUpdated }) =>
   );
 };
 
-export default GroupMembershipOwnerSection;
+export default MembershipGroupOwnerSection;

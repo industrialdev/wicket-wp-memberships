@@ -14,8 +14,8 @@ import he from 'he';
 import moment from 'moment-timezone';
 import { CreateRenewalOrderModal, getRenewalOrderAction } from './create_renewal_order';
 import MembershipActionsDropdown from '../shared/components/MembershipActionsDropdown';
-import GroupMembershipDetails from './GroupMembershipDetails';
-import GroupMembershipBadge from './GroupMembershipBadge';
+import MembershipGroupDetails from './MembershipGroupDetails';
+import MembershipGroupBadge from './MembershipGroupBadge';
 
 export const EditWrap = styled.div`
 	max-width: 1000px;
@@ -581,8 +581,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                         >
                           <td className="column-columnname">
                             {membership.data.membership_tier_name}
-                            {membership.is_group_membership && (
-                              <GroupMembershipBadge groupName={membership.group_name} />
+                            {membership.is_membership_group && (
+                              <MembershipGroupBadge groupName={membership.group_name} />
                             )}
                           </td>
                           <td className="column-columnname">
@@ -618,8 +618,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                           style={{ display: membership.showRow ? 'table-row' : 'none' }}
                         >
                           <td colSpan={7} >
-                            {membership.is_group_membership ? (
-                              <GroupMembershipDetails membership={membership} />
+                            {membership.is_membership_group ? (
+                              <MembershipGroupDetails membership={membership} />
                             ) : (<>
                             {membership.subscription.id !== undefined &&
                             <Flex

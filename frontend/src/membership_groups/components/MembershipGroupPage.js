@@ -4,11 +4,11 @@ import AdminNoticeStack from "../../shared/components/AdminNoticeStack";
 import AdminPageErrorBoundary from "../../shared/components/AdminPageErrorBoundary";
 import { AppWrap, EditWrap } from "../../shared/styled_elements";
 import { getPrimaryErrorMessage } from "../utils/formUtils";
-import { useGroupMembershipBootstrap } from "../hooks/useGroupMembershipBootstrap";
-import GroupMembershipForm from "./GroupMembershipForm";
+import { useMembershipGroupBootstrap } from "../hooks/useMembershipGroupBootstrap";
+import MembershipGroupForm from "./MembershipGroupForm";
 
-const GroupMembershipPageContent = ({ postId, listUrl, individualMembersUrl }) => {
-  const { pageData, setPageData, requestState, retryLoad } = useGroupMembershipBootstrap({ postId });
+const MembershipGroupPageContent = ({ postId, listUrl, individualMembersUrl }) => {
+  const { pageData, setPageData, requestState, retryLoad } = useMembershipGroupBootstrap({ postId });
 
   const isLoading = requestState.status === "loading";
 
@@ -24,7 +24,7 @@ const GroupMembershipPageContent = ({ postId, listUrl, individualMembersUrl }) =
             status: "warning",
             message: getPrimaryErrorMessage(
               requestState.error,
-              __("The group membership data could not be loaded. Retry to continue.", "wicket-memberships"),
+              __("The membership group data could not be loaded. Retry to continue.", "wicket-memberships"),
             ),
             action: {
               label: __("Retry loading", "wicket-memberships"),
@@ -38,7 +38,7 @@ const GroupMembershipPageContent = ({ postId, listUrl, individualMembersUrl }) =
   return (
     <>
       <AdminNoticeStack notices={notices} />
-      <GroupMembershipForm
+      <MembershipGroupForm
         pageData={pageData}
         isLoading={isLoading}
         onOwnerUpdated={handleOwnerUpdated}
@@ -49,31 +49,31 @@ const GroupMembershipPageContent = ({ postId, listUrl, individualMembersUrl }) =
 };
 
 /**
- * GroupMembershipPage — top-level container for the group membership detail page.
+ * MembershipGroupPage — top-level container for the membership group detail page.
  *
  * Owns the error boundary and renders the page heading. Mirrors the role of
  * GroupConfigPage in membership_group_configs/.
  *
  * @param {object} props
  * @param {string|number} props.postId               - WP post ID passed from the PHP mount point.
- * @param {string}        props.listUrl              - URL of the group membership list page.
+ * @param {string}        props.listUrl              - URL of the membership group list page.
  * @param {string}        props.individualMembersUrl - URL of the individual members list page.
  */
-const GroupMembershipPage = ({ postId, listUrl, individualMembersUrl }) => {
+const MembershipGroupPage = ({ postId, listUrl, individualMembersUrl }) => {
   const [errorBoundaryResetKey, setErrorBoundaryResetKey] = useState(0);
 
   return (
     <AppWrap>
       <div className="wrap">
         <h1 className="wp-heading-inline">
-          {__("Group Membership", "wicket-memberships")}
+          {__("Membership Group", "wicket-memberships")}
         </h1>
         <hr className="wp-header-end" />
 
         {listUrl && (
           <p>
             <a href={listUrl}>
-              &larr; {__("Back to Group Memberships", "wicket-memberships")}
+              &larr; {__("Back to Membership Groups", "wicket-memberships")}
             </a>
           </p>
         )}
@@ -83,7 +83,7 @@ const GroupMembershipPage = ({ postId, listUrl, individualMembersUrl }) => {
           resetKey={errorBoundaryResetKey}
         >
           <EditWrap>
-            <GroupMembershipPageContent
+            <MembershipGroupPageContent
               key={errorBoundaryResetKey}
               listUrl={listUrl}
               postId={postId}
@@ -96,4 +96,4 @@ const GroupMembershipPage = ({ postId, listUrl, individualMembersUrl }) => {
   );
 };
 
-export default GroupMembershipPage;
+export default MembershipGroupPage;

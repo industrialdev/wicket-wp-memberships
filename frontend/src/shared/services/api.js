@@ -104,15 +104,15 @@ export const fetchMembers = (params = null) => {
 };
 
 /**
- * Fetch Group Memberships
+ * Fetch Membership Groups
  */
-export const fetchGroupMemberships = (params = null) => {
+export const fetchMembershipGroups = (params = null) => {
   if (params === null) {
     return;
   }
 
   return apiFetch({
-    path: addQueryArgs(`${PLUGIN_API_URL}/group_memberships`, params),
+    path: addQueryArgs(`${PLUGIN_API_URL}/membership_groups`, params),
   });
 };
 
@@ -211,11 +211,11 @@ export const fetchGroupMembersByTier = (groupPostId) => {
 };
 
 /**
- * Fetch Group Membership Filters
+ * Fetch Membership Group Filters
  */
-export const fetchGroupMembershipFilters = () => {
+export const fetchMembershipGroupFilters = () => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/group_membership_filters`,
+    path: `${PLUGIN_API_URL}/membership_group_filters`,
   });
 };
 
@@ -271,7 +271,7 @@ export const createRenewalOrder = (membershipId, productId, variationId) => {
 };
 
 /**
- * Fetch all data required to populate the group membership detail/edit page.
+ * Fetch all data required to populate the membership group detail/edit page.
  *
  * Maps to GET /wicket_member/v1/group/admin/get_edit_page_info?group_post_id=<id>
  *
@@ -286,13 +286,13 @@ export const fetchGroupEditPageInfo = (postId) => {
 };
 
 /**
- * Fetch available status transition options for a group membership post.
+ * Fetch available status transition options for a membership group post.
  *
  * Maps to GET /wicket_member/v1/group/admin/status_options?group_post_id=<id>
  *
  * @param {string|number} groupPostId - WP post ID of the membership group.
  */
-export const fetchGroupMembershipStatuses = (groupPostId = null) => {
+export const fetchMembershipGroupStatuses = (groupPostId = null) => {
   if (groupPostId === null) {
     return;
   }
@@ -305,14 +305,14 @@ export const fetchGroupMembershipStatuses = (groupPostId = null) => {
 };
 
 /**
- * Transition a group membership to a new status.
+ * Transition a membership group to a new status.
  *
  * Maps to POST /wicket_member/v1/group/admin/manage_status
  *
  * @param {string|number} groupPostId - WP post ID of the membership group.
  * @param {string}        status      - New status slug.
  */
-export const updateGroupMembershipStatus = (groupPostId, status) => {
+export const updateMembershipGroupStatus = (groupPostId, status) => {
   return apiFetch({
     path: `${PLUGIN_API_URL}/group/admin/manage_status`,
     method: "POST",
@@ -324,16 +324,16 @@ export const updateGroupMembershipStatus = (groupPostId, status) => {
 };
 
 /**
- * Update editable fields on a group membership post (dates, renewal type, owner).
+ * Update editable fields on a membership group post (dates, renewal type, owner).
  *
- * Maps to POST /wicket_member/v1/group_membership_entity/{id}/update
+ * Maps to POST /wicket_member/v1/membership_group_entity/{id}/update
  *
  * @param {string|number} groupPostId - WP post ID of the membership group.
  * @param {object}        data        - Fields to update.
  */
-export const updateGroupMembership = (groupPostId, data) => {
+export const updateMembershipGroup = (groupPostId, data) => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/group_membership_entity/${groupPostId}/update`,
+    path: `${PLUGIN_API_URL}/membership_group_entity/${groupPostId}/update`,
     method: "POST",
     data: data,
   });
@@ -367,7 +367,7 @@ export const updateGroupChangeOwnership = (groupPostId, newOwnerUuid) => {
  * @param {string}        data.owner_uuid
  * @param {string}        data.start_date  ISO 8601
  */
-export const createGroupMembership = (data) => {
+export const createMembershipGroup = (data) => {
   return apiFetch({
     path: `${PLUGIN_API_URL}/group`,
     method: "POST",

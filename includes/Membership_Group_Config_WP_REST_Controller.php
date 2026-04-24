@@ -39,7 +39,7 @@ class Membership_Group_Config_WP_REST_Controller extends \WP_REST_Controller {
 
   /**
    * Get calculated membership dates from a Membership Group Config.
-   * Accepts an optional 'membership' param (array) for renewal date calculation on existing group memberships.
+   * Accepts an optional 'membership' param (array) for renewal date calculation on existing membership groups.
    */
   public function get_group_config_membership_dates( \WP_REST_Request $request ) {
     $params  = $request->get_params();

@@ -13,7 +13,7 @@ As an Implementation Specialist, I can create a membership configuration for Mem
 Membership Group configs will combine aspects of Membership Config + Tier configuration for organizations and individuals.
 
 - Membership Group Configuration determines
-  - How dates are calculated when Group Membership records are created
+  - How dates are calculated when Membership Group records are created
   - When renewal callout show to Membership Owners (early + grace)
   - If new membership records become active immediately upon being created or if they are created in a pending state
   - The renewal behaviour in the member portal
@@ -39,12 +39,12 @@ Includes fields:
   - Limited to `Renewal Form Flow` and `Subscription` renewal type
   - If `Renewal Form Flow` is selected, a page must be assigned
 
-Group Membership Config:
+Membership Group Config:
 
 - Set date/type
 - Set renewal settings (only subscription or form)
 
-Include global option to enable/disable group membership.
+Include global option to enable/disable membership group.
 
 ## Membership Group Entity / Object (Org)
 
@@ -121,7 +121,7 @@ Steps:
     - Customer = Membership Owner
     - Subscription schedule based on membership dates
       - Next payment date only populated if Renewal Type = `Subscription`
-    - Group Membership ID added to subscription as meta
+    - Membership Group ID added to subscription as meta
     - Org UUID added to subscription as meta
     - No line items are added to the subscription yet
 - Admin is prompted to add members to group
@@ -164,7 +164,7 @@ Steps:
 Result:
 
 - Individual membership created
-  - Group Membership ID assigned as meta
+  - Membership Group ID assigned as meta
   - Membership status = inherited from group (`pending`, `active` or `delayed`)
   - Start date:
     - If today is within membership group start date and end date, start date = today
@@ -198,7 +198,7 @@ Result:
 
 - Existing individual membership is end dated (canceled)
 - New individual membership created
-  - Group Membership ID assigned as meta
+  - Membership Group ID assigned as meta
   - Membership status = inherited from group (`pending`, `active` or `delayed`)
   - Start date:
     - If today is within membership group start date and end date, start date = today
@@ -261,7 +261,7 @@ Existing Membership Identification Rules:
     - The row is skipped
     - The row is included in the error report
 
-Group Membership Validation:
+Membership Group Validation:
 
 - If the person already has a membership in the selected Membership Group with the same membership tier:
   - The row is skipped
@@ -271,7 +271,7 @@ Result (Per Successful Row):
 
 - Individual membership created
   - If applicable, existing individual membership is end dated (canceled)
-  - Group Membership ID assigned as meta
+  - Membership Group ID assigned as meta
   - Membership status = inherited from group (`pending`, `active` or `delayed`)
   - `Start Date`
     - If today is within membership group start date and end date, start date = `today`
@@ -319,7 +319,7 @@ Membership Handling
 - Membership status is inherited from the group
 - Membership start date follows the defined group rules
 - Membership end date and expiration date are inherited from the group
-- Group membership ID is stored on the individual membership
+- Membership group ID is stored on the individual membership
 - Individual membership post ID is assigned to the Membership Group
 - Membership tier line item is assigned to the group subscription with the individual membership post ID
 
@@ -448,7 +448,7 @@ Result:
 New Membership Created:
 
 - A new individual membership record is created.
-- Group Membership ID assigned as meta.
+- Membership Group ID assigned as meta.
 - Membership status = inherited from the new group (`pending`, `active` or `delayed`)
   - `Start Date`
     - If today is within membership group start date and end date, start date = `today`
@@ -506,7 +506,7 @@ This feature should reuse the existing logic from:
 to ensure:
 
 - Membership creation rules remain consistent
-- Group membership metadata is handled the same way
+- Membership group metadata is handled the same way
 - Subscription line item updates remain consistent
 
 ## Admin > Cancel Group
@@ -545,7 +545,7 @@ Cancel Immediately
 - The group subscription is canceled immediately
 - For each individual membership associated with the group:
   - The individual membership is end dated (canceled)
-  - Group Membership ID meta remains for historical reference
+  - Membership Group ID meta remains for historical reference
 - Members lose membership access when the cancellation takes effect.
 
 Cancel at Membership Group End Date
@@ -623,7 +623,7 @@ Continue as Individual Memberships
 - Subscription schedule matches the membership record
 - Next payment date is only populated if renewal type = `subscription`
 
-## View Group Membership (Table)
+## View Membership Group (Table)
 
 As an admin, I can view Membership Groups in a table.
 
@@ -721,14 +721,14 @@ Note: This page is modeled after existing membership plugin views.
       - leads to individual membership table filtered by Group
 - Admins can access `Group Actions`
 
-## Group Membership Subscription
+## Membership Group Subscription
 
 Membership Group subscriptions will have a line item for each individual membership included in the group. Subscriptions will include Membership Group ID as meta at the subscription level, and individual membership IDs as meta at the line item level.
 
 - Subscription Customer = Membership Group Owner
 - Subscription level meta:
   - Membership Group ID
-  - Membership Group Membership Post ID
+  - Membership Membership Group Post ID
   - Organization (`UUID`, Org Name for display)
 - Subscription line items:
   - 1 line item for each individual membership in the group

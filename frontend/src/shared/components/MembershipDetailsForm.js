@@ -24,7 +24,7 @@ const MarginedFlex = styled(Flex)`
 
 /**
  * MembershipDetailsForm — combined form for membership dates, renewal type, and
- * optional group membership owner.
+ * optional membership group owner.
  *
  * Owns all local state for the date pickers, renewal type fields, and owner
  * selector. Submits everything in a single "Update Membership" button click.
@@ -42,7 +42,7 @@ const MarginedFlex = styled(Flex)`
  *                                                    Must return a Promise<{ success?, error? }>.
  * @param {Function}     [props.onSaved]            - Called after a successful save with updated values.
  * @param {object|null}  [props.ownerOption]        - Current owner as a select option: { label, value }.
- *                                                    When provided, renders the Group Membership Owner field.
+ *                                                    When provided, renders the Membership Group Owner field.
  * @param {string|null}  [props.ownerMdpLink]        - URL to view the current owner in MDP.
  * @param {string|null}  [props.ownerSwitchToUrl]   - Impersonation URL for the current owner.
  * @param {Function}     [props.onLoadOwnerOptions] - `(inputValue, callback) => void` for the async owner select.
@@ -224,8 +224,8 @@ const MembershipDetailsForm = ({
                   <Flex align="center" justify="space-between">
                     <FlexItem>
                       <LabelWpStyled style={{ height: '20px' }}>
-                        {__('Group Membership Owner', 'wicket-memberships')}&nbsp;
-                        <Tooltip text={__('Represents the person responsible for managing and renewing this Group Membership.', 'wicket-memberships')}>
+                        {__('Membership Group Owner', 'wicket-memberships')}&nbsp;
+                        <Tooltip text={__('Represents the person responsible for managing and renewing this Membership Group.', 'wicket-memberships')}>
                           <div><Icon icon="info" /></div>
                         </Tooltip>
                       </LabelWpStyled>

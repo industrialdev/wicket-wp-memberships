@@ -32,7 +32,7 @@ Stores the group CPT slug from `Helper::get_membership_group_cpt_slug()`. Also i
 
 ### `get_admin_status_options( ?int $group_post_id = null ): array`
 
-Returns available status options for a group membership.
+Returns available status options for a membership group.
 
 - If `$group_post_id` is supplied, returns only valid transitions from the group's current `membership_status` meta value, via `Helper::get_allowed_transition_status()`.
 - If omitted, returns all status names from `Helper::get_all_status_names()`.
@@ -41,7 +41,7 @@ Returns available status options for a group membership.
 
 ### `admin_manage_status( int $group_post_id, string $new_status ): \WP_REST_Response`
 
-Transitions a group membership to a new status. Supported transitions:
+Transitions a membership group to a new status. Supported transitions:
 
 | From | To | Date behaviour |
 |---|---|---|
@@ -64,7 +64,7 @@ Returns a `400` response for invalid transitions (unless bypass is active), `404
 
 ### `get_group_entity_records( int $group_post_id ): array|\WP_REST_Response`
 
-Returns the data needed to populate the group membership entity view:
+Returns the data needed to populate the membership group entity view:
 
 ```php
 [
@@ -108,7 +108,7 @@ Validates date ordering (start < end ≤ expires) before writing.
 
 ### `get_group_edit_page_info( int $group_post_id ): array|\WP_REST_Response`
 
-Returns all data required to populate the group membership edit form:
+Returns all data required to populate the membership group edit form:
 
 ```php
 [
@@ -138,7 +138,7 @@ Returns all data required to populate the group membership edit form:
 ]
 ```
 
-`membership_records` contains the singular group membership record shown in the edit-page "Membership Records" table. Child individual memberships are not listed there; they remain available through the separate group-members breakdown and filtered member-management links.
+`membership_records` contains the singular membership group record shown in the edit-page "Membership Records" table. Child individual memberships are not listed there; they remain available through the separate group-members breakdown and filtered member-management links.
 
 Fetches organisation data from `Helper::get_org_data()` and person data from `wicket_get_person_by_id()`. Returns `404` if the post is not found.
 
@@ -183,7 +183,7 @@ Ownership reassignment of linked WooCommerce order/subscription records is handl
 
 ### `create_group_renewal_order( array $params ): \WP_REST_Response`
 
-Creates a renewal WC order and subscription for a group membership. Expects `params`:
+Creates a renewal WC order and subscription for a membership group. Expects `params`:
 
 | Key | Required |
 |---|---|
@@ -197,7 +197,7 @@ This is currently a stub that returns `501 Not yet implemented.` The remaining b
 
 ## Private Helpers
 
-### `build_group_memberships_row( \WP_Post $post ): array`
+### `build_membership_groups_row( \WP_Post $post ): array`
 
 Builds one list-table row per group post. Owner `name` and `email` are resolved in controller response-shaping code from the live WP user via the stored `user_id`.
 

@@ -155,7 +155,7 @@ class Membership_Group {
     return $group;
   }
 
-  // Group membership relations.
+  // Membership group relations.
 
   /**
    * Get all individual memberships that have this group set as their FK
@@ -793,7 +793,7 @@ class Membership_Group {
     $order->set_customer_id( $user_id );
     $order->save();
     $order->add_order_note(
-      "Reassigning customer to {$user->user_email} on group membership ownership change."
+      "Reassigning customer to {$user->user_email} on membership group ownership change."
     );
   }
 
@@ -818,7 +818,7 @@ class Membership_Group {
     $subscription->set_customer_id( $user_id );
     $subscription->save();
     $subscription->add_order_note(
-      "Reassigning customer to {$user->user_email} on group membership ownership change."
+      "Reassigning customer to {$user->user_email} on membership group ownership change."
     );
   }
 
@@ -845,7 +845,7 @@ class Membership_Group {
           'expires_at'     => $dates['expires_at'] ?? ( $dates['end_date'] ?? Utilities::get_mdp_day_end( 'now' )->format( 'c' ) ),
           'early_renew_at' => $dates['early_renew_at'] ?? ( $dates['end_date'] ?? Utilities::get_mdp_day_end( 'now' )->format( 'c' ) ),
         ],
-        'success_message'      => 'Pending group membership activated successfully.',
+        'success_message'      => 'Pending membership group activated successfully.',
         'activate_subscription' => true,
       ];
     }
@@ -862,7 +862,7 @@ class Membership_Group {
             'expires_at'     => Utilities::get_mdp_day_end( 'now' )->format( 'c' ),
             'early_renew_at' => null,
           ],
-          'success_message'      => 'Group membership cancelled successfully.',
+          'success_message'      => 'Membership group cancelled successfully.',
           'activate_subscription' => false,
         ];
       }
@@ -879,7 +879,7 @@ class Membership_Group {
             'expires_at'     => Utilities::get_mdp_day_end( 'now' )->format( 'c' ),
             'early_renew_at' => null,
           ],
-          'success_message'      => 'Group membership cancelled successfully.',
+          'success_message'      => 'Membership group cancelled successfully.',
           'activate_subscription' => false,
         ];
       }
@@ -894,7 +894,7 @@ class Membership_Group {
           'expires_at'     => Utilities::get_mdp_day_end( '+1 day' )->format( 'c' ),
           'early_renew_at' => null,
         ],
-        'success_message'      => 'Group membership cancelled successfully.',
+        'success_message'      => 'Membership group cancelled successfully.',
         'activate_subscription' => false,
       ];
     }
@@ -908,7 +908,7 @@ class Membership_Group {
           'expires_at'     => Utilities::get_mdp_day_end( '+1 day' )->format( 'c' ),
           'early_renew_at' => null,
         ],
-        'success_message'      => 'Group membership marked as expired.',
+        'success_message'      => 'Membership group marked as expired.',
         'activate_subscription' => false,
       ];
     }

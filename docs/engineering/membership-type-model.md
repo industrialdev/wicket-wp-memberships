@@ -23,7 +23,7 @@ A Membership Group is a separate `wicket_mship_group` CPT record — not a `wick
 
 Membership Groups use `Membership_Group_Config` (`wicket_mship_grp_cfg` CPT) directly. This class combines the date/cycle/renewal-window logic of `Membership_Config` with the renewal-type and approval logic of `Membership_Tier` into a single record. **Membership Groups have no `Membership_Tier` — they do not need one.**
 
-## Group Membership (member seats)
+## Membership Group (member seats)
 
 Individual or organization membership records can belong to a Membership Group. Membership in a group is indicated by the `membership_group_id` meta key on the `wicket_membership` post, checked via `Membership_Controller::is_membership_group()`.
 

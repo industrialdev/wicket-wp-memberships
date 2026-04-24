@@ -23,8 +23,8 @@ All business logic is delegated to `Group_Admin_Controller`.
 
 | Method | Route | Handler | Backed |
 |---|---|---|---|
-| `GET` | `/group_membership_entity` | `get_group_entity` | Yes |
-| `POST` | `/group_membership_entity/{group_post_id}/update` | `update_group_entity` | Yes |
+| `GET` | `/membership_group_entity` | `get_group_entity` | Yes |
+| `POST` | `/membership_group_entity/{group_post_id}/update` | `update_group_entity` | Yes |
 | `GET` | `/group/admin/status_options` | `get_group_admin_status_options` | Yes |
 | `POST` | `/group/admin/manage_status` | `group_admin_manage_status` | Yes |
 | `GET` | `/group/admin/get_edit_page_info` | `get_group_edit_page_info` | Yes |
@@ -48,13 +48,13 @@ Registers all group REST routes. TODO stub routes are listed as comments — the
 
 ### `get_group_entity( \WP_REST_Request $request )`
 
-**Route:** `GET /group_membership_entity?group_post_id={id}`
+**Route:** `GET /membership_group_entity?group_post_id={id}`
 
 Delegates to `Group_Admin_Controller::get_group_entity_records()`. Returns group post meta, formatted dates, and child membership post IDs.
 
 ### `update_group_entity( \WP_REST_Request $request )`
 
-**Route:** `POST /group_membership_entity/{group_post_id}/update`
+**Route:** `POST /membership_group_entity/{group_post_id}/update`
 
 Delegates to `Group_Admin_Controller::update_group_entity_record()`. Validates date ordering and cascades changes to child members.
 
@@ -126,10 +126,10 @@ These routes have no backing business logic yet. They are tracked in `TODO.md`.
 
 | Method | Route | Feature |
 |---|---|---|
-| `GET` | `/group_memberships` | List/search/filter group memberships |
-| `GET` | `/group_membership_filters` | Filter options for group membership list UI |
-| `GET` | `/get_group_membership_callouts` | Group-level renewal/grace period callouts |
-| `POST` | `/group` | Create a new group membership |
+| `GET` | `/membership_groups` | List/search/filter membership groups |
+| `GET` | `/membership_group_filters` | Filter options for membership group list UI |
+| `GET` | `/get_membership_group_callouts` | Group-level renewal/grace period callouts |
+| `POST` | `/group` | Create a new membership group |
 | `POST` | `/group/{id}/add_member` | Add individual to group |
 | `POST` | `/group/{id}/remove_member` | Remove individual from group (cancel or continue) |
 | `POST` | `/group/{id}/move_member` | Move individual to another group |

@@ -65,8 +65,8 @@ const ActionsRow = styled.div`
   }
 `;
 
-const GroupMembershipDetails = ({ membership }) => {
-  // TODO: Replace '#' with the real group membership MDP link once group MDP sync is implemented.
+const MembershipGroupDetails = ({ membership }) => {
+  // TODO: Replace '#' with the real membership group MDP link once group MDP sync is implemented.
   const mdpLink = '#';
 
   const manageGroupUrl = membership.group_edit_url;
@@ -76,7 +76,7 @@ const GroupMembershipDetails = ({ membership }) => {
       <WhiteBox>
         <Flex align='start' justify='space-between' gap={4}>
           <FlexBlock>
-            <GroupTitle>{membership.group_name || __('Group Membership', 'wicket-memberships')}</GroupTitle>
+            <GroupTitle>{membership.group_name || __('Membership Group', 'wicket-memberships')}</GroupTitle>
           </FlexBlock>
           <FlexItem>
             {/* TODO: Enable once group MDP sync is implemented — link destination TBD */}
@@ -96,15 +96,15 @@ const GroupMembershipDetails = ({ membership }) => {
             {membership.group_admin_name || '—'}
           </div>
           <div>
-            <strong>{__('Group Membership Start Date:', 'wicket-memberships')}</strong>
+            <strong>{__('Membership Group Start Date:', 'wicket-memberships')}</strong>
             {membership.group_starts_at ? formatDateWithTooltip(membership.group_starts_at) : '—'}
           </div>
         </GroupMeta>
 
         <ManageLink>
-          {/* TODO: Wire to manage group membership page once routing is defined */}
+          {/* TODO: Wire to manage membership group page once routing is defined */}
           <a href={manageGroupUrl}>
-            {__('Manage Group Membership', 'wicket-memberships')}
+            {__('Manage Membership Group', 'wicket-memberships')}
           </a>
         </ManageLink>
       </WhiteBox>
@@ -123,4 +123,4 @@ const GroupMembershipDetails = ({ membership }) => {
   );
 };
 
-export default GroupMembershipDetails;
+export default MembershipGroupDetails;

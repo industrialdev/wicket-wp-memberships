@@ -69,7 +69,7 @@ class Group_Admin_Controller {
   }
 
   // ---------------------------------------------------------------------------
-  // Group membership list
+  // Membership group list
   // ---------------------------------------------------------------------------
 
   /**
@@ -84,7 +84,7 @@ class Group_Admin_Controller {
    * @param string|null     $order_dir
    * @return array
    */
-  public static function get_group_memberships_list(
+  public static function get_membership_groups_list(
     $page = 1,
     $posts_per_page = 25,
     string $status = 'all',
@@ -145,7 +145,7 @@ class Group_Admin_Controller {
     }
 
     $all_posts = get_posts( $query_args );
-    $rows = array_map( [ self::class, 'build_group_memberships_row' ], $all_posts );
+    $rows = array_map( [ self::class, 'build_membership_groups_row' ], $all_posts );
     if ( $search !== '' ) {
       $rows = array_values( array_filter( $rows, function ( array $row ) use ( $search ): bool {
         $haystacks = [
@@ -167,7 +167,7 @@ class Group_Admin_Controller {
     }
 
     usort( $rows, function ( array $left, array $right ) use ( $order_col, $sort_dir ) {
-      return self::compare_group_membership_rows( $left, $right, $order_col, $sort_dir );
+      return self::compare_membership_group_rows( $left, $right, $order_col, $sort_dir );
     } );
 
     $count = count( $rows );
@@ -182,11 +182,11 @@ class Group_Admin_Controller {
   }
 
   // ---------------------------------------------------------------------------
-  // Group membership filters
+  // Membership group filters
   // ---------------------------------------------------------------------------
 
   /**
-   * Return available filter options for the group membership list UI.
+   * Return available filter options for the membership group list UI.
    *
    * Returns the set of membership_status values that exist on published
    * group posts, formatted as { name, value } pairs to match the shape
@@ -194,7 +194,7 @@ class Group_Admin_Controller {
    *
    * @return array
    */
-  public static function get_group_membership_filters(): array {
+  public static function get_membership_group_filters(): array {
     $statuses = Helper::get_all_status_names();
 
     $existing_slugs = get_posts( [
@@ -232,7 +232,7 @@ class Group_Admin_Controller {
   // ---------------------------------------------------------------------------
 
   /**
-   * Return available status options for a group membership.
+   * Return available status options for a membership group.
    *
    * If $group_post_id is supplied, returns only the valid transitions from the
    * group's current status.  Otherwise returns all status names.
@@ -249,7 +249,7 @@ class Group_Admin_Controller {
   }
 
   /**
-   * Transition a group membership to a new status.
+   * Transition a membership group to a new status.
    *
    * Supported transitions:
    *   pending  → active     Activates the group and its WC subscription.
@@ -296,7 +296,7 @@ class Group_Admin_Controller {
   // ---------------------------------------------------------------------------
 
   /**
-   * Return the data needed to populate the group membership entity view.
+   * Return the data needed to populate the membership group entity view.
    *
    * Returns group-level post meta only.
    * Subscription + order detail enrichment is tracked as a TODO.
@@ -345,7 +345,7 @@ class Group_Admin_Controller {
    * @param \WP_Post $post
    * @return array
    */
-  private static function build_group_memberships_row( \WP_Post $post ): array {
+  private static function build_membership_groups_row( \WP_Post $post ): array {
     $statuses        = Helper::get_all_status_names();
     $post_id         = (int) $post->ID;
     $status_slug     = (string) get_post_meta( $post_id, 'membership_status', true );
@@ -359,7 +359,7 @@ class Group_Admin_Controller {
 
     return [
       'id'            => $post_id,
-      'group_name'    => self::get_group_membership_name( $post_id ),
+      'group_name'    => self::get_membership_group_name( $post_id ),
       'org_name'      => (string) get_post_meta( $post_id, 'org_name', true ),
       'owner'         => self::build_owner_field( $group ),
       'status'        => [
@@ -451,7 +451,7 @@ class Group_Admin_Controller {
    * @param string $sort_dir
    * @return int
    */
-  private static function compare_group_membership_rows( array $left, array $right, string $order_col, string $sort_dir ): int {
+  private static function compare_membership_group_rows( array $left, array $right, string $order_col, string $sort_dir ): int {
     if ( $order_col === 'group_name' ) {
       $result = strcasecmp( (string) $left['group_name'], (string) $right['group_name'] );
     } elseif ( $order_col === 'org_name' ) {
@@ -479,7 +479,7 @@ class Group_Admin_Controller {
    * @param int $post_id
    * @return string
    */
-  private static function get_group_membership_name( int $post_id ): string {
+  private static function get_membership_group_name( int $post_id ): string {
     $stored_name = (string) get_post_meta( $post_id, 'membership_group_name', true );
     if ( $stored_name !== '' ) {
       return $stored_name;
@@ -493,7 +493,7 @@ class Group_Admin_Controller {
   // ---------------------------------------------------------------------------
 
   /**
-   * Update editable fields on a group membership post.
+   * Update editable fields on a membership group post.
    *
    * Validates date ordering (start < end < expires) and cascades date changes
    * to child individual memberships.
@@ -550,13 +550,13 @@ class Group_Admin_Controller {
     $normalized_fields = self::build_normalized_group_edit_fields( $group_post_id, $data, $starts_at, $ends_at, $expires_at );
 
     if ( ! $group->apply_edit_fields( $normalized_fields ) ) {
-      return new \WP_REST_Response( [ 'error' => 'Could not update group membership record.' ], 500 );
+      return new \WP_REST_Response( [ 'error' => 'Could not update membership group record.' ], 500 );
     }
 
     $group->cascade_dates_to_members( $normalized_fields );
 
     return new \WP_REST_Response( [
-      'success'  => 'Group membership updated successfully.',
+      'success'  => 'Membership group updated successfully.',
       'response' => Helper::get_post_meta( $group_post_id ),
     ], 200 );
   }
@@ -649,7 +649,7 @@ class Group_Admin_Controller {
   // ---------------------------------------------------------------------------
 
   /**
-   * Return all data required to populate the group membership edit form.
+   * Return all data required to populate the membership group edit form.
    *
    * @param int $group_post_id
    * @return array|\WP_REST_Response
@@ -683,14 +683,14 @@ class Group_Admin_Controller {
     $config_data = $config ? Helper::get_post_meta( $config->get_post_id() ) : [];
 
     // The "Membership Records" table on the group detail page should show the
-    // group membership record itself. Child individual memberships are managed
+    // membership group record itself. Child individual memberships are managed
     // separately via the Group Members section.
     $statuses           = Helper::get_all_status_names();
     $status_slug        = (string) ( $meta['membership_status'] ?? '' );
     $membership_records = [
       [
         'ID'                     => $group_post_id,
-        'name'                   => self::get_group_membership_name( $group_post_id ),
+        'name'                   => self::get_membership_group_name( $group_post_id ),
         'status'                 => $statuses[ $status_slug ]['name'] ?? $status_slug,
         'starts_at'              => (string) ( $meta['membership_starts_at'] ?? '' ),
         'ends_at'                => (string) ( $meta['membership_ends_at'] ?? '' ),
@@ -816,7 +816,7 @@ class Group_Admin_Controller {
     }
 
     return new \WP_REST_Response( [
-      'success'  => 'Group membership ownership updated successfully.',
+      'success'  => 'Membership group ownership updated successfully.',
       'response' => Helper::get_post_meta( $group_post_id ),
     ], 200 );
   }
@@ -826,7 +826,7 @@ class Group_Admin_Controller {
   // ---------------------------------------------------------------------------
 
   /**
-   * Create a renewal order for a group membership.
+   * Create a renewal order for a membership group.
    *
    * Not yet implemented. Blocked on:
    * - Group subscription line item structure being finalised (multi-tier line items).

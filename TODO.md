@@ -21,12 +21,6 @@ Remove the entry when the work is completed.
 |---|---|---|---|
 | `frontend/src/` | — | Build frontend tests for shared components and membership group config UI (GroupConfigForm, SeasonConfigModal, GracePeriodSection, RenewalWindowSection, etc.) | — |
 
-## Terminology Cleanup
-
-| File | Method | Note | Asana |
-|---|---|---|---|
-| `plugin-wide` | — | Normalize naming conventions so user-facing and internal plugin terminology consistently uses `membership group` instead of `group membership` wherever the naming has drifted. Review UI copy, docs, routes, labels, and related code comments before changing any identifiers with compatibility impact. | — |
-
 ## Membership_Group_Config — Product ID concerns
 
 | File | Method | Note | Asana |
@@ -43,33 +37,33 @@ Remove the entry when the work is completed.
 | `includes/Group_Admin_Controller.php` | `get_group_edit_page_info()` | Replace mocked `subscription` payload with real linked WooCommerce subscription enrichment when group subscription implementation exists. | — |
 | `includes/Group_Admin_Controller.php` | `get_group_entity_records()` | Enrich the group entity response with WooCommerce subscription and order data. | — |
 
-## Individual Member Edit — Group Membership Details Panel (Frontend)
+## Individual Member Edit — Membership Group Details Panel (Frontend)
 
 | File | Method | Note | Asana |
 |---|---|---|---|
-| `frontend/src/members/GroupMembershipDetails.js` | `GroupMembershipDetails` | Wire "View in MDP" link to the real group membership MDP URL once group MDP sync is implemented — currently disabled (red, pointer-events: none). | — |
-| `frontend/src/members/GroupMembershipDetails.js` | `GroupMembershipDetails` | Implement "Move to Another Group" action — button is currently disabled (red, no-op). | — |
-| `frontend/src/members/GroupMembershipDetails.js` | `GroupMembershipDetails` | Implement "Remove from Group" action — button is currently disabled (red, no-op). | — |
+| `frontend/src/members/MembershipGroupDetails.js` | `MembershipGroupDetails` | Wire "View in MDP" link to the real membership group MDP URL once group MDP sync is implemented — currently disabled (red, pointer-events: none). | — |
+| `frontend/src/members/MembershipGroupDetails.js` | `MembershipGroupDetails` | Implement "Move to Another Group" action — button is currently disabled (red, no-op). | — |
+| `frontend/src/members/MembershipGroupDetails.js` | `MembershipGroupDetails` | Implement "Remove from Group" action — button is currently disabled (red, no-op). | — |
 
 ## Group List (Frontend)
 
 | File | Method | Note | Asana |
 |---|---|---|---|
-| `frontend/src/members/group_list.js` | `GroupMemberList` | Enable the "Link to MDP" column once group membership MDP sync is implemented — link is currently rendered disabled (red, pointer-events: none). | — |
+| `frontend/src/members/group_list.js` | `GroupMemberList` | Enable the "Link to MDP" column once membership group MDP sync is implemented — link is currently rendered disabled (red, pointer-events: none). | — |
 
-## Group Membership Detail Page (Frontend)
+## Membership Group Detail Page (Frontend)
 
 | File | Method | Note | Asana |
 |---|---|---|---|
-| `frontend/src/membership_groups/components/IntroBlockSection.js` | `IntroBlockSection` | Replace the org MDP link used in the "View in MDP" action with the correct group membership MDP link once group membership MDP sync is implemented. | — |
+| `frontend/src/membership_groups/components/IntroBlockSection.js` | `IntroBlockSection` | Replace the org MDP link used in the "View in MDP" action with the correct membership group MDP link once membership group MDP sync is implemented. | — |
 | `frontend/src/shared/components/MembershipBillingInfoSection.js` | `MembershipBillingInfoSection` | Replace mock subscription link and next payment date with real values once `Group_Admin_Controller::get_group_edit_page_info()` is enriched with full subscription data (link, next_payment_date). | — |
 | `frontend/src/shared/components/MembershipOrderDetailsSection.js` | `MembershipOrderDetailsSection` | Replace mock orders array with real order data once `Group_Admin_Controller::get_group_edit_page_info()` is enriched with order information from the linked WooCommerce subscription. | — |
-| `frontend/src/membership_groups/components/GroupMembershipRecordDetails.js` | `GroupMembershipRecordDetails` | Replace mock `subscriptionLink` and `nextPaymentDate` (read from `groupPageData.subscription`) with real values once `Group_Admin_Controller::get_group_edit_page_info()` is enriched with live WooCommerce subscription data. | — |
-| `frontend/src/membership_groups/components/GroupMembershipRecordDetails.js` | `GroupMembershipRecordDetails` | Switch `subscriptionId`, `subscriptionLink`, `nextPaymentDate`, and `orders` props to read from the individual `record` object rather than `groupPageData` once per-record subscription and order enrichment is implemented in `Group_Admin_Controller`. | — |
+| `frontend/src/membership_groups/components/MembershipGroupRecordDetails.js` | `MembershipGroupRecordDetails` | Replace mock `subscriptionLink` and `nextPaymentDate` (read from `groupPageData.subscription`) with real values once `Group_Admin_Controller::get_group_edit_page_info()` is enriched with live WooCommerce subscription data. | — |
+| `frontend/src/membership_groups/components/MembershipGroupRecordDetails.js` | `MembershipGroupRecordDetails` | Switch `subscriptionId`, `subscriptionLink`, `nextPaymentDate`, and `orders` props to read from the individual `record` object rather than `groupPageData` once per-record subscription and order enrichment is implemented in `Group_Admin_Controller`. | — |
 
 ## Membership_Group_WP_REST_Controller
 
 | File | Method | Note | Asana |
 |---|---|---|---|
 | `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register `POST /group/{id}/create_renewal_order` once the group subscription line item structure is finalised. Current group edit flow intentionally mocks commerce gaps instead of attempting partial implementation. | — |
-| `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register remaining group routes once backing business logic exists: `GET /get_group_membership_callouts`, `POST /group/{id}/add_member`, `POST /group/{id}/remove_member`, `POST /group/{id}/move_member`, `POST /group/{id}/cancel`, `GET /group/{id}/members`, and `POST /group/{id}/import_members`. | — |
+| `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register remaining group routes once backing business logic exists: `GET /get_membership_group_callouts`, `POST /group/{id}/add_member`, `POST /group/{id}/remove_member`, `POST /group/{id}/move_member`, `POST /group/{id}/cancel`, `GET /group/{id}/members`, and `POST /group/{id}/import_members`. | — |
