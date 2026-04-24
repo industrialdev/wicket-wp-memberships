@@ -224,7 +224,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
      * Create a new group membership.
      *
      * POST /wicket_member/v1/group
-     * Body: { name, membership_group_config_id, org_uuid, owner_user_id, start_date }
+     * Body: { name, membership_group_config_id, org_uuid, owner_uuid, start_date }
      */
     register_rest_route( $this->namespace, '/group', [
       [
@@ -247,10 +247,10 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
             'type'        => 'string',
             'description' => 'MDP organisation UUID.',
           ],
-          'owner_user_id' => [
+          'owner_uuid' => [
             'required'    => true,
-            'type'        => 'integer',
-            'description' => 'WP user ID of the group owner.',
+            'type'        => 'string',
+            'description' => 'MDP person UUID of the group owner.',
           ],
           'start_date' => [
             'required'    => true,
@@ -374,7 +374,7 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
         sanitize_text_field( $params['name'] ?? '' ),
         (int) ( $params['membership_group_config_id'] ?? 0 ),
         sanitize_text_field( $params['org_uuid'] ?? '' ),
-        (int) ( $params['owner_user_id'] ?? 0 ),
+        sanitize_text_field( $params['owner_uuid'] ?? '' ),
         sanitize_text_field( $params['start_date'] ?? '' )
       );
     } catch ( \RuntimeException $e ) {

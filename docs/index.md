@@ -22,6 +22,9 @@ audience: [implementer, support, developer, end-user]
 - [Membership_Config Data Structure](engineering/membership_config_data_structure.md) — Renewal windows, late fees, calendar/anniversary cycles
 - [Membership_Tier Data Structure](engineering/membership_tier_data_structure.md) — Tier-to-product linkage, renewal types, approval flows
 
+### Feature Plans
+- [Create Group Membership Page](engineering/create-group-membership-page.md) — Implementation plan and progress tracker for the new group membership creation flow
+
 ### Class Reference
 - [Admin_Controller](engineering/Class-Admin_Controller.md) — Admin menu pages, status transition validation, React app mounting
 - [Helper](engineering/Class-Helper.md) — Static utilities: CPT slugs, status names, allowed transitions, logging

@@ -171,11 +171,9 @@ Changes the membership owner on a group post. Expects `params`:
 | `group_post_id` | Yes |
 | `new_owner_uuid` | Yes — MDP person UUID |
 
-- Resolves the WP user from the UUID; creates a new WP user via `wicket_create_wp_user_if_not_exist()` if not found.
-- Rejects the request when the selected user is already the canonical owner.
-- Delegates ownership storage to `Membership_Group::set_owner()` — only `user_id` and `post_author` are stored (see `Membership_Group` docs for rationale).
-- Reassigns the linked WC order customer when `membership_parent_order_id` is present.
-- Reassigns the WC subscription customer.
+- Rejects the request when the selected UUID is already the canonical owner.
+- Delegates ownership storage (including WP user resolution/creation) to `Membership_Group::set_owner()` — see `Membership_Group` docs for rationale.
+- Reassigns the linked WC order and subscription customers (handled internally by `set_owner()`).
 
 Returns `400` if the new owner is the same as the current owner, or if the user cannot be resolved.
 

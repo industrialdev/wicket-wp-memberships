@@ -61,9 +61,9 @@ Sets `membership_group_id` meta on an individual membership post to link it to t
 
 ---
 
-### `set_owner( int $user_id ): int|false`
+### `set_owner( string $uuid ): int|false`
 
-Stores only the WP user ID (`user_id`) and updates `post_author`. Derived fields — display name, email, and MDP UUID — are intentionally not stored to avoid persisting values that can change independently of the membership record. Group ownership cannot be cleared through this method; invalid owner IDs are rejected. Returns the saved owner ID on success and `false` on failure.
+Accepts an MDP person UUID. Validates the format via `isValidUuid()`, then resolves or creates the corresponding WP user via `wicket_create_wp_user_if_not_exist()`. Stores only the WP user ID (`user_id`) and updates `post_author`. Derived fields — display name, email, and UUID — are intentionally not stored to avoid persisting values that can change independently of the membership record. Group ownership cannot be cleared through this method; malformed or unresolvable UUIDs are rejected. Returns the saved owner WP user ID on success and `false` on failure.
 
 When ownership changes, this method also reassigns the linked WooCommerce parent order and subscription customers through private helper methods.
 
@@ -79,9 +79,9 @@ Returns the canonical owner user ID stored in `user_id`, or `false` if not set o
 
 Derives and returns the MDP UUID for the owner by reading `user_login` from the WP user resolved via `get_owner_id()`. Returns `false` if no owner is set or the user cannot be resolved. The UUID is not stored as post meta.
 
-### `is_owner( int $user_id ): bool`
+### `is_owner( string $uuid ): bool`
 
-Returns `true` if the given user ID is the group owner.
+Returns `true` if the given MDP person UUID matches the group owner (resolved via `user_login`).
 
 ### `set_organization( string $org_uuid ): array|false`
 

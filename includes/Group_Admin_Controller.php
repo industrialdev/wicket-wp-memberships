@@ -782,20 +782,14 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'new_owner_uuid is required.' ], 400 );
     }
 
-    $group           = new Membership_Group( $group_post_id );
-    $current_owner_id = $group->get_owner_id();
-    $new_user_id = wicket_create_wp_user_if_not_exist( $new_owner_uuid );
-    $new_user    = get_user_by( 'id', $new_user_id );
+    $group            = new Membership_Group( $group_post_id );
+    $current_owner_uuid = $group->get_owner_uuid();
 
-    if ( empty( $new_user ) ) {
-      return new \WP_REST_Response( [ 'error' => 'Could not resolve new owner user.' ], 400 );
-    }
-
-    if ( $current_owner_id && $new_user->ID === $current_owner_id ) {
+    if ( $current_owner_uuid && $current_owner_uuid === $new_owner_uuid ) {
       return new \WP_REST_Response( [ 'error' => 'This user is already selected.' ], 400 );
     }
 
-    if ( false === $group->set_owner( $new_user->ID ) ) {
+    if ( false === $group->set_owner( $new_owner_uuid ) ) {
       return new \WP_REST_Response( [ 'error' => 'Could not update group owner.' ], 500 );
     }
 

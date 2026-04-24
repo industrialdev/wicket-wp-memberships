@@ -10,9 +10,10 @@ Remove the entry when the work is completed.
 
 | File | Method | Note | Asana |
 |---|---|---|---|
-| `includes/Membership_Group.php` | `create()` | Create a WooCommerce subscription for this group. | — |
+| `includes/Membership_Group.php` | `create()` | Create a WooCommerce subscription for this group. Required by CURRENT_SCOPE.md — without this, groups created via the new Create Group page will be missing their subscription. | — |
 | `includes/Membership_Group.php` | `add_individual_membership()` | Review implementation | [task](https://app.asana.com/1/1138832104141584/project/1213403241762018/task/1213781837058525) |
 | `includes/Membership_Group.php` | `apply_edit_fields()` | Review and consider replacing with typed getters/setters per field — current `array<string,mixed>` signature allows any meta key to be written without validation | — |
+| `includes/Membership_Group.php` | `cascade_dates_to_members()` | Implement date cascading from group to all child individual memberships. Should propagate starts_at, ends_at, expires_at, early_renew_at to active members; skip cancelled members. Add QA tests in `qa/tests/WordPress/Memberships/membership-group.pest.php` once implemented. | — |
 
 ## Frontend Tests
 

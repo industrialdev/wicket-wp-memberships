@@ -49,7 +49,7 @@ class Membership_Group {
    * @param string $name                       Post title for the group.
    * @param int    $membership_group_config_id Post ID of the linked Membership_Group_Config.
    * @param string $org_uuid                   MDP organisation UUID.
-   * @param int    $owner_user_id              WP user ID of the group owner.
+   * @param string $owner_uuid                 MDP person UUID of the group owner.
    * @param string $start_date                 ISO 8601 start date for the membership period.
    * @return static|null New Membership_Group instance on success, null on failure.
    */
@@ -57,7 +57,7 @@ class Membership_Group {
     string $name,
     int $membership_group_config_id,
     string $org_uuid,
-    int $owner_user_id,
+    string $owner_uuid,
     string $start_date
   ): ?static {
     // Validate all inputs before touching the database.
@@ -79,10 +79,10 @@ class Membership_Group {
       throw new \RuntimeException( 'org_uuid is not a valid UUID.' );
     }
 
-    // Confirm the owner exists in WordPress before linking them to the post.
-    if ( ! get_user_by( 'id', $owner_user_id ) ) {
-      Wicket()->log()->error( 'Membership_Group::create: owner_user_id does not exist', ['source' => 'wicket-memberships', 'owner_user_id' => $owner_user_id] );
-      throw new \RuntimeException( 'owner_user_id does not exist.' );
+    // Confirm the owner UUID is well-formed; set_owner() will resolve/create the WP user.
+    if ( ! isValidUuid( $owner_uuid ) ) {
+      Wicket()->log()->error( 'Membership_Group::create: invalid owner_uuid', ['source' => 'wicket-memberships', 'owner_uuid' => $owner_uuid] );
+      throw new \RuntimeException( 'owner_uuid is not a valid UUID.' );
     }
 
     // Validate start_date is parseable and normalize to UTC ISO 8601.
@@ -122,7 +122,7 @@ class Membership_Group {
     // Write status, owner, org, and config meta. Any failure rolls back the post entirely
     // so we never leave a partially-populated group in the database.
     if ( ! $group->set_membership_status( 'pending' )
-      || ! $group->set_owner( $owner_user_id )
+      || ! $group->set_owner( $owner_uuid )
       || ! $group->set_organization( $org_uuid )
       || ! $group->set_config( $membership_group_config_id )
     ) {
@@ -191,15 +191,27 @@ class Membership_Group {
   // Owner management.
 
   /**
-   * Set the single owner for this membership group.
+   * Set the single owner for this membership group by MDP UUID.
    *
-   * @param int $user_id WP user ID to set as the canonical owner
-   * @return int|false Returns the saved owner ID on success, false on failure
+   * Resolves or creates the WP user via wicket_create_wp_user_if_not_exist before
+   * writing meta, so callers never need to pre-resolve a UUID to a user ID.
+   *
+   * @param string $uuid MDP person UUID (stored as WP user_login)
+   * @return int|false Returns the saved WP user ID on success, false on failure
    */
-  public function set_owner( int $user_id ) {
-    $user = get_user_by( 'id', $user_id );
+  public function set_owner( string $uuid ): int|false {
+    // Cheap format guard before any DB or MDP calls.
+    if ( ! isValidUuid( $uuid ) ) {
+      Wicket()->log()->error( 'Membership_Group: Invalid owner UUID', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'uuid' => $uuid] );
+      return false;
+    }
+
+    // Resolve or create the WP user for this MDP person.
+    $user_id = wicket_create_wp_user_if_not_exist( $uuid );
+    $user    = $user_id ? get_user_by( 'id', $user_id ) : false;
+
     if ( ! $user ) {
-      Wicket()->log()->error( 'Membership_Group: Invalid owner user ID', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'user_id' => $user_id] );
+      Wicket()->log()->error( 'Membership_Group: Could not resolve owner UUID to WP user', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'uuid' => $uuid] );
       return false;
     }
 
@@ -209,7 +221,7 @@ class Membership_Group {
     //   $user = get_user_by( 'id', $owner_id );           // WP user object
     //   wicket_get_person_by_id( $user->user_login );      // MDP person record (UUID = user_login)
     if ( update_post_meta( $this->post_id, 'user_id', $user->ID ) === false ) {
-      Wicket()->log()->error( 'Membership_Group: Failed to save owner user_id', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'user_id' => $user_id] );
+      Wicket()->log()->error( 'Membership_Group: Failed to save owner user_id', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'uuid' => $uuid] );
       return false;
     }
 
@@ -231,13 +243,17 @@ class Membership_Group {
   }
 
   /**
-   * Check if a given user ID is the owner.
+   * Check if a given MDP UUID is the owner of this group.
    *
-   * @param int $user_id
+   * @param string $uuid MDP person UUID
    * @return bool
    */
-  public function is_owner( int $user_id ): bool {
-    return $this->get_owner_id() === $user_id;
+  public function is_owner( string $uuid ): bool {
+    $user = get_user_by( 'login', $uuid );
+    if ( ! $user ) {
+      return false;
+    }
+    return $this->get_owner_id() === $user->ID;
   }
 
   /**
