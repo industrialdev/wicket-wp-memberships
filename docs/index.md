@@ -10,6 +10,10 @@ audience: [implementer, support, developer, end-user]
 
 # Wicket Memberships Documentation
 
+## Terminology Note
+
+Use `membership group` as the preferred term throughout this plugin's documentation and implementation notes. If older content says `group membership`, read it as `membership group` unless the wording is part of a backward-compatible identifier or external contract that cannot be renamed safely.
+
 ## Product Docs (Operators & Support)
 - [Overview](product/overview.md) — What the plugin does, CPTs, lifecycle, feature flags, requirements
 - [Overview](product/overview.md) — What the plugin does, CPTs, lifecycle, feature flags, requirements

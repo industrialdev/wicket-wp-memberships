@@ -21,6 +21,12 @@ Remove the entry when the work is completed.
 |---|---|---|---|
 | `frontend/src/` | — | Build frontend tests for shared components and membership group config UI (GroupConfigForm, SeasonConfigModal, GracePeriodSection, RenewalWindowSection, etc.) | — |
 
+## Terminology Cleanup
+
+| File | Method | Note | Asana |
+|---|---|---|---|
+| `plugin-wide` | — | Normalize naming conventions so user-facing and internal plugin terminology consistently uses `membership group` instead of `group membership` wherever the naming has drifted. Review UI copy, docs, routes, labels, and related code comments before changing any identifiers with compatibility impact. | — |
+
 ## Membership_Group_Config — Product ID concerns
 
 | File | Method | Note | Asana |

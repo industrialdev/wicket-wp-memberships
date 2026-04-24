@@ -59,6 +59,13 @@ Use these exact status strings consistently — they appear in meta, REST respon
 
 When CURRENT_SCOPE.md refers to statuses, it uses the same terms. Do not invent synonyms.
 
+## Terminology Convention
+
+- Use `membership group` as the preferred term everywhere going forward.
+- Treat `group membership` as legacy or incorrect wording unless it is required for backward compatibility with an existing identifier, route, hook, meta key, or external dependency.
+- When new instructions, docs, UI copy, comments, or implementation notes say `group membership`, interpret and rewrite that as `membership group` by default.
+- Before changing compatibility-sensitive identifiers, confirm whether the string is user-facing terminology or part of a stable API/contract that must remain unchanged.
+
 ## Plugin Environment Flags
 
 These options (stored in `wicket_membership_plugin_options`) are read at bootstrap and set `$_ENV` flags. Know them before adding conditional behaviour:
