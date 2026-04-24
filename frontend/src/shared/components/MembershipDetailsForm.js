@@ -111,6 +111,12 @@ const MembershipDetailsForm = ({
     setSelectedOwner(initialOwnerOption);
   }, [initialOwnerOption]);
 
+  const isOwnerChanged = Boolean(
+    onOwnerSave &&
+    selectedOwner?.value &&
+    selectedOwner.value !== initialOwnerOption?.value
+  );
+
   const handleRenewalTypeChange = ({ renewalType: rt, nextTierFormPageId: fp, nextTierId: ti }) => {
     if (rt !== undefined) setRenewalType(rt);
     if (fp !== undefined) setNextTierFormPageId(fp);
@@ -137,7 +143,7 @@ const MembershipDetailsForm = ({
       onSave({ ...payload, renewalType, nextTierFormPageId, nextTierId }),
     ];
 
-    if ( onOwnerSave && selectedOwner ) {
+    if ( isOwnerChanged ) {
       savePromises.push( onOwnerSave(selectedOwner) );
     }
 

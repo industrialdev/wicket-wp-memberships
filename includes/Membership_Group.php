@@ -702,7 +702,17 @@ class Membership_Group {
    */
   public function apply_edit_fields( array $normalized_fields ): bool {
     foreach ( $normalized_fields as $key => $value ) {
-      if ( update_post_meta( $this->post_id, $key, $value ) === false ) {
+      $update_result = update_post_meta( $this->post_id, $key, $value );
+
+      if ( false === $update_result ) {
+        $persisted_value = get_post_meta( $this->post_id, $key, true );
+
+        // WordPress returns false when the stored meta already matches the
+        // submitted value, which should be treated as a successful no-op.
+        if ( (string) $persisted_value === (string) $value ) {
+          continue;
+        }
+
         Wicket()->log()->error( 'Membership_Group: Failed to persist edit field', [
           'source'   => 'wicket-memberships',
           'post_id'  => $this->post_id,

@@ -38,6 +38,10 @@ const GroupMembershipOwnerSection = ({ pageData, isLoading, onOwnerUpdated }) =>
   };
 
   const handleSave = async (selectedOption) => {
+    if ( ! selectedOption?.value || selectedOption.value === owner?.uuid ) {
+      return {};
+    }
+
     const response = await updateGroupChangeOwnership(groupPostId, selectedOption.value);
     if ( response?.success && onOwnerUpdated ) {
       onOwnerUpdated({ name: selectedOption.label, uuid: selectedOption.value });

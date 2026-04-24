@@ -77,8 +77,13 @@ const GroupMembershipRecordDetails = ({ record, groupPageData, onRecordUpdated, 
       });
   };
 
-  const handleOwnerSave = (selectedOption) =>
-    updateGroupChangeOwnership(groupPostId, selectedOption.value);
+  const handleOwnerSave = (selectedOption) => {
+    if ( ! selectedOption?.value || selectedOption.value === owner?.uuid ) {
+      return Promise.resolve({});
+    }
+
+    return updateGroupChangeOwnership(groupPostId, selectedOption.value);
+  };
 
   const isCancelled = record.status?.toLowerCase() === "cancelled";
 

@@ -163,6 +163,12 @@ Executes a group status transition and its side effects. This is the supported l
 
 Persists normalized group edit fields to the group post.
 
+- Treats unchanged values as a successful no-op, because WordPress returns
+  `false` from `update_post_meta()` when the submitted value already matches the
+  stored meta.
+- Returns `false` only when a meta write genuinely fails and the persisted
+  value still does not match the submitted value after the update attempt.
+
 ### `cascade_dates_to_members( array $normalized_fields ): void`
 
 Currently a TODO placeholder. It intentionally performs no updates until group/member edit propagation rules are finalized.

@@ -380,7 +380,7 @@ class Group_Admin_Controller {
    * @return array{name: string, email: string}
    */
   private static function build_owner_field( Membership_Group $group ): array {
-    $owner = $group->get_owner();
+    $owner = self::resolve_owner_data( $group );
     if ( ! $owner ) {
       return [ 'name' => '', 'email' => '' ];
     }
@@ -388,6 +388,58 @@ class Group_Admin_Controller {
       'name'  => $owner['name'],
       'email' => $owner['email'],
     ];
+  }
+
+  /**
+   * Resolve canonical owner data for group admin responses.
+   *
+   * Prefers the MDP full_name when available. Falls back to the WP user's
+   * first/last name, then to display_name only when it is not just the UUID.
+   *
+   * @param Membership_Group $group
+   * @return array|null
+   */
+  private static function resolve_owner_data( Membership_Group $group ): ?array {
+    $owner = $group->get_owner();
+    if ( ! $owner ) {
+      return null;
+    }
+
+    $owner_person = null;
+    if ( isValidUuid( $owner['uuid'] ) && function_exists( 'wicket_get_person_by_id' ) ) {
+      try {
+        $owner_person = wicket_get_person_by_id( $owner['uuid'] );
+      } catch ( \Throwable $e ) {
+        $owner_person = null;
+      }
+    }
+
+    $mdp_full_name = ( is_object( $owner_person ) && method_exists( $owner_person, 'getAttribute' ) )
+      ? trim( (string) $owner_person->getAttribute( 'full_name' ) )
+      : '';
+
+    $user = get_user_by( 'id', (int) $owner['user_id'] );
+    $wp_full_name = '';
+    if ( $user ) {
+      $wp_full_name = trim( implode( ' ', array_filter( [
+        (string) $user->first_name,
+        (string) $user->last_name,
+      ] ) ) );
+    }
+
+    $display_name = trim( (string) $owner['name'] );
+    $resolved_name = $mdp_full_name !== ''
+      ? $mdp_full_name
+      : ( $wp_full_name !== ''
+        ? $wp_full_name
+        : ( $display_name !== '' && $display_name !== $owner['uuid'] ? $display_name : '' ) );
+
+    return array_merge( $owner, [
+      'name'               => $resolved_name,
+      'identifying_number' => ( is_object( $owner_person ) && method_exists( $owner_person, 'getAttribute' ) )
+        ? $owner_person->getAttribute( 'identifying_number' )
+        : '',
+    ] );
   }
 
   /**
@@ -620,35 +672,10 @@ class Group_Admin_Controller {
       ? $wicket_admin . '/organizations/' . $org_uuid
       : '';
 
-    $owner_data = null;
-    $owner      = $group->get_owner();
-    if ( $owner ) {
-      $owner_person = null;
-      if ( isValidUuid( $owner['uuid'] ) && function_exists( 'wicket_get_person_by_id' ) ) {
-        try {
-          $owner_person = wicket_get_person_by_id( $owner['uuid'] );
-        } catch ( \Throwable $e ) {
-          $owner_person = null;
-        }
-      }
-
-      // Prefer the MDP full_name over display_name. display_name defaults to
-      // user_login (the UUID) when the WP user was created without name data.
-      $mdp_full_name = ( is_object( $owner_person ) && method_exists( $owner_person, 'getAttribute' ) )
-        ? (string) $owner_person->getAttribute( 'full_name' )
-        : '';
-      $display_name = $mdp_full_name !== ''
-        ? $mdp_full_name
-        : ( $owner['name'] !== $owner['uuid'] ? $owner['name'] : '' );
-
-      $owner_data = array_merge( $owner, [
-        'name'               => $display_name,
-        'mdp_link'           => $wicket_admin ? $wicket_admin . '/people/' . $owner['uuid'] : '',
-        'identifying_number' => ( is_object( $owner_person ) && method_exists( $owner_person, 'getAttribute' ) )
-          ? $owner_person->getAttribute( 'identifying_number' )
-          : '',
-        'switch_to_url'      => Helper::get_user_switch_to_url( $owner['user_id'] ),
-      ] );
+    $owner_data = self::resolve_owner_data( $group );
+    if ( $owner_data ) {
+      $owner_data['mdp_link']      = $wicket_admin ? $wicket_admin . '/people/' . $owner_data['uuid'] : '';
+      $owner_data['switch_to_url'] = Helper::get_user_switch_to_url( $owner_data['user_id'] );
     }
 
     // Config data.
@@ -771,7 +798,9 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'Membership group not found.' ], 404 );
     }
 
-    if ( empty( $new_owner_uuid ) ) {
+    $new_owner_uuid = is_string( $new_owner_uuid ) ? trim( $new_owner_uuid ) : '';
+
+    if ( '' === $new_owner_uuid ) {
       return new \WP_REST_Response( [ 'error' => 'new_owner_uuid is required.' ], 400 );
     }
 
@@ -779,7 +808,7 @@ class Group_Admin_Controller {
     $current_owner_uuid = $group->get_owner_uuid();
 
     if ( $current_owner_uuid && $current_owner_uuid === $new_owner_uuid ) {
-      return new \WP_REST_Response( [ 'error' => 'This user is already selected.' ], 400 );
+      return new \WP_REST_Response( [], 204 );
     }
 
     if ( false === $group->set_owner( $new_owner_uuid ) ) {
