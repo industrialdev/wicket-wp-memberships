@@ -67,13 +67,13 @@ This document tracks the design and implementation of the **Create Group Members
 ### Commit 6 — Create Group Membership page
 | Step | Status |
 |------|--------|
-| React: `CreateGroupMembershipPage` component + entry point | Not started |
-| React: Org UUID placeholder `<TextControl>` | Not started |
-| React: Form validation & submission | Not started |
-| React: Redirect to group edit page on success | Not started |
-| PHP: Register admin page + enqueue bundle | Not started |
-| PHP: "Create Group Membership" button in `render_group_members_page()` | Not started |
-| Build & integration test | Not started |
+| React: `CreateGroupMembershipPage` component + entry point | Done |
+| React: Org UUID placeholder `<TextControl>` | Done |
+| React: Form validation & submission | Done |
+| React: Redirect to group edit page on success | Done |
+| PHP: Register admin page + enqueue bundle | Done |
+| PHP: "Create Group Membership" button in `render_group_members_page()` | Done |
+| Build & integration test | Done |
 
 ---
 

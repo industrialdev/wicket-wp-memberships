@@ -319,3 +319,23 @@ export const updateGroupChangeOwnership = (groupPostId, newOwnerUuid) => {
     data: { new_owner_uuid: newOwnerUuid },
   });
 };
+
+/**
+ * Create a new membership group.
+ *
+ * Maps to POST /wicket_member/v1/group
+ *
+ * @param {object} data
+ * @param {string}        data.name
+ * @param {number}        data.membership_group_config_id
+ * @param {string}        data.org_uuid
+ * @param {string}        data.owner_uuid
+ * @param {string}        data.start_date  ISO 8601
+ */
+export const createGroupMembership = (data) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/group`,
+    method: "POST",
+    data,
+  });
+};

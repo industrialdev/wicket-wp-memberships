@@ -1,4 +1,5 @@
 import { useCallback, useRef } from "react";
+import { __ } from "@wordpress/i18n";
 import { AsyncSelectWpStyled } from "../styled_elements";
 
 /**
@@ -41,6 +42,11 @@ const MembershipOwnerAsyncSelect = ({
       loadOptions={debouncedLoadOptions}
       isClearable={false}
       isSearchable={true}
+      noOptionsMessage={({ inputValue }) =>
+        inputValue.length < 3
+          ? __("Type at least 3 characters to search…", "wicket-memberships")
+          : __("No results found.", "wicket-memberships")
+      }
       onChange={onChange}
     />
   );

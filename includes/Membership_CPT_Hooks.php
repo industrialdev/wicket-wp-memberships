@@ -14,8 +14,9 @@ class Membership_CPT_Hooks {
   const EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG = 'wicket_individual_member_edit';
   const LIST_ORG_MEMBER_PAGE_SLUG = 'org_member_list';
   const EDIT_ORG_MEMBER_PAGE_SLUG = 'wicket_org_member_edit';
-  const LIST_GROUP_MEMBER_PAGE_SLUG = 'group_member_list';
-  const EDIT_GROUP_MEMBER_PAGE_SLUG = 'wicket_group_member_edit';
+  const LIST_GROUP_MEMBER_PAGE_SLUG   = 'group_member_list';
+  const EDIT_GROUP_MEMBER_PAGE_SLUG   = 'wicket_group_member_edit';
+  const CREATE_GROUP_MEMBER_PAGE_SLUG = 'wicket_create_group_membership';
 
   private $status_names;
 
@@ -31,6 +32,7 @@ class Membership_CPT_Hooks {
     add_action( 'admin_menu', [ $this, 'edit_individual_member_page' ] );
     add_action( 'admin_menu', [ $this, 'edit_org_member_page' ] );
     add_action( 'admin_menu', [ $this, 'edit_group_member_page' ] );
+    add_action( 'admin_menu', [ $this, 'create_group_member_page' ] );
 
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
   }
@@ -156,12 +158,39 @@ class Membership_CPT_Hooks {
     );
   }
 
-  function render_group_members_page() {
-    $edit_group_member_page_url = admin_url( 'admin.php?page=' . self::EDIT_GROUP_MEMBER_PAGE_SLUG );
+  function create_group_member_page() {
+    add_submenu_page(
+      null,
+      __( 'Create Group Membership', 'wicket-memberships' ),
+      __( 'Create Group Membership', 'wicket-memberships' ),
+      'edit_posts',
+      self::CREATE_GROUP_MEMBER_PAGE_SLUG,
+      [ $this, 'render_create_group_member_page' ]
+    );
+  }
 
-    echo <<<HTML
-      <div id="group_member_list" data-edit-group-url="{$edit_group_member_page_url}"></div>
-    HTML;
+  function render_group_members_page() {
+    $edit_group_member_page_url   = admin_url( 'admin.php?page=' . self::EDIT_GROUP_MEMBER_PAGE_SLUG );
+    $create_group_member_page_url = admin_url( 'admin.php?page=' . self::CREATE_GROUP_MEMBER_PAGE_SLUG );
+
+    echo '<a href="' . esc_url( $create_group_member_page_url ) . '" class="page-title-action">'
+      . esc_html__( 'Create New Group Membership', 'wicket-memberships' )
+      . '</a>';
+
+    echo '<div id="group_member_list" data-edit-group-url="' . esc_url( $edit_group_member_page_url ) . '"></div>';
+  }
+
+  function render_create_group_member_page() {
+    $group_config_cpt_slug = Helper::get_membership_group_config_cpt_slug();
+    $list_url              = admin_url( 'admin.php?page=' . self::LIST_GROUP_MEMBER_PAGE_SLUG );
+    $edit_group_base_url   = admin_url( 'admin.php?page=' . self::EDIT_GROUP_MEMBER_PAGE_SLUG );
+
+    echo '<div
+      id="create_group_membership"
+      data-group-config-cpt-slug="' . esc_attr( $group_config_cpt_slug ) . '"
+      data-list-url="' . esc_url( $list_url ) . '"
+      data-edit-group-base-url="' . esc_url( $edit_group_base_url ) . '"
+    ></div>';
   }
 
   function render_edit_group_member_page() {
@@ -240,6 +269,18 @@ class Membership_CPT_Hooks {
       wp_enqueue_script(
         WICKET_MEMBERSHIP_PLUGIN_SLUG . '_group_member_edit',
         WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/group_member_edit.js',
+        $asset_file['dependencies'],
+        $asset_file['version'],
+        true
+      );
+    }
+
+    if ( $page->id === 'admin_page_' . self::CREATE_GROUP_MEMBER_PAGE_SLUG ) {
+      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/create_group_membership.asset.php' );
+
+      wp_enqueue_script(
+        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_create_group_membership',
+        WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/create_group_membership.js',
         $asset_file['dependencies'],
         $asset_file['version'],
         true
