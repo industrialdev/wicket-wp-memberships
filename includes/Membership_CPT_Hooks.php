@@ -173,11 +173,14 @@ class Membership_CPT_Hooks {
     $edit_group_member_page_url   = admin_url( 'admin.php?page=' . self::EDIT_GROUP_MEMBER_PAGE_SLUG );
     $create_group_member_page_url = admin_url( 'admin.php?page=' . self::CREATE_GROUP_MEMBER_PAGE_SLUG );
 
+    echo '<div class="wrap">';
+    echo '<h1 class="wp-heading-inline">' . esc_html__( 'Group Memberships', 'wicket-memberships' ) . '</h1>';
     echo '<a href="' . esc_url( $create_group_member_page_url ) . '" class="page-title-action">'
       . esc_html__( 'Create New Group Membership', 'wicket-memberships' )
       . '</a>';
-
+    echo '<hr class="wp-header-end" />';
     echo '<div id="group_member_list" data-edit-group-url="' . esc_url( $edit_group_member_page_url ) . '"></div>';
+    echo '</div>';
   }
 
   function render_create_group_member_page() {

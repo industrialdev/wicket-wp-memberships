@@ -5,6 +5,7 @@ import apiFetch from "@wordpress/api-fetch";
 import { addQueryArgs } from "@wordpress/url";
 import { AppWrap, BorderedBox, EditWrap } from "../../shared/styled_elements";
 import AdminPageErrorBoundary from "../../shared/components/AdminPageErrorBoundary";
+import Alert from "../../shared/components/Alert";
 import MembershipOwnerAsyncSelect from "../../shared/components/MembershipOwnerAsyncSelect";
 import OrgUuidAsyncSelect from "../../shared/components/OrgUuidAsyncSelect";
 import MembershipDatePicker from "../../shared/components/MembershipDatePicker";
@@ -46,6 +47,35 @@ const validate = (form) => {
   return errors;
 };
 
+const REQUIRED_ASTERISK_STYLE = { color: "#cc1818", marginLeft: "2px" };
+
+const RequiredLabel = ({ text }) => (
+  <>
+    {text}
+    <span aria-hidden="true" style={REQUIRED_ASTERISK_STYLE}>*</span>
+  </>
+);
+
+const buildValidationAlertMessage = (errors) => {
+  const errorMessages = Object.values(errors).filter(Boolean);
+  if (errorMessages.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <p style={{ margin: "0 0 8px" }}>
+        {__("Please correct the following required fields:", "wicket-memberships")}
+      </p>
+      <ul style={{ margin: 0, paddingLeft: "18px" }}>
+        {errorMessages.map((message) => (
+          <li key={message}>{message}</li>
+        ))}
+      </ul>
+    </>
+  );
+};
+
 /**
  * CreateGroupMembershipPage — form for creating a new Membership Group post.
  *
@@ -60,6 +90,13 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
   const [errors, setErrors]       = useState({});
   const [submitError, setSubmitError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const validationAlert = buildValidationAlertMessage(errors);
+  const topAlert = submitError
+    ? { type: "error", message: submitError }
+    : validationAlert
+      ? { type: "error", message: validationAlert }
+      : null;
 
   const set = (key) => (value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -152,12 +189,17 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
   };
 
   return (
-    <BorderedBox>
+    <BorderedBox style={{ background: "#fff" }}>
       <form onSubmit={handleSubmit}>
+        <Alert saveResult={topAlert} onDismiss={() => {
+          setErrors({});
+          setSubmitError(null);
+        }} />
 
         <div style={{ marginBottom: "16px" }}>
           <TextControl
-            label={__("Name", "wicket-memberships")}
+            label={<RequiredLabel text={__("Name", "wicket-memberships")} />}
+            placeholder={__("Group Membership Name", "wicket-memberships")}
             value={form.name}
             onChange={set("name")}
           />
@@ -167,8 +209,8 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
         <div style={{ marginBottom: "16px" }}>
           <ModalPostSelector
             id="group_config_selector"
-            label={__("Group Config", "wicket-memberships")}
-            placeholder={__("Select a group config…", "wicket-memberships")}
+            label={<RequiredLabel text={__("Group Config", "wicket-memberships")} />}
+            placeholder={__("Group Config", "wicket-memberships")}
             modalTitle={__("Select Group Config", "wicket-memberships")}
             value={form.groupConfig}
             onChange={set("groupConfig")}
@@ -180,7 +222,7 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
 
         <div style={{ marginBottom: "16px" }}>
           <label style={{ display: "block", marginBottom: "4px", fontWeight: 600 }}>
-            {__("Organization", "wicket-memberships")}
+            <RequiredLabel text={__("Organization", "wicket-memberships")} />
           </label>
           <OrgUuidAsyncSelect
             value={orgOption}
@@ -192,7 +234,7 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
 
         <div style={{ marginBottom: "16px" }}>
           <label style={{ display: "block", marginBottom: "4px", fontWeight: 600 }}>
-            {__("Membership Owner", "wicket-memberships")}
+            <RequiredLabel text={__("Membership Owner", "wicket-memberships")} />
           </label>
           <MembershipOwnerAsyncSelect
             value={form.owner}
@@ -205,7 +247,8 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
         <div style={{ marginBottom: "24px" }}>
           <MembershipDatePicker
             name="membership_starts_at"
-            label={__("Start Date", "wicket-memberships")}
+            label={<RequiredLabel text={__("Start Date", "wicket-memberships")} />}
+            placeholder={__("YYYY-MM-DD", "wicket-memberships")}
             value={form.startDate}
             onChange={set("startDate")}
           />

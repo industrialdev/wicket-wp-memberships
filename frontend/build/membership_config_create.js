@@ -53,11 +53,12 @@
   .select__control {
     border: 1px solid #949494;
     border-radius: 2px;
-    min-height: 28px;
+    min-height: 30px;
+    height: 30px;
   }
 
   .select__input {
-    min-height: 28px;
+    min-height: 30px;
     box-shadow: none !important;
   }
 
@@ -81,11 +82,12 @@
   .select__control {
     border: 1px solid #949494;
     border-radius: 2px;
-    min-height: 28px;
+    min-height: 30px;
+    height: 30px;
   }
 
   .select__input {
-    min-height: 28px;
+    min-height: 30px;
     box-shadow: none !important;
   }
 
@@ -97,6 +99,8 @@
     padding: 6px 8px;
   }
 `,ot.div`
+  position: relative;
+
   .react-datepicker-wrapper {
     width: 100%;
   }
@@ -108,10 +112,39 @@
   .react-datepicker__input-container input {
     border: 1px solid #949494;
     border-radius: 2px;
-    min-height: 28px;
-    padding: 6px 8px;
+    min-height: 30px;
+    height: 30px;
+    padding: 0 42px 0 8px;
     margin-bottom: calc(8px);
     width: 100%;
+    line-height: 28px;
+  }
+
+  .membership-date-picker__adornment {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    bottom: calc(8px + 1px);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 6px;
+    pointer-events: none;
+    color: #50575e;
+    min-width: 22px;
+    justify-content: flex-end;
+  }
+
+  .membership-date-picker__divider {
+    width: 1px;
+    height: 18px;
+    background: #dcdcde;
+  }
+
+  .membership-date-picker__icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
   }
 `),$M=ot.label`
   display: inline-flex;

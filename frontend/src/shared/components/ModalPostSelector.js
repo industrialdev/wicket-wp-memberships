@@ -26,8 +26,8 @@ const TriggerButton = styled.button`
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  min-height: 32px;
-  padding: 0 8px;
+  min-height: 30px;
+  padding: 0px 4px 0px 8px;
   border: 1px solid #949494;
   border-radius: 2px;
   background: #fff;
@@ -61,8 +61,21 @@ const TriggerButton = styled.button`
   }
 
   .modal-selector__chevron {
+    display: inline-flex;
+    align-items: center;
+    align-self: center;
+    gap: 4px;
     flex-shrink: 0;
     color: #757575;
+    line-height: 1;
+    min-width: 18px;
+    justify-content: flex-end;
+  }
+
+  .modal-selector__divider {
+    width: 1px;
+    height: 16px;
+    background: #dcdcde;
   }
 
   .modal-selector__clear {
@@ -607,6 +620,7 @@ const ModalPostSelector = ({
             aria-hidden="true"
             title={__("Search options", "wicket-memberships")}
           >
+            <span className="modal-selector__divider" />
             <span className="dashicons dashicons-search" />
           </span>
         )}

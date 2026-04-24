@@ -75,10 +75,7 @@ const GroupMemberList = ({ editGroupUrl }) => {
   }, []);
 
   return (
-    <div className="wrap">
-      <h1 className="wp-heading-inline">{__("Group Memberships", "wicket-memberships")}</h1>
-      <hr className="wp-header-end" />
-
+    <>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -271,7 +268,7 @@ const GroupMemberList = ({ editGroupUrl }) => {
         </div>
         <br className="clear" />
       </div>
-    </div>
+    </>
   );
 };
 
