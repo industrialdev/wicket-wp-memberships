@@ -1273,7 +1273,7 @@ class Admin_Controller {
     $old_customer_meta_array = $new_customer_meta_array = $customer_meta ? json_decode( $customer_meta, true ) : [];
 
     // Used to set the new membership start date and old membership end date
-    $now_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+    $now_iso_date = Utilities::get_mdp_day_start()->format('c');
 
     $membership_tier_uuid = get_post_meta( $membership_post_id, 'membership_tier_uuid', true);
     $membership_starts_at = $now_iso_date;
