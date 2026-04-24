@@ -1,16 +1,8 @@
 import { __ } from "@wordpress/i18n";
-import {
-  Flex,
-  FlexBlock,
-} from "@wordpress/components";
-import DatePicker from "react-datepicker";
-import styled from "styled-components";
+import { Flex } from "@wordpress/components";
 import moment from "moment-timezone";
-import {
-  LabelWpStyled,
-  ReactDatePickerStyledWrap,
-} from "../styled_elements";
-import { DEFAULT_DATE_FORMAT, PLUGIN_SETTINGS } from "../constants";
+import { PLUGIN_SETTINGS } from "../constants";
+import MembershipDatePicker from "./MembershipDatePicker";
 
 /**
  * Convert a stored ISO string to a Date object for the date picker.
@@ -74,63 +66,27 @@ const MembershipDatesSection = ({
 }) => {
   return (
     <Flex align="end" justify="start" gap={6} direction={["column", "row"]}>
-      <FlexBlock>
-        <LabelWpStyled htmlFor="membership_starts_at">
-          {__("Start Date", "wicket-memberships")}
-        </LabelWpStyled>
-        <ReactDatePickerStyledWrap>
-          <DatePicker
-            aria-label={__("Start Date", "wicket-memberships")}
-            name="membership_starts_at"
-            dateFormat={DEFAULT_DATE_FORMAT}
-            showMonthDropdown
-            showYearDropdown
-            dropdownMode="select"
-            locale="UTC"
-            disabled={disabled}
-            selected={startsAt}
-            onChange={onStartsAtChange}
-          />
-        </ReactDatePickerStyledWrap>
-      </FlexBlock>
-
-      <FlexBlock>
-        <LabelWpStyled htmlFor="membership_ends_at">
-          {__("End Date", "wicket-memberships")}
-        </LabelWpStyled>
-        <ReactDatePickerStyledWrap>
-          <DatePicker
-            aria-label={__("End Date", "wicket-memberships")}
-            name="membership_ends_at"
-            dateFormat={DEFAULT_DATE_FORMAT}
-            showMonthDropdown
-            showYearDropdown
-            dropdownMode="select"
-            disabled={disabled}
-            selected={endsAt}
-            onChange={onEndsAtChange}
-          />
-        </ReactDatePickerStyledWrap>
-      </FlexBlock>
-
-      <FlexBlock>
-        <LabelWpStyled htmlFor="membership_expires_at">
-          {__("Expiration Date", "wicket-memberships")}
-        </LabelWpStyled>
-        <ReactDatePickerStyledWrap>
-          <DatePicker
-            aria-label={__("Expiration Date", "wicket-memberships")}
-            name="membership_expires_at"
-            dateFormat={DEFAULT_DATE_FORMAT}
-            showMonthDropdown
-            showYearDropdown
-            dropdownMode="select"
-            disabled={disabled}
-            selected={expiresAt}
-            onChange={onExpiresAtChange}
-          />
-        </ReactDatePickerStyledWrap>
-      </FlexBlock>
+      <MembershipDatePicker
+        name="membership_starts_at"
+        label={__("Start Date", "wicket-memberships")}
+        value={startsAt}
+        disabled={disabled}
+        onChange={onStartsAtChange}
+      />
+      <MembershipDatePicker
+        name="membership_ends_at"
+        label={__("End Date", "wicket-memberships")}
+        value={endsAt}
+        disabled={disabled}
+        onChange={onEndsAtChange}
+      />
+      <MembershipDatePicker
+        name="membership_expires_at"
+        label={__("Expiration Date", "wicket-memberships")}
+        value={expiresAt}
+        disabled={disabled}
+        onChange={onExpiresAtChange}
+      />
     </Flex>
   );
 };

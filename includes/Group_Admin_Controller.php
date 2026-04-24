@@ -632,7 +632,17 @@ class Group_Admin_Controller {
         }
       }
 
+      // Prefer the MDP full_name over display_name. display_name defaults to
+      // user_login (the UUID) when the WP user was created without name data.
+      $mdp_full_name = ( is_object( $owner_person ) && method_exists( $owner_person, 'getAttribute' ) )
+        ? (string) $owner_person->getAttribute( 'full_name' )
+        : '';
+      $display_name = $mdp_full_name !== ''
+        ? $mdp_full_name
+        : ( $owner['name'] !== $owner['uuid'] ? $owner['name'] : '' );
+
       $owner_data = array_merge( $owner, [
+        'name'               => $display_name,
         'mdp_link'           => $wicket_admin ? $wicket_admin . '/people/' . $owner['uuid'] : '',
         'identifying_number' => ( is_object( $owner_person ) && method_exists( $owner_person, 'getAttribute' ) )
           ? $owner_person->getAttribute( 'identifying_number' )

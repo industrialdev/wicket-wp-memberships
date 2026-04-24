@@ -55,14 +55,14 @@ This document tracks the design and implementation of the **Create Group Members
 ### Commit 4 — Extract `MembershipDatePicker`
 | Step | Status |
 |------|--------|
-| React: Extract `MembershipDatePicker` single-field component from `MembershipDatesSection` | Not started |
-| React: Refactor `MembershipDatesSection` to compose from `MembershipDatePicker` | Not started |
+| React: Extract `MembershipDatePicker` single-field component from `MembershipDatesSection` | Done |
+| React: Refactor `MembershipDatesSection` to compose from `MembershipDatePicker` | Done |
 
 ### Commit 5 — Extract `MembershipOwnerAsyncSelect`
 | Step | Status |
 |------|--------|
-| React: Extract `MembershipOwnerAsyncSelect` component from `MembershipOwnerSection` | Not started |
-| React: Refactor `MembershipOwnerSection` to compose from `MembershipOwnerAsyncSelect` | Not started |
+| React: Extract `MembershipOwnerAsyncSelect` component from `MembershipOwnerSection` | Done |
+| React: Refactor `MembershipOwnerSection` to compose from `MembershipOwnerAsyncSelect` | Done |
 
 ### Commit 6 — Create Group Membership page
 | Step | Status |

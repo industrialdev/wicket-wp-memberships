@@ -1,9 +1,10 @@
-import { useState, useCallback, useRef } from "react";
+import { useState } from "react";
 import { __ } from "@wordpress/i18n";
 import { Button, Flex, FlexBlock, FlexItem, Icon, Tooltip } from "@wordpress/components";
-import { AsyncSelectWpStyled, BorderedBox, LabelWpStyled } from "../styled_elements";
+import { BorderedBox, LabelWpStyled } from "../styled_elements";
 import Alert from "./Alert";
 import SwitchToButton from "./SwitchToButton";
+import MembershipOwnerAsyncSelect from "./MembershipOwnerAsyncSelect";
 
 /**
  * MembershipOwnerSection — displays and allows changing the owner of a membership.
@@ -33,14 +34,6 @@ const MembershipOwnerSection = ({
   const [selectedOption, setSelectedOption] = useState(ownerOption);
   const [isSaving, setIsSaving]             = useState(false);
   const [saveResult, setSaveResult]         = useState(null); // { type: 'success'|'error', message }
-
-  const debounceTimer = useRef(null);
-  const debouncedLoadOptions = useCallback((inputValue, callback) => {
-    if ( debounceTimer.current ) { clearTimeout(debounceTimer.current); }
-    debounceTimer.current = setTimeout(() => {
-      onLoadOptions(inputValue, callback);
-    }, 300);
-  }, [onLoadOptions]);
 
   const handleChange = (selected) => {
     setSelectedOption(selected);
@@ -87,15 +80,10 @@ const MembershipOwnerSection = ({
             onDismiss={() => setSaveResult(null)}
           />
 
-          <AsyncSelectWpStyled
-            id="membership_owner_id"
-            classNamePrefix="select"
-            name="membership_owner_uuid"
+          <MembershipOwnerAsyncSelect
             value={selectedOption}
             defaultOptions={ownerOption ? [ownerOption] : []}
-            loadOptions={debouncedLoadOptions}
-            isClearable={false}
-            isSearchable={true}
+            onLoadOptions={onLoadOptions}
             onChange={handleChange}
           />
 
