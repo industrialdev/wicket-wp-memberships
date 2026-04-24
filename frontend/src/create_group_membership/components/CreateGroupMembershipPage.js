@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { __ } from "@wordpress/i18n";
 import { Button, TextControl } from "@wordpress/components";
 import apiFetch from "@wordpress/api-fetch";
@@ -6,10 +6,15 @@ import { addQueryArgs } from "@wordpress/url";
 import { AppWrap, BorderedBox, EditWrap } from "../../shared/styled_elements";
 import AdminPageErrorBoundary from "../../shared/components/AdminPageErrorBoundary";
 import MembershipOwnerAsyncSelect from "../../shared/components/MembershipOwnerAsyncSelect";
+import OrgUuidAsyncSelect from "../../shared/components/OrgUuidAsyncSelect";
 import MembershipDatePicker from "../../shared/components/MembershipDatePicker";
 import ModalPostSelector from "../../shared/components/ModalPostSelector";
 import { pickerDateToIso } from "../../shared/components/MembershipDatesSection";
-import { fetchMdpPersons, createGroupMembership } from "../../shared/services/api";
+import {
+  fetchMdpPersons,
+  fetchSearchOrgs,
+  createGroupMembership,
+} from "../../shared/services/api";
 import { API_URL } from "../../shared/constants";
 import he from "he";
 
@@ -51,6 +56,7 @@ const validate = (form) => {
  */
 const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGroupBaseUrl }) => {
   const [form, setForm]           = useState(EMPTY_FORM);
+  const [orgOption, setOrgOption] = useState(null);
   const [errors, setErrors]       = useState({});
   const [submitError, setSubmitError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -87,6 +93,29 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
         console.error("[CreateGroupMembershipPage] loadOwnerOptions error", error);
       });
   };
+
+  const loadOrgOptions = useCallback((inputValue, callback) => {
+    if (inputValue.length < 3) return;
+
+    fetchSearchOrgs(inputValue)
+      .then((orgs) => {
+        callback(
+          orgs.map((org) => ({
+            label: org.name,
+            value: org.id,
+          })),
+        );
+      })
+      .catch((error) => {
+        console.error("[CreateGroupMembershipPage] loadOrgOptions error", error);
+        callback([]);
+      });
+  }, []);
+
+  const handleOrgChange = useCallback((option) => {
+    setOrgOption(option ?? null);
+    set("orgUuid")(option?.value ?? "");
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -150,11 +179,13 @@ const CreateGroupMembershipPageContent = ({ groupConfigCptSlug, listUrl, editGro
         </div>
 
         <div style={{ marginBottom: "16px" }}>
-          <TextControl
-            label={__("Organization UUID", "wicket-memberships")}
-            value={form.orgUuid}
-            onChange={set("orgUuid")}
-            help={__("Placeholder — a searchable org selector will replace this field in a future update.", "wicket-memberships")}
+          <label style={{ display: "block", marginBottom: "4px", fontWeight: 600 }}>
+            {__("Organization", "wicket-memberships")}
+          </label>
+          <OrgUuidAsyncSelect
+            value={orgOption}
+            onLoadOptions={loadOrgOptions}
+            onChange={handleOrgChange}
           />
           {errors.orgUuid && <p style={{ color: "#cc1818", margin: "4px 0 0" }}>{errors.orgUuid}</p>}
         </div>

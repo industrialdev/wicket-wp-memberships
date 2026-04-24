@@ -2,6 +2,7 @@ import apiFetch from "@wordpress/api-fetch";
 import { addQueryArgs } from "@wordpress/url";
 import {
   API_URL,
+  BASE_PLUGIN_API_URL,
   PLUGIN_API_URL,
   TIER_CPT_SLUG,
   WC_API_V3_URL,
@@ -163,6 +164,40 @@ export const fetchMdpPersons = (queryParams = {}) => {
   // ?term=
   const url = addQueryArgs(`${PLUGIN_API_URL}/mdp_person/search`, queryParams);
   return apiFetch({ path: url, method: "POST" });
+};
+
+/**
+ * Search MDP organisations by name.
+ *
+ * POST /wicket-base/v1/search-orgs
+ *
+ * @param {string} searchTerm
+ * @returns {Promise<Array>} Array of org objects.
+ */
+export const fetchSearchOrgs = (searchTerm) => {
+  return apiFetch({
+    path: `${BASE_PLUGIN_API_URL}/search-orgs`,
+    method: "POST",
+    data: {
+      searchTerm,
+      autocomplete: true,
+      includeMembershipSummary: false,
+    },
+  }).then((response) => response?.data ?? []);
+};
+
+/**
+ * Resolve an org UUID to its display data.
+ *
+ * GET /wicket_member/v1/org_data?org_uuid=<uuid>
+ *
+ * @param {string} orgUuid
+ * @returns {Promise<{ name: string, location: string }>}
+ */
+export const fetchOrgByUuid = (orgUuid) => {
+  return apiFetch({
+    path: addQueryArgs(`${PLUGIN_API_URL}/org_data`, { org_uuid: orgUuid }),
+  });
 };
 
 /**
