@@ -380,19 +380,13 @@ class Group_Admin_Controller {
    * @return array{name: string, email: string}
    */
   private static function build_owner_field( Membership_Group $group ): array {
-    $owner_id = $group->get_owner_id();
-    if ( ! $owner_id ) {
+    $owner = $group->get_owner();
+    if ( ! $owner ) {
       return [ 'name' => '', 'email' => '' ];
     }
-
-    $user = get_user_by( 'id', $owner_id );
-    if ( ! $user ) {
-      return [ 'name' => '', 'email' => '' ];
-    }
-
     return [
-      'name'  => $user->display_name,
-      'email' => $user->user_email,
+      'name'  => $owner['name'],
+      'email' => $owner['email'],
     ];
   }
 
@@ -627,35 +621,24 @@ class Group_Admin_Controller {
       : '';
 
     $owner_data = null;
-    $owner_id   = $group->get_owner_id();
-    if ( $owner_id ) {
-      $owner_user = get_user_by( 'id', $owner_id );
-      if ( $owner_user ) {
-        $owner_uuid   = $group->get_owner_uuid() ?: $owner_user->user_login;
-        $owner_person = null;
-
-        if ( $owner_uuid && isValidUuid( $owner_uuid ) && function_exists( 'wicket_get_person_by_id' ) ) {
-          try {
-            $owner_person = wicket_get_person_by_id( $owner_uuid );
-          } catch ( \Throwable $e ) {
-            $owner_person = null;
-          }
+    $owner      = $group->get_owner();
+    if ( $owner ) {
+      $owner_person = null;
+      if ( isValidUuid( $owner['uuid'] ) && function_exists( 'wicket_get_person_by_id' ) ) {
+        try {
+          $owner_person = wicket_get_person_by_id( $owner['uuid'] );
+        } catch ( \Throwable $e ) {
+          $owner_person = null;
         }
-
-        $owner_data = [
-          'user_id'            => $owner_id,
-          'uuid'               => $owner_uuid,
-          'name'               => $owner_user->display_name,
-          'email'              => $owner_user->user_email,
-          'mdp_link'           => ( $owner_uuid && $wicket_admin )
-            ? $wicket_admin . '/people/' . $owner_uuid
-            : '',
-          'identifying_number' => ( is_object( $owner_person ) && method_exists( $owner_person, 'getAttribute' ) )
-            ? $owner_person->getAttribute( 'identifying_number' )
-            : '',
-          'switch_to_url'      => Helper::get_user_switch_to_url( $owner_id ),
-        ];
       }
+
+      $owner_data = array_merge( $owner, [
+        'mdp_link'           => $wicket_admin ? $wicket_admin . '/people/' . $owner['uuid'] : '',
+        'identifying_number' => ( is_object( $owner_person ) && method_exists( $owner_person, 'getAttribute' ) )
+          ? $owner_person->getAttribute( 'identifying_number' )
+          : '',
+        'switch_to_url'      => Helper::get_user_switch_to_url( $owner['user_id'] ),
+      ] );
     }
 
     // Config data.

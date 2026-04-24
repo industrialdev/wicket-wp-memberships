@@ -71,6 +71,10 @@ To retrieve owner details on demand:
 - WP user object: `get_user_by( 'id', $owner_id )`
 - MDP person record: `wicket_get_person_by_id( $user->user_login )` (UUID = `user_login`)
 
+### `get_owner(): array|false`
+
+Returns a structured snapshot of the group owner: `['user_id' => int, 'uuid' => string, 'name' => string, 'email' => string]`, or `false` if no owner is set. The UUID is derived from `user_login` — not stored as post meta. Prefer this over calling `get_owner_id()` + `get_user_by()` separately.
+
 ### `get_owner_id(): int|false`
 
 Returns the canonical owner user ID stored in `user_id`, or `false` if not set or invalid.

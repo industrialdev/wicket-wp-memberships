@@ -38,14 +38,16 @@ This document tracks the design and implementation of the **Create Group Members
 ### Commit 2 — `get_owner()` structured return
 | Step | Status |
 |------|--------|
-| PHP: Add `Membership_Group::get_owner()` returning structured array | Not started |
-| PHP: Simplify `Group_Admin_Controller::build_owner_field()` to use `get_owner()` | Not started |
-| Tests: Add `get_owner()` tests | Not started |
+| PHP: Add `Membership_Group::get_owner()` returning structured array | Done |
+| PHP: Simplify `Group_Admin_Controller::build_owner_field()` to use `get_owner()` | Done |
+| PHP: Simplify `get_group_edit_page_info()` owner block to use `get_owner()` | Done |
+| Tests: Add `get_owner()` tests | Done |
+| Docs: Update `Membership_Group.md` with `get_owner()` entry | Done |
 
 ### Commit 3 — `POST /group` accepts `owner_uuid`
 | Step | Status |
 |------|--------|
-| PHP: `Membership_Group::create()` signature `owner_user_id` → `owner_uuid` | Not started |
+| PHP: `Membership_Group::create()` signature `owner_user_id` → `owner_uuid` | Done (pulled forward during Commit 1 fixes) |
 | PHP: `POST /wicket_member/v1/group` param `owner_user_id` → `owner_uuid` | Not started |
 | PHP: Disable native WP REST routes for group membership CPT | Not started |
 | Tests: Update all `owner_user_id` REST test params → `owner_uuid` | Not started |

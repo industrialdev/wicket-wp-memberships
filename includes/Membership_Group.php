@@ -271,6 +271,32 @@ class Membership_Group {
   }
 
   /**
+   * Get a structured snapshot of the group owner.
+   *
+   * Returns the four fields that callers most commonly need together. The UUID
+   * is derived from user_login rather than stored as meta so it stays in sync
+   * with the MDP person record automatically.
+   *
+   * @return array{user_id: int, uuid: string, name: string, email: string}|false
+   */
+  public function get_owner(): array|false {
+    $owner_id = $this->get_owner_id();
+    if ( ! $owner_id ) {
+      return false;
+    }
+    $user = get_user_by( 'id', $owner_id );
+    if ( ! $user ) {
+      return false;
+    }
+    return [
+      'user_id' => $owner_id,
+      'uuid'    => $user->user_login,
+      'name'    => $user->display_name,
+      'email'   => $user->user_email,
+    ];
+  }
+
+  /**
    * Get the MDP UUID of the group owner.
    *
    * The UUID is not stored as post meta — it is derived from the WP user's
