@@ -822,6 +822,58 @@ class Group_Admin_Controller {
   }
 
   // ---------------------------------------------------------------------------
+  // Member management
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Add an individual membership to a group.
+   *
+   * Dispatches to Membership_Group::add_member() based on the 'mode' key in $params:
+   * - 'new'      → resolve WP user from person_uuid, create a new membership and link it.
+   * - 'existing' → cancel the existing membership, create a new one with group dates and link it.
+   *
+   * @param array $params {
+   *   @type int    $group_post_id               Post ID of the Membership_Group.
+   *   @type string $mode                        'new' or 'existing'.
+   *   @type int    $tier_post_id                Post ID of the individual Membership_Tier.
+   *   @type string $person_uuid                 MDP person UUID. Required when mode = 'new'.
+   *   @type int    $existing_membership_post_id Existing membership post ID to cancel. Required when mode = 'existing'.
+   *   @type int    $product_id                  Optional WC product ID. Auto-resolved from tier when omitted.
+   * }
+   * @return array{success: string, membership_post_id: int}|array{error: string, code: string}
+   */
+  public static function add_member( array $params ): array {
+    $group_post_id               = (int) ( $params['group_post_id'] ?? 0 );
+    $mode                        = sanitize_text_field( $params['mode'] ?? '' );
+    $tier_post_id                = (int) ( $params['tier_post_id'] ?? 0 );
+    $product_id                  = ! empty( $params['product_id'] ) ? (int) $params['product_id'] : null;
+    $existing_membership_post_id = ! empty( $params['existing_membership_post_id'] ) ? (int) $params['existing_membership_post_id'] : null;
+
+    $group = new Membership_Group( $group_post_id );
+    if ( $group->post_id <= 0 ) {
+      return [ 'error' => 'Membership group not found.', 'code' => 'group_not_found' ];
+    }
+
+    $user_id = null;
+
+    if ( $mode === 'new' ) {
+      $person_uuid = sanitize_text_field( $params['person_uuid'] ?? '' );
+      // Resolve or create the WP user from the MDP person UUID.
+      $user_id = (int) wicket_create_wp_user_if_not_exist( $person_uuid );
+      if ( $user_id <= 0 ) {
+        return [ 'error' => 'Could not resolve or create a WordPress user for the provided person_uuid.', 'code' => 'user_resolve_failed' ];
+      }
+    }
+
+    $result = $group->add_member( $user_id, $tier_post_id, $product_id, $existing_membership_post_id );
+
+    if ( is_wp_error( $result ) ) {
+      return [ 'error' => $result->get_error_message(), 'code' => $result->get_error_code() ];
+    }
+
+    return [ 'success' => 'Member added to group.', 'membership_post_id' => $result ];
+  }
+
   // Renewal order
   // ---------------------------------------------------------------------------
 

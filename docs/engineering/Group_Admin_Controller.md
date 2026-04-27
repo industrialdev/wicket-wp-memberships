@@ -181,6 +181,25 @@ Ownership reassignment of linked WooCommerce order/subscription records is handl
 
 ---
 
+### `add_member( array $params ): array`
+
+Adds an individual membership to a group. Dispatches to `Membership_Group::add_member()` based on `mode`.
+
+| Key | Required | Description |
+|---|---|---|
+| `group_post_id` | Yes | Post ID of the `Membership_Group` |
+| `mode` | Yes | `"new"` or `"existing"` |
+| `tier_post_id` | Yes | Post ID of the individual `Membership_Tier` CPT |
+| `person_uuid` | Conditional | MDP person UUID — required when `mode = "new"` |
+| `existing_membership_post_id` | Conditional | Existing membership post ID to cancel — required when `mode = "existing"` |
+| `product_id` | No | WC product ID — auto-resolved from tier when omitted |
+
+For `mode = "new"`: resolves or creates a WP user from `person_uuid` via `wicket_create_wp_user_if_not_exist()` before delegating to `Membership_Group::add_member()`.
+
+Returns `['success' => '...', 'membership_post_id' => int]` on success or `['error' => '...', 'code' => '...']` on failure. All model `WP_Error` values are mapped to the error-array shape so callers never receive a `WP_Error` directly.
+
+---
+
 ### `create_group_renewal_order( array $params ): \WP_REST_Response`
 
 Creates a renewal WC order and subscription for a membership group. Expects `params`:

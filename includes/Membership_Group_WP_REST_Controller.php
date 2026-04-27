@@ -282,6 +282,48 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
       ],
     ] );
 
+    /**
+     * Add an individual membership to a group (new or existing member).
+     *
+     * POST /wicket_member/v1/group/{group_post_id}/add_member
+     * Body: { mode, tier_post_id, person_uuid|existing_membership_post_id, product_id? }
+     */
+    register_rest_route( $this->namespace, '/group/(?P<group_post_id>\d+)/add_member', [
+      [
+        'methods'             => \WP_REST_Server::CREATABLE,
+        'callback'            => [ $this, 'add_member_to_group' ],
+        'permission_callback' => [ $this, 'permissions_check_write' ],
+        'args'                => [
+          'group_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the membership group.',
+          ],
+          'mode' => [
+            'type'        => 'string',
+            'description' => '"new" to create a fresh membership, "existing" to cancel an existing membership and create a new one.',
+          ],
+          'tier_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the individual Membership_Tier CPT.',
+          ],
+          'person_uuid' => [
+            'type'        => 'string',
+            'description' => 'MDP person UUID. Required when mode = "new".',
+          ],
+          'existing_membership_post_id' => [
+            'type'        => 'integer',
+            'description' => 'Existing wicket_membership post ID to cancel. Required when mode = "existing".',
+          ],
+          'product_id' => [
+            'type'        => 'integer',
+            'description' => 'WC product ID. Auto-resolved from tier when omitted.',
+          ],
+        ],
+      ],
+    ] );
+
     // -------------------------------------------------------------------------
     // TODO stubs — no backing business logic yet (see TODO.md)
     // -------------------------------------------------------------------------
@@ -289,7 +331,6 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     //       line item structure being finalised.
 
     // TODO: GET  /get_membership_group_callouts  — group-level renewal/grace callouts
-    // TODO: POST /group/{id}/add_member          — add individual to group
     // TODO: POST /group/{id}/remove_member       — remove individual from group (cancel or continue)
     // TODO: POST /group/{id}/move_member         — move individual to another group
     // TODO: POST /group/{id}/cancel              — cancel group with options (cancel all / continue as individual)
@@ -419,6 +460,34 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     $params = $request->get_params();
     $response = Group_Admin_Controller::update_group_change_ownership( $params );
     return rest_ensure_response( $response );
+  }
+
+  /**
+   * POST /group/{group_post_id}/add_member
+   */
+  public function add_member_to_group( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $mode   = sanitize_text_field( $params['mode'] ?? '' );
+
+    if ( ! \in_array( $mode, [ 'new', 'existing' ], true ) ) {
+      return new WP_REST_Response( [ 'error' => 'mode must be "new" or "existing".' ], 400 );
+    }
+
+    if ( $mode === 'new' && empty( $params['person_uuid'] ) ) {
+      return new WP_REST_Response( [ 'error' => 'person_uuid is required when mode is "new".' ], 400 );
+    }
+
+    if ( $mode === 'existing' && empty( $params['existing_membership_post_id'] ) ) {
+      return new WP_REST_Response( [ 'error' => 'existing_membership_post_id is required when mode is "existing".' ], 400 );
+    }
+
+    $result = Group_Admin_Controller::add_member( $params );
+
+    if ( isset( $result['error'] ) ) {
+      return new WP_REST_Response( [ 'error' => $result['error'] ], 400 );
+    }
+
+    return new WP_REST_Response( $result, 200 );
   }
 
   // ---------------------------------------------------------------------------

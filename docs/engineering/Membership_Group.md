@@ -53,19 +53,24 @@ The post is created with `post_status = 'pending'`. Dates (end, expiry, early-re
 
 ## Instance Methods
 
-### `associate_existing_individual_membership( int $membership_post_id ): int|WP_Error`
+### `add_member( ?int $user_id, int $tier_post_id, ?int $product_id = null, ?int $existing_membership_post_id = null ): int|WP_Error`
 
-Links an existing `wicket_membership` post to this group by setting `membership_group_id` meta. Does not create or modify the membership record itself. Returns the membership post ID on success, or `WP_Error('invalid_membership')` if the post does not exist or is not a membership CPT.
+Single entry point for adding an individual membership to a group. Covers two flows:
 
-### `add_new_individual_membership( int $user_id, int $tier_post_id, ?int $product_id = null ): int|WP_Error`
+- **New member** (`$existing_membership_post_id = null`): `$user_id` must be provided. Creates a fresh membership and links it to the group.
+- **Existing member** (`$existing_membership_post_id` provided): cancels the existing membership (sets its status to `cancelled`), resolves the user ID from it, then creates a new membership with group dates and links it. `$user_id` is ignored.
 
-Creates a new individual membership record via `Membership_Controller::create_membership_record()`, inheriting dates from the group, then associates it with the group. `product_id` is auto-resolved from the tier when omitted; fails with `WP_Error('ambiguous_product')` if the tier has more than one product. Returns the new membership post ID on success.
+Both paths share start-date logic: if today is within the group date window, start = today; if today is before the group start, start = group start; if today is after the group end, returns `WP_Error('group_ended')`.
 
-Fail states: `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `group_no_dates`, `create_failed`.
+Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_group_status')` otherwise.
+
+`product_id` is auto-resolved from the tier when omitted; fails with `WP_Error('ambiguous_product')` if the tier has more than one product. Returns the new membership post ID on success.
+
+Fail states: `invalid_group_status`, `missing_user_id`, `group_ended`, `group_no_dates`, `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `invalid_membership` (existing path), `missing_user_id` (existing record has no user_id), `create_failed`.
 
 > **TODO:** Set membership status from the group's own status once group-driven status propagation is implemented.
 
-> **TODO:** Link `membership_subscription_id` and `membership_parent_order_id` to the group's WooCommerce subscription once group subscription management exists.
+> **TODO:** Link `membership_subscription_id` and `membership_parent_order_id` to the group's WooCommerce subscription once group subscription management exists. Also add a tier line item to the group subscription on each add.
 
 ---
 
