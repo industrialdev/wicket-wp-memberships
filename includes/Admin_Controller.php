@@ -943,6 +943,8 @@ class Admin_Controller {
    */
   public static function update_memberships_owner( $record_id, $person_uuid ): \WP_REST_Response {
     $self = new self();
+    $merged = [];
+    $orig_user_id = null;
 
     $user_id = wicket_create_wp_user_if_not_exist($person_uuid );
     $merged_user = get_user_by('id', $user_id);
