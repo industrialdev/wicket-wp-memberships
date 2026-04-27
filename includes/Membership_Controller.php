@@ -728,7 +728,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
     if($self->bypass_wicket) {
       //Don't create the wicket connection when testing
-      $self->create_local_membership_record(  $membership, $self->guidv4().'-fake' );
+      $membership['membership_post_id'] = $self->create_local_membership_record( $membership, $self->guidv4().'-fake' );
       return $membership;
     }
 

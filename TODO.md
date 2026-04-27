@@ -11,9 +11,17 @@ Remove the entry when the work is completed.
 | File | Method | Note | Asana |
 |---|---|---|---|
 | `includes/Membership_Group.php` | `create()` | Create a WooCommerce subscription for this group. Required by CURRENT_SCOPE.md — without this, groups created via the new Create Group page will be missing their subscription. | — |
-| `includes/Membership_Group.php` | `add_individual_membership()` | Review implementation | [task](https://app.asana.com/1/1138832104141584/project/1213403241762018/task/1213781837058525) |
 | `includes/Membership_Group.php` | `apply_edit_fields()` | Review and consider replacing with typed getters/setters per field — current `array<string,mixed>` signature allows any meta key to be written without validation | — |
 | `includes/Membership_Group.php` | `cascade_dates_to_members()` | Implement date cascading from group to all child individual memberships. Should propagate starts_at, ends_at, expires_at, early_renew_at to active members; skip cancelled members. Add QA tests in `qa/tests/WordPress/Memberships/membership-group.pest.php` once implemented. | — |
+| `includes/Membership_Group.php` | `add_new_individual_membership()` | Set membership status from the group's own status once group-driven status propagation is implemented. Currently unset so `create_membership_record()` derives status from tier approval rules. | — |
+| `includes/Membership_Group.php` | `add_new_individual_membership()` | Link `membership_subscription_id` and `membership_parent_order_id` to the group's WooCommerce subscription once group subscription management exists. Also cancel the individual membership's subscription when a member is removed from the group. | — |
+
+## Pagination — List Pages
+
+| File | Component | Note | Asana |
+|---|---|---|---|
+| `frontend/src/members/index.js` | Individual & org member list pagination | Replace the static current-page display (`searchParams.page` rendered as text) with a number `<input>` that accepts manual page entry and triggers navigation on blur/Enter. Also sync the current page into the URL query string (e.g. `?page=3`) so the value persists on refresh and can be shared/bookmarked. Applies to individual_member_list and org_member_list pages. | — |
+| `frontend/src/members/group_list.js` | Group member list pagination | Same as above — replace static page display with a typeable number input and sync page to URL. Applies to group_member_list page. | — |
 
 ## Frontend Tests
 
@@ -67,3 +75,4 @@ Remove the entry when the work is completed.
 |---|---|---|---|
 | `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register `POST /group/{id}/create_renewal_order` once the group subscription line item structure is finalised. Current group edit flow intentionally mocks commerce gaps instead of attempting partial implementation. | — |
 | `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register remaining group routes once backing business logic exists: `GET /get_membership_group_callouts`, `POST /group/{id}/add_member`, `POST /group/{id}/remove_member`, `POST /group/{id}/move_member`, `POST /group/{id}/cancel`, `GET /group/{id}/members`, and `POST /group/{id}/import_members`. | — |
+| `includes/Group_Admin_Controller.php` | `add_member` handler (future) | When implementing `POST /group/{id}/add_member`, call `associate_existing_individual_membership_membership()` or `add_new_individual_membership()` depending on the payload, and map any `WP_Error` return to `new WP_REST_Response( [ 'error' => $e->get_error_message() ], 400 )` so error messages surface to the frontend. | — |

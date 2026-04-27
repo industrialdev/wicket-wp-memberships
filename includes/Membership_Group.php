@@ -177,15 +177,154 @@ class Membership_Group {
   }
 
   /**
-   * Associate an individual membership post with this group.
+   * Associate an existing wicket_membership post with this group.
    *
-   * @param int $membership_post_id
-   * @return void
-   * @todo Review — sets membership_group_id meta on the individual membership to link it to this group
+   * Only sets the membership_group_id meta — does not create or modify the membership record itself.
+   *
+   * @param int $membership_post_id  Existing wicket_membership post ID.
+   * @return int|\WP_Error Membership post ID on success, WP_Error on failure.
    */
-  public function add_individual_membership( $membership_post_id ) {
-    // TODO: review https://app.asana.com/1/1138832104141584/project/1213403241762018/task/1213781837058525
+  public function associate_existing_individual_membership( int $membership_post_id ): int|\WP_Error {
+    if ( ! get_post( $membership_post_id ) || get_post_type( $membership_post_id ) !== Helper::get_membership_cpt_slug() ) {
+      Wicket()->log()->error( 'Membership_Group::associate_existing_individual_membership: membership_post_id does not resolve to a valid membership', [
+        'source'             => 'wicket-memberships',
+        'post_id'            => $this->post_id,
+        'membership_post_id' => $membership_post_id,
+      ] );
+      return new \WP_Error( 'invalid_membership', __( 'The specified membership record does not exist.', 'wicket-memberships' ) );
+    }
+
     update_post_meta( $membership_post_id, 'membership_group_id', $this->post_id );
+    return $membership_post_id;
+  }
+
+  /**
+   * Create a new individual membership record and associate it with this group.
+   *
+   * @param int      $user_id       WP user ID of the new member.
+   * @param int      $tier_post_id  Post ID of the Membership_Tier CPT.
+   * @param int|null $product_id    WooCommerce product ID. If null, resolved from the tier (fails if tier has >1 product).
+   * @return int|\WP_Error New membership post ID on success, WP_Error on failure.
+   *
+   * TODO: Set membership status from the group's own status once group-driven status
+   *       propagation is implemented. Currently unset so create_membership_record()
+   *       derives it from tier approval rules and start date.
+   *
+   * TODO: Link membership_subscription_id and membership_parent_order_id to the
+   *       group's WooCommerce subscription once group subscription management exists.
+   *       Also cancel the individual membership's subscription when a member is removed.
+   */
+  public function add_new_individual_membership(
+    int $user_id,
+    int $tier_post_id,
+    ?int $product_id = null
+  ): int|\WP_Error {
+    // Validate user exists.
+    $user = get_user_by( 'id', $user_id );
+    if ( ! $user ) {
+      Wicket()->log()->error( 'Membership_Group::add_new_individual_membership: invalid user_id', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+        'user_id' => $user_id,
+      ] );
+      return new \WP_Error( 'invalid_user', __( 'The specified user does not exist.', 'wicket-memberships' ) );
+    }
+
+    // Validate tier is an individual tier.
+    $tier = new Membership_Tier( $tier_post_id );
+    if ( ! $tier->is_individual_tier() ) {
+      Wicket()->log()->error( 'Membership_Group::add_new_individual_membership: tier_post_id does not resolve to an individual tier', [
+        'source'       => 'wicket-memberships',
+        'post_id'      => $this->post_id,
+        'tier_post_id' => $tier_post_id,
+      ] );
+      return new \WP_Error( 'invalid_tier', __( 'The specified tier is not an individual membership tier.', 'wicket-memberships' ) );
+    }
+
+    $tier_product_ids = array_map( 'intval', $tier->get_product_ids() );
+
+    if ( $product_id === null ) {
+      if ( \count( $tier_product_ids ) > 1 ) {
+        Wicket()->log()->error( 'Membership_Group::add_new_individual_membership: tier has multiple products; product_id must be specified explicitly', [
+          'source'           => 'wicket-memberships',
+          'post_id'          => $this->post_id,
+          'tier_product_ids' => $tier_product_ids,
+        ] );
+        return new \WP_Error( 'ambiguous_product', __( 'The membership tier has multiple products. Specify a product_id explicitly.', 'wicket-memberships' ) );
+      }
+      if ( empty( $tier_product_ids ) ) {
+        Wicket()->log()->error( 'Membership_Group::add_new_individual_membership: tier has no products', [
+          'source'  => 'wicket-memberships',
+          'post_id' => $this->post_id,
+        ] );
+        return new \WP_Error( 'no_product', __( 'The membership tier has no products configured.', 'wicket-memberships' ) );
+      }
+
+      $product_id = $tier_product_ids[0];
+    } elseif ( ! \in_array( $product_id, $tier_product_ids, true ) ) {
+      Wicket()->log()->error( 'Membership_Group::add_new_individual_membership: product_id is not associated with this tier', [
+        'source'           => 'wicket-memberships',
+        'post_id'          => $this->post_id,
+        'product_id'       => $product_id,
+        'tier_product_ids' => $tier_product_ids,
+      ] );
+      return new \WP_Error( 'product_tier_mismatch', __( 'The specified product is not associated with this membership tier.', 'wicket-memberships' ) );
+    }
+
+    // Group must have dates before a membership can be created from it.
+    $dates = $this->get_dates();
+    if ( empty( $dates['starts_at'] ) || empty( $dates['ends_at'] ) ) {
+      Wicket()->log()->error( 'Membership_Group::add_new_individual_membership: group has no dates set', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+      ] );
+      return new \WP_Error( 'group_no_dates', __( 'The membership group does not have dates configured.', 'wicket-memberships' ) );
+    }
+
+    $result = Membership_Controller::create_membership_record( [
+      'membership_type'                           => 'individual',
+      'user_id'                                   => $user_id,
+      'membership_starts_at'                      => $dates['starts_at'],
+      'membership_ends_at'                        => $dates['ends_at'],
+      'membership_expires_at'                     => $dates['expires_at'] ?? '',
+      'membership_early_renew_at'                 => $dates['early_renew_at'] ?? '',
+      'membership_tier_post_id'                   => $tier_post_id,
+      'membership_tier_uuid'                      => $tier->get_mdp_tier_uuid(),
+      'membership_tier_name'                      => $tier->get_mdp_tier_name(),
+      'membership_next_tier_id'                   => $tier->get_next_tier_id(),
+      'membership_next_tier_form_page_id'         => $tier->get_next_tier_form_page_id(),
+      'membership_next_tier_subscription_renewal' => '',
+      'membership_product_id'                     => $product_id,
+      'membership_parent_order_id'                => 0,
+      'membership_subscription_id'                => 0,
+      'membership_wp_user_display_name'           => $user->display_name,
+      'membership_wp_user_last_name'              => get_user_meta( $user_id, 'last_name', true ) ?: '',
+      'membership_wp_user_email'                  => $user->user_email,
+      'membership_user_uuid'                      => $user->user_login,
+    ] );
+
+    $result = apply_filters(
+      'wicket_memberships_membership_group_create_membership_record_result',
+      $result,
+      $this,
+      $user_id,
+      $tier_post_id,
+      $product_id
+    );
+
+    $membership_post_id = (int) ( $result['membership_post_id'] ?? 0 );
+
+    if ( $membership_post_id <= 0 ) {
+      Wicket()->log()->error( 'Membership_Group::add_new_individual_membership: create_membership_record returned no post ID', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+        'user_id' => $user_id,
+      ] );
+      return new \WP_Error( 'create_failed', __( 'Failed to create the membership record.', 'wicket-memberships' ) );
+    }
+
+    update_post_meta( $membership_post_id, 'membership_group_id', $this->post_id );
+    return $membership_post_id;
   }
 
   // Owner management.
@@ -915,5 +1054,4 @@ class Membership_Group {
 
     return false;
   }
-
 }

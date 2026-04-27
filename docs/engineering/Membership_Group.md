@@ -53,11 +53,19 @@ The post is created with `post_status = 'pending'`. Dates (end, expiry, early-re
 
 ## Instance Methods
 
-### `add_individual_membership( int $membership_post_id ): void`
+### `associate_existing_individual_membership( int $membership_post_id ): int|WP_Error`
 
-Sets `membership_group_id` meta on an individual membership post to link it to this group.
+Links an existing `wicket_membership` post to this group by setting `membership_group_id` meta. Does not create or modify the membership record itself. Returns the membership post ID on success, or `WP_Error('invalid_membership')` if the post does not exist or is not a membership CPT.
 
-> **TODO:** Pending review. See Asana task linked in source.
+### `add_new_individual_membership( int $user_id, int $tier_post_id, ?int $product_id = null ): int|WP_Error`
+
+Creates a new individual membership record via `Membership_Controller::create_membership_record()`, inheriting dates from the group, then associates it with the group. `product_id` is auto-resolved from the tier when omitted; fails with `WP_Error('ambiguous_product')` if the tier has more than one product. Returns the new membership post ID on success.
+
+Fail states: `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `group_no_dates`, `create_failed`.
+
+> **TODO:** Set membership status from the group's own status once group-driven status propagation is implemented.
+
+> **TODO:** Link `membership_subscription_id` and `membership_parent_order_id` to the group's WooCommerce subscription once group subscription management exists.
 
 ---
 
