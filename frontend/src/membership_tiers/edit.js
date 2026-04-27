@@ -58,6 +58,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	const [form, setForm] = useState({
 		grant_owner_assignment: false,
 		approval_required: false,
+		renew_approval_required: false,
 		approval_email_recipient: '',
 		mdp_tier_name: '',
 		mdp_tier_uuid: '',
@@ -500,15 +501,27 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 													]}
 												>
 													<FlexItem>
-														<CheckboxControl
-															label={__('Approval Required', 'wicket-memberships')}
-															checked={form.approval_required}
-															onChange={(value) => setForm({ ...form, approval_required: value })}
-															__nextHasNoMarginBottom={true}
-														/>
-													</FlexItem>
+													<Flex direction="column" gap={2}>
+														<FlexItem>
+															<CheckboxControl
+																label={__('Approval Required', 'wicket-memberships')}
+																checked={form.approval_required}
+																onChange={(value) => setForm({ ...form, approval_required: value })}
+																__nextHasNoMarginBottom={true}
+															/>
+														</FlexItem>
+														<FlexItem>
+															<CheckboxControl
+																label={__('Renew Approval Required', 'wicket-memberships')}
+																checked={form.renew_approval_required}
+																onChange={(value) => setForm({ ...form, renew_approval_required: value })}
+																__nextHasNoMarginBottom={true}
+															/>
+														</FlexItem>
+													</Flex>
+												</FlexItem>
 													<FlexBlock>
-														<CustomDisabled isDisabled={!form.approval_required}>
+														<CustomDisabled isDisabled={!form.approval_required && !form.renew_approval_required}>
 															<TextControl
 																label={__('Approval Email Recipient', 'wicket-memberships')}
 																value={form.approval_email_recipient}
@@ -521,7 +534,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 													<FlexItem>
 														<Button
 															variant="secondary"
-															disabled={!form.approval_required}
+															disabled={!form.approval_required && !form.renew_approval_required}
 															onClick={reInitApprovalCallout}
 														>
 															<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;

@@ -322,5 +322,10 @@ function wicket_update_membership_json_data( $post_id, $debug = 0, $membership_i
     if(is_array( $data )) {
       $data = wc_print_r( $data, true );
     }
-    \Wicket()->log($level, $data, ['source' => 'wicket-membership-sync-'.time().'-'.$append_file_name]);
+    if( class_exists( '\Wicket' ) ) {
+      \Wicket()->log($level, $data, ['source' => 'wicket-membership-sync-'.time().'-'.$append_file_name]);
+    } else if (class_exists('WC_Logger')) {
+      $logger = new \WC_Logger();
+      $logger->log($level, $data, ['source' => 'wicket-membership-sync-'.time().'-'.$append_file_name]);
   }
+ }

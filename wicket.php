@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.108
+ * Version: 1.0.109
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
@@ -283,6 +283,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
     }
 
     public function memberships_verify_cart( $checkout_order ) {
+      $cannot_process = [];
       if( !empty( $_ENV['check_renewals_orders_in_cart'] )) {
         $error_message = '';
         $user = wp_get_current_user();

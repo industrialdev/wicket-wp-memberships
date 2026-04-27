@@ -203,7 +203,15 @@ class Utilities {
     if(is_array( $data )) {
       $data = wc_print_r( $data, true );
     }
-    \Wicket()->log($level, $data, ['source' => 'wicket-membership-plugin']);
+    if ( class_exists( '\Wicket' ) ) {
+      \Wicket()->log($level, $data, ['source' => 'wicket-membership-plugin']);
+    } else if (class_exists('WC_Logger')) {
+      $logger = new \WC_Logger();
+      if(is_array( $data )) {
+        $data = wc_print_r( $data, true );
+      }
+      $logger->log($level, $data, ['source' => 'wicket-membership-plugin']);
+    }
   }
 
    /**
