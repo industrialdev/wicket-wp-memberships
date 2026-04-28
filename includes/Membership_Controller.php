@@ -79,7 +79,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
   function add_order_item_meta ( $item_id, $values ) {
     if(is_array($values)) {
-      if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
+      if( !empty( $values['org_uuid'] ) && empty( wc_get_order_item_meta( $item_id, '_org_uuid', true ) ) ) {
         wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
       }
 
