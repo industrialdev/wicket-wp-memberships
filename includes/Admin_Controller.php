@@ -566,15 +566,15 @@ class Admin_Controller {
 
       $group_id = get_post_meta( $membership->ID, 'membership_group_id', true );
       if ( !empty( $group_id ) ) {
-        $group_post        = get_post( (int) $group_id );
-        $group_admin_id    = get_post_meta( (int) $group_id, 'user_id', true );
-        $group_admin_user  = $group_admin_id ? get_userdata( (int) $group_admin_id ) : null;
-        $group_starts_at   = get_post_meta( (int) $group_id, 'membership_starts_at', true );
+        $group_obj         = new Membership_Group( (int) $group_id );
+        $group_owner       = $group_obj->get_owner();
+        $group_dates       = $group_obj->get_dates();
         $membership_item['is_membership_group'] = true;
         $membership_item['group_id']            = (int) $group_id;
-        $membership_item['group_name']          = $group_post ? $group_post->post_title : '';
-        $membership_item['group_admin_name']    = $group_admin_user ? $group_admin_user->display_name : '';
-        $membership_item['group_starts_at']     = $group_starts_at ?? '';
+        $membership_item['group_name']          = $group_obj->get_name();
+        $membership_item['group_admin_name']    = $group_owner ? $group_owner['name'] : '';
+        $membership_item['group_starts_at']     = $group_dates['starts_at'] ?? '';
+        $membership_item['group_ends_at']       = $group_dates['ends_at'] ?? '';
         $membership_item['group_edit_url']      = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_GROUP_MEMBER_PAGE_SLUG . '&id=' . (int) $group_id );
       } else {
         $membership_item['is_membership_group'] = false;

@@ -328,6 +328,36 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
       ],
     ] );
 
+    /**
+     * Remove an individual membership from a group (cancel or keep as individual).
+     *
+     * POST /wicket_member/v1/group/{group_post_id}/remove_member
+     * Body: { membership_post_id, mode }
+     */
+    register_rest_route( $this->namespace, '/group/(?P<group_post_id>\d+)/remove_member', [
+      [
+        'methods'             => \WP_REST_Server::CREATABLE,
+        'callback'            => [ $this, 'remove_member_from_group' ],
+        'permission_callback' => [ $this, 'permissions_check_write' ],
+        'args'                => [
+          'group_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the membership group.',
+          ],
+          'membership_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the individual membership to remove.',
+          ],
+          'mode' => [
+            'type'        => 'string',
+            'description' => '"cancel" to end the membership immediately, "keep_as_individual" to convert to a standalone individual membership.',
+          ],
+        ],
+      ],
+    ] );
+
     // -------------------------------------------------------------------------
     // TODO stubs — no backing business logic yet (see TODO.md)
     // -------------------------------------------------------------------------
@@ -335,7 +365,6 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     //       line item structure being finalised.
 
     // TODO: GET  /get_membership_group_callouts  — group-level renewal/grace callouts
-    // TODO: POST /group/{id}/remove_member       — remove individual from group (cancel or continue)
     // TODO: POST /group/{id}/move_member         — move individual to another group
     // TODO: POST /group/{id}/cancel              — cancel group with options (cancel all / continue as individual)
     // TODO: GET  /group/{id}/members             — list individual memberships in a group
@@ -492,6 +521,26 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     }
 
     return new WP_REST_Response( $result, 200 );
+  }
+
+  /**
+   * POST /group/{group_post_id}/remove_member
+   */
+  public function remove_member_from_group( \WP_REST_Request $request ): \WP_REST_Response {
+    $params = $request->get_params();
+    $mode   = sanitize_text_field( $params['mode'] ?? '' );
+
+    if ( ! \in_array( $mode, [ 'cancel', 'keep_as_individual' ], true ) ) {
+      return new \WP_REST_Response( [ 'error' => 'mode must be "cancel" or "keep_as_individual".' ], 400 );
+    }
+
+    $result = Group_Admin_Controller::remove_member( $params );
+
+    if ( isset( $result['error'] ) ) {
+      return new \WP_REST_Response( [ 'error' => $result['error'] ], 400 );
+    }
+
+    return new \WP_REST_Response( $result, 200 );
   }
 
   // ---------------------------------------------------------------------------

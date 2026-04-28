@@ -411,3 +411,21 @@ export const addMemberToGroup = (groupPostId, data) => {
     data,
   });
 };
+
+/**
+ * Remove an individual membership from a membership group.
+ *
+ * POST /wicket_member/v1/group/{groupPostId}/remove_member
+ *
+ * @param {number} groupPostId
+ * @param {object} data
+ * @param {number} data.membership_post_id          — post ID of the membership to remove
+ * @param {'cancel'|'keep_as_individual'} data.mode — 'cancel' ends immediately; 'keep_as_individual' converts to standalone
+ */
+export const removeMemberFromGroup = (groupPostId, data) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/group/${groupPostId}/remove_member`,
+    method: "POST",
+    data,
+  });
+};

@@ -200,6 +200,20 @@ Returns `['success' => '...', 'membership_post_id' => int]` on success or `['err
 
 ---
 
+### `remove_member( array $params ): array`
+
+Removes an individual membership from a group. Dispatches to `Membership_Group::remove_member()`.
+
+| Key | Required | Description |
+|---|---|---|
+| `group_post_id` | Yes | Post ID of the `Membership_Group` |
+| `membership_post_id` | Yes | Post ID of the individual membership to remove |
+| `mode` | Yes | `"cancel"` or `"keep_as_individual"` |
+
+Returns `['success' => '...', 'membership_post_id' => int]` on success or `['error' => '...', 'code' => '...']` on failure.
+
+---
+
 ### `create_group_renewal_order( array $params ): \WP_REST_Response`
 
 Creates a renewal WC order and subscription for a membership group. Expects `params`:

@@ -891,6 +891,40 @@ class Group_Admin_Controller {
     return [ 'success' => 'Member added to group.', 'membership_post_id' => $result ];
   }
 
+  /**
+   * Remove an individual membership from a group.
+   *
+   * Dispatches to Membership_Group::remove_member() based on the 'mode' key in $params:
+   * - 'cancel'             → cancel the membership immediately.
+   * - 'keep_as_individual' → cancel the membership and create a new standalone individual
+   *                          membership with start=now and end=group end date.
+   *
+   * @param array $params {
+   *   @type int    $group_post_id       Post ID of the Membership_Group.
+   *   @type int    $membership_post_id  Post ID of the individual membership to remove.
+   *   @type string $mode                'cancel' or 'keep_as_individual'.
+   * }
+   * @return array{success: string, membership_post_id: int}|array{error: string, code: string}
+   */
+  public static function remove_member( array $params ): array {
+    $group_post_id      = (int) ( $params['group_post_id'] ?? 0 );
+    $membership_post_id = (int) ( $params['membership_post_id'] ?? 0 );
+    $mode               = sanitize_text_field( $params['mode'] ?? '' );
+
+    $group = new Membership_Group( $group_post_id );
+    if ( $group->post_id <= 0 ) {
+      return [ 'error' => 'Membership group not found.', 'code' => 'group_not_found' ];
+    }
+
+    $result = $group->remove_member( $membership_post_id, $mode );
+
+    if ( is_wp_error( $result ) ) {
+      return [ 'error' => $result->get_error_message(), 'code' => $result->get_error_code() ];
+    }
+
+    return [ 'success' => 'Member removed from group.', 'membership_post_id' => $result ];
+  }
+
   // Renewal order
   // ---------------------------------------------------------------------------
 

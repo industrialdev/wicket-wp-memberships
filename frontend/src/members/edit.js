@@ -17,6 +17,7 @@ import MembershipActionsDropdown from '../shared/components/MembershipActionsDro
 import MembershipGroupDetails from './MembershipGroupDetails';
 import MembershipGroupBadge from './MembershipGroupBadge';
 import AddToMembershipGroupModal from './AddToMembershipGroupModal';
+import AdminNoticeStack from '../shared/components/AdminNoticeStack';
 
 export const EditWrap = styled.div`
 	max-width: 1000px;
@@ -104,6 +105,10 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const [membershipOwnerOptions, setMembershipOwnerOptions] = useState([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
   const [manageStatusTarget, setManageStatusTarget] = useState({ postId: null, currentStatus: '' });
+  const [pageNotices, setPageNotices] = useState([]);
+
+  const addPageNotice = (notice) => setPageNotices((prev) => [...prev, notice]);
+  const dismissPageNotice = (id) => setPageNotices((prev) => prev.filter((n) => n.id !== id));
 
   const loadMembershipOwnerOptions = (inputValue, callback) => {
     if (  inputValue.length < 3 ) { return; }
@@ -445,6 +450,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 				</h1>
 				<hr className="wp-header-end"></hr>
 
+        <AdminNoticeStack notices={pageNotices} />
+
         <EditWrap>
           <WhiteBorderedBox>
             <Flex
@@ -620,7 +627,19 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                         >
                           <td colSpan={7} >
                             {membership.is_membership_group ? (
-                              <MembershipGroupDetails membership={membership} />
+                              <MembershipGroupDetails
+                                membership={membership}
+                                onSuccess={(message) => {
+                                  const noticeId = `member-removed-${Date.now()}`;
+                                  addPageNotice({
+                                    id: noticeId,
+                                    status: "success",
+                                    message,
+                                    onDismiss: () => dismissPageNotice(noticeId),
+                                  });
+                                  getMemberships();
+                                }}
+                              />
                             ) : (<>
                             {membership.subscription.id !== undefined &&
                             <Flex

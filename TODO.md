@@ -51,7 +51,6 @@ Remove the entry when the work is completed.
 |---|---|---|---|
 | `frontend/src/members/MembershipGroupDetails.js` | `MembershipGroupDetails` | Wire "View in MDP" link to the real membership group MDP URL once group MDP sync is implemented — currently disabled (red, pointer-events: none). | — |
 | `frontend/src/members/MembershipGroupDetails.js` | `MembershipGroupDetails` | Implement "Move to Another Group" action — button is currently disabled (red, no-op). | — |
-| `frontend/src/members/MembershipGroupDetails.js` | `MembershipGroupDetails` | Implement "Remove from Group" action — button is currently disabled (red, no-op). | — |
 
 ## Group List (Frontend)
 
@@ -69,9 +68,25 @@ Remove the entry when the work is completed.
 | `frontend/src/membership_groups/components/MembershipGroupRecordDetails.js` | `MembershipGroupRecordDetails` | Replace mock `subscriptionLink` and `nextPaymentDate` (read from `groupPageData.subscription`) with real values once `Group_Admin_Controller::get_group_edit_page_info()` is enriched with live WooCommerce subscription data. | — |
 | `frontend/src/membership_groups/components/MembershipGroupRecordDetails.js` | `MembershipGroupRecordDetails` | Switch `subscriptionId`, `subscriptionLink`, `nextPaymentDate`, and `orders` props to read from the individual `record` object rather than `groupPageData` once per-record subscription and order enrichment is implemented in `Group_Admin_Controller`. | — |
 
+## Group List & Detail — UUID-Based Navigation and Series Grouping
+
+| File | Component | Note | Asana |
+|---|---|---|---|
+| `includes/Group_Admin_Controller.php` | `get_membership_groups_list()` | Rearchitect group list to deduplicate by a stable group series identifier (mirroring how individual list deduplicates by `user_id` and org list by `org_uuid`). Each row should represent a series of annual group instances, not a single `wicket_mship_group` post. | — |
+| `includes/Group_Admin_Controller.php` | `get_group_edit_page_info()` | Detail page should load all `wicket_mship_group` posts belonging to the same series (same org + group name, or same series UUID), stacking them like individual detail stacks tiers. | — |
+| `frontend/src/members/group_list.js` | `GroupMemberList` | Update list row navigation to use a stable series key (series UUID or composite `org_uuid+group_name`) instead of WP post ID. | — |
+| `frontend/src/membership_groups/` | Group detail header | Header should show org name + group series name. Body should list all yearly group instances in the series. | — |
+
+**Design decision pending — two paths, in priority order:**
+
+1. **MDP group UUID (preferred):** Confirm with MDP team whether their upcoming group UUID endpoint returns a UUID that is stable across annual renewals of the same group (i.e. the same UUID for "ACME Board 2024" and "ACME Board 2025"). If yes, store as `membership_group_series_uuid` on each `wicket_mship_group` post and use it as the dedup/navigation key — directly parallel to `membership_wicket_uuid` on individual posts.
+2. **Composite key fallback:** If MDP assigns a fresh UUID per year, use `org_uuid + group_name` as the composite dedup key in PHP. Navigate via both values in the URL query string. Fragile if group name changes between years — document that constraint clearly.
+
+Full architecture context in `/srv/wicket-wp-stack/GROUP_MEMBERSHIP_LIST_PLAN.md`.
+
 ## Membership_Group_WP_REST_Controller
 
 | File | Method | Note | Asana |
 |---|---|---|---|
 | `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register `POST /group/{id}/create_renewal_order` once the group subscription line item structure is finalised. Current group edit flow intentionally mocks commerce gaps instead of attempting partial implementation. | — |
-| `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register remaining group routes once backing business logic exists: `GET /get_membership_group_callouts`, `POST /group/{id}/remove_member`, `POST /group/{id}/move_member`, `POST /group/{id}/cancel`, `GET /group/{id}/members`, and `POST /group/{id}/import_members`. | — |
+| `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register remaining group routes once backing business logic exists: `GET /get_membership_group_callouts`, `POST /group/{id}/move_member`, `POST /group/{id}/cancel`, `GET /group/{id}/members`, and `POST /group/{id}/import_members`. | — |

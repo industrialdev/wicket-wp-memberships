@@ -74,6 +74,27 @@ Fail states: `invalid_group_status`, `missing_user_id`, `group_ended`, `group_no
 
 ---
 
+### `remove_member( int $membership_post_id, string $mode ): int|WP_Error`
+
+Removes an individual membership from this group. Two modes:
+
+- **`cancel`**: cancels the group-linked membership immediately (sets status to `cancelled`). Returns the cancelled membership post ID.
+- **`keep_as_individual`**: cancels the group-linked membership, then creates a new standalone individual membership (no `membership_group_id`) with `starts_at = now` and `ends_at = group end date`, copying tier, product, and user from the old membership. Returns the new membership post ID.
+
+Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_group_status')` otherwise.
+
+For `keep_as_individual`: requires the group to have an end date in the future; returns `WP_Error('group_no_end_date')` or `WP_Error('group_already_ended')` otherwise.
+
+Fail states: `invalid_group_status`, `invalid_membership`, `membership_not_in_group`, `group_no_end_date`, `group_already_ended`, `invalid_user`, `create_failed`.
+
+---
+
+### `get_name(): string`
+
+Returns the post title (group name). Returns an empty string if the group post is not loaded.
+
+---
+
 ### `set_owner( string $uuid ): int|false`
 
 Accepts an MDP person UUID. Validates the format via `isValidUuid()`, then resolves or creates the corresponding WP user via `wicket_create_wp_user_if_not_exist()`. Stores only the WP user ID (`user_id`) and updates `post_author`. Derived fields — display name, email, and UUID — are intentionally not stored to avoid persisting values that can change independently of the membership record. Group ownership cannot be cleared through this method; malformed or unresolvable UUIDs are rejected. Returns the saved owner WP user ID on success and `false` on failure.

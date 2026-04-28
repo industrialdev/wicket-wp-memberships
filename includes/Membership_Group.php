@@ -425,6 +425,132 @@ class Membership_Group {
     return $membership_post_id;
   }
 
+  /**
+   * Remove an individual membership from this group.
+   *
+   * Two modes:
+   * - 'cancel'            → cancel the group-linked membership immediately.
+   * - 'keep_as_individual' → cancel the group-linked membership and create a new
+   *                          standalone individual membership (start=now, end=group end date).
+   *
+   * @param int    $membership_post_id Post ID of the individual membership to remove.
+   * @param string $mode               'cancel' or 'keep_as_individual'.
+   * @return int|\WP_Error Affected membership post ID on success, WP_Error on failure.
+   */
+  public function remove_member( int $membership_post_id, string $mode ): int|\WP_Error {
+    // Group must be in a manageable status to allow member removal.
+    $allowed_statuses = [ Wicket_Memberships::STATUS_PENDING, Wicket_Memberships::STATUS_ACTIVE, Wicket_Memberships::STATUS_DELAYED ];
+    if ( ! \in_array( $this->get_membership_status(), $allowed_statuses, true ) ) {
+      return new \WP_Error(
+        'invalid_group_status',
+        __( 'Members can only be removed from a pending, active, or delayed membership group.', 'wicket-memberships' )
+      );
+    }
+
+    // Verify the membership exists and belongs to this group.
+    $membership_post = get_post( $membership_post_id );
+    if ( ! $membership_post || get_post_type( $membership_post_id ) !== Helper::get_membership_cpt_slug() ) {
+      return new \WP_Error( 'invalid_membership', __( 'The specified membership record does not exist.', 'wicket-memberships' ) );
+    }
+
+    $linked_group_id = (int) get_post_meta( $membership_post_id, 'membership_group_id', true );
+    if ( $linked_group_id !== $this->post_id ) {
+      return new \WP_Error( 'membership_not_in_group', __( 'The specified membership does not belong to this group.', 'wicket-memberships' ) );
+    }
+
+    // Cancel the group-linked membership.
+    $mc = new Membership_Controller();
+    $mc->update_membership_status( $membership_post_id, Wicket_Memberships::STATUS_CANCELLED );
+
+    if ( $mode === 'cancel' ) {
+      return $membership_post_id;
+    }
+
+    // keep_as_individual: create a new standalone membership with group end date.
+    $dates = $this->get_dates();
+    if ( empty( $dates['ends_at'] ) ) {
+      return new \WP_Error( 'group_no_end_date', __( 'The membership group does not have an end date configured.', 'wicket-memberships' ) );
+    }
+
+    $now = new \DateTime( 'now', new \DateTimeZone( 'UTC' ) );
+    $group_end = new \DateTime( $dates['ends_at'], new \DateTimeZone( 'UTC' ) );
+    if ( $now >= $group_end ) {
+      return new \WP_Error( 'group_already_ended', __( 'Cannot keep membership as individual — the group end date is in the past.', 'wicket-memberships' ) );
+    }
+
+    // Copy tier, product, and user from the cancelled membership.
+    $user_id      = (int) get_post_meta( $membership_post_id, 'user_id', true );
+    $tier_post_id = (int) get_post_meta( $membership_post_id, 'membership_tier_post_id', true );
+    $product_id   = (int) get_post_meta( $membership_post_id, 'membership_product_id', true );
+
+    $user = get_user_by( 'id', $user_id );
+    if ( ! $user ) {
+      return new \WP_Error( 'invalid_user', __( 'Could not resolve the user for this membership.', 'wicket-memberships' ) );
+    }
+
+    $tier = new Membership_Tier( $tier_post_id );
+
+    $start_date = $now->format( 'c' );
+
+    // Determine whether stored product_id is a variation or a parent product.
+    $variation_id = null;
+    if ( $product_id > 0 ) {
+      $wc_product = wc_get_product( $product_id );
+      if ( $wc_product instanceof \WC_Product_Variation ) {
+        $variation_id = $product_id;
+        $product_id   = (int) $wc_product->get_parent_id();
+      }
+    }
+
+    $result = Membership_Controller::create_membership_record( [
+      'membership_type'                           => 'individual',
+      'user_id'                                   => $user_id,
+      'person_uuid'                               => $user->user_login,
+      'membership_starts_at'                      => $start_date,
+      'membership_ends_at'                        => $dates['ends_at'],
+      'membership_expires_at'                     => $dates['expires_at'] ?? '',
+      'membership_early_renew_at'                 => $dates['early_renew_at'] ?? '',
+      'membership_tier_post_id'                   => $tier_post_id,
+      'membership_tier_uuid'                      => $tier->get_mdp_tier_uuid(),
+      'membership_tier_name'                      => $tier->get_mdp_tier_name(),
+      'membership_next_tier_id'                   => $tier->get_next_tier_id(),
+      'membership_next_tier_form_page_id'         => $tier->get_next_tier_form_page_id(),
+      'membership_next_tier_subscription_renewal' => '',
+      'membership_product_id'                     => $variation_id ?? $product_id,
+      'membership_parent_order_id'                => 0,
+      'membership_subscription_id'                => 0,
+      'membership_grace_period_days'              => 0,
+      'membership_wp_user_display_name'           => $user->display_name,
+      'membership_wp_user_last_name'              => get_user_meta( $user_id, 'last_name', true ) ?: '',
+      'membership_wp_user_email'                  => $user->user_email,
+      'membership_user_uuid'                      => $user->user_login,
+    ] );
+
+    $new_membership_post_id = (int) ( $result['membership_post_id'] ?? 0 );
+
+    if ( $new_membership_post_id <= 0 ) {
+      Wicket()->log()->error( 'Membership_Group::remove_member: create_membership_record returned no post ID', [
+        'source'              => 'wicket-memberships',
+        'group_post_id'       => $this->post_id,
+        'old_membership_post' => $membership_post_id,
+        'user_id'             => $user_id,
+      ] );
+      return new \WP_Error( 'create_failed', __( 'Failed to create the individual membership record.', 'wicket-memberships' ) );
+    }
+
+    return $new_membership_post_id;
+  }
+
+  // Post-level accessors.
+
+  /**
+   * Returns the post title (group name), or an empty string if the post is not loaded.
+   */
+  public function get_name(): string {
+    $post = get_post( $this->post_id );
+    return $post ? $post->post_title : '';
+  }
+
   // Owner management.
 
   /**

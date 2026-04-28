@@ -2467,6 +2467,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   fetchTiers: () => (/* binding */ fetchTiers),
 /* harmony export */   fetchTiersInfo: () => (/* binding */ fetchTiersInfo),
 /* harmony export */   fetchWcProducts: () => (/* binding */ fetchWcProducts),
+/* harmony export */   removeMemberFromGroup: () => (/* binding */ removeMemberFromGroup),
 /* harmony export */   updateGroupChangeOwnership: () => (/* binding */ updateGroupChangeOwnership),
 /* harmony export */   updateMembership: () => (/* binding */ updateMembership),
 /* harmony export */   updateMembershipGroup: () => (/* binding */ updateMembershipGroup),
@@ -2884,6 +2885,24 @@ const fetchMembershipProducts = (ids = []) => {
 const addMemberToGroup = (groupPostId, data) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${groupPostId}/add_member`,
+    method: "POST",
+    data
+  });
+};
+
+/**
+ * Remove an individual membership from a membership group.
+ *
+ * POST /wicket_member/v1/group/{groupPostId}/remove_member
+ *
+ * @param {number} groupPostId
+ * @param {object} data
+ * @param {number} data.membership_post_id          — post ID of the membership to remove
+ * @param {'cancel'|'keep_as_individual'} data.mode — 'cancel' ends immediately; 'keep_as_individual' converts to standalone
+ */
+const removeMemberFromGroup = (groupPostId, data) => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${groupPostId}/remove_member`,
     method: "POST",
     data
   });

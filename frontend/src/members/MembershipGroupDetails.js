@@ -1,8 +1,10 @@
+import { useState } from "@wordpress/element";
 import { __ } from '@wordpress/i18n';
 import { Button, Flex, FlexItem, FlexBlock } from '@wordpress/components';
 import styled from 'styled-components';
 import { BorderedBox } from '../shared/styled_elements';
 import { formatDateWithTooltip } from '../shared/constants';
+import RemoveFromMembershipGroupModal from './RemoveFromMembershipGroupModal';
 
 const Wrap = styled.div``;
 
@@ -65,7 +67,10 @@ const ActionsRow = styled.div`
   }
 `;
 
-const MembershipGroupDetails = ({ membership }) => {
+const MembershipGroupDetails = ({ membership, onSuccess }) => {
+  const [removeModalOpen, setRemoveModalOpen] = useState(false);
+  const canRemove = ['active', 'delayed', 'grace_period'].includes(membership.data?.membership_status_slug);
+
   // TODO: Replace '#' with the real membership group MDP link once group MDP sync is implemented.
   const mdpLink = '#';
 
@@ -114,11 +119,22 @@ const MembershipGroupDetails = ({ membership }) => {
         <Button variant='secondary' className='button-red' disabled>
           {__('Move to Another Group', 'wicket-memberships')}
         </Button>
-        {/* TODO: Implement Remove from Group action */}
-        <Button variant='secondary' className='button-red' disabled>
+        <Button variant='secondary' onClick={() => setRemoveModalOpen(true)} disabled={!canRemove}>
           {__('Remove from Group', 'wicket-memberships')}
         </Button>
       </ActionsRow>
+
+      <RemoveFromMembershipGroupModal
+        isOpen={removeModalOpen}
+        membershipPostId={membership.data?.membership_post_id}
+        groupPostId={membership.group_id}
+        groupEndDate={membership.group_ends_at}
+        onRequestClose={() => setRemoveModalOpen(false)}
+        onSuccess={(message) => {
+          setRemoveModalOpen(false);
+          if (onSuccess) onSuccess(message);
+        }}
+      />
     </Wrap>
   );
 };
