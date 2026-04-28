@@ -16,6 +16,7 @@ import { CreateRenewalOrderModal, getRenewalOrderAction } from './create_renewal
 import MembershipActionsDropdown from '../shared/components/MembershipActionsDropdown';
 import MembershipGroupDetails from './MembershipGroupDetails';
 import MembershipGroupBadge from './MembershipGroupBadge';
+import AddToMembershipGroupModal from './AddToMembershipGroupModal';
 
 export const EditWrap = styled.div`
 	max-width: 1000px;
@@ -743,6 +744,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                     membership.isRenewalModalOpen = true;
                                     setMemberships([...memberships]);
                                   }),
+                                  {
+                                    label: __('Add to Membership Group', 'wicket-memberships'),
+                                    onClick: () => {
+                                      membership.isAddToGroupOpen = true;
+                                      setMemberships([...memberships]);
+                                    },
+                                  },
                                 ]}
                               />
 
@@ -752,6 +760,20 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                 onClose={() => {
                                   membership.isRenewalModalOpen = false;
                                   setMemberships([...memberships]);
+                                }}
+                              />
+
+                              <AddToMembershipGroupModal
+                                isOpen={!!membership.isAddToGroupOpen}
+                                membershipPostId={membership.data.membership_post_id}
+                                tierPostId={membership.data.membership_tier_post_id}
+                                onRequestClose={() => {
+                                  membership.isAddToGroupOpen = false;
+                                  setMemberships([...memberships]);
+                                }}
+                                onSuccess={() => {
+                                  membership.isAddToGroupOpen = false;
+                                  getMemberships();
                                 }}
                               />
                             </Flex>

@@ -1,7 +1,9 @@
 import { __ } from "@wordpress/i18n";
+import { useState } from "@wordpress/element";
 import { Flex } from "@wordpress/components";
 import styled from "styled-components";
 import GroupMembersSection from "./GroupMembersSection";
+import AddMemberToGroupModal from "./AddMemberToGroupModal";
 import MembershipBillingInfoSection from "../../shared/components/MembershipBillingInfoSection";
 import MembershipOrderDetailsSection from "../../shared/components/MembershipOrderDetailsSection";
 import MembershipStatusSection from "../../shared/components/MembershipStatusSection";
@@ -43,7 +45,10 @@ const DetailsWrap = styled.div`
  * @param {Function} props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}   props.individualMembersUrl  - URL of the individual members list page for group member links.
  */
-const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl }) => {
+const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl, onMemberAdded }) => {
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [memberRefreshKey, setMemberRefreshKey] = useState(0);
+
   // Group-level subscription and order data is shared across all records until
   // the API is enriched to return per-record billing data.
   // TODO: Switch to per-record subscription/order data once
@@ -138,8 +143,26 @@ const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, 
           onStatusUpdated={handleStatusUpdated}
         />
 
-        <MembershipActionsSection actions={[]} />
+        <MembershipActionsSection
+          actions={[
+            {
+              label: __("Add Member to Group", "wicket-memberships"),
+              onClick: () => setIsAddMemberOpen(true),
+            },
+          ]}
+        />
       </Flex>
+
+      <AddMemberToGroupModal
+        isOpen={isAddMemberOpen}
+        groupPostId={groupPostId}
+        onRequestClose={() => setIsAddMemberOpen(false)}
+        onSuccess={() => {
+          setIsAddMemberOpen(false);
+          setMemberRefreshKey((k) => k + 1);
+          if (onMemberAdded) onMemberAdded();
+        }}
+      />
 
       <MembershipDetailsForm
         dates={{
@@ -164,6 +187,7 @@ const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, 
           <GroupMembersSection
             pageData={groupPageData}
             individualMembersUrl={individualMembersUrl}
+            refreshKey={memberRefreshKey}
           />
         )}
       />

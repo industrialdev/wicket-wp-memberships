@@ -318,7 +318,11 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
           ],
           'product_id' => [
             'type'        => 'integer',
-            'description' => 'WC product ID. Auto-resolved from tier when omitted.',
+            'description' => 'WC parent product ID. Auto-resolved from tier when omitted.',
+          ],
+          'variation_id' => [
+            'type'        => 'integer',
+            'description' => 'WC variation ID. When provided, stored as membership_product_id instead of parent product_id.',
           ],
         ],
       ],

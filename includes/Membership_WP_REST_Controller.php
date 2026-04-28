@@ -340,6 +340,71 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       ),
       //'schema' => array( $this, '' ),
     ) );
+
+    /**
+     * Resolve WooCommerce product and variation names by ID.
+     *
+     * GET /wicket_member/v1/membership_products?ids[]=123&ids[]=456
+     *
+     * Accepts a mixed list of product IDs and variation IDs. Each ID is resolved
+     * via wc_get_product() which handles both types transparently. Returns a flat
+     * array of objects with id, name, type, product_id, and variation_id fields.
+     */
+    register_rest_route( $this->namespace, '/membership_products', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_membership_products' ],
+        'permission_callback' => [ $this, 'permissions_check_read' ],
+        'args'                => [
+          'ids' => [
+            'required'    => false,
+            'type'        => 'array',
+            'items'       => [ 'type' => 'integer' ],
+            'description' => 'List of WC product or variation IDs to resolve.',
+          ],
+        ],
+      ],
+    ] );
+  }
+
+  /**
+   * GET /membership_products
+   *
+   * Accepts a mixed list of WC product IDs and variation IDs via ?ids[]=.
+   * wc_get_product() resolves both transparently — no need for the caller
+   * to distinguish between them.
+   *
+   * Each entry in the response includes:
+   *   id           — the ID that was passed in
+   *   name         — display name (variation name when variation, product name otherwise)
+   *   type         — WC product type slug (e.g. "subscription", "variable-subscription", "variation")
+   *   product_id   — parent product ID (same as id for non-variations)
+   *   variation_id — variation ID, or null for non-variations
+   */
+  public function get_membership_products( \WP_REST_Request $request ) {
+    $ids = array_map( 'intval', (array) $request->get_param( 'ids' ) );
+    $ids = array_filter( $ids );
+
+    $results = [];
+
+    foreach ( $ids as $id ) {
+      $product = wc_get_product( $id );
+      if ( ! $product ) {
+        continue;
+      }
+
+      $is_variation = $product instanceof \WC_Product_Variation;
+
+      $results[] = [
+        'id'           => $id,
+        'name'         => $product->get_name(),
+        'type'         => $product->get_type(),
+        'product_id'   => $is_variation ? $product->get_parent_id() : $id,
+        'variation_id' => $is_variation ? $id : null,
+      ];
+    }
+
+    return rest_ensure_response( $results );
   }
 
   public function memberships_merge_webhook_consumer( \WP_REST_Request $request ) {

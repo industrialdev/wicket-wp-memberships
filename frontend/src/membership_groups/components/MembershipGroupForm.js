@@ -17,12 +17,13 @@ import MembershipRecordsSection from "./MembershipRecordsSection";
  * @param {boolean}      props.isLoading             - True while page data is pending.
  * @param {Function}     props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}       props.individualMembersUrl  - URL of the individual members list page.
+ * @param {Function}     [props.onMemberAdded]       - Called after a member is successfully added to the group.
  */
-const MembershipGroupForm = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl }) => {
+const MembershipGroupForm = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl, onMemberAdded }) => {
   return (
     <>
       <IntroBlockSection pageData={pageData} isLoading={isLoading} />
-      <MembershipRecordsSection pageData={pageData} isLoading={isLoading} onOwnerUpdated={onOwnerUpdated} individualMembersUrl={individualMembersUrl} />
+      <MembershipRecordsSection pageData={pageData} isLoading={isLoading} onOwnerUpdated={onOwnerUpdated} individualMembersUrl={individualMembersUrl} onMemberAdded={onMemberAdded} />
     </>
   );
 };

@@ -847,11 +847,28 @@ class Group_Admin_Controller {
     $mode                        = sanitize_text_field( $params['mode'] ?? '' );
     $tier_post_id                = (int) ( $params['tier_post_id'] ?? 0 );
     $product_id                  = ! empty( $params['product_id'] ) ? (int) $params['product_id'] : null;
+    $variation_id                = ! empty( $params['variation_id'] ) ? (int) $params['variation_id'] : null;
     $existing_membership_post_id = ! empty( $params['existing_membership_post_id'] ) ? (int) $params['existing_membership_post_id'] : null;
 
     $group = new Membership_Group( $group_post_id );
     if ( $group->post_id <= 0 ) {
       return [ 'error' => 'Membership group not found.', 'code' => 'group_not_found' ];
+    }
+
+    // For existing mode, derive product/variation from the existing membership
+    // when the caller doesn't supply them — avoids requiring the frontend to
+    // know whether membership_product_id is a parent or variation ID.
+    if ( $mode === 'existing' && $existing_membership_post_id && $product_id === null && $variation_id === null ) {
+      $stored_product_id = (int) get_post_meta( $existing_membership_post_id, 'membership_product_id', true );
+      if ( $stored_product_id > 0 ) {
+        $wc_product = wc_get_product( $stored_product_id );
+        if ( $wc_product instanceof \WC_Product_Variation ) {
+          $variation_id = $stored_product_id;
+          $product_id   = (int) $wc_product->get_parent_id();
+        } else {
+          $product_id = $stored_product_id;
+        }
+      }
     }
 
     $user_id = null;
@@ -865,7 +882,7 @@ class Group_Admin_Controller {
       }
     }
 
-    $result = $group->add_member( $user_id, $tier_post_id, $product_id, $existing_membership_post_id );
+    $result = $group->add_member( $user_id, $tier_post_id, $product_id, $variation_id, $existing_membership_post_id );
 
     if ( is_wp_error( $result ) ) {
       return [ 'error' => $result->get_error_message(), 'code' => $result->get_error_code() ];

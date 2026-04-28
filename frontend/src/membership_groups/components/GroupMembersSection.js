@@ -71,7 +71,7 @@ const ManageLink = styled.div`
  * @param {boolean}      [props.isLoading]           - True while page data is pending.
  * @param {string}       props.individualMembersUrl  - Base URL of the individual members list page.
  */
-const GroupMembersSection = ({ pageData, isLoading, individualMembersUrl }) => {
+const GroupMembersSection = ({ pageData, isLoading, individualMembersUrl, refreshKey }) => {
   const [tierData, setTierData] = useState(null);
   const [isFetching, setIsFetching] = useState(false);
 
@@ -90,7 +90,7 @@ const GroupMembersSection = ({ pageData, isLoading, individualMembersUrl }) => {
       .finally(() => {
         setIsFetching(false);
       });
-  }, [pageData?.ID]);
+  }, [pageData?.ID, refreshKey]);
 
   if (isLoading || isFetching) {
     return (

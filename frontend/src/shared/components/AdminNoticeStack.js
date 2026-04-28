@@ -11,7 +11,8 @@ const AdminNoticeStack = ({ notices = [] }) => {
     <ErrorsRow>
       {notices.map((notice) => (
         <Notice
-          isDismissible={false}
+          isDismissible={!!notice.onDismiss}
+          onDismiss={notice.onDismiss}
           key={notice.id}
           status={notice.status || "warning"}
         >

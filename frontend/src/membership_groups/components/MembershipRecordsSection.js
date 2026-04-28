@@ -49,8 +49,9 @@ const buildColumns = (pageData) => [
  * @param {boolean}      props.isLoading             - Pass-through to the shared component.
  * @param {Function}     props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}       props.individualMembersUrl  - URL of the individual members list page, passed to the expanded panel.
+ * @param {Function}     [props.onMemberAdded]       - Called after a member is successfully added to the group.
  */
-const MembershipRecordsSection = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl }) => {
+const MembershipRecordsSection = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl, onMemberAdded }) => {
   // Keep a local copy of records so status/date changes update the collapsed
   // row summary (status badge, dates) without a full page reload.
   const [localRecords, setLocalRecords] = useState(null);
@@ -72,6 +73,7 @@ const MembershipRecordsSection = ({ pageData, isLoading, onOwnerUpdated, individ
       onRecordUpdated={handleRecordUpdated}
       onOwnerUpdated={onOwnerUpdated}
       individualMembersUrl={individualMembersUrl}
+      onMemberAdded={onMemberAdded}
     />
   );
 

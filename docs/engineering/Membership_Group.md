@@ -53,7 +53,7 @@ The post is created with `post_status = 'pending'`. Dates (end, expiry, early-re
 
 ## Instance Methods
 
-### `add_member( ?int $user_id, int $tier_post_id, ?int $product_id = null, ?int $existing_membership_post_id = null ): int|WP_Error`
+### `add_member( ?int $user_id, int $tier_post_id, ?int $product_id = null, ?int $variation_id = null, ?int $existing_membership_post_id = null ): int|WP_Error`
 
 Single entry point for adding an individual membership to a group. Covers two flows:
 
@@ -64,9 +64,9 @@ Both paths share start-date logic: if today is within the group date window, sta
 
 Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_group_status')` otherwise.
 
-`product_id` is auto-resolved from the tier when omitted; fails with `WP_Error('ambiguous_product')` if the tier has more than one product. Returns the new membership post ID on success.
+`product_id` is auto-resolved from the tier when omitted; fails with `WP_Error('ambiguous_product')` if the tier has more than one product. When `variation_id` is supplied, it is stored as `membership_product_id` instead of the parent `product_id` — matching the subscription-driven membership flow where variation ID takes precedence. Returns the new membership post ID on success.
 
-Fail states: `invalid_group_status`, `missing_user_id`, `group_ended`, `group_no_dates`, `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `invalid_membership` (existing path), `missing_user_id` (existing record has no user_id), `create_failed`.
+Fail states: `invalid_group_status`, `missing_user_id`, `group_ended`, `group_no_dates`, `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `invalid_membership` (existing path), `missing_user_id` (existing record has no user_id meta), `create_failed`.
 
 > **TODO:** Set membership status from the group's own status once group-driven status propagation is implemented.
 

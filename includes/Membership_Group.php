@@ -192,7 +192,8 @@ class Membership_Group {
    *
    * @param int|null $user_id                     WP user ID. Required when $existing_membership_post_id is null.
    * @param int      $tier_post_id                Post ID of the individual Membership_Tier CPT.
-   * @param int|null $product_id                  WC product ID. Auto-resolved from tier when null (fails if tier has >1 product).
+   * @param int|null $product_id                  WC parent product ID. Auto-resolved from tier when null (fails if tier has >1 product).
+   * @param int|null $variation_id                WC variation ID. When provided, stored as membership_product_id instead of parent product_id, matching the subscription-driven membership flow.
    * @param int|null $existing_membership_post_id Existing wicket_membership post ID to cancel before creating the new record.
    * @return int|\WP_Error New membership post ID on success, WP_Error on failure.
    *
@@ -208,6 +209,7 @@ class Membership_Group {
     ?int $user_id,
     int $tier_post_id,
     ?int $product_id = null,
+    ?int $variation_id = null,
     ?int $existing_membership_post_id = null
   ): int|\WP_Error {
     // Group must be in a status that accepts new members.
@@ -260,7 +262,7 @@ class Membership_Group {
       return $start_date;
     }
 
-    return $this->create_and_link_membership( $user_id, $tier_post_id, $product_id, $start_date );
+    return $this->create_and_link_membership( $user_id, $tier_post_id, $product_id, $variation_id, $start_date );
   }
 
   /**
@@ -316,11 +318,12 @@ class Membership_Group {
    *
    * @param int      $user_id      WP user ID of the new member.
    * @param int      $tier_post_id Post ID of the individual Membership_Tier CPT.
-   * @param int|null $product_id   WC product ID. Auto-resolved from tier when null.
+   * @param int|null $product_id   WC parent product ID. Auto-resolved from tier when null.
+   * @param int|null $variation_id WC variation ID. When set, stored as membership_product_id instead of parent product_id.
    * @param string   $start_date   ISO 8601 UTC start date string.
    * @return int|\WP_Error New membership post ID on success, WP_Error on failure.
    */
-  private function create_and_link_membership( int $user_id, int $tier_post_id, ?int $product_id, string $start_date ): int|\WP_Error {
+  private function create_and_link_membership( int $user_id, int $tier_post_id, ?int $product_id, ?int $variation_id, string $start_date ): int|\WP_Error {
     $user = get_user_by( 'id', $user_id );
     if ( ! $user ) {
       Wicket()->log()->error( 'Membership_Group::create_and_link_membership: invalid user_id', [
@@ -386,7 +389,9 @@ class Membership_Group {
       'membership_next_tier_id'                   => $tier->get_next_tier_id(),
       'membership_next_tier_form_page_id'         => $tier->get_next_tier_form_page_id(),
       'membership_next_tier_subscription_renewal' => '',
-      'membership_product_id'                     => $product_id,
+      // Store variation_id as membership_product_id when present — matches the
+      // subscription-driven flow where variation_id takes precedence over parent product_id.
+      'membership_product_id'                     => $variation_id ?? $product_id,
       'membership_parent_order_id'                => 0,
       'membership_subscription_id'                => 0,
       'membership_grace_period_days'              => 0,

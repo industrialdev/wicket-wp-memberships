@@ -374,3 +374,40 @@ export const createMembershipGroup = (data) => {
     data,
   });
 };
+
+/**
+ * Resolve WooCommerce product and variation names by ID.
+ *
+ * GET /wicket_member/v1/membership_products?ids[]=123&ids[]=456
+ *
+ * Accepts a mixed list of product IDs and variation IDs. Returns a flat array
+ * of objects: { id, name, type, product_id, variation_id }.
+ *
+ * @param {number[]} ids
+ */
+export const fetchMembershipProducts = (ids = []) => {
+  return apiFetch({
+    path: addQueryArgs(`${PLUGIN_API_URL}/membership_products`, { ids }),
+  });
+};
+
+/**
+ * Add a member to a membership group.
+ *
+ * POST /wicket_member/v1/group/{groupPostId}/add_member
+ *
+ * @param {number} groupPostId
+ * @param {object} data
+ * @param {'new'|'existing'} data.mode
+ * @param {string}  [data.person_uuid]                  — required when mode='new'
+ * @param {number}  [data.tier_post_id]                 — required
+ * @param {number}  [data.existing_membership_post_id]  — required when mode='existing'
+ * @param {number}  [data.product_id]                   — optional; auto-resolved by backend when omitted
+ */
+export const addMemberToGroup = (groupPostId, data) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/group/${groupPostId}/add_member`,
+    method: "POST",
+    data,
+  });
+};

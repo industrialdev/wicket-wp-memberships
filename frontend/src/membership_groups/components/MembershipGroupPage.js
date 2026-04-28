@@ -9,11 +9,21 @@ import MembershipGroupForm from "./MembershipGroupForm";
 
 const MembershipGroupPageContent = ({ postId, listUrl, individualMembersUrl }) => {
   const { pageData, setPageData, requestState, retryLoad } = useMembershipGroupBootstrap({ postId });
+  const [memberAddedNotice, setMemberAddedNotice] = useState(null);
 
   const isLoading = requestState.status === "loading";
 
   const handleOwnerUpdated = (newOwner) => {
     setPageData((prev) => prev ? { ...prev, owner: { ...prev.owner, ...newOwner } } : prev);
+  };
+
+  const handleMemberAdded = () => {
+    setMemberAddedNotice({
+      id: "member-added",
+      status: "success",
+      message: __("Member successfully added to the group.", "wicket-memberships"),
+      onDismiss: () => setMemberAddedNotice(null),
+    });
   };
 
   const notices = [
@@ -33,6 +43,7 @@ const MembershipGroupPageContent = ({ postId, listUrl, individualMembersUrl }) =
           },
         ]
       : []),
+    ...(memberAddedNotice ? [memberAddedNotice] : []),
   ];
 
   return (
@@ -43,6 +54,7 @@ const MembershipGroupPageContent = ({ postId, listUrl, individualMembersUrl }) =
         isLoading={isLoading}
         onOwnerUpdated={handleOwnerUpdated}
         individualMembersUrl={individualMembersUrl}
+        onMemberAdded={handleMemberAdded}
       />
     </>
   );
