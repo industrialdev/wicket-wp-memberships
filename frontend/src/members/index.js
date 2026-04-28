@@ -10,6 +10,8 @@ import {
   fetchMembershipFilters,
 } from "../shared/services/api";
 import { SelectWpStyled } from "../shared/styled_elements";
+import Pagination from "../shared/components/Pagination";
+import { getPagedFromUrl, updatePageInUrl } from "../shared/utils/pagination";
 
 const SortableHeader = ({ label, col, currentCol, currentDir, onSort }) => {
   const isActive = currentCol === col;
@@ -49,7 +51,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
 
   const [searchParams, setSearchParams] = useState({
     type: memberType,
-    page: 1,
+    page: getPagedFromUrl(),
     posts_per_page: 10,
     status: "",
     order_col: "post_modified",
@@ -73,10 +75,19 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
       .then((response) => {
         console.log(response);
 
+        const computedTotalPages = Math.ceil(response.count / params.posts_per_page);
         setMembers(response.results);
         setTotalMembers(response.count);
-        setTotalPages(Math.ceil(response.count / params.posts_per_page));
+        setTotalPages(computedTotalPages);
         setIsLoading(false);
+
+        if (params.page > computedTotalPages && computedTotalPages > 0) {
+          const fixed = { ...params, page: 1 };
+          setSearchParams(fixed);
+          updatePageInUrl(1);
+          getMembers(fixed);
+          return;
+        }
 
         const tierIds = [...new Set(
           response.results.flatMap((member) =>
@@ -163,6 +174,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
     const newDir = searchParams.order_col === col && searchParams.order_dir === 'ASC' ? 'DESC' : 'ASC';
     const newSearchParams = { ...searchParams, order_col: col, order_dir: newDir, page: 1 };
     setSearchParams(newSearchParams);
+    updatePageInUrl(1);
     getMembers(newSearchParams);
   };
 
@@ -175,6 +187,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
       newSearchParams.filter = { membership_status: tab };
     }
     setSearchParams(newSearchParams);
+    updatePageInUrl(1);
     getMembers(newSearchParams);
   };
 
@@ -273,6 +286,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
                 page: 1,
               };
               setSearchParams(newSearchParams);
+              updatePageInUrl(1);
               getMembers(newSearchParams);
             }
           }
@@ -315,6 +329,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
                 delete newSearchParams.filter;
               }
               setSearchParams(newSearchParams);
+              updatePageInUrl(1);
               getMembers(newSearchParams);
             }}
           >
@@ -622,53 +637,16 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
             <span className="displaying-num">
               {totalMembers} {__("items", "wicket-memberships")}
             </span>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <span className="pagination-links">
-                <button
-                  className="prev-page button"
-                  disabled={searchParams.page === 1}
-                  onClick={() => {
-                    const newSearchParams = {
-                      ...searchParams,
-                      page: searchParams.page - 1,
-                    };
-                    setSearchParams(newSearchParams);
-                    getMembers(newSearchParams);
-                  }}
-                >
-                  ‹
-                </button>
-
-                <span className="screen-reader-text">
-                  {__("Current Page", "wicket-memberships")}
-                </span>
-                <span id="table-paging" className="paging-input">
-                  &nbsp;
-                  <span className="tablenav-paging-text">
-                    {searchParams.page} {__("of", "wicket-memberships")}{" "}
-                    <span className="total-pages">{totalPages}</span>
-                  </span>
-                  &nbsp;
-                </span>
-
-                <button
-                  className="next-page button"
-                  disabled={searchParams.page === totalPages}
-                  onClick={() => {
-                    const newSearchParams = {
-                      ...searchParams,
-                      page: searchParams.page + 1,
-                    };
-                    setSearchParams(newSearchParams);
-                    getMembers(newSearchParams);
-                  }}
-                >
-                  ›
-                </button>
-              </span>
-            )}
+            <Pagination
+              currentPage={searchParams.page}
+              totalPages={totalPages}
+              onPageChange={(page) => {
+                const newSearchParams = { ...searchParams, page };
+                setSearchParams(newSearchParams);
+                updatePageInUrl(page);
+                getMembers(newSearchParams);
+              }}
+            />
           </div>
           <br className="clear" />
         </div>

@@ -2290,6 +2290,76 @@ var weakMemoize = function weakMemoize(func) {
 
 /***/ }),
 
+/***/ "./src/shared/components/Pagination.js":
+/*!*********************************************!*\
+  !*** ./src/shared/components/Pagination.js ***!
+  \*********************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__);
+
+
+
+const Pagination = ({
+  currentPage,
+  totalPages,
+  onPageChange
+}) => {
+  const [inputValue, setInputValue] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(String(currentPage));
+  (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
+    setInputValue(String(currentPage));
+  }, [currentPage]);
+  if (totalPages <= 1) return null;
+  const handleKeyDown = e => {
+    if (e.key !== 'Enter') return;
+    const parsed = parseInt(inputValue, 10);
+    const clamped = isNaN(parsed) ? 1 : Math.min(Math.max(1, parsed), totalPages);
+    setInputValue(String(clamped));
+    if (clamped !== currentPage) {
+      onPageChange(clamped);
+    }
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "pagination-links"
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("button", {
+    className: "prev-page button",
+    disabled: currentPage === 1,
+    onClick: () => onPageChange(currentPage - 1)
+  }, "\u2039"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "screen-reader-text"
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Current Page", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    id: "table-paging",
+    className: "paging-input"
+  }, "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("input", {
+    type: "text",
+    value: inputValue,
+    onChange: e => setInputValue(e.target.value),
+    onKeyDown: handleKeyDown,
+    style: {
+      width: 50,
+      textAlign: 'center'
+    },
+    "aria-label": (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Current page", "wicket-memberships")
+  }), "\xA0", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("of", "wicket-memberships"), "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+    className: "total-pages"
+  }, totalPages), "\xA0"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("button", {
+    className: "next-page button",
+    disabled: currentPage === totalPages,
+    onClick: () => onPageChange(currentPage + 1)
+  }, "\u203A"));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (Pagination);
+
+/***/ }),
+
 /***/ "./src/shared/constants.js":
 /*!*********************************!*\
   !*** ./src/shared/constants.js ***!
@@ -3063,6 +3133,30 @@ const MembershipTable = styled_components__WEBPACK_IMPORTED_MODULE_3__["default"
     }
   }
 `;
+
+/***/ }),
+
+/***/ "./src/shared/utils/pagination.js":
+/*!****************************************!*\
+  !*** ./src/shared/utils/pagination.js ***!
+  \****************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   getPagedFromUrl: () => (/* binding */ getPagedFromUrl),
+/* harmony export */   updatePageInUrl: () => (/* binding */ updatePageInUrl)
+/* harmony export */ });
+const getPagedFromUrl = () => {
+  const params = new URLSearchParams(window.location.search);
+  return Math.max(1, parseInt(params.get('paged') || '1', 10));
+};
+const updatePageInUrl = page => {
+  const params = new URLSearchParams(window.location.search);
+  params.set('paged', String(page));
+  window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+};
 
 /***/ }),
 
@@ -14365,6 +14459,10 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_4___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__);
 /* harmony import */ var _shared_services_api__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../shared/services/api */ "./src/shared/services/api.js");
 /* harmony import */ var _shared_styled_elements__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../shared/styled_elements */ "./src/shared/styled_elements.js");
+/* harmony import */ var _shared_components_Pagination__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../shared/components/Pagination */ "./src/shared/components/Pagination.js");
+/* harmony import */ var _shared_utils_pagination__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../shared/utils/pagination */ "./src/shared/utils/pagination.js");
+
+
 
 
 
@@ -14425,7 +14523,7 @@ const MemberList = ({
   if (filterTierUuid) initialFilter.membership_tier = filterTierUuid;
   const [searchParams, setSearchParams] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     type: memberType,
-    page: 1,
+    page: (0,_shared_utils_pagination__WEBPACK_IMPORTED_MODULE_8__.getPagedFromUrl)(),
     posts_per_page: 10,
     status: "",
     order_col: "post_modified",
@@ -14446,10 +14544,21 @@ const MemberList = ({
     setIsLoading(true);
     (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_5__.fetchMembers)(params).then(response => {
       console.log(response);
+      const computedTotalPages = Math.ceil(response.count / params.posts_per_page);
       setMembers(response.results);
       setTotalMembers(response.count);
-      setTotalPages(Math.ceil(response.count / params.posts_per_page));
+      setTotalPages(computedTotalPages);
       setIsLoading(false);
+      if (params.page > computedTotalPages && computedTotalPages > 0) {
+        const fixed = {
+          ...params,
+          page: 1
+        };
+        setSearchParams(fixed);
+        (0,_shared_utils_pagination__WEBPACK_IMPORTED_MODULE_8__.updatePageInUrl)(1);
+        getMembers(fixed);
+        return;
+      }
       const tierIds = [...new Set(response.results.flatMap(member => (member.user.all_membership_tiers || [{
         uuid: member.meta.membership_tier_uuid
       }]).map(t => t.uuid)))];
@@ -14538,6 +14647,7 @@ const MemberList = ({
       page: 1
     };
     setSearchParams(newSearchParams);
+    (0,_shared_utils_pagination__WEBPACK_IMPORTED_MODULE_8__.updatePageInUrl)(1);
     getMembers(newSearchParams);
   };
   const handleTabClick = tab => {
@@ -14554,6 +14664,7 @@ const MemberList = ({
       };
     }
     setSearchParams(newSearchParams);
+    (0,_shared_utils_pagination__WEBPACK_IMPORTED_MODULE_8__.updatePageInUrl)(1);
     getMembers(newSearchParams);
   };
   const getTierInfo = tierId => {
@@ -14650,6 +14761,7 @@ const MemberList = ({
         page: 1
       };
       setSearchParams(newSearchParams);
+      (0,_shared_utils_pagination__WEBPACK_IMPORTED_MODULE_8__.updatePageInUrl)(1);
       getMembers(newSearchParams);
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
@@ -14688,6 +14800,7 @@ const MemberList = ({
         delete newSearchParams.filter;
       }
       setSearchParams(newSearchParams);
+      (0,_shared_utils_pagination__WEBPACK_IMPORTED_MODULE_8__.updatePageInUrl)(1);
       getMembers(newSearchParams);
     }
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
@@ -14935,40 +15048,19 @@ const MemberList = ({
     className: "tablenav-pages"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     className: "displaying-num"
-  }, totalMembers, " ", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("items", "wicket-memberships")), totalPages > 1 && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    className: "pagination-links"
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("button", {
-    className: "prev-page button",
-    disabled: searchParams.page === 1,
-    onClick: () => {
+  }, totalMembers, " ", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("items", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_Pagination__WEBPACK_IMPORTED_MODULE_7__["default"], {
+    currentPage: searchParams.page,
+    totalPages: totalPages,
+    onPageChange: page => {
       const newSearchParams = {
         ...searchParams,
-        page: searchParams.page - 1
+        page
       };
       setSearchParams(newSearchParams);
+      (0,_shared_utils_pagination__WEBPACK_IMPORTED_MODULE_8__.updatePageInUrl)(page);
       getMembers(newSearchParams);
     }
-  }, "\u2039"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    className: "screen-reader-text"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Current Page", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    id: "table-paging",
-    className: "paging-input"
-  }, "\xA0", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    className: "tablenav-paging-text"
-  }, searchParams.page, " ", (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("of", "wicket-memberships"), " ", (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
-    className: "total-pages"
-  }, totalPages)), "\xA0"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("button", {
-    className: "next-page button",
-    disabled: searchParams.page === totalPages,
-    onClick: () => {
-      const newSearchParams = {
-        ...searchParams,
-        page: searchParams.page + 1
-      };
-      setSearchParams(newSearchParams);
-      getMembers(newSearchParams);
-    }
-  }, "\u203A"))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("br", {
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("br", {
     className: "clear"
   }))));
 };

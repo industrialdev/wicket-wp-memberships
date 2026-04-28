@@ -6,6 +6,8 @@ import { Spinner } from "@wordpress/components";
 import { addQueryArgs } from "@wordpress/url";
 import { fetchMembershipGroups, fetchMembershipGroupFilters } from "../shared/services/api";
 import { SelectWpStyled } from "../shared/styled_elements";
+import Pagination from "../shared/components/Pagination";
+import { getPagedFromUrl, updatePageInUrl } from "../shared/utils/pagination";
 
 const SortableHeader = ({ label, col, currentCol, currentDir, onSort }) => {
   const isActive = currentCol === col;
@@ -31,7 +33,7 @@ const GroupMemberList = ({ editGroupUrl }) => {
   const [totalPages, setTotalPages] = useState(0);
   const [groupFilters, setGroupFilters] = useState(null);
   const [searchParams, setSearchParams] = useState({
-    page: 1,
+    page: getPagedFromUrl(),
     posts_per_page: 10,
     status: "all",
     order_col: "post_modified",
@@ -46,10 +48,19 @@ const GroupMemberList = ({ editGroupUrl }) => {
 
     fetchMembershipGroups(params)
       .then((response) => {
+        const computedTotalPages = Math.max(1, Math.ceil((response.count || 0) / params.posts_per_page));
         setGroups(response.results || []);
         setTotalGroups(response.count || 0);
-        setTotalPages(Math.max(1, Math.ceil((response.count || 0) / params.posts_per_page)));
+        setTotalPages(computedTotalPages);
         setIsLoading(false);
+
+        if (params.page > computedTotalPages && computedTotalPages > 0) {
+          const fixed = { ...params, page: 1 };
+          setSearchParams(fixed);
+          updatePageInUrl(1);
+          getGroups(fixed);
+          return;
+        }
       })
       .catch((error) => {
         console.error(error);
@@ -64,6 +75,7 @@ const GroupMemberList = ({ editGroupUrl }) => {
     const newDir = searchParams.order_col === col && searchParams.order_dir === "ASC" ? "DESC" : "ASC";
     const nextParams = { ...searchParams, order_col: col, order_dir: newDir, page: 1 };
     setSearchParams(nextParams);
+    updatePageInUrl(1);
     getGroups(nextParams);
   };
 
@@ -81,6 +93,7 @@ const GroupMemberList = ({ editGroupUrl }) => {
           event.preventDefault();
           const nextParams = { ...searchParams, search: tempSearch, page: 1 };
           setSearchParams(nextParams);
+          updatePageInUrl(1);
           getGroups(nextParams);
         }}
       >
@@ -109,6 +122,7 @@ const GroupMemberList = ({ editGroupUrl }) => {
               delete nextParams.filter;
             }
             setSearchParams(nextParams);
+            updatePageInUrl(1);
             getGroups(nextParams);
           }}
         >
@@ -228,43 +242,16 @@ const GroupMemberList = ({ editGroupUrl }) => {
           <span className="displaying-num">
             {totalGroups} {__("items", "wicket-memberships")}
           </span>
-
-          {totalPages > 1 && (
-            <span className="pagination-links">
-              <button
-                className="prev-page button"
-                disabled={searchParams.page === 1}
-                onClick={() => {
-                  const nextParams = { ...searchParams, page: searchParams.page - 1 };
-                  setSearchParams(nextParams);
-                  getGroups(nextParams);
-                }}
-              >
-                ‹
-              </button>
-
-              <span className="screen-reader-text">{__("Current Page", "wicket-memberships")}</span>
-              <span id="table-paging" className="paging-input">
-                &nbsp;
-                <span className="tablenav-paging-text">
-                  {searchParams.page} {__("of", "wicket-memberships")} <span className="total-pages">{totalPages}</span>
-                </span>
-                &nbsp;
-              </span>
-
-              <button
-                className="next-page button"
-                disabled={searchParams.page === totalPages}
-                onClick={() => {
-                  const nextParams = { ...searchParams, page: searchParams.page + 1 };
-                  setSearchParams(nextParams);
-                  getGroups(nextParams);
-                }}
-              >
-                ›
-              </button>
-            </span>
-          )}
+          <Pagination
+            currentPage={searchParams.page}
+            totalPages={totalPages}
+            onPageChange={(page) => {
+              const nextParams = { ...searchParams, page };
+              setSearchParams(nextParams);
+              updatePageInUrl(page);
+              getGroups(nextParams);
+            }}
+          />
         </div>
         <br className="clear" />
       </div>
