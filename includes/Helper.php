@@ -98,18 +98,27 @@ class Helper {
     add_meta_box( 'action_buttons_add_meta_boxes', __('[do_action] Buttons','your_text_domain'), [$this, 'display_action_buttons'], self::get_membership_cpt_slug(), 'side', 'core' );
   }
 
-  function display_action_buttons() {
+ function display_action_buttons() {
     global $post;
     $order_id = get_post_meta( $post->ID, 'membership_parent_order_id', true );
     $product_id = get_post_meta( $post->ID, 'membership_product_id', true );
+    $membership_meta = get_post_meta( $post->ID );
+    $order_id = $membership_meta['membership_parent_order_id'][0];
+    $product_id = $membership_meta['membership_product_id'][0];
+    $subscription_id = $membership_meta['membership_subscription_id'][0];
+    $membership_user_uuid = $membership_meta['membership_user_uuid'][0];
+    $membership_wicket_uuid = $membership_meta['membership_wicket_uuid'][0];
     ?>
-      <input type="submit" name="wicket_do_action_early_renew_at" value="Early Renew"><br>
-      <input type="submit" name="wicket_do_action_ends_at" value="Ends At"><br>
-      <input type="submit" name="wicket_do_action_expires_at" value="Grace Period"><br>
+      membership_wicket_uuid<br>
+      <input type="text" name="membership_wicket_uuid" value="<?php echo $membership_wicket_uuid; ?>"><br>
+      membership_user_uuid<br>
+      <input type="text" name="wicket_user_uuid" value="<?php echo $membership_user_uuid; ?>"><br>
       membership_parent_order_id<br>
       <input type="text" name="wicket_order_id" value="<?php echo $order_id; ?>"><br>
+      membership_subscription_id<br>
+      <input type="text" name="wicket_subscription_id" value="<?php echo $subscription_id; ?>"><br>
       membership_product_id<br>
-      <input type="text" name="wicket_product_id" value="<?php echo $product_id; ?>">
+      <input type="text" name="wicket_product_id" value="<?php echo $product_id; ?>"><br><br>
     <?php
   }
 
@@ -176,6 +185,10 @@ class Helper {
 
   public static function get_membership_tier_cpt_slug() {
     return 'wicket_mship_tier';
+  }
+
+  public static function get_membership_notes_cpt_slug() {
+    return 'wicket_mship_notes';
   }
 
   public static function is_valid_membership_post( $membership_post_id ) {

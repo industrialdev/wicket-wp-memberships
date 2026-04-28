@@ -186,3 +186,28 @@ export const createRenewalOrder = (membershipId, productId, variationId) => {
     },
   });
 };
+
+/**
+ * Fetch Membership Notes
+ */
+export const fetchMembershipNotes = (membershipPostId) =>
+  apiFetch({ path: `${PLUGIN_API_URL}/membership/${membershipPostId}/notes?private_notes=1` });
+
+/**
+ * Add Membership Note
+ */
+export const addMembershipNote = (membershipPostId, noteContent, isPrivate) =>
+  apiFetch({
+    path: `${PLUGIN_API_URL}/membership/${membershipPostId}/notes`,
+    method: 'POST',
+    data: { membership_note: noteContent, private_note: isPrivate ? 1 : 0 },
+  });
+
+/**
+ * Delete Membership Note
+ */
+export const deleteMembershipNote = (membershipPostId, noteId) =>
+  apiFetch({
+    path: `${PLUGIN_API_URL}/membership/${membershipPostId}/note/${noteId}`,
+    method: 'DELETE',
+  });

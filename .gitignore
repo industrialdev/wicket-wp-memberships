@@ -2,6 +2,7 @@
 /frontend/node_modules
 .phpunit.result.cache
 *.bak
+/docs/planning/*
 
 # Yarn PnP and cache artifacts
 .pnp.cjs

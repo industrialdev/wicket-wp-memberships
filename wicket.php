@@ -57,6 +57,7 @@ use Wicket_Memberships\Membership_Subscription_Controller;
 use Wicket_Memberships\Import_Controller;
 use Wicket_Memberships\Settings;
 use Wicket_Memberships\Utilities;
+use Wicket_Memberships\Membership_Notes;
 
 if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
@@ -191,6 +192,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       new Helper;
       new Settings;
       new Utilities;
+      new Membership_Notes;
 
 			register_activation_hook( WICKET_MEMBERSHIP_PLUGIN_FILE, array( $this, 'plugin_activate' ) );
       

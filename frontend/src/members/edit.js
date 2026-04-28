@@ -5,15 +5,17 @@ import apiFetch from '@wordpress/api-fetch';
 import { addQueryArgs } from '@wordpress/url';
 import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_SETTINGS } from '../constants';
 import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../styled_elements';
-import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
+import { TextControl, TextareaControl, CheckboxControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
-import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo, fetchMdpPersons } from '../services/api';
+import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo, fetchMdpPersons, fetchMembershipNotes, addMembershipNote, deleteMembershipNote } from '../services/api';
 import he from 'he';
 import moment from 'moment-timezone';
 import CreateRenewalOrder from './create_renewal_order';
 
 export const EditWrap = styled.div`
+	flex: 1;
+	min-width: 0;
 	max-width: 1000px;
 `;
 
@@ -79,6 +81,32 @@ const RecordTopInfo = styled.div`
   font-size: 14px;
 `;
 
+const PageLayout = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+`;
+
+const SidebarWrap = styled.div`
+  min-width: 300px;
+  max-width: 300px;
+  position: sticky;
+  top: 32px;
+`;
+
+const NoteItem = styled.div`
+  padding: 10px 0;
+  border-bottom: 1px solid #ddd;
+  font-size: 13px;
+  &:last-child { border-bottom: none; }
+`;
+
+const NotesMeta = styled.div`
+  color: #757575;
+  font-size: 11px;
+  margin-top: 4px;
+`;
+
 const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
 	const renewalTypeOptions = [
@@ -115,6 +143,15 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     newStatus: '',
     availableStatuses: []
   });
+
+  const [notes, setNotes] = useState([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [noteContent, setNoteContent] = useState('');
+  const [isPrivateNote, setIsPrivateNote] = useState(false);
+  const [isSubmittingNote, setIsSubmittingNote] = useState(false);
+  const [notesPage, setNotesPage] = useState(1);
+  const [selectedNotesMembershipId, setSelectedNotesMembershipId] = useState(null);
+  const NOTES_PER_PAGE = 10;
 
   const loadMembershipOwnerOptions = (inputValue, callback) => {
     if (  inputValue.length < 3 ) { return; }
@@ -515,6 +552,34 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     }
   }
 
+  const loadNotes = (membershipPostId) => {
+    setNotesLoading(true);
+    fetchMembershipNotes(membershipPostId)
+      .then(data => { setNotes(data); setNotesPage(1); })
+      .catch(console.error)
+      .finally(() => setNotesLoading(false));
+  };
+
+  const handleAddNote = (e) => {
+    e.preventDefault();
+    if (!noteContent.trim()) return;
+    setIsSubmittingNote(true);
+    addMembershipNote(selectedNotesMembershipId, noteContent, isPrivateNote)
+      .then(() => { setNoteContent(''); setIsPrivateNote(false); loadNotes(selectedNotesMembershipId); })
+      .catch(console.error)
+      .finally(() => setIsSubmittingNote(false));
+  };
+
+  const handleDeleteNote = (noteId) => {
+    if (!confirm(__('Delete this note?', 'wicket-memberships'))) return;
+    deleteMembershipNote(selectedNotesMembershipId, noteId)
+      .then(() => loadNotes(selectedNotesMembershipId))
+      .catch(console.error);
+  };
+
+  const pagedNotes = [...notes].reverse().slice((notesPage - 1) * NOTES_PER_PAGE, notesPage * NOTES_PER_PAGE);
+  const totalPages = Math.ceil(notes.length / NOTES_PER_PAGE);
+
   console.log('manageStatusFormData', manageStatusFormData);
 
   console.log('MEMBERSHIPS', memberships);
@@ -527,6 +592,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 				</h1>
 				<hr className="wp-header-end"></hr>
 
+        <PageLayout>
         <EditWrap>
           <WhiteBorderedBox>
             <Flex
@@ -685,8 +751,16 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                               variant='primary'
                               icon={membership.showRow ? 'minus' : 'plus-alt2'}
                               onClick={() => {
-                                membership.showRow = !membership.showRow;
+                                const nextShowRow = !membership.showRow;
+                                membership.showRow = nextShowRow;
                                 setMemberships([...memberships]);
+                                if (nextShowRow) {
+                                  setSelectedNotesMembershipId(membership.ID);
+                                  loadNotes(membership.ID);
+                                } else if (selectedNotesMembershipId === membership.ID) {
+                                  setSelectedNotesMembershipId(null);
+                                  setNotes([]);
+                                }
                               }}
                             >
                             </Button>
@@ -1112,6 +1186,96 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             </WhiteBorderedBox>
           )}
         </EditWrap>
+
+        {/* Notes Sidebar */}
+        <SidebarWrap>
+          <WhiteBorderedBox>
+            <Heading level={4}>{__('Membership Notes', 'wicket-memberships')}</Heading>
+
+            {selectedNotesMembershipId === null ? (
+              <p style={{ color: '#757575', fontSize: '13px', marginTop: '10px' }}>
+                {__('Expand a membership record to view and add notes.', 'wicket-memberships')}
+              </p>
+            ) : (
+              <>
+                <form onSubmit={handleAddNote} style={{ marginTop: '10px' }}>
+                  <TextareaControl
+                    label={__('Add Note', 'wicket-memberships')}
+                    value={noteContent}
+                    onChange={setNoteContent}
+                    rows={3}
+                    __nextHasNoMarginBottom={true}
+                  />
+                  <div style={{ marginTop: '8px' }}>
+                    <CheckboxControl
+                      label={__('Private note', 'wicket-memberships')}
+                      checked={isPrivateNote}
+                      onChange={setIsPrivateNote}
+                      __nextHasNoMarginBottom={true}
+                    />
+                  </div>
+                  <div style={{ marginTop: '8px' }}>
+                    <Button
+                      variant="secondary"
+                      type="submit"
+                      isBusy={isSubmittingNote}
+                      disabled={!noteContent.trim()}
+                    >
+                      {__('Add Note', 'wicket-memberships')}
+                    </Button>
+                  </div>
+                </form>
+
+                <hr />
+
+                {notesLoading && <Spinner />}
+                {!notesLoading && pagedNotes.length === 0 && (
+                  <p style={{ color: '#757575', fontSize: '13px' }}>
+                    {__('No notes yet.', 'wicket-memberships')}
+                  </p>
+                )}
+                {!notesLoading && pagedNotes.map(note => (
+                  <NoteItem key={note.note_id}>
+                    <div>{note.note_content}</div>
+                    <NotesMeta>
+                      {note.note_date} — {note.author}
+                      {note.private_note && <em> ({__('private', 'wicket-memberships')})</em>}
+                    </NotesMeta>
+                    <Button
+                      variant="link"
+                      isDestructive
+                      style={{ fontSize: '11px', padding: 0, marginTop: '4px' }}
+                      onClick={() => handleDeleteNote(note.note_id)}
+                    >
+                      {__('Delete', 'wicket-memberships')}
+                    </Button>
+                  </NoteItem>
+                ))}
+
+                {totalPages > 1 && (
+                  <Flex justify="space-between" style={{ marginTop: '10px' }}>
+                    <Button
+                      variant="link"
+                      disabled={notesPage <= 1}
+                      onClick={() => setNotesPage(p => p - 1)}
+                    >
+                      {__('← Prev', 'wicket-memberships')}
+                    </Button>
+                    <span style={{ fontSize: '12px' }}>{notesPage} / {totalPages}</span>
+                    <Button
+                      variant="link"
+                      disabled={notesPage >= totalPages}
+                      onClick={() => setNotesPage(p => p + 1)}
+                    >
+                      {__('Next →', 'wicket-memberships')}
+                    </Button>
+                  </Flex>
+                )}
+              </>
+            )}
+          </WhiteBorderedBox>
+        </SidebarWrap>
+        </PageLayout>
 			</div>
 
 			{/* "Manage Status" Modal */}
