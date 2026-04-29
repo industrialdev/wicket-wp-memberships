@@ -1027,8 +1027,11 @@ function get_item_data ( $other_data, $cart_item ) {
       $error_msg = $response->get_error_message( 'wicket_api_error' );
       if(! empty($sub)) {
         $sub->add_order_note( "ERROR: Admin changing membership dates in MDP. ($starts_at - $ends_at)" . $error_msg );
-        $subscription_date_change_error = "Error updating membership dates on subscription only.";
+        $subscription_date_change_error = __("Error updating membership dates on subscription only.", 'wicket-memberships' );
       }
+      Membership_Notes::add_mship_note( $meta_data['membership_post_id'], $subscription_date_change_error );
+      return [ 'error' => $error_msg ];
+    } else {
       if(! empty($sub)) {
         $sub->add_order_note( "Admin changing membership dates in MDP. ($starts_at - $ends_at)");
       }
@@ -1037,11 +1040,10 @@ function get_item_data ( $other_data, $cart_item ) {
       $ends_at = new \DateTime($ends_at);
       Membership_Notes::add_mship_note(
         $meta_data['membership_post_id'],
-        sprintf( __('Membership dates changed in Wicket. ( Start Date: %s - End Date: %s - Grace Period: %s ) %s', 'wicket-memberships'),
+        sprintf( __('Membership dates changed in Wicket. ( Start Date: %s - End Date: %s - Grace Period: %s )', 'wicket-memberships'),
           $starts_at->setTimezone($mdp_timezone)->format('Y-m-d'),
           $ends_at->setTimezone($mdp_timezone)->format('Y-m-d'),
-          $grace_period_days,
-          $subscription_date_change_error
+          $grace_period_days
         )
       );
       return $response;
