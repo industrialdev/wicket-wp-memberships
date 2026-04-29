@@ -6,6 +6,7 @@ use Wicket_Memberships\Helper;
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Config;
+use Wicket_Memberships\Membership_Notes;
 
 /**
  * Main controller methods
@@ -285,6 +286,7 @@ function get_item_data ( $other_data, $cart_item ) {
                   if( /*(! Helper::has_next_payment_date($membership_current) || 'clear' != Helper::has_next_payment_date($membership_current) )
                       ||*/ ( ( $subscription->get_billing_period() == 'month' && $subscription->get_billing_interval() == 1) && $next_payment_time < $end_time && !empty($is_renewal)) ){
                     $order->add_order_note( 'Monthly payment order against membership ID: '. $membership_post_id_renew);
+                    Membership_Notes::add_mship_note( $membership_post_id_renew, 'Monthly payment processed on Order ID #' . $order_id  );
                     Utilities::wicket_logger( '--monthly-- skip renew for membership postID', $membership_post_id_renew);
                     continue;
                   } else {
@@ -778,6 +780,11 @@ function get_item_data ( $other_data, $cart_item ) {
       }
       $member_page_link = '<a href="'.admin_url( $path ).'">'.admin_url( $path ).'</a>';
       send_approval_required_email( $email_address, $member_page_link );
+      if(!empty($processing_renewal)) {
+        $membership_note = 'Membership renewal pending approval. An email notification has been sent.';
+      } else {
+        $membership_note = 'Membership pending approval. An email notification has been sent.';
+      }
     } else {
       //set the scheduled tasks
       $self->scheduler_dates_for_expiry( $membership );
@@ -791,7 +798,13 @@ function get_item_data ( $other_data, $cart_item ) {
 
       $membership_post_data = Helper::get_post_meta( $membership['membership_post_id'] );
       do_action('wicket_membership_created_mdp', $membership_post_data);
+      if(!empty($processing_renewal)) {
+        $membership_note = 'Membership renewal processed from Order ID #' . $membership['membership_parent_order_id'];
+      } else {
+        $membership_note = 'Membership created from Order ID #' . $membership['membership_parent_order_id'];
+      }
     }
+    Membership_Notes::add_mship_note( $membership['membership_post_id'], $membership_note );
     return $membership;
   }
 
@@ -956,7 +969,8 @@ function get_item_data ( $other_data, $cart_item ) {
     $ends_at = '';
     $grace_period_days = false;
     $max_assignments = false;
-
+    $subscription_date_change_error = '';
+    
     if('development' == wp_get_environment_type()) {
           Utilities::wc_log_mship_error( ['update_mdp_record', $membership, $meta_data] );
     }
@@ -1013,12 +1027,23 @@ function get_item_data ( $other_data, $cart_item ) {
       $error_msg = $response->get_error_message( 'wicket_api_error' );
       if(! empty($sub)) {
         $sub->add_order_note( "ERROR: Admin changing membership dates in MDP. ($starts_at - $ends_at)" . $error_msg );
+        $subscription_date_change_error = "Error updating membership dates on subscription only.";
       }
-      return [ 'error' => $error_msg ];
-    } else {
       if(! empty($sub)) {
         $sub->add_order_note( "Admin changing membership dates in MDP. ($starts_at - $ends_at)");
       }
+      $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+      $starts_at = new \DateTime($starts_at);
+      $ends_at = new \DateTime($ends_at);
+      Membership_Notes::add_mship_note(
+        $meta_data['membership_post_id'],
+        sprintf( __('Membership dates changed in Wicket. ( Start Date: %s - End Date: %s - Grace Period: %s ) %s', 'wicket-memberships'),
+          $starts_at->setTimezone($mdp_timezone)->format('Y-m-d'),
+          $ends_at->setTimezone($mdp_timezone)->format('Y-m-d'),
+          $grace_period_days,
+          $subscription_date_change_error
+        )
+      );
       return $response;
     }
    }

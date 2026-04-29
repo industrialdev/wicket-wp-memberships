@@ -4,6 +4,8 @@ namespace Wicket_Memberships;
 
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Membership_Notes;
+
 
 /**
  * Class Admin_Controller
@@ -129,7 +131,8 @@ class Admin_Controller {
         'membership_ends_at' =>  $dates['end_date'],
         'membership_expires_at' => !empty($dates['expires_at']) ? $dates['expires_at'] : $dates['end_date'],
         'membership_early_renew_at' => !empty($dates['early_renew_at']) ? $dates['early_renew_at'] : $dates['end_date'],
-        'membership_grace_period_days' => $config->get_late_fee_window_days()
+        'membership_grace_period_days' => $config->get_late_fee_window_days(),
+        'membership_post_id' => $membership_post_id
       ];
       $membership = array_merge( $membership_new, $meta_data );
       $user = get_user_by( 'id', $membership['user_id'] );
@@ -231,18 +234,23 @@ class Admin_Controller {
       if( function_exists( 'wcs_get_subscription' )) {
         $sub = wcs_get_subscription( $membership_new['membership_subscription_id'] );
         if(! empty( $sub )) {
-          $sub->update_status( 'cancelled' );
-          if( ! empty( $meta_data['membership_ends_at'] ) && $current_post_status != Wicket_Memberships::STATUS_GRACE ) {
-            $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
-            $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+          try {
+            $sub->update_status( 'cancelled' );
+            if( ! empty( $meta_data['membership_ends_at'] ) && $current_post_status != Wicket_Memberships::STATUS_GRACE ) {
+              $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
+              $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+              $sub->update_dates([
+                'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
+              ]);
+            }
             $sub->update_dates([
-              'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
+              'next_payment' => 0,
             ]);
+            $sub->save();
+          } catch( \Exception $e ) {
+            Membership_Notes::add_mship_note( $membership_post_id, __("Unable to cancel subscription ID#{$membership_new['membership_subscription_id']} in WooCommerce.", 'wicket-memberships') ); 
+            Utilities::wc_log_mship_error( 'Error cancelling subscription: ' . $e->getMessage() );
           }
-          $sub->update_dates([
-            'next_payment' => 0,
-          ]);
-          $sub->save();
         }
       }
       //return the order id ( FE will redirect user to refund order )
@@ -255,7 +263,8 @@ class Admin_Controller {
         'membership_status' => $new_post_status,
         'membership_ends_at' => $tomorrow_iso_date,
         'membership_expires_at' => $tomorrow_iso_date,
-        'membership_grace_period_days' => 0
+        'membership_grace_period_days' => 0,
+        'membership_post_id' => $membership_post_id
       ];
       // cancel the associated subscription
       if( function_exists( 'wcs_get_subscription' )) {
@@ -289,7 +298,8 @@ class Admin_Controller {
       //
       if( empty($response_array) ) {
         $response_array['error'] = 'Invalid status transition. Request did not succeed.';
-        Utilities::wc_log_mship_error($response_array);      }
+        Utilities::wc_log_mship_error($response_array);
+      }
       return new \WP_REST_Response($response_array, 400);
     } else {
       ( new Membership_Controller() )->update_membership_status( $membership_post_id, $new_post_status);
@@ -314,6 +324,7 @@ class Admin_Controller {
         $response_array['success'] = 'Status was updated successfully.';
         $response_array['response'] = Helper::get_post_meta( $membership_post_id );
         $response_code = 200;
+        Membership_Notes::add_mship_note( $membership_post_id, sprintf( __('Status manually updated from %s to %s', 'wicket-memberships'), $current_post_status, $new_post_status ) );
       } else {
         $response_array['error'] = $response['error'];
         $response_array['response'] = Helper::get_post_meta( $membership_post_id );
@@ -1356,7 +1367,8 @@ class Admin_Controller {
       'membership_starts_at' =>  $old_customer_meta_array['membership_starts_at'],
       'membership_ends_at' =>  $now_iso_date,
       'membership_expires_at' => $now_iso_date,
-      'membership_grace_period_days' => 0
+      'membership_grace_period_days' => 0,
+      'mebership_post_id' => $membership_post_id
     ];
     
     (new Membership_Controller)->update_mdp_record( $old_customer_meta_array, $meta_data );
