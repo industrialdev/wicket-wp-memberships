@@ -151,7 +151,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const [isSubmittingNote, setIsSubmittingNote] = useState(false);
   const [notesPage, setNotesPage] = useState(1);
   const [selectedNotesMembershipId, setSelectedNotesMembershipId] = useState(null);
-  const NOTES_PER_PAGE = 10;
+  const NOTES_PER_PAGE = 5;
 
   const loadMembershipOwnerOptions = (inputValue, callback) => {
     if (  inputValue.length < 3 ) { return; }
@@ -451,6 +451,10 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             return m;
           })
         );
+
+        if (response.success && selectedNotesMembershipId == membershipId) {
+          setTimeout(() => loadNotes(membershipId), 3000);
+        }
       })
       .catch((error) => {
         console.log(error);
@@ -577,7 +581,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       .catch(console.error);
   };
 
-  const pagedNotes = [...notes].reverse().slice((notesPage - 1) * NOTES_PER_PAGE, notesPage * NOTES_PER_PAGE);
+  const pagedNotes = [...notes].slice((notesPage - 1) * NOTES_PER_PAGE, notesPage * NOTES_PER_PAGE);
   const totalPages = Math.ceil(notes.length / NOTES_PER_PAGE);
 
   console.log('manageStatusFormData', manageStatusFormData);
