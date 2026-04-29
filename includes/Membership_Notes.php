@@ -2,6 +2,7 @@
 
 /** Add Note for Membership by Post ID : true/false = make private
 Membership_Notes::add_mship_note( 123, 'This is a note related to Membership 123.', true/false (default) );
+Membership_Notes::add_mship_note( 123, 'This is a note related to Membership 123.');
 **/
 
 /** Get Notes for Membership by Post ID " true/false = show private
@@ -29,7 +30,7 @@ class Membership_Notes {
 
   public function __construct() {
     if (!self::$hooks_added) {
-      add_action( 'save_post', array( $this, 'add_mship_note_on_post_save' ), 10, 3 );
+      //add_action( 'save_post', array( $this, 'add_mship_note_on_post_save' ), 20, 3 );
       add_action( 'add_meta_boxes', array( $this, 'add_membership_notes_meta_box') );
       add_action( 'save_post', array( $this, 'save_membership_note') );
       add_action( 'admin_footer', array( $this, 'add_membership_notes_ajax_script'), 10, 1 );
@@ -207,7 +208,33 @@ class Membership_Notes {
    */
   public function add_mship_note_on_post_save( $post_id, $post, $update ) {
       if ( defined('DOING_AUTOSAVE') && DOING_AUTOSAVE ) return $post_id;
-      if ( $this->membership_cpt_slug !== $post->post_type ) return $post_id; 
+      if ( $this->membership_cpt_slug !== $post->post_type ) return $post_id;
+
+      // Runs at priority 20 so other save_post handlers (e.g. save_membership_note) fire first.
+      // If any note was already added in this same request (same timestamp), skip the generic one —
+      // it exists only to record saves that had no accompanying note.
+      $timestamp = current_time( 'mysql' );
+      $existing = get_posts( array(
+          'post_type'      => $this->membership_notes_cpt_slug,
+          'posts_per_page' => 1,
+          'fields'         => 'ids',
+          'meta_query'     => array(
+              array(
+                  'key'     => '_associated_post_id',
+                  'value'   => $post_id,
+                  'compare' => '=',
+              ),
+              array(
+                  'key'     => '_note_timestamp',
+                  'value'   => $timestamp,
+                  'compare' => '=',
+              ),
+          ),
+      ) );
+
+      if ( !empty( $existing ) ) {
+          return $post_id;
+      }
 
       if ( !$update ) {
           $this->add_mship_note( $post_id, 'Membership created' );
