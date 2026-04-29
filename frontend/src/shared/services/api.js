@@ -429,3 +429,21 @@ export const removeMemberFromGroup = (groupPostId, data) => {
     data,
   });
 };
+
+/**
+ * Move an individual membership from one membership group to another.
+ *
+ * POST /wicket_member/v1/group/{sourceGroupPostId}/move_individual_membership
+ *
+ * @param {number} sourceGroupPostId
+ * @param {object} data
+ * @param {number} data.membership_post_id    — post ID of the membership to move
+ * @param {number} data.target_group_post_id  — post ID of the destination group
+ */
+export const moveIndividualMembership = (sourceGroupPostId, data) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/group/${sourceGroupPostId}/move_individual_membership`,
+    method: "POST",
+    data,
+  });
+};

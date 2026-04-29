@@ -32,6 +32,7 @@ All business logic is delegated to `Group_Admin_Controller`.
 | `POST` | `/group/{group_post_id}/change_owner` | `update_group_change_ownership` | Yes |
 | `POST` | `/group/{group_post_id}/add_member` | `add_member_to_group` | Yes |
 | `POST` | `/group/{group_post_id}/remove_member` | `remove_member_from_group` | Yes |
+| `POST` | `/group/{group_post_id}/move_individual_membership` | `move_individual_membership` | Yes |
 | `POST` | `/group/{group_post_id}/create_renewal_order` | `create_group_renewal_order` | Yes |
 
 Routes with no backing business logic yet are documented as TODO stubs in `register_routes()` source comments and tracked in `TODO.md`.
@@ -134,6 +135,19 @@ Validates `mode`, then delegates to `Group_Admin_Controller::remove_member()`. R
 - `cancel`: returned `membership_post_id` is the cancelled membership.
 - `keep_as_individual`: returned `membership_post_id` is the newly created standalone membership.
 
+### `move_individual_membership( \WP_REST_Request $request )`
+
+**Route:** `POST /group/{group_post_id}/move_individual_membership`
+
+`group_post_id` in the URL is the source group. Body params:
+
+| Param | Required | Type | Description |
+|---|---|---|---|
+| `membership_post_id` | yes | integer | Post ID of the individual membership to move |
+| `target_group_post_id` | yes | integer | Post ID of the destination group |
+
+Delegates to `Group_Admin_Controller::move_individual_membership()`. Returns `200` with `{ success, membership_post_id }` (new membership) on success; `400` with `{ error }` on failure. If the source is cancelled but the new membership cannot be created, returns `400` with an explicit message — no rollback.
+
 ### `create_group_renewal_order( \WP_REST_Request $request )`
 
 **Route:** `POST /group/{group_post_id}/create_renewal_order`
@@ -161,7 +175,6 @@ These routes have no backing business logic yet. They are tracked in `TODO.md`.
 | Method | Route | Feature |
 |---|---|---|
 | `GET` | `/get_membership_group_callouts` | Group-level renewal/grace period callouts |
-| `POST` | `/group/{id}/move_member` | Move individual to another group |
 | `POST` | `/group/{id}/cancel` | Cancel group with options |
 | `GET` | `/group/{id}/members` | List full individual membership records in a group |
 | `POST` | `/group/{id}/import_members` | Bulk CSV import of members into a group |

@@ -1,10 +1,12 @@
 import { useState } from "@wordpress/element";
 import { __ } from '@wordpress/i18n';
 import { Button, Flex, FlexItem, FlexBlock } from '@wordpress/components';
+import { moveTo, cancelCircleFilled } from '@wordpress/icons';
 import styled from 'styled-components';
 import { BorderedBox } from '../shared/styled_elements';
 import { formatDateWithTooltip } from '../shared/constants';
 import RemoveFromMembershipGroupModal from './RemoveFromMembershipGroupModal';
+import MoveToMembershipGroupModal from './MoveToMembershipGroupModal';
 
 const Wrap = styled.div``;
 
@@ -69,7 +71,9 @@ const ActionsRow = styled.div`
 
 const MembershipGroupDetails = ({ membership, onSuccess }) => {
   const [removeModalOpen, setRemoveModalOpen] = useState(false);
+  const [moveModalOpen, setMoveModalOpen]     = useState(false);
   const canRemove = ['active', 'delayed', 'grace_period'].includes(membership.data?.membership_status_slug);
+  const canMove   = canRemove;
 
   // TODO: Replace '#' with the real membership group MDP link once group MDP sync is implemented.
   const mdpLink = '#';
@@ -115,11 +119,10 @@ const MembershipGroupDetails = ({ membership, onSuccess }) => {
       </WhiteBox>
 
       <ActionsRow>
-        {/* TODO: Implement Move to Another Group action */}
-        <Button variant='secondary' className='button-red' disabled>
+        <Button variant='secondary' icon={moveTo} onClick={() => setMoveModalOpen(true)} disabled={!canMove}>
           {__('Move to Another Group', 'wicket-memberships')}
         </Button>
-        <Button variant='secondary' onClick={() => setRemoveModalOpen(true)} disabled={!canRemove}>
+        <Button variant='secondary' icon={cancelCircleFilled} onClick={() => setRemoveModalOpen(true)} disabled={!canRemove}>
           {__('Remove from Group', 'wicket-memberships')}
         </Button>
       </ActionsRow>
@@ -132,6 +135,17 @@ const MembershipGroupDetails = ({ membership, onSuccess }) => {
         onRequestClose={() => setRemoveModalOpen(false)}
         onSuccess={(message) => {
           setRemoveModalOpen(false);
+          if (onSuccess) onSuccess(message);
+        }}
+      />
+
+      <MoveToMembershipGroupModal
+        isOpen={moveModalOpen}
+        membershipPostId={membership.data?.membership_post_id}
+        sourceGroupPostId={membership.group_id}
+        onRequestClose={() => setMoveModalOpen(false)}
+        onSuccess={(message) => {
+          setMoveModalOpen(false);
           if (onSuccess) onSuccess(message);
         }}
       />

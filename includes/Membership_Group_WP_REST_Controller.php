@@ -358,6 +358,37 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
       ],
     ] );
 
+    /**
+     * Move an individual membership from one group to another.
+     *
+     * POST /wicket_member/v1/group/{group_post_id}/move_individual_membership
+     * Body: { membership_post_id, target_group_post_id }
+     */
+    register_rest_route( $this->namespace, '/group/(?P<group_post_id>\d+)/move_individual_membership', [
+      [
+        'methods'             => \WP_REST_Server::CREATABLE,
+        'callback'            => [ $this, 'move_individual_membership' ],
+        'permission_callback' => [ $this, 'permissions_check_write' ],
+        'args'                => [
+          'group_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the source membership group.',
+          ],
+          'membership_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the individual membership to move.',
+          ],
+          'target_group_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the target membership group.',
+          ],
+        ],
+      ],
+    ] );
+
     // -------------------------------------------------------------------------
     // TODO stubs — no backing business logic yet (see TODO.md)
     // -------------------------------------------------------------------------
@@ -365,7 +396,6 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     //       line item structure being finalised.
 
     // TODO: GET  /get_membership_group_callouts  — group-level renewal/grace callouts
-    // TODO: POST /group/{id}/move_member         — move individual to another group
     // TODO: POST /group/{id}/cancel              — cancel group with options (cancel all / continue as individual)
     // TODO: GET  /group/{id}/members             — list individual memberships in a group
     // TODO: POST /group/{id}/import_members      — bulk CSV import of members into a group
@@ -535,6 +565,25 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     }
 
     $result = Group_Admin_Controller::remove_member( $params );
+
+    if ( isset( $result['error'] ) ) {
+      return new \WP_REST_Response( [ 'error' => $result['error'] ], 400 );
+    }
+
+    return new \WP_REST_Response( $result, 200 );
+  }
+
+  /**
+   * POST /group/{group_post_id}/move_individual_membership
+   */
+  public function move_individual_membership( \WP_REST_Request $request ): \WP_REST_Response {
+    $params = $request->get_params();
+
+    $result = Group_Admin_Controller::move_individual_membership( [
+      'source_group_post_id' => (int) ( $params['group_post_id'] ?? 0 ),
+      'membership_post_id'   => (int) ( $params['membership_post_id'] ?? 0 ),
+      'target_group_post_id' => (int) ( $params['target_group_post_id'] ?? 0 ),
+    ] );
 
     if ( isset( $result['error'] ) ) {
       return new \WP_REST_Response( [ 'error' => $result['error'] ], 400 );

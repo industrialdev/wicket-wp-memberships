@@ -60,11 +60,13 @@ Single entry point for adding an individual membership to a group. Covers two fl
 - **New member** (`$existing_membership_post_id = null`): `$user_id` must be provided. Creates a fresh membership and links it to the group.
 - **Existing member** (`$existing_membership_post_id` provided): cancels the existing membership (sets its status to `cancelled`), resolves the user ID from it, then creates a new membership with group dates and links it. `$user_id` is ignored.
 
-Both paths share start-date logic: if today is within the group date window, start = today; if today is before the group start, start = group start; if today is after the group end, returns `WP_Error('group_ended')`.
+Both paths share start-date logic via `resolve_member_start_date()`: if today is within the group date window, start = today; if today is before the group start, start = group start; if today is after the group end, returns `WP_Error('group_ended')`.
 
 Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_group_status')` otherwise.
 
 `product_id` is auto-resolved from the tier when omitted; fails with `WP_Error('ambiguous_product')` if the tier has more than one product. When `variation_id` is supplied, it is stored as `membership_product_id` instead of the parent `product_id` — matching the subscription-driven membership flow where variation ID takes precedence. Returns the new membership post ID on success.
+
+Fires filter `wicket_memberships_individual_membership_created_for_group` after the membership record is created. Returning an array without `membership_post_id` from this filter will cause a `create_failed` error.
 
 Fail states: `invalid_group_status`, `missing_user_id`, `group_ended`, `group_no_dates`, `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `invalid_membership` (existing path), `missing_user_id` (existing record has no user_id meta), `create_failed`.
 
@@ -79,13 +81,23 @@ Fail states: `invalid_group_status`, `missing_user_id`, `group_ended`, `group_no
 Removes an individual membership from this group. Two modes:
 
 - **`cancel`**: cancels the group-linked membership immediately (sets status to `cancelled`). Returns the cancelled membership post ID.
-- **`keep_as_individual`**: cancels the group-linked membership, then creates a new standalone individual membership (no `membership_group_id`) with `starts_at = now` and `ends_at = group end date`, copying tier, product, and user from the old membership. Returns the new membership post ID.
+- **`keep_as_individual`**: cancels the group-linked membership, then creates a new standalone individual membership (no `membership_group_id`) with start date resolved against this group's date window and `ends_at` inherited from this group. Copies tier, product, and user from the old membership. Returns the new membership post ID.
 
-Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_group_status')` otherwise.
+Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_group_status')` otherwise. An expired or cancelled group is blocked by the status gate before any date checks run.
 
-For `keep_as_individual`: requires the group to have an end date in the future; returns `WP_Error('group_no_end_date')` or `WP_Error('group_already_ended')` otherwise.
+Fail states: `invalid_group_status`, `invalid_membership`, `membership_not_in_group`, `group_no_dates`, `group_ended`, `invalid_user`, `create_failed`.
 
-Fail states: `invalid_group_status`, `invalid_membership`, `membership_not_in_group`, `group_no_end_date`, `group_already_ended`, `invalid_user`, `create_failed`.
+---
+
+### `move_individual_membership( int $membership_post_id, Membership_Group $target_group ): int|WP_Error`
+
+Moves an individual membership from this group to a target group. Cancels the source membership and creates a new one linked to the target group, inheriting the same user, tier, and product. Start date is resolved against the target group's date window via `resolve_member_start_date()`.
+
+Both the source and target groups must be in `pending`, `active`, or `delayed` status. The membership must belong to the source group.
+
+If creation of the new membership fails after cancellation, a `WP_Error` is returned with an explicit message noting that the source was cancelled and the member must be manually re-added. No rollback is attempted.
+
+Fail states: `invalid_group_status` (source or target), `invalid_membership`, `membership_not_in_group`, `group_no_dates` (target), `group_ended` (target), `invalid_user`, `create_failed`.
 
 ---
 

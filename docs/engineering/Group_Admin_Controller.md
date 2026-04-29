@@ -214,6 +214,20 @@ Returns `['success' => '...', 'membership_post_id' => int]` on success or `['err
 
 ---
 
+### `move_individual_membership( array $params ): array`
+
+Moves an individual membership from one group to another. Dispatches to `Membership_Group::move_individual_membership()`.
+
+| Key | Required | Description |
+|---|---|---|
+| `source_group_post_id` | Yes | Post ID of the source `Membership_Group` |
+| `membership_post_id` | Yes | Post ID of the individual membership to move |
+| `target_group_post_id` | Yes | Post ID of the target `Membership_Group` |
+
+Returns `['success' => '...', 'membership_post_id' => int]` on success or `['error' => '...', 'code' => '...']` on failure. If the new membership cannot be created after the source is cancelled, returns an error with code from the underlying failure and a message noting the source was cancelled with no rollback.
+
+---
+
 ### `create_group_renewal_order( array $params ): \WP_REST_Response`
 
 Creates a renewal WC order and subscription for a membership group. Expects `params`:

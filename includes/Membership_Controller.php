@@ -1440,7 +1440,12 @@ function get_item_data ( $other_data, $cart_item ) {
           'key'     => 'membership_tier_uuid',
           'value'   => $membership['membership_tier_uuid'],
           'compare' => '='
-        )
+        ),
+        array(
+          'key'     => 'membership_status',
+          'value'   => [ Wicket_Memberships::STATUS_CANCELLED, Wicket_Memberships::STATUS_EXPIRED ],
+          'compare' => 'NOT IN',
+        ),
       )
     );
 

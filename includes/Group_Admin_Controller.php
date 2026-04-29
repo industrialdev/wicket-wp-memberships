@@ -925,6 +925,46 @@ class Group_Admin_Controller {
     return [ 'success' => 'Member removed from group.', 'membership_post_id' => $result ];
   }
 
+  // Move member
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Move an individual membership from one group to another.
+   *
+   * Cancels the source individual membership and creates a new one linked to the
+   * target group. On failure after cancellation, returns an error — no rollback.
+   *
+   * @param array $params {
+   *   @type int $source_group_post_id  Post ID of the source Membership_Group.
+   *   @type int $membership_post_id    Post ID of the individual membership to move.
+   *   @type int $target_group_post_id  Post ID of the target Membership_Group.
+   * }
+   * @return array{success: string, membership_post_id: int}|array{error: string, code: string}
+   */
+  public static function move_individual_membership( array $params ): array {
+    $source_group_post_id = (int) ( $params['source_group_post_id'] ?? 0 );
+    $membership_post_id   = (int) ( $params['membership_post_id'] ?? 0 );
+    $target_group_post_id = (int) ( $params['target_group_post_id'] ?? 0 );
+
+    $source_group = new Membership_Group( $source_group_post_id );
+    if ( $source_group->post_id <= 0 ) {
+      return [ 'error' => 'Source membership group not found.', 'code' => 'group_not_found' ];
+    }
+
+    $target_group = new Membership_Group( $target_group_post_id );
+    if ( $target_group->post_id <= 0 ) {
+      return [ 'error' => 'Target membership group not found.', 'code' => 'target_group_not_found' ];
+    }
+
+    $result = $source_group->move_individual_membership( $membership_post_id, $target_group );
+
+    if ( is_wp_error( $result ) ) {
+      return [ 'error' => $result->get_error_message(), 'code' => $result->get_error_code() ];
+    }
+
+    return [ 'success' => 'Member moved to new group.', 'membership_post_id' => $result ];
+  }
+
   // Renewal order
   // ---------------------------------------------------------------------------
 
