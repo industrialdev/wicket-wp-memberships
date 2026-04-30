@@ -124,7 +124,7 @@ const CreateMembershipGroupPageContent = ({ groupConfigCptSlug, listUrl, editGro
     if (inputValue.length < 3) return;
     fetchMdpPersons({ term: inputValue })
       .then((response) => {
-        callback(response.map((person) => ({ label: person.full_name, value: person.id })));
+        callback(response.map((person) => ({ label: `${person.full_name} (${person.id}) — ${person.primary_email_address}`, value: person.id })));
       })
       .catch((error) => {
         console.error("[CreateMembershipGroupPage] loadOwnerOptions error", error);

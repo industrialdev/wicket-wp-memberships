@@ -63,7 +63,7 @@ const AddMemberToGroupModal = ({
     fetchMdpPersons({ term: inputValue })
       .then((response) => {
         callback(
-          response.map((person) => ({ label: person.full_name, value: person.id }))
+          response.map((person) => ({ label: `${person.full_name} (${person.id}) — ${person.primary_email_address}`, value: person.id }))
         );
       })
       .catch((err) => {

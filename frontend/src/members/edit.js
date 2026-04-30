@@ -117,7 +117,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       .then((response) => {
         const options = response.map((person) => {
           return {
-            label: person.full_name,
+            label: `${person.full_name} (${person.id}) — ${person.primary_email_address}`,
             value: person.id
           };
         });
