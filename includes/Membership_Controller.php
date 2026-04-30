@@ -2106,6 +2106,13 @@ function get_item_data ( $other_data, $cart_item ) {
             'uuid'   => get_post_meta( $user_tier->ID, 'membership_tier_uuid', true ),
             'status' => get_post_meta( $user_tier->ID, 'membership_status', true ),
           ];
+          $group_id = (int) get_post_meta( $user_tier->ID, 'membership_group_id', true );
+          if ( $group_id ) {
+            $tier->user->all_membership_groups[] = $group_id;
+          }
+        }
+        if ( ! isset( $tier->user->all_membership_groups ) ) {
+          $tier->user->all_membership_groups = [];
         }
       } else {
         $org_tiers = new \WP_Query( array(

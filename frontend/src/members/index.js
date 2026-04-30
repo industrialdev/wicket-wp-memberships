@@ -100,7 +100,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
 
         const groupIds = [...new Set(
           response.results
-            .map((member) => member.meta.membership_group_id)
+            .flatMap((member) => member.user.all_membership_groups || (member.meta.membership_group_id ? [Number(member.meta.membership_group_id)] : []))
             .filter(Boolean)
             .map(Number)
         )];
@@ -478,7 +478,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
               />
               <th scope="col" className="manage-column">{ __( 'Tier(s)', 'wicket-memberships' ) }</th>
               { memberType === 'individual' && (
-                <th scope="col" className="manage-column">{ __( 'Group', 'wicket-memberships' ) }</th>
+                <th scope="col" className="manage-column">{ __( 'Group(s)', 'wicket-memberships' ) }</th>
               )}
               <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
             </tr>
@@ -613,10 +613,17 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
                     <td>
                       {groupsInfo === null && <Spinner />}
                       {groupsInfo !== null && (() => {
-                        const groupId = member.meta.membership_group_id;
-                        if (!groupId) return <span>—</span>;
-                        const info = getGroupInfo(groupId);
-                        return <span>{info ? info.name : '—'}</span>;
+                        const allGroups = member.user.all_membership_groups || (member.meta.membership_group_id ? [Number(member.meta.membership_group_id)] : []);
+                        if (allGroups.length === 0) return <span>—</span>;
+                        return allGroups.map((groupId, i) => {
+                          const info = getGroupInfo(groupId);
+                          return (
+                            <span key={i}>
+                              {i > 0 && ', '}
+                              {info ? info.name : '—'}
+                            </span>
+                          );
+                        });
                       })()}
                     </td>
                   )}
