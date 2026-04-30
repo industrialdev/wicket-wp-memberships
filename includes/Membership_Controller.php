@@ -795,10 +795,26 @@ function get_item_data ( $other_data, $cart_item ) {
     return $membership;
   }
 
+
   /**
    * Update subscription status
    */
 
+   public function update_subscription_status( $membership_subscription_id, $status, $note = '' ) {
+    if( function_exists( 'wcs_get_subscription' )) {
+      $sub = wcs_get_subscription( $membership_subscription_id );
+      if(! empty($sub)) {
+        try {
+          $sub->update_status( $status, $note );
+        } catch (\Exception $e) {
+          $sub->update_status( 'active', 'Subscription temporarily set active.' );
+          $sub->update_status( $status, $note );
+        }
+      }
+    }
+  }
+
+  /*
    public function update_subscription_status( $membership_subscription_id, $status, $note = '' ) {
     if( function_exists( 'wcs_get_subscription' )) {
       $sub = wcs_get_subscription( $membership_subscription_id );
@@ -821,6 +837,7 @@ function get_item_data ( $other_data, $cart_item ) {
       }
     }
   }
+  */
 
   /**
    * Gen UUID
