@@ -121,7 +121,8 @@ class Membership_Group {
 
     // Write status, owner, org, and config meta. Any failure rolls back the post entirely
     // so we never leave a partially-populated group in the database.
-    if ( ! $group->set_membership_status( 'pending' )
+    // Status starts as pending; approval check below may leave it there intentionally.
+    if ( ! $group->set_membership_status( Wicket_Memberships::STATUS_PENDING )
       || ! $group->set_owner( $owner_uuid )
       || ! $group->set_organization( $org_uuid )
       || ! $group->set_config( $membership_group_config_id )
@@ -148,6 +149,20 @@ class Membership_Group {
     }
 
     // TODO: Create a WooCommerce subscription for this group.
+
+    // If the config requires approval, the group stays in STATUS_PENDING (set above).
+    // TODO: Implement the full group approval workflow — send approval email, link admin
+    //       to the org edit page, handle pending→active transition, show callout in member
+    //       portal while pending. Mirror the individual/org tier approval in
+    //       Membership_Controller::create_membership_record() lines 764–781 and
+    //       Admin_Controller::admin_manage_status(). Also determine whether group-level
+    //       approval should block individual memberships from being added until approved.
+    if ( $config->is_approval_required() ) {
+      Wicket()->log()->info( 'Membership_Group::create: approval required — group remains pending', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $post_id,
+      ] );
+    }
 
     // Reload meta so the returned instance reflects everything written above.
     $group->meta_data = get_post_meta( $post_id );
