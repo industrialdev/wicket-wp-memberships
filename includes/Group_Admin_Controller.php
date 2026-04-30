@@ -286,8 +286,16 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( $response_array, 400 );
     }
 
+    $dates = $group->get_dates();
+
     $response_array['success']  = $transition_result['success_message'];
-    $response_array['response'] = Helper::get_post_meta( $group_post_id );
+    $response_array['response'] = [
+      'membership_status'         => $group->get_membership_status(),
+      'membership_starts_at'      => $dates['starts_at'],
+      'membership_ends_at'        => $dates['ends_at'],
+      'membership_expires_at'     => $dates['expires_at'],
+      'membership_early_renew_at' => $dates['early_renew_at'],
+    ];
     return new \WP_REST_Response( $response_array, 200 );
   }
 
@@ -316,14 +324,11 @@ class Group_Admin_Controller {
     $meta     = Helper::get_post_meta( $group_post_id );
 
     $status_slug = $group->get_membership_status() ?: '';
-
     $dates       = $group->get_dates();
-    // Parse stored date strings into DateTime objects so legacy non-ISO values
-    // are normalised before being re-emitted as ISO 8601.
-    $starts_at   = ! empty( $dates['membership_starts_at'] )    ? new \DateTime( $dates['membership_starts_at'] )    : null;
-    $ends_at     = ! empty( $dates['membership_ends_at'] )      ? new \DateTime( $dates['membership_ends_at'] )      : null;
-    $expires_at  = ! empty( $dates['membership_expires_at'] )   ? new \DateTime( $dates['membership_expires_at'] )   : null;
-    $early_renew = ! empty( $dates['membership_early_renew_at'] ) ? new \DateTime( $dates['membership_early_renew_at'] ) : null;
+
+    // Remove date keys from meta so the mangled Y-m-d values from Helper::get_post_meta
+    // cannot leak through; dates are always sourced from the getter below.
+    unset( $meta['membership_starts_at'], $meta['membership_ends_at'], $meta['membership_expires_at'], $meta['membership_early_renew_at'] );
 
     return [
       'ID'                 => $group_post_id,
@@ -331,10 +336,10 @@ class Group_Admin_Controller {
       'data'               => array_merge( $meta, [
         'membership_status'         => $statuses[ $status_slug ]['name'] ?? $status_slug,
         'membership_status_slug'    => $status_slug,
-        'membership_starts_at'      => $starts_at   ? $starts_at->format( 'c' )   : '',
-        'membership_ends_at'        => $ends_at     ? $ends_at->format( 'c' )     : '',
-        'membership_expires_at'     => $expires_at  ? $expires_at->format( 'c' )  : '',
-        'membership_early_renew_at' => $early_renew ? $early_renew->format( 'c' ) : '',
+        'membership_starts_at'      => $dates['starts_at'],
+        'membership_ends_at'        => $dates['ends_at'],
+        'membership_expires_at'     => $dates['expires_at'],
+        'membership_early_renew_at' => $dates['early_renew_at'],
       ] ),
       'individual_members' => array_map( fn( $p ) => $p->ID, $group->get_individual_memberships() ),
     ];
@@ -541,9 +546,17 @@ class Group_Admin_Controller {
 
     $group->cascade_dates_to_members( $normalized_fields );
 
+    $dates = $group->get_dates();
+
     return new \WP_REST_Response( [
       'success'  => 'Membership group updated successfully.',
-      'response' => Helper::get_post_meta( $group_post_id ),
+      'response' => [
+        'membership_status'         => $group->get_membership_status(),
+        'membership_starts_at'      => $dates['starts_at'],
+        'membership_ends_at'        => $dates['ends_at'],
+        'membership_expires_at'     => $dates['expires_at'],
+        'membership_early_renew_at' => $dates['early_renew_at'],
+      ],
     ], 200 );
   }
 
@@ -576,10 +589,10 @@ class Group_Admin_Controller {
     $grace_period_days = abs( (int) round( ( $expires_at - $ends_at ) / DAY_IN_SECONDS ) );
 
     $resolved = [
-      'membership_starts_at'         => Utilities::get_utc_datetime( date( 'Y-m-d', $starts_at ) )->format( 'c' ),
-      'membership_ends_at'           => Utilities::get_utc_datetime( date( 'Y-m-d', $ends_at ) )->format( 'c' ),
-      'membership_expires_at'        => Utilities::get_utc_datetime( date( 'Y-m-d', $expires_at ) )->format( 'c' ),
-      'membership_early_renew_at'    => Utilities::get_utc_datetime( date( 'Y-m-d', $early_renew_at ) )->format( 'c' ),
+      'membership_starts_at'         => Utilities::get_mdp_day_start( $data['membership_starts_at'] )->format( 'c' ),
+      'membership_ends_at'           => Utilities::get_mdp_day_end( $data['membership_ends_at'] )->format( 'c' ),
+      'membership_expires_at'        => Utilities::get_mdp_day_end( $data['membership_expires_at'] )->format( 'c' ),
+      'membership_early_renew_at'    => Utilities::get_mdp_day_start( gmdate( 'Y-m-d', $early_renew_at ) )->format( 'c' ),
       'membership_grace_period_days' => $grace_period_days,
       'membership_renewal_type'      => $renewal_type,
     ];
@@ -673,15 +686,16 @@ class Group_Admin_Controller {
     // separately via the Group Members section.
     $statuses           = Helper::get_all_status_names();
     $status_slug        = $group->get_membership_status() ?: '';
+    $group_dates        = $group->get_dates();
     $membership_records = [
       [
         'ID'                     => $group_post_id,
         'name'                   => $group->get_name(),
         'status'                 => $statuses[ $status_slug ]['name'] ?? $status_slug,
-        'starts_at'              => (string) ( $meta['membership_starts_at'] ?? '' ),
-        'ends_at'                => (string) ( $meta['membership_ends_at'] ?? '' ),
-        'expires_at'             => (string) ( $meta['membership_expires_at'] ?? '' ),
-        'early_renew_at'         => (string) ( $meta['membership_early_renew_at'] ?? '' ),
+        'starts_at'              => $group_dates['starts_at'],
+        'ends_at'                => $group_dates['ends_at'],
+        'expires_at'             => $group_dates['expires_at'],
+        'early_renew_at'         => $group_dates['early_renew_at'],
         'renewal_type'           => (string) ( $meta['membership_renewal_type'] ?? '' ),
         'next_tier_form_page_id' => (int) ( $meta['membership_next_tier_form_page_id'] ?? 0 ) ?: null,
         'next_tier_id'           => (int) ( $meta['membership_next_tier_id'] ?? 0 ) ?: null,
@@ -709,7 +723,7 @@ class Group_Admin_Controller {
       'subscription'        => self::MOCK_SUBSCRIPTION_PAYLOAD,
       'order'               => self::MOCK_ORDER_PAYLOAD,
       'orders'              => self::MOCK_ORDERS_PAYLOAD,
-      'dates'               => $group->get_dates(),
+      'dates'               => $group_dates,
       'statuses'            => $statuses,
       'allowed_transitions' => Helper::get_allowed_transition_status( $meta['membership_status'] ?? '' ),
       'membership_records'  => $membership_records,
@@ -801,9 +815,17 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'Could not update group owner.' ], 500 );
     }
 
+    $dates = $group->get_dates();
+
     return new \WP_REST_Response( [
       'success'  => 'Membership group ownership updated successfully.',
-      'response' => Helper::get_post_meta( $group_post_id ),
+      'response' => [
+        'membership_status'         => $group->get_membership_status(),
+        'membership_starts_at'      => $dates['starts_at'],
+        'membership_ends_at'        => $dates['ends_at'],
+        'membership_expires_at'     => $dates['expires_at'],
+        'membership_early_renew_at' => $dates['early_renew_at'],
+      ],
     ], 200 );
   }
 
