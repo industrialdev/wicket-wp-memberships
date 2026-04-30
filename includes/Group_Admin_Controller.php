@@ -206,8 +206,8 @@ class Group_Admin_Controller {
 
     $used_slugs = [];
     foreach ( $existing_slugs as $post_id ) {
-      $slug = get_post_meta( $post_id, 'membership_status', true );
-      if ( $slug !== '' && ! in_array( $slug, $used_slugs, true ) ) {
+      $slug = ( new Membership_Group( $post_id ) )->get_membership_status();
+      if ( $slug !== false && $slug !== '' && ! in_array( $slug, $used_slugs, true ) ) {
         $used_slugs[] = $slug;
       }
     }
@@ -315,18 +315,19 @@ class Group_Admin_Controller {
     $statuses = Helper::get_all_status_names();
     $meta     = Helper::get_post_meta( $group_post_id );
 
-    $status_slug = $meta['membership_status'] ?? '';
+    $status_slug = $group->get_membership_status() ?: '';
 
+    $dates       = $group->get_dates();
     // Parse stored date strings into DateTime objects so legacy non-ISO values
     // are normalised before being re-emitted as ISO 8601.
-    $starts_at   = ! empty( $meta['membership_starts_at'] )    ? new \DateTime( $meta['membership_starts_at'] )    : null;
-    $ends_at     = ! empty( $meta['membership_ends_at'] )      ? new \DateTime( $meta['membership_ends_at'] )      : null;
-    $expires_at  = ! empty( $meta['membership_expires_at'] )   ? new \DateTime( $meta['membership_expires_at'] )   : null;
-    $early_renew = ! empty( $meta['membership_early_renew_at'] ) ? new \DateTime( $meta['membership_early_renew_at'] ) : null;
+    $starts_at   = ! empty( $dates['membership_starts_at'] )    ? new \DateTime( $dates['membership_starts_at'] )    : null;
+    $ends_at     = ! empty( $dates['membership_ends_at'] )      ? new \DateTime( $dates['membership_ends_at'] )      : null;
+    $expires_at  = ! empty( $dates['membership_expires_at'] )   ? new \DateTime( $dates['membership_expires_at'] )   : null;
+    $early_renew = ! empty( $dates['membership_early_renew_at'] ) ? new \DateTime( $dates['membership_early_renew_at'] ) : null;
 
     return [
       'ID'                 => $group_post_id,
-      'title'              => get_the_title( $group_post_id ),
+      'title'              => $group->get_name(),
       'data'               => array_merge( $meta, [
         'membership_status'         => $statuses[ $status_slug ]['name'] ?? $status_slug,
         'membership_status_slug'    => $status_slug,
@@ -348,9 +349,9 @@ class Group_Admin_Controller {
   private static function build_membership_groups_row( \WP_Post $post ): array {
     $statuses        = Helper::get_all_status_names();
     $post_id         = (int) $post->ID;
-    $status_slug     = (string) get_post_meta( $post_id, 'membership_status', true );
-    $org_uuid        = (string) get_post_meta( $post_id, 'org_uuid', true );
     $group           = new Membership_Group( $post_id );
+    $status_slug     = $group->get_membership_status() ?: '';
+    $org_uuid        = $group->get_org_uuid() ?: '';
     $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] ?? null );
     $wicket_admin    = $wicket_settings['wicket_admin'] ?? '';
     $mdp_link        = ( $org_uuid && $wicket_admin )
@@ -359,7 +360,7 @@ class Group_Admin_Controller {
 
     return [
       'id'            => $post_id,
-      'group_name'    => self::get_membership_group_name( $post_id ),
+      'group_name'    => $group->get_name(),
       'org_name'      => (string) get_post_meta( $post_id, 'org_name', true ),
       'owner'         => self::build_owner_field( $group ),
       'status'        => [
@@ -473,21 +474,6 @@ class Group_Admin_Controller {
     return $sort_dir === 'ASC' ? $result : $result * -1;
   }
 
-  /**
-   * Resolve the preferred group name for list-table display.
-   *
-   * @param int $post_id
-   * @return string
-   */
-  private static function get_membership_group_name( int $post_id ): string {
-    $stored_name = (string) get_post_meta( $post_id, 'membership_group_name', true );
-    if ( $stored_name !== '' ) {
-      return $stored_name;
-    }
-
-    return get_the_title( $post_id );
-  }
-
   // ---------------------------------------------------------------------------
   // Entity record update
   // ---------------------------------------------------------------------------
@@ -518,8 +504,8 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'Membership group not found.' ], 404 );
     }
 
-    $group_meta = Helper::get_post_meta( $group_post_id );
-    if ( ( $group_meta['membership_status'] ?? '' ) === Wicket_Memberships::STATUS_CANCELLED ) {
+    $group = new Membership_Group( $group_post_id );
+    if ( $group->get_membership_status() === Wicket_Memberships::STATUS_CANCELLED ) {
       return new \WP_REST_Response( [ 'error' => 'Cannot update a cancelled membership record. Membership update failed.' ], 400 );
     }
 
@@ -686,11 +672,11 @@ class Group_Admin_Controller {
     // membership group record itself. Child individual memberships are managed
     // separately via the Group Members section.
     $statuses           = Helper::get_all_status_names();
-    $status_slug        = (string) ( $meta['membership_status'] ?? '' );
+    $status_slug        = $group->get_membership_status() ?: '';
     $membership_records = [
       [
         'ID'                     => $group_post_id,
-        'name'                   => self::get_membership_group_name( $group_post_id ),
+        'name'                   => $group->get_name(),
         'status'                 => $statuses[ $status_slug ]['name'] ?? $status_slug,
         'starts_at'              => (string) ( $meta['membership_starts_at'] ?? '' ),
         'ends_at'                => (string) ( $meta['membership_ends_at'] ?? '' ),
@@ -706,7 +692,7 @@ class Group_Admin_Controller {
     // commerce implementation exists; see TODO.md.
     return [
       'ID'                  => $group_post_id,
-      'title'               => get_the_title( $group_post_id ),
+      'title'               => $group->get_name(),
       'meta'                => $meta,
       'org'                 => [
         'uuid'     => $org_uuid,
