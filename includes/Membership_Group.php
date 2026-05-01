@@ -148,7 +148,20 @@ class Membership_Group {
       return null;
     }
 
-    // TODO: Create a WooCommerce subscription for this group.
+    // Create a pending WC subscription linked to this group so billing and
+    // renewal logic have a subscription record to work against from day one.
+    $subscription_id = $group->create_group_subscription();
+    if ( $subscription_id ) {
+      update_post_meta( $post_id, 'membership_subscription_id', $subscription_id );
+    } else {
+      Wicket()->log()->error(
+        'Membership_Group::create: could not create WC subscription — group created without one',
+        [ 'source' => 'wicket-memberships', 'post_id' => $post_id ]
+      );
+      // Non-fatal: the group record is still usable without a subscription.
+      // Consistent with individual membership precedent where subscription
+      // creation is decoupled from record creation entirely.
+    }
 
     // If the config requires approval, the group stays in STATUS_PENDING (set above).
     // TODO: Implement the full group approval workflow — send approval email, link admin
@@ -1377,5 +1390,115 @@ class Membership_Group {
     }
 
     return false;
+  }
+
+  /**
+   * Create a pending WC subscription for this group.
+   *
+   * Called only from create() after dates are written. No product line items are
+   * added here — those are attached when individual members are added to the group.
+   *
+   * @return int|false Subscription post ID on success, false on any failure.
+   */
+  private function create_group_subscription(): int|false {
+    // WooCommerce Subscriptions may not be active in all environments.
+    if ( ! function_exists( 'wcs_create_subscription' ) ) {
+      Wicket()->log()->error( 'Membership_Group::create_group_subscription: wcs_create_subscription not available', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+      ] );
+      return false;
+    }
+
+    // Subscription must be assigned to a real WP customer.
+    $owner_id = $this->get_owner_id();
+    if ( ! $owner_id ) {
+      Wicket()->log()->error( 'Membership_Group::create_group_subscription: could not resolve owner_id', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+      ] );
+      return false;
+    }
+
+    // Dates are guaranteed present — set_dates() succeeded before this call.
+    $dates = $this->get_dates();
+
+    // Config is also guaranteed present — validated in create() before set_dates().
+    // Resolve once and reuse for both billing period and renewal-type check below.
+    $config = $this->get_config();
+    if ( ! $config ) {
+      Wicket()->log()->error( 'Membership_Group::create_group_subscription: could not resolve config', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+      ] );
+      return false;
+    }
+
+    // billing_period / billing_interval are required by wcs_create_subscription even
+    // for date-driven subscriptions. Source from the config so the values are
+    // semantically correct (anniversary configs get the right period; calendar configs
+    // fall back to year/1 via get_period_data()'s internal default).
+    $period = $config->get_period_data();
+
+    $sub = wcs_create_subscription( [
+      'customer_id'      => $owner_id,
+      'status'           => 'pending',
+      'billing_period'   => $period['period_type'],
+      'billing_interval' => $period['period_count'],
+      'start_date'       => date( 'Y-m-d H:i:s', strtotime( $dates['starts_at'] ) ),
+    ] );
+
+    if ( is_wp_error( $sub ) ) {
+      Wicket()->log()->error( 'Membership_Group::create_group_subscription: wcs_create_subscription failed', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+        'error'   => $sub->get_error_message(),
+      ] );
+      return false;
+    }
+
+    // end maps to expires_at (grace-period end), mirroring Membership_Subscription_Controller::create_subscriptions().
+    // When no grace period is configured expires_at is empty; fall back to ends_at so
+    // the subscription always has an explicit end date.
+    $end_target = ! empty( $dates['expires_at'] ) ? $dates['expires_at'] : $dates['ends_at'];
+
+    // WCS validates end > next_payment (strictly). When billing_period is set, WCS
+    // auto-computes next_payment as start + 1 period, which can violate the constraint
+    // for date-driven subscriptions. Set both explicitly in all cases.
+    //
+    // Subscription renewal: next_payment = ends_at so WCS triggers renewal at period end;
+    //   end = end_target (expires_at or ends_at) which is >= ends_at.
+    // All other renewal types: next_payment = ends_at, end = end_target + 1 second so
+    //   the strict end > next_payment constraint is always satisfied without scheduling
+    //   an automatic charge (WCS only charges on next_payment for active subscriptions).
+    $ends_at_ts   = strtotime( $dates['ends_at'] );
+    $end_ts       = strtotime( $end_target );
+    $next_payment = date( 'Y-m-d H:i:s', $ends_at_ts );
+    // Guarantee end > next_payment — add one second when they would be equal (no grace period).
+    $end = date( 'Y-m-d H:i:s', $end_ts > $ends_at_ts ? $end_ts : $ends_at_ts + 1 );
+
+    $sub->update_dates( [
+      'end'          => $end,
+      'next_payment' => $next_payment,
+    ] );
+
+    // Link the subscription back to the group and forward org identity so admin
+    // screens and MDP sync can identify which organisation owns this subscription
+    // without an extra group lookup. Mirrors the _org_uuid pattern on individual
+    // org membership subscriptions (Membership_Controller.php lines 83–84).
+    // org_name is stored alongside _org_uuid so the subscription is human-readable
+    // in WC admin without following the group post link.
+    $org_uuid = $this->get_org_uuid();
+    $org_name = get_post_meta( $this->post_id, 'org_name', true );
+    update_post_meta( $sub->get_id(), 'membership_group_id', $this->post_id );
+    update_post_meta( $sub->get_id(), '_org_uuid', $org_uuid );
+    $sub->update_meta_data( '_org_uuid', $org_uuid );
+    if ( ! empty( $org_name ) ) {
+      $sub->update_meta_data( 'org_name', $org_name );
+    }
+
+    $sub->save();
+
+    return $sub->get_id();
   }
 }

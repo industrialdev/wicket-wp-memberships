@@ -6,11 +6,18 @@ Remove the entry when the work is completed.
 
 ---
 
+## QA Tests
+
+| File | Test | Note | Asana |
+|---|---|---|---|
+| `qa/tests/WordPress/Memberships/admin-controller.pest.php` | `activates a pending membership and its subscription via admin status change` | `memberships_create_fixture` creates subscription as `active` instead of expected `on-hold`. Fix the fixture then re-enable the `todo()`. | — |
+
+---
+
 ## Membership_Group
 
 | File | Method | Note | Asana |
 |---|---|---|---|
-| `includes/Membership_Group.php` | `create()` | Create a WooCommerce subscription for this group. Required by CURRENT_SCOPE.md — without this, groups created via the new Create Group page will be missing their subscription. | — |
 | `includes/Membership_Group.php` | `create()` | Implement full group approval workflow: send approval email (link to org edit page), handle `pending→active` admin transition, show member-portal callout while pending. Mirror `Membership_Controller::create_membership_record()` lines 764–781 and `Admin_Controller::admin_manage_status()`. Also decide whether approval blocks adding individual memberships to the group until approved. | — |
 | `includes/Membership_Group.php` | `apply_edit_fields()` | Review and consider replacing with typed getters/setters per field — current `array<string,mixed>` signature allows any meta key to be written without validation | — |
 | `includes/Membership_Group.php` | `cascade_dates_to_members()` | Implement date cascading from group to all child individual memberships. Should propagate starts_at, ends_at, expires_at, early_renew_at to active members; skip cancelled members. Add QA tests in `qa/tests/WordPress/Memberships/membership-group.pest.php` once implemented. | — |

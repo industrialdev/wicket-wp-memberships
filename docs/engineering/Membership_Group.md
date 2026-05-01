@@ -31,7 +31,7 @@ Creates a new membership group post and populates all required meta in a single 
 | `$owner_user_id` | `int` | WP user ID of the group owner |
 | `$start_date` | `string` | ISO 8601 start date for the membership period (must be non-empty) |
 
-The post is created with `post_status = 'pending'`. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`.
+The post is created with `post_status = 'pending'`. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. A pending WooCommerce subscription is created and linked via `membership_subscription_id` post meta; if subscription creation fails the group is still returned (non-fatal, logged).
 
 **Fields accessible on the returned object:**
 
@@ -45,9 +45,21 @@ The post is created with `post_status = 'pending'`. Dates (end, expiry, early-re
 | Expiration date | `$group->get_dates()['expires_at']` _(empty string if config has no grace period)_ |
 | Org UUID | `$group->get_org_uuid()` |
 | Owner user ID | `$group->get_owner_id()` |
+| Subscription ID | `$group->get_subscription_id()` |
 | Renewal type | `$group->get_config()->get_renewal_type()` _(not a direct field — via config)_ |
 
-> **TODO:** Create a WooCommerce subscription for this group inside `create()`.
+### `create_group_subscription(): int|false` _(private)_
+
+Creates a pending WooCommerce subscription for a freshly-created group and writes two post meta keys onto it:
+
+| Meta key | Value |
+|---|---|
+| `membership_group_id` | Group post ID |
+| `_org_uuid` | Org UUID from the group |
+
+`billing_period` and `billing_interval` are sourced from `$config->get_period_data()` so the values match the group config cycle (anniversary configs use their configured period; calendar configs fall back to `year` / `1`). `end` is set to `expires_at` (grace-period end), falling back to `ends_at` when no grace period is configured, mirroring `Membership_Subscription_Controller::create_subscriptions()`. `next_payment` is only set when `$config->is_renewal_subscription()` returns `true`; it maps to `ends_at` so WCS triggers renewal at the membership period end.
+
+No product line items are added at creation — those are attached per member when `add_member()` is called. Called only from `create()` after `set_dates()` succeeds. Returns the subscription post ID on success, `false` on any failure.
 
 ---
 
