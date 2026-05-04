@@ -76,6 +76,14 @@ Adds a WooCommerce subscription line item to the group subscription for an indiv
 
 Fail states (all non-fatal at call site): `wcs_unavailable`, `no_subscription`, `subscription_not_found`, `product_not_found`, `add_product_failed`.
 
+### `remove_subscription_line_item( int $membership_post_id ): true|WP_Error` _(private)_
+
+Removes the WooCommerce subscription line item for an individual membership from the group subscription. Scans all items on the subscription for one whose `_membership_post_id` meta matches `$membership_post_id`, removes it, then calls `$sub->calculate_totals()` and `$sub->save()`. If no matching item is found the call is a no-op and returns `true` — this handles the case where the item was never added (e.g. the non-fatal add path failed).
+
+Called from `remove_member()` (both modes) and from the source-group side of `move_individual_membership()`. Failure is non-fatal in both callers — the membership cancellation has already occurred; a stale line item is a billing gap the admin can reconcile.
+
+Fail states (all non-fatal at call site): `wcs_unavailable`, `no_subscription`, `subscription_not_found`.
+
 ---
 
 ## Instance Methods
@@ -101,8 +109,6 @@ Fail states: `invalid_group_status`, `missing_user_id`, `group_ended`, `group_no
 
 > **TODO:** Link `membership_subscription_id` and `membership_parent_order_id` to the group's WooCommerce subscription once group subscription management exists.
 
-> **TODO:** Line item removal is not yet implemented. When a member is removed or moved, the corresponding subscription line item is not removed from the group subscription. See `remove_subscription_line_item()` TODO in `TODO.md`.
-
 ---
 
 ### `remove_member( int $membership_post_id, string $mode ): int|WP_Error`
@@ -112,6 +118,8 @@ Removes an individual membership from this group. Two modes:
 - **`cancel`**: cancels the group-linked membership immediately (sets status to `cancelled`). Returns the cancelled membership post ID.
 - **`keep_as_individual`**: cancels the group-linked membership, then creates a new standalone individual membership (no `membership_group_id`) with start date resolved against this group's date window and `ends_at` inherited from this group. Copies tier, product, and user from the old membership. Returns the new membership post ID.
 
+In both modes, after cancellation, calls `remove_subscription_line_item()` to remove the matching line item from the group subscription. Failure to remove the line item is non-fatal — it is logged and the method continues.
+
 Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_group_status')` otherwise. An expired or cancelled group is blocked by the status gate before any date checks run.
 
 Fail states: `invalid_group_status`, `invalid_membership`, `membership_not_in_group`, `group_no_dates`, `group_ended`, `invalid_user`, `create_failed`.
@@ -120,11 +128,11 @@ Fail states: `invalid_group_status`, `invalid_membership`, `membership_not_in_gr
 
 ### `move_individual_membership( int $membership_post_id, Membership_Group $target_group ): int|WP_Error`
 
-Moves an individual membership from this group to a target group. Cancels the source membership and creates a new one linked to the target group, inheriting the same user, tier, and product. Start date is resolved against the target group's date window via `resolve_member_start_date()`.
+Moves an individual membership from this group to a target group. Cancels the source membership, removes its line item from the source group subscription, then creates a new membership linked to the target group. The new membership inherits the same user, tier, and product; start date is resolved against the target group's date window via `resolve_member_start_date()`. The target group's `add_member()` path adds a new line item to the target group subscription.
 
 Both the source and target groups must be in `pending`, `active`, or `delayed` status. The membership must belong to the source group.
 
-If creation of the new membership fails after cancellation, a `WP_Error` is returned with an explicit message noting that the source was cancelled and the member must be manually re-added. No rollback is attempted.
+If creation of the new membership fails after cancellation, a `WP_Error` is returned with an explicit message noting that the source was cancelled and the member must be manually re-added. No rollback is attempted. Line item removal failure on the source group is non-fatal — logged and continues.
 
 Fail states: `invalid_group_status` (source or target), `invalid_membership`, `membership_not_in_group`, `group_no_dates` (target), `group_ended` (target), `invalid_user`, `create_failed`.
 

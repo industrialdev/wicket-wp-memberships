@@ -320,6 +320,16 @@ class Membership_Group {
 
     $this->cancel_individual_membership( $membership_post_id );
 
+    $line_item_result = $this->remove_subscription_line_item( $membership_post_id );
+    if ( is_wp_error( $line_item_result ) ) {
+      Wicket()->log()->error( 'Membership_Group::move_individual_membership: could not remove subscription line item from source group', [
+        'source'             => 'wicket-memberships',
+        'source_group_id'    => $this->post_id,
+        'membership_post_id' => $membership_post_id,
+        'error'              => $line_item_result->get_error_message(),
+      ] );
+    }
+
     $result = $target_group->create_individual_membership_for_group(
       $meta['user_id'],
       $meta['tier_post_id'],
@@ -603,11 +613,13 @@ class Membership_Group {
       update_post_meta( $membership_post_id, 'membership_group_id', $link_to_group_id );
     }
 
-    // Add a line item to the group subscription for this membership.
-    // Variation ID takes precedence over parent product ID — same rule used when storing
-    // membership_product_id above — so the line item price matches the variation price.
-    $stored_product_id  = $variation_id ?? $product_id;
-    $line_item_result   = $this->add_subscription_line_item( $membership_post_id, $stored_product_id, $user_id );
+    // Only add a subscription line item when the membership is linked to this group.
+    // Standalone memberships (keep_as_individual path, link_to_group_id = null) have no
+    // relationship to the group subscription and must not appear on it.
+    $stored_product_id = $variation_id ?? $product_id;
+    $line_item_result  = $link_to_group_id !== null
+      ? $this->add_subscription_line_item( $membership_post_id, $stored_product_id, $user_id )
+      : true;
 
     if ( is_wp_error( $line_item_result ) ) {
       // Non-fatal: membership record was created successfully. A missing line item is a
@@ -676,10 +688,44 @@ class Membership_Group {
     return $item_id;
   }
 
-  // TODO: Implement remove_subscription_line_item() to remove the group subscription
-  //       line item (matched by _membership_post_id meta) when a member is removed
-  //       or moved out of the group. Call from remove_member() and the source-group
-  //       side of move_individual_membership(). See plan-group-subscription-line-items.md.
+  /**
+   * Remove the WooCommerce subscription line item for an individual membership.
+   *
+   * Scans the group subscription for an item whose _membership_post_id meta matches
+   * $membership_post_id and removes it. Failure is non-fatal — the membership
+   * cancellation has already happened; a stale line item is a billing gap the admin
+   * can reconcile, not a data-loss event.
+   *
+   * @param int $membership_post_id Post ID of the individual membership being removed.
+   * @return true|\WP_Error true on success (including no-op when no item found), WP_Error on failure.
+   */
+  private function remove_subscription_line_item( int $membership_post_id ): true|\WP_Error {
+    if ( ! function_exists( 'wcs_get_subscription' ) ) {
+      return new \WP_Error( 'wcs_unavailable', __( 'WooCommerce Subscriptions is not active.', 'wicket-memberships' ) );
+    }
+
+    $sub_id = $this->get_subscription_id();
+    if ( ! $sub_id ) {
+      return new \WP_Error( 'no_subscription', __( 'This group has no linked WooCommerce subscription.', 'wicket-memberships' ) );
+    }
+
+    $sub = wcs_get_subscription( $sub_id );
+    if ( ! $sub ) {
+      return new \WP_Error( 'subscription_not_found', __( 'The linked WooCommerce subscription could not be loaded.', 'wicket-memberships' ) );
+    }
+
+    foreach ( $sub->get_items() as $item_id => $item ) {
+      if ( (int) $item->get_meta( '_membership_post_id' ) === $membership_post_id ) {
+        $sub->remove_item( $item_id );
+        $sub->calculate_totals();
+        $sub->save();
+        return true;
+      }
+    }
+
+    // No matching line item — not an error; item may never have been added (non-fatal path).
+    return true;
+  }
 
   // TODO: Add subscription line items for bulk CSV import path.
   //       Currently each add_member() call fires calculate_totals() individually.
@@ -715,6 +761,16 @@ class Membership_Group {
     }
 
     $this->cancel_individual_membership( $membership_post_id );
+
+    $line_item_result = $this->remove_subscription_line_item( $membership_post_id );
+    if ( is_wp_error( $line_item_result ) ) {
+      Wicket()->log()->error( 'Membership_Group::remove_member: could not remove subscription line item', [
+        'source'             => 'wicket-memberships',
+        'post_id'            => $this->post_id,
+        'membership_post_id' => $membership_post_id,
+        'error'              => $line_item_result->get_error_message(),
+      ] );
+    }
 
     if ( $mode === 'cancel' ) {
       return $membership_post_id;
