@@ -61,6 +61,21 @@ Creates a pending WooCommerce subscription for a freshly-created group and write
 
 No product line items are added at creation — those are attached per member when `add_member()` is called. Called only from `create()` after `set_dates()` succeeds. Returns the subscription post ID on success, `false` on any failure.
 
+### `add_subscription_line_item( int $membership_post_id, int $product_id, int $user_id ): int|WP_Error` _(private)_
+
+Adds a WooCommerce subscription line item to the group subscription for an individual membership. Called automatically from `create_individual_membership_for_group()` after the membership record is created. Failure is non-fatal — the caller logs and continues, leaving the membership record intact.
+
+**Line item meta written:**
+
+| Meta key | Value |
+|---|---|
+| `_membership_post_id` | Individual membership post ID |
+| `_member_name` | Member's `display_name` (omitted if user cannot be resolved) |
+
+`$product_id` must be the variation ID when a variation is in use (caller passes `$variation_id ?? $product_id`, matching the precedence rule used for `membership_product_id`). Price comes from the WC product — no custom pricing logic. Calls `$sub->calculate_totals()` and `$sub->save()` after adding the item.
+
+Fail states (all non-fatal at call site): `wcs_unavailable`, `no_subscription`, `subscription_not_found`, `product_not_found`, `add_product_failed`.
+
 ---
 
 ## Instance Methods
@@ -84,7 +99,9 @@ Fail states: `invalid_group_status`, `missing_user_id`, `group_ended`, `group_no
 
 > **TODO:** Set membership status from the group's own status once group-driven status propagation is implemented.
 
-> **TODO:** Link `membership_subscription_id` and `membership_parent_order_id` to the group's WooCommerce subscription once group subscription management exists. Also add a tier line item to the group subscription on each add.
+> **TODO:** Link `membership_subscription_id` and `membership_parent_order_id` to the group's WooCommerce subscription once group subscription management exists.
+
+> **TODO:** Line item removal is not yet implemented. When a member is removed or moved, the corresponding subscription line item is not removed from the group subscription. See `remove_subscription_line_item()` TODO in `TODO.md`.
 
 ---
 

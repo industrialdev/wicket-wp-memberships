@@ -602,8 +602,95 @@ class Membership_Group {
       update_post_meta( $membership_post_id, 'membership_group_id', $link_to_group_id );
     }
 
+    // Add a line item to the group subscription for this membership.
+    // Variation ID takes precedence over parent product ID — same rule used when storing
+    // membership_product_id above — so the line item price matches the variation price.
+    $stored_product_id  = $variation_id ?? $product_id;
+    $line_item_result   = $this->add_subscription_line_item( $membership_post_id, $stored_product_id, $user_id );
+
+    if ( is_wp_error( $line_item_result ) ) {
+      // Non-fatal: membership record was created successfully. A missing line item is a
+      // billing gap the admin can reconcile in WC admin, not a data-loss event.
+      Wicket()->log()->error( 'Membership_Group::create_individual_membership_for_group: could not add subscription line item', [
+        'source'             => 'wicket-memberships',
+        'post_id'            => $this->post_id,
+        'membership_post_id' => $membership_post_id,
+        'error'              => $line_item_result->get_error_message(),
+      ] );
+    }
+
     return $membership_post_id;
   }
+
+  /**
+   * Add a WooCommerce subscription line item for an individual membership.
+   *
+   * Called after create_individual_membership_for_group() succeeds. The line item
+   * ties the group subscription to the individual membership record so billing and
+   * renewal flows can identify which memberships are covered. Failure is non-fatal —
+   * the caller logs and continues.
+   *
+   * @param int $membership_post_id  Post ID of the newly created individual membership.
+   * @param int $product_id          WC product ID to add (variation ID when present, else parent).
+   * @param int $user_id             WP user ID of the member (for _member_name meta).
+   * @return int|\WP_Error           WC order item ID on success, WP_Error on failure.
+   */
+  private function add_subscription_line_item( int $membership_post_id, int $product_id, int $user_id ): int|\WP_Error {
+    if ( ! function_exists( 'wcs_get_subscription' ) ) {
+      return new \WP_Error( 'wcs_unavailable', __( 'WooCommerce Subscriptions is not active.', 'wicket-memberships' ) );
+    }
+
+    $sub_id = $this->get_subscription_id();
+    if ( ! $sub_id ) {
+      return new \WP_Error( 'no_subscription', __( 'This group has no linked WooCommerce subscription.', 'wicket-memberships' ) );
+    }
+
+    $sub = wcs_get_subscription( $sub_id );
+    if ( ! $sub ) {
+      return new \WP_Error( 'subscription_not_found', __( 'The linked WooCommerce subscription could not be loaded.', 'wicket-memberships' ) );
+    }
+
+    $product = wc_get_product( $product_id );
+    if ( ! $product ) {
+      return new \WP_Error( 'product_not_found', __( 'The membership product could not be loaded.', 'wicket-memberships' ) );
+    }
+
+    $item_id = $sub->add_product( $product, 1 );
+    if ( ! $item_id ) {
+      global $wpdb;
+      fwrite( STDERR, "\n[DEBUG add_subscription_line_item] add_product returned falsy. sub_id={$sub_id} product_id={$product_id} wpdb_last_error=" . $wpdb->last_error . "\n" );
+      return new \WP_Error( 'add_product_failed', __( 'Failed to add product to the group subscription.', 'wicket-memberships' ) );
+    }
+
+    wc_add_order_item_meta( $item_id, '_membership_post_id', $membership_post_id );
+
+    $user = get_user_by( 'id', $user_id );
+    if ( $user ) {
+      wc_add_order_item_meta( $item_id, '_member_name', $user->display_name );
+    }
+
+    $sub->calculate_totals();
+    $sub->save();
+
+    return $item_id;
+  }
+
+  // TODO: Implement remove_subscription_line_item() to remove the group subscription
+  //       line item (matched by _membership_post_id meta) when a member is removed
+  //       or moved out of the group. Call from remove_member() and the source-group
+  //       side of move_individual_membership(). See plan-group-subscription-line-items.md.
+
+  // TODO: Add subscription line items for bulk CSV import path.
+  //       Currently each add_member() call fires calculate_totals() individually.
+  //       For large imports, investigate batching totals recalculation.
+  //       See plan-group-subscription-line-items.md.
+
+  // TODO: Implement group subscription status transitions.
+  //       Individual memberships go pending → active when parent order completes
+  //       (Membership_Subscription_Controller::create_subscriptions() lines 84–87).
+  //       Group subscriptions have no parent order — need an explicit activation
+  //       path, likely triggered when the group status transitions to 'active'.
+  //       See plan-group-subscription-line-items.md.
 
   /**
    * Remove an individual membership from this group.
