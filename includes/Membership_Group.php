@@ -225,10 +225,6 @@ class Membership_Group {
    * @param int|null $existing_membership_post_id Existing wicket_membership post ID to cancel before creating the new record.
    * @return int|\WP_Error New membership post ID on success, WP_Error on failure.
    *
-   * TODO: Set membership status from the group's own status once group-driven status
-   *       propagation is implemented. Currently unset so create_membership_record()
-   *       derives status from tier approval rules and start date.
-   *
    * TODO: Link membership_subscription_id and membership_parent_order_id to the
    *       group's WooCommerce subscription once group subscription management exists.
    *       Also add a tier line item to the group subscription on each add.
@@ -552,10 +548,15 @@ class Membership_Group {
 
     $dates = $this->get_dates();
 
+    // Seed the membership status from the group's own status so new members inherit
+    // the group's lifecycle state. create_local_membership_record() will still
+    // override this to 'pending' when the tier requires approval, or 'delayed' when
+    // the start date is in the future — those rules take precedence.
     $result = Membership_Controller::create_membership_record( [
       'membership_type'                           => 'individual',
       'user_id'                                   => $user_id,
       'person_uuid'                               => $user->user_login,
+      'membership_status'                         => $this->get_membership_status(),
       'membership_starts_at'                      => $start_date,
       'membership_ends_at'                        => $dates['ends_at'],
       'membership_expires_at'                     => $dates['expires_at'] ?? '',
@@ -1215,7 +1216,14 @@ class Membership_Group {
         continue;
       }
 
-      if ( update_post_meta( $this->post_id, $meta_key, $dates[ $date_key ] ) === false ) {
+      $update_result = update_post_meta( $this->post_id, $meta_key, $dates[ $date_key ] );
+
+      if ( false === $update_result ) {
+        // WordPress returns false when the stored value already matches — treat as no-op.
+        if ( (string) get_post_meta( $this->post_id, $meta_key, true ) === (string) $dates[ $date_key ] ) {
+          continue;
+        }
+
         Wicket()->log()->error( 'Membership_Group: Failed to persist transition field', [
           'source'   => 'wicket-memberships',
           'post_id'  => $this->post_id,
@@ -1237,8 +1245,27 @@ class Membership_Group {
    * @return void
    */
   private function cascade_status_to_members( string $new_status ): void {
-    // TODO: Re-enable child membership status cascading once the intended
-    // group/member lifecycle rules are finalized.
+    $memberships = $this->get_individual_memberships();
+
+    foreach ( $memberships as $membership_post ) {
+      $current = get_post_meta( $membership_post->ID, 'membership_status', true );
+
+      // Cancelled is a final state — never overwrite it.
+      if ( $current === Wicket_Memberships::STATUS_CANCELLED ) {
+        continue;
+      }
+
+      $result = update_post_meta( $membership_post->ID, 'membership_status', $new_status );
+
+      if ( false === $result && (string) get_post_meta( $membership_post->ID, 'membership_status', true ) !== (string) $new_status ) {
+        Wicket()->log()->error( 'Membership_Group::cascade_status_to_members: failed to update membership status', [
+          'source'             => 'wicket-memberships',
+          'group_post_id'      => $this->post_id,
+          'membership_post_id' => $membership_post->ID,
+          'new_status'         => $new_status,
+        ] );
+      }
+    }
   }
 
   /**
@@ -1311,10 +1338,20 @@ class Membership_Group {
 
     $subscription->update_status( 'active' );
 
+    $next_payment = Utilities::get_mdp_day_end( $ends_at_utc );
+    $end          = Utilities::get_mdp_day_end( $expires_at_utc );
+
+    // WC Subscriptions requires end > next_payment (strict). When there is no
+    // grace period expires_at equals ends_at, producing identical timestamps.
+    // Bump end by one second so the constraint is satisfied.
+    if ( $end <= $next_payment ) {
+      $end->modify( '+1 second' );
+    }
+
     $subscription_dates = [
       'start_date'   => Utilities::get_mdp_day_start( $starts_at_utc )->format( 'Y-m-d H:i:s' ),
-      'next_payment' => Utilities::get_mdp_day_end( $ends_at_utc )->format( 'Y-m-d H:i:s' ),
-      'end'          => Utilities::get_mdp_day_end( $expires_at_utc )->format( 'Y-m-d H:i:s' ),
+      'next_payment' => $next_payment->format( 'Y-m-d H:i:s' ),
+      'end'          => $end->format( 'Y-m-d H:i:s' ),
     ];
 
     $subscription->update_dates( $subscription_dates );

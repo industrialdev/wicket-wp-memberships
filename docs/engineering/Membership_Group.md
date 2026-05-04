@@ -89,6 +89,8 @@ Single entry point for adding an individual membership to a group. Covers two fl
 
 Both paths share start-date logic via `resolve_member_start_date()`: if today is within the group date window, start = today; if today is before the group start, start = group start; if today is after the group end, returns `WP_Error('group_ended')`.
 
+The new membership inherits the group's current `membership_status` as its initial status. `create_local_membership_record()` may override this: if the tier requires approval the status becomes `pending`; if the start date is in the future the status becomes `delayed`. These overrides take precedence.
+
 Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_group_status')` otherwise.
 
 `product_id` is auto-resolved from the tier when omitted; fails with `WP_Error('ambiguous_product')` if the tier has more than one product. When `variation_id` is supplied, it is stored as `membership_product_id` instead of the parent `product_id` — matching the subscription-driven membership flow where variation ID takes precedence. Returns the new membership post ID on success.
@@ -96,8 +98,6 @@ Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('in
 Fires filter `wicket_memberships_individual_membership_created_for_group` after the membership record is created. Returning an array without `membership_post_id` from this filter will cause a `create_failed` error.
 
 Fail states: `invalid_group_status`, `missing_user_id`, `group_ended`, `group_no_dates`, `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `invalid_membership` (existing path), `missing_user_id` (existing record has no user_id meta), `create_failed`.
-
-> **TODO:** Set membership status from the group's own status once group-driven status propagation is implemented.
 
 > **TODO:** Link `membership_subscription_id` and `membership_parent_order_id` to the group's WooCommerce subscription once group subscription management exists.
 
@@ -243,6 +243,12 @@ Persists normalized group edit fields to the group post.
   stored meta.
 - Returns `false` only when a meta write genuinely fails and the persisted
   value still does not match the submitted value after the update attempt.
+
+### `cascade_status_to_members( string $new_status ): void` _(private)_
+
+Called by `transition_to()` after the group status write succeeds. Iterates all child individual memberships via `get_individual_memberships()` and writes `$new_status` to `membership_status` meta on each one. Skips any membership already in `cancelled` status — that is a final state. Logs an error for each write failure but continues processing remaining members.
+
+---
 
 ### `cascade_dates_to_members( array $normalized_fields ): void`
 
