@@ -777,6 +777,12 @@ class Membership_Group {
     }
 
     // keep_as_individual: create a new standalone membership inheriting group dates.
+    // TODO: Replace create_individual_membership_for_group(..., null) with a dedicated
+    //       create_standalone_individual_membership() that also creates a WC order and
+    //       WC subscription (with _membership_post_id_renew on the subscription line item)
+    //       and back-fills membership_subscription_id + membership_parent_order_id on the
+    //       post. Two implementation paths are under team discussion — see TODO.md section
+    //       "keep_as_individual — Fully-Backed Standalone Membership" and plan-keep-as-individual.md.
     $meta = $this->extract_individual_membership_meta( $membership_post_id );
     if ( is_wp_error( $meta ) ) {
       return $meta;
