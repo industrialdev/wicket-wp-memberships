@@ -63,7 +63,7 @@ No product line items are added at creation — those are attached per member wh
 
 ### `add_subscription_line_item( int $membership_post_id, int $product_id, int $user_id ): int|WP_Error` _(private)_
 
-Adds a WooCommerce subscription line item to the group subscription for an individual membership. Called automatically from `create_individual_membership_for_group()` after the membership record is created. Failure is non-fatal — the caller logs and continues, leaving the membership record intact.
+Adds a WooCommerce subscription line item to the group subscription for an individual membership. Called automatically from `provision_individual_membership_record()` after the membership record is created. Failure is non-fatal — the caller logs and continues, leaving the membership record intact.
 
 **Line item meta written:**
 
@@ -83,6 +83,47 @@ Removes the WooCommerce subscription line item for an individual membership from
 Called from `remove_member()` (both modes) and from the source-group side of `move_individual_membership()`. Failure is non-fatal in both callers — the membership cancellation has already occurred; a stale line item is a billing gap the admin can reconcile.
 
 Fail states (all non-fatal at call site): `wcs_unavailable`, `no_subscription`, `subscription_not_found`.
+
+### `provision_individual_membership_record( int $user_id, int $tier_post_id, ?int $product_id, ?int $variation_id, string $start_date, int $link_to_group_id ): int|WP_Error` _(private)_
+
+Creates an individual membership record linked to a group. Used by `add_member()` and `move_individual_membership()`. Creates only:
+- MDP record (via `Membership_Controller::create_membership_record()`)
+- WP membership post with all meta (via `create_local_membership_record()`)
+- Line item on the group subscription (via `add_subscription_line_item()`)
+
+No personal WC order or subscription is created — the group's subscription covers billing for group-linked members.
+
+`$link_to_group_id` is required (non-nullable). `membership_group_id` is written to the membership post after creation. Line item failure is non-fatal.
+
+Renamed from `create_individual_membership_for_group()`. Fail states: `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `create_failed`.
+
+### `provision_standalone_individual_membership( int $user_id, int $tier_post_id, ?int $product_id, string $start_date, array $group_dates ): int|WP_Error` _(private)_
+
+Creates a fully-backed standalone individual membership for a member released from the group via the `keep_as_individual` mode of `remove_member()`. Replicates the checkout-driven membership creation flow in code. The resulting membership is identical to what a checkout purchase produces.
+
+**Objects created:**
+
+| Object | Notes |
+|---|---|
+| WC order (`pending`) | Required — `scheduler_dates_for_expiry()` only schedules Action Scheduler lifecycle jobs when `membership_parent_order_id` is non-zero |
+| WC subscription (`pending`) | Created explicitly via `wcs_create_subscription()` — WCS does not auto-create for programmatic orders |
+| WP membership post | Created via `do_action('wicket_member_create_record')` → `Membership_Controller::create_membership_record()` |
+| MDP record | Created by `create_membership_record()` via `wicket_assign_individual_membership()` |
+| Action Scheduler jobs | Scheduled by `scheduler_dates_for_expiry()` inside `create_membership_record()` |
+
+**Sequence:**
+
+1. Create WC order (`wc_create_order`) with product line item. Order stays `pending` — no payment.
+2. Create WC subscription (`wcs_create_subscription`) with `start_date` = group start. Inherits `_requires_manual_renewal` from the group subscription rather than re-deriving from user autopay preference.
+3. Build membership data array with group dates (`ends_at`, `expires_at`, `early_renew_at`) instead of `$config->get_membership_dates()` — member inherits remaining group term, not a fresh full-length term. Billing period sourced from `Membership_Config::get_period_data()`.
+4. Write `_wicket_membership_{product_id}` JSON blob to both order and subscription post meta.
+5. Fire `do_action('wicket_member_create_record', $membership, false, false)` — triggers `create_membership_record()` which owns all downstream side effects including subscription date writes via `update_membership_subscription()` (MDP timezone-aware).
+
+**Note:** `end` and `next_payment` dates are not set on the subscription at creation time. `update_membership_subscription()` inside `create_membership_record()` applies these values using `Utilities::get_mdp_day_end()` / `get_mdp_day_start()` for correct timezone pinning.
+
+Resolves the resulting membership post ID by scanning subscription line item `_membership_post_id_renew` meta after the action fires, with a DB query fallback.
+
+Fail states: `wcs_unavailable`, `invalid_user`, `order_create_failed`, `subscription_create_failed`, `membership_post_not_found`.
 
 ---
 
@@ -116,13 +157,13 @@ Fail states: `invalid_group_status`, `missing_user_id`, `group_ended`, `group_no
 Removes an individual membership from this group. Two modes:
 
 - **`cancel`**: cancels the group-linked membership immediately (sets status to `cancelled`). Returns the cancelled membership post ID.
-- **`keep_as_individual`**: cancels the group-linked membership, then creates a new standalone individual membership (no `membership_group_id`) with start date resolved against this group's date window and `ends_at` inherited from this group. Copies tier, product, and user from the old membership. Returns the new membership post ID.
+- **`keep_as_individual`**: captures all group and membership meta **before** any state mutations, cancels the group-linked membership, removes its subscription line item, then calls `provision_standalone_individual_membership()` to create a fully-backed standalone membership. Start date is always today (UTC) — `resolve_member_start_date()` is intentionally not used because it returns `WP_Error` when today > `ends_at`, which would block releases from grace-period groups. Dates inherited from group: `ends_at`, `expires_at`, `early_renew_at`. Returns the new membership post ID.
 
 In both modes, after cancellation, calls `remove_subscription_line_item()` to remove the matching line item from the group subscription. Failure to remove the line item is non-fatal — it is logged and the method continues.
 
 Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_group_status')` otherwise. An expired or cancelled group is blocked by the status gate before any date checks run.
 
-Fail states: `invalid_group_status`, `invalid_membership`, `membership_not_in_group`, `group_no_dates`, `group_ended`, `invalid_user`, `create_failed`.
+Fail states: `invalid_group_status`, `invalid_membership`, `membership_not_in_group`, `invalid_user`, `wcs_unavailable`, `order_create_failed`, `subscription_create_failed`, `membership_post_not_found`.
 
 ---
 

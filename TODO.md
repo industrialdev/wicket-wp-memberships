@@ -15,27 +15,6 @@ Remove the entry when the work is completed.
 
 ---
 
-## `keep_as_individual` — Fully-Backed Standalone Membership ⚠️ NEEDS TEAM DECISION
-
-When `remove_member('keep_as_individual')` is called, the released member currently gets a hollow membership: WP post + MDP record, but **no WC order and no WC subscription**. A fully-backed individual membership requires those billing objects.
-
-Two implementation paths are on the table — decision needed before actioning:
-
-**Path 1 — Adapt `Admin_Controller::create_renewal_order()`**
-Modify it to accept a plain array (not just a REST request), make `billing_period`/`billing_interval` configurable, and allow order status to be set by the caller. `create_standalone_individual_membership()` then calls it. One place owns WC order/subscription creation for individual memberships.
-- Risk: existing REST caller must not break; fixing bugs in `create_renewal_order()` (hardcoded `billing_period = 'year'`, `checkout-draft` status) is additional scope.
-
-**Path 2 — Inline standalone implementation (recommended)**
-`create_standalone_individual_membership()` owns its own ~20-line WC order + subscription block. No changes to `Admin_Controller`. Add a TODO linking back to `create_renewal_order()` for future consolidation.
-- Risk: duplication with `create_renewal_order()`. Two places to update if billing logic changes.
-
-See `plan-keep-as-individual.md` for full implementation detail.
-
-| File | Method | Note | Asana |
-|---|---|---|---|
-| `includes/Membership_Group.php` | `remove_member('keep_as_individual')` | Currently creates hollow membership (no WC order/subscription). Implement `create_standalone_individual_membership()` using chosen path above. Dates inherited from group: start=today, end=group ends_at, expires=group expires_at. Billing period from `Membership_Config::get_period_data()`. Write `_membership_post_id_renew` on subscription line item. Back-fill `membership_subscription_id` + `membership_parent_order_id` on membership post. | — |
-
----
 
 ## Membership_Group
 

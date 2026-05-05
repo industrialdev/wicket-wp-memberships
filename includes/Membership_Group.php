@@ -277,7 +277,7 @@ class Membership_Group {
       return $start_date;
     }
 
-    return $this->create_individual_membership_for_group( $user_id, $tier_post_id, $product_id, $variation_id, $start_date, $this->post_id );
+    return $this->provision_individual_membership_record( $user_id, $tier_post_id, $product_id, $variation_id, $start_date, $this->post_id );
   }
 
   /**
@@ -330,7 +330,7 @@ class Membership_Group {
       ] );
     }
 
-    $result = $target_group->create_individual_membership_for_group(
+    $result = $target_group->provision_individual_membership_record(
       $meta['user_id'],
       $meta['tier_post_id'],
       $meta['product_id'],
@@ -491,25 +491,23 @@ class Membership_Group {
   }
 
   /**
-   * Create an individual membership record and optionally link it to a group.
+   * Create an individual membership record linked to a group.
    *
-   * Handles tier/product validation and the full create_membership_record() field set.
-   * Dates are sourced from $this group — when called for move_individual_membership,
-   * $this is the target group.
+   * Used when adding a member to a group. Creates only the MDP record and WP post —
+   * no personal WC order or subscription, because the group's subscription covers billing.
    *
    * @param int      $user_id          WP user ID of the new member.
    * @param int      $tier_post_id     Post ID of the individual Membership_Tier CPT.
    * @param int|null $product_id       WC parent product ID. Auto-resolved from tier when null.
    * @param int|null $variation_id     WC variation ID. When set, stored as membership_product_id.
    * @param string   $start_date       ISO 8601 UTC start date string.
-   * @param int|null $link_to_group_id Group post ID to store in membership_group_id meta.
-   *                                   Pass null for standalone (keep_as_individual) memberships.
+   * @param int      $link_to_group_id Group post ID to store in membership_group_id meta. Required.
    * @return int|\WP_Error New membership post ID on success, WP_Error on failure.
    */
-  private function create_individual_membership_for_group( int $user_id, int $tier_post_id, ?int $product_id, ?int $variation_id, string $start_date, ?int $link_to_group_id ): int|\WP_Error {
+  private function provision_individual_membership_record( int $user_id, int $tier_post_id, ?int $product_id, ?int $variation_id, string $start_date, int $link_to_group_id ): int|\WP_Error {
     $user = get_user_by( 'id', $user_id );
     if ( ! $user ) {
-      Wicket()->log()->error( 'Membership_Group::create_individual_membership_for_group: invalid user_id', [
+      Wicket()->log()->error( 'Membership_Group::provision_individual_membership_record: invalid user_id', [
         'source'  => 'wicket-memberships',
         'post_id' => $this->post_id,
         'user_id' => $user_id,
@@ -519,7 +517,7 @@ class Membership_Group {
 
     $tier = new Membership_Tier( $tier_post_id );
     if ( ! $tier->is_individual_tier() ) {
-      Wicket()->log()->error( 'Membership_Group::create_individual_membership_for_group: tier_post_id does not resolve to an individual tier', [
+      Wicket()->log()->error( 'Membership_Group::provision_individual_membership_record: tier_post_id does not resolve to an individual tier', [
         'source'       => 'wicket-memberships',
         'post_id'      => $this->post_id,
         'tier_post_id' => $tier_post_id,
@@ -531,7 +529,7 @@ class Membership_Group {
 
     if ( $product_id === null ) {
       if ( \count( $tier_product_ids ) > 1 ) {
-        Wicket()->log()->error( 'Membership_Group::create_individual_membership_for_group: tier has multiple products; product_id must be specified explicitly', [
+        Wicket()->log()->error( 'Membership_Group::provision_individual_membership_record: tier has multiple products; product_id must be specified explicitly', [
           'source'           => 'wicket-memberships',
           'post_id'          => $this->post_id,
           'tier_product_ids' => $tier_product_ids,
@@ -539,7 +537,7 @@ class Membership_Group {
         return new \WP_Error( 'ambiguous_product', __( 'The membership tier has multiple products. Specify a product_id explicitly.', 'wicket-memberships' ) );
       }
       if ( empty( $tier_product_ids ) ) {
-        Wicket()->log()->error( 'Membership_Group::create_individual_membership_for_group: tier has no products', [
+        Wicket()->log()->error( 'Membership_Group::provision_individual_membership_record: tier has no products', [
           'source'  => 'wicket-memberships',
           'post_id' => $this->post_id,
         ] );
@@ -547,7 +545,7 @@ class Membership_Group {
       }
       $product_id = $tier_product_ids[0];
     } elseif ( ! \in_array( $product_id, $tier_product_ids, true ) ) {
-      Wicket()->log()->error( 'Membership_Group::create_individual_membership_for_group: product_id is not associated with this tier', [
+      Wicket()->log()->error( 'Membership_Group::provision_individual_membership_record: product_id is not associated with this tier', [
         'source'           => 'wicket-memberships',
         'post_id'          => $this->post_id,
         'product_id'       => $product_id,
@@ -601,7 +599,7 @@ class Membership_Group {
     $membership_post_id = (int) ( $result['membership_post_id'] ?? 0 );
 
     if ( $membership_post_id <= 0 ) {
-      Wicket()->log()->error( 'Membership_Group::create_individual_membership_for_group: create_membership_record returned no post ID', [
+      Wicket()->log()->error( 'Membership_Group::provision_individual_membership_record: create_membership_record returned no post ID', [
         'source'  => 'wicket-memberships',
         'post_id' => $this->post_id,
         'user_id' => $user_id,
@@ -609,22 +607,15 @@ class Membership_Group {
       return new \WP_Error( 'create_failed', __( 'Failed to create the membership record.', 'wicket-memberships' ) );
     }
 
-    if ( $link_to_group_id !== null ) {
-      update_post_meta( $membership_post_id, 'membership_group_id', $link_to_group_id );
-    }
+    update_post_meta( $membership_post_id, 'membership_group_id', $link_to_group_id );
 
-    // Only add a subscription line item when the membership is linked to this group.
-    // Standalone memberships (keep_as_individual path, link_to_group_id = null) have no
-    // relationship to the group subscription and must not appear on it.
     $stored_product_id = $variation_id ?? $product_id;
-    $line_item_result  = $link_to_group_id !== null
-      ? $this->add_subscription_line_item( $membership_post_id, $stored_product_id, $user_id )
-      : true;
+    $line_item_result  = $this->add_subscription_line_item( $membership_post_id, $stored_product_id, $user_id );
 
     if ( is_wp_error( $line_item_result ) ) {
       // Non-fatal: membership record was created successfully. A missing line item is a
       // billing gap the admin can reconcile in WC admin, not a data-loss event.
-      Wicket()->log()->error( 'Membership_Group::create_individual_membership_for_group: could not add subscription line item', [
+      Wicket()->log()->error( 'Membership_Group::provision_individual_membership_record: could not add subscription line item', [
         'source'             => 'wicket-memberships',
         'post_id'            => $this->post_id,
         'membership_post_id' => $membership_post_id,
@@ -636,9 +627,296 @@ class Membership_Group {
   }
 
   /**
+   * Create a fully-backed standalone individual membership for a member released from this group.
+   *
+   * Replicates the checkout-driven membership creation flow in code. Used only for the
+   * keep_as_individual path in remove_member(). The resulting membership is identical to
+   * what a checkout purchase produces: WC order, WC subscription, MDP record, WP post,
+   * all post/order/subscription meta, and Action Scheduler lifecycle jobs.
+   *
+   * @param int    $user_id      WP user ID of the released member.
+   * @param int    $tier_post_id Post ID of the individual Membership_Tier CPT.
+   * @param int    $product_id   WC product ID (variation ID when present, else parent).
+   * @param string $start_date   ISO 8601 UTC start date (today — resolved by remove_member()).
+   * @param array  $group_dates  Date array from get_dates(): starts_at, ends_at, expires_at, early_renew_at.
+   * @param string $admin_note   Note added to the WC order and subscription explaining why they were created.
+   * @return int|\WP_Error New membership post ID on success, WP_Error on failure.
+   */
+  private function provision_standalone_individual_membership(
+    int    $user_id,
+    int    $tier_post_id,
+    ?int   $product_id,
+    string $start_date,
+    array  $group_dates,
+    string $admin_note = ''
+  ): int|\WP_Error {
+    if ( ! function_exists( 'wcs_create_subscription' ) ) {
+      return new \WP_Error( 'wcs_unavailable', __( 'WooCommerce Subscriptions is not active.', 'wicket-memberships' ) );
+    }
+
+    $user = get_user_by( 'id', $user_id );
+    if ( ! $user ) {
+      return new \WP_Error( 'invalid_user', __( 'The specified user does not exist.', 'wicket-memberships' ) );
+    }
+
+    $tier = new Membership_Tier( $tier_post_id );
+
+    // get_period_data() falls back to year/1 when config is absent, matching the
+    // group subscription creation pattern in create_group_subscription().
+    $config = $tier->get_config();
+    $period = $config ? $config->get_period_data() : [ 'period_type' => 'year', 'period_count' => 1 ];
+
+    // --- Step 1: Create WC order (pending) ---
+    //
+    // The order is required — not optional. scheduler_dates_for_expiry() only schedules
+    // Action Scheduler lifecycle jobs when membership_parent_order_id is non-zero, and
+    // the AS job callbacks look up membership data via get_membership_array_from_order_and_product_id().
+    // No order = no lifecycle scheduling, no AutomateWoo renewal triggers.
+    $order = wc_create_order( [ 'customer_id' => $user_id ] );
+    if ( is_wp_error( $order ) ) {
+      Wicket()->log()->error( 'Membership_Group::provision_standalone_individual_membership: wc_create_order failed', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+        'user_id' => $user_id,
+        'error'   => $order->get_error_message(),
+      ] );
+      return new \WP_Error( 'order_create_failed', __( 'Failed to create the WooCommerce order.', 'wicket-memberships' ) );
+    }
+
+    $wc_product = wc_get_product( $product_id );
+
+    // wc_get_price_excluding_tax() is the correct source for line item pricing —
+    // it returns the tax-exclusive unit price respecting WC tax settings, matching
+    // what WC itself uses when building order items during checkout.
+    $unit_price = $wc_product ? (float) wc_get_price_excluding_tax( $wc_product ) : 0.0;
+
+    if ( $wc_product ) {
+      $item = new \WC_Order_Item_Product();
+      $item->set_product( $wc_product );
+      $item->set_quantity( 1 );
+      // set_product() populates name/tax class/IDs but NOT price. Set subtotal and
+      // total explicitly so calculate_totals() has values to sum.
+      $item->set_subtotal( $unit_price );
+      $item->set_total( $unit_price );
+      $order->add_item( $item );
+      $order->calculate_totals();
+    }
+    // Order stays pending — this is an admin-driven record, not a payment transaction.
+    $order->save();
+
+    if ( ! empty( $admin_note ) ) {
+      $order->add_order_note( $admin_note );
+    }
+
+    // --- Step 2: Create WC subscription explicitly ---
+    //
+    // WCS does NOT auto-create a subscription for programmatic orders — that only fires
+    // during actual checkout via woocommerce_checkout_order_processed. We must call
+    // wcs_create_subscription() explicitly.
+    $sub = wcs_create_subscription( [
+      'order_id'         => $order->get_id(),
+      'customer_id'      => $user_id,
+      'status'           => 'pending',
+      'billing_period'   => $period['period_type'],
+      'billing_interval' => $period['period_count'],
+      'start_date'       => date( 'Y-m-d H:i:s', strtotime( $group_dates['starts_at'] ) ),
+    ] );
+
+    if ( is_wp_error( $sub ) ) {
+      Wicket()->log()->error( 'Membership_Group::provision_standalone_individual_membership: wcs_create_subscription failed', [
+        'source'   => 'wicket-memberships',
+        'post_id'  => $this->post_id,
+        'order_id' => $order->get_id(),
+        'error'    => $sub->get_error_message(),
+      ] );
+      return new \WP_Error( 'subscription_create_failed', __( 'Failed to create the WooCommerce subscription.', 'wicket-memberships' ) );
+    }
+
+    if ( $wc_product ) {
+      $sub_item = new \WC_Order_Item_Product();
+      $sub_item->set_product( $wc_product );
+      $sub_item->set_quantity( 1 );
+      $sub_item->set_subtotal( $unit_price );
+      $sub_item->set_total( $unit_price );
+      $sub->add_item( $sub_item );
+      $sub->calculate_totals();
+    }
+
+    // _requires_manual_renewal is inherited from the group subscription rather than
+    // re-derived from user autopay preference. The released member's billing behaviour
+    // should match what the group was configured with.
+    $group_sub      = wcs_get_subscription( $this->get_subscription_id() );
+    $manual_renewal = $group_sub ? $group_sub->get_meta( '_requires_manual_renewal' ) : 'true';
+    $sub->update_meta_data( '_requires_manual_renewal', $manual_renewal );
+
+    // Mirror the _org_uuid and org_name meta that create_group_subscription() writes,
+    // so admin screens and MDP sync can identify the organisation without a group post lookup.
+    $org_uuid = $this->get_org_uuid();
+    $org_name = get_post_meta( $this->post_id, 'org_name', true );
+    if ( $org_uuid ) {
+      $sub->update_meta_data( '_org_uuid', $org_uuid );
+      update_post_meta( $sub->get_id(), '_org_uuid', $org_uuid );
+    }
+    if ( ! empty( $org_name ) ) {
+      $sub->update_meta_data( 'org_name', $org_name );
+      update_post_meta( $sub->get_id(), 'org_name', $org_name );
+    }
+
+    // Set subscription status to active — the member is being released from an active
+    // group, so their standalone membership is active immediately.
+    $sub->update_status( 'active' );
+    if ( ! empty( $admin_note ) ) {
+      $sub->add_order_note( $admin_note );
+    }
+    $sub->save();
+
+    // --- Step 3: Build membership data array using group dates ---
+    //
+    // Group dates are used instead of $config->get_membership_dates() so the member
+    // inherits the remaining group term rather than getting a fresh full-length term.
+    // This mirrors exactly what get_memberships_data_from_subscription_products() builds
+    // at lines 311–336 of Membership_Controller, substituting group dates in place of
+    // dates recalculated from config.
+    //
+    // Date-only strings (Y-m-d) are passed to update_membership_subscription() via the
+    // membership array. Passing a full UTC ISO string (e.g. "2025-12-31T23:59:59Z") causes
+    // drift: get_mdp_day_end() parses the embedded Z, shifts to MDP timezone, pins to
+    // 23:59:59, then converts back to UTC — moving the date one day forward when MDP
+    // timezone is behind UTC. A date-only string has no embedded timezone, so PHP parses
+    // it in the server default timezone (UTC in this stack), setTimezone() is a no-op
+    // shift on midnight, and the MDP-timezone pin lands on the correct calendar day.
+    // This also ensures the Action Scheduler job scheduled by schedule_force_set_next_payment_date()
+    // writes the correct value — it reuses the same string from $dates_to_update.
+    $ends_date_only       = ( new \DateTime( $group_dates['ends_at'],    new \DateTimeZone( 'UTC' ) ) )->format( 'Y-m-d' );
+    $expires_date_only    = ( new \DateTime(
+      ! empty( $group_dates['expires_at'] ) ? $group_dates['expires_at'] : $group_dates['ends_at'],
+      new \DateTimeZone( 'UTC' )
+    ) )->format( 'Y-m-d' );
+    $early_renew_date_only = ( new \DateTime(
+      ! empty( $group_dates['early_renew_at'] ) ? $group_dates['early_renew_at'] : $group_dates['ends_at'],
+      new \DateTimeZone( 'UTC' )
+    ) )->format( 'Y-m-d' );
+
+    $membership = [
+      'membership_parent_order_id'                 => $order->get_id(),
+      'membership_subscription_id'                 => $sub->get_id(),
+      'membership_product_id'                      => $product_id,
+      'membership_tier_post_id'                    => $tier_post_id,
+      'membership_tier_name'                        => $tier->get_mdp_tier_name(),
+      'membership_tier_uuid'                        => $tier->get_mdp_tier_uuid(),
+      'membership_next_tier_id'                    => $tier->get_next_tier_id(),
+      'membership_next_tier_form_page_id'          => $tier->get_next_tier_form_page_id(),
+      'membership_next_tier_subscription_renewal'  => $tier->is_renewal_subscription(),
+      'membership_type'                            => 'individual',
+      'membership_starts_at'                       => $start_date,
+      'membership_ends_at'                         => $ends_date_only,
+      'membership_expires_at'                      => $expires_date_only,
+      'membership_early_renew_at'                  => $early_renew_date_only,
+      'membership_period'                          => $period['period_type'],
+      'membership_interval'                        => $period['period_count'],
+      'membership_subscription_period'             => $period['period_type'],
+      'membership_subscription_interval'           => $period['period_count'],
+      'membership_wp_user_id'                      => $user->ID,
+      'membership_wp_user_display_name'            => $user->display_name,
+      'membership_wp_user_last_name'               => get_user_meta( $user->ID, 'last_name', true ) ?: '',
+      'membership_wp_user_email'                   => $user->user_email,
+      'membership_user_uuid'                       => $user->user_login,
+      'user_id'                                    => $user->ID,
+      'person_uuid'                                => $user->user_login,
+      'membership_grace_period_days'               => $config ? $config->get_late_fee_window_days() : 0,
+    ];
+
+    // Mirror the order/subscription post meta that catch_order_completed() writes at
+    // lines 364–370 of Membership_Controller. The AS job callbacks and renewal triggers
+    // look up membership data via this meta key on both the order and subscription.
+    add_post_meta( $order->get_id(), '_wicket_membership_' . $product_id, wp_json_encode( $membership ), true );
+    add_post_meta( $sub->get_id(),   '_wicket_membership_' . $product_id, wp_json_encode( $membership ), true );
+
+    // --- Step 4: Fire wicket_member_create_record ---
+    //
+    // do_action is called directly instead of catch_order_completed() to bypass the
+    // monthly subscription guard and use the already-resolved group dates. This triggers
+    // Membership_Controller::create_membership_record() which handles:
+    //   - MDP record creation via wicket_assign_individual_membership()
+    //   - create_local_membership_record() → WP post + all post meta + user meta + wicket_update_membership_external_id()
+    //   - scheduler_dates_for_expiry() → Action Scheduler lifecycle jobs
+    //   - update_membership_subscription() → subscription end/next_payment via MDP timezone conversion
+    //   - _membership_post_id_renew on subscription line item via wicket_update_subscription_meta_membership_post_id()
+    //   - wicket_membership_created_mdp hook
+    do_action( 'wicket_member_create_record', $membership, false, false );
+
+    // Re-apply subscription dates after do_action to correct the drift introduced by
+    // update_membership_subscription() inside create_membership_record(). That method
+    // passes the full UTC ISO string (e.g. "2025-12-31T23:59:59Z") to get_mdp_day_end(),
+    // which parses the embedded Z timezone, shifts to MDP timezone, then pins to 23:59:59
+    // — pushing the result one day forward in UTC when MDP timezone is behind UTC.
+    // Fix: pass only the date portion (Y-m-d) so no embedded timezone can shift the day.
+    // $ends_date_only and $expires_date_only already computed above (Step 3) as Y-m-d strings.
+    $sub->read_meta_data( true );
+    $next_payment_dt = Utilities::get_mdp_day_end( $ends_date_only );
+    $end_dt          = Utilities::get_mdp_day_end( $expires_date_only );
+
+    if ( $end_dt <= $next_payment_dt ) {
+      $end_dt->modify( '+1 second' );
+    }
+
+    try {
+      $sub->update_dates( [
+        'next_payment' => $next_payment_dt->format( 'Y-m-d H:i:s' ),
+        'end'          => $end_dt->format( 'Y-m-d H:i:s' ),
+      ] );
+      $sub->save();
+    } catch ( \Exception $e ) {
+      Wicket()->log()->error( 'Membership_Group::provision_standalone_individual_membership: could not correct subscription dates', [
+        'source'          => 'wicket-memberships',
+        'subscription_id' => $sub->get_id(),
+        'error'           => $e->getMessage(),
+      ] );
+    }
+
+    // Retrieve the post ID that create_membership_record() wrote via create_local_membership_record().
+    // It is stored on the subscription as _membership_post_id_renew after the action fires.
+    $membership_post_id = 0;
+    foreach ( $sub->get_items() as $sub_item ) {
+      $post_id_candidate = (int) $sub_item->get_meta( '_membership_post_id_renew' );
+      if ( $post_id_candidate > 0 ) {
+        $membership_post_id = $post_id_candidate;
+        break;
+      }
+    }
+
+    if ( $membership_post_id <= 0 ) {
+      // Fall back to querying directly for the membership post created for this user/tier.
+      $posts = get_posts( [
+        'post_type'   => Helper::get_membership_cpt_slug(),
+        'meta_query'  => [
+          [ 'key' => 'user_id',                  'value' => $user_id ],
+          [ 'key' => 'membership_subscription_id', 'value' => $sub->get_id() ],
+        ],
+        'numberposts' => 1,
+        'fields'      => 'ids',
+      ] );
+      $membership_post_id = ! empty( $posts ) ? (int) $posts[0] : 0;
+    }
+
+    if ( $membership_post_id <= 0 ) {
+      Wicket()->log()->error( 'Membership_Group::provision_standalone_individual_membership: could not resolve membership_post_id after create', [
+        'source'          => 'wicket-memberships',
+        'post_id'         => $this->post_id,
+        'user_id'         => $user_id,
+        'order_id'        => $order->get_id(),
+        'subscription_id' => $sub->get_id(),
+      ] );
+      return new \WP_Error( 'membership_post_not_found', __( 'Standalone membership was provisioned but the resulting post ID could not be resolved.', 'wicket-memberships' ) );
+    }
+
+    return $membership_post_id;
+  }
+
+  /**
    * Add a WooCommerce subscription line item for an individual membership.
    *
-   * Called after create_individual_membership_for_group() succeeds. The line item
+   * Called after provision_individual_membership_record() succeeds. The line item
    * ties the group subscription to the individual membership record so billing and
    * renewal flows can identify which memberships are covered. Failure is non-fatal —
    * the caller logs and continues.
@@ -760,6 +1038,22 @@ class Membership_Group {
       return $err;
     }
 
+    // For keep_as_individual: capture all inputs before any state changes.
+    // cancel_individual_membership() and remove_subscription_line_item() may mutate
+    // post meta; reads must complete first so the extracted values are authoritative.
+    // Not needed for cancel mode — nothing is read after cancellation in that path.
+    if ( $mode === 'keep_as_individual' ) {
+      $group_dates = $this->get_dates();
+      $meta        = $this->extract_individual_membership_meta( $membership_post_id );
+      if ( is_wp_error( $meta ) ) {
+        return $meta;
+      }
+      // resolve_member_start_date() returns WP_Error when today > group ends_at, which
+      // blocks releases from grace-period groups. For keep_as_individual the start date
+      // is always today — the member is being given a fresh standalone record right now.
+      $start_date = ( new \DateTime( 'now', new \DateTimeZone( 'UTC' ) ) )->format( 'Y-m-d\TH:i:s\Z' );
+    }
+
     $this->cancel_individual_membership( $membership_post_id );
 
     $line_item_result = $this->remove_subscription_line_item( $membership_post_id );
@@ -776,31 +1070,21 @@ class Membership_Group {
       return $membership_post_id;
     }
 
-    // keep_as_individual: create a new standalone membership inheriting group dates.
-    // TODO: Replace create_individual_membership_for_group(..., null) with a dedicated
-    //       create_standalone_individual_membership() that also creates a WC order and
-    //       WC subscription (with _membership_post_id_renew on the subscription line item)
-    //       and back-fills membership_subscription_id + membership_parent_order_id on the
-    //       post. Two implementation paths are under team discussion — see TODO.md section
-    //       "keep_as_individual — Fully-Backed Standalone Membership" and plan-keep-as-individual.md.
-    $meta = $this->extract_individual_membership_meta( $membership_post_id );
-    if ( is_wp_error( $meta ) ) {
-      return $meta;
-    }
+    $group_name = $this->get_name();
+    $admin_note = sprintf(
+      /* translators: 1: membership group name, 2: group post ID */
+      __( 'Created automatically when member was removed from membership group "%1$s" (ID: %2$d) with the keep-as-individual option.', 'wicket-memberships' ),
+      $group_name,
+      $this->post_id
+    );
 
-    $start_date = $this->resolve_member_start_date();
-    if ( is_wp_error( $start_date ) ) {
-      return $start_date;
-    }
-
-    // link_to_group_id = null → standalone, no membership_group_id meta written.
-    return $this->create_individual_membership_for_group(
+    return $this->provision_standalone_individual_membership(
       $meta['user_id'],
       $meta['tier_post_id'],
-      $meta['product_id'],
-      $meta['variation_id'],
+      $meta['variation_id'] ?? $meta['product_id'],
       $start_date,
-      null
+      $group_dates,
+      $admin_note
     );
   }
 

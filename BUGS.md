@@ -19,7 +19,7 @@ Add an entry here when a bug is identified. Remove it when resolved.
 
 ### What happens
 
-When `Membership_Group::add_member()` is called, `create_individual_membership_for_group()` does two things back-to-back in the same PHP request:
+When `Membership_Group::add_member()` is called, `provision_individual_membership_record()` does two things back-to-back in the same PHP request:
 
 1. Calls `Membership_Controller::create_membership_record()` — a heavyweight write chain:
    - `wp_insert_post()` (membership CPT)
@@ -55,6 +55,6 @@ Option 2 is the most targeted fix without changing the write order of existing c
 
 ### Files involved
 
-- `includes/Membership_Group.php` — `create_individual_membership_for_group()` (line ~555), `add_subscription_line_item()` (line ~638)
+- `includes/Membership_Group.php` — `provision_individual_membership_record()` (line ~555), `add_subscription_line_item()` (line ~638)
 - `includes/Membership_Controller.php` — `create_membership_record()` (line ~717), `scheduler_dates_for_expiry()` (line ~609), `update_membership_subscription()` (line ~791)
 - `qa/tests/WordPress/Memberships/membership-group.pest.php` — 6 tests from line ~2010, all using `BYPASS_WICKET` workaround
