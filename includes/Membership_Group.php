@@ -318,6 +318,31 @@ class Membership_Group {
       return $start_date;
     }
 
+    // Cancellation has no rollback, so verify the member does not already hold a
+    // non-cancelled membership with the same tier in the target group before
+    // touching anything. A cancelled record is ignored — it represents a past
+    // membership and must not block a legitimate move.
+    $duplicate = get_posts( [
+      'post_type'      => Helper::get_membership_cpt_slug(),
+      'post_status'    => 'any',
+      'posts_per_page' => 1,
+      'fields'         => 'ids',
+      'meta_query'     => [
+        'relation' => 'AND',
+        [ 'key' => 'membership_group_id',     'value' => $target_group->post_id ],
+        [ 'key' => 'user_id',                 'value' => $meta['user_id'] ],
+        [ 'key' => 'membership_tier_post_id', 'value' => $meta['tier_post_id'] ],
+        [ 'key' => 'membership_status',       'value' => Wicket_Memberships::STATUS_CANCELLED, 'compare' => '!=' ],
+      ],
+    ] );
+
+    if ( ! empty( $duplicate ) ) {
+      return new \WP_Error(
+        'duplicate_membership_in_target_group',
+        __( 'This member already has an active membership with the same tier in the destination group.', 'wicket-memberships' )
+      );
+    }
+
     $this->cancel_individual_membership( $membership_post_id );
 
     $line_item_result = $this->remove_subscription_line_item( $membership_post_id );
