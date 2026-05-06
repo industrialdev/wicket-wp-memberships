@@ -100,4 +100,4 @@ Full architecture context in `/srv/wicket-wp-stack/GROUP_MEMBERSHIP_LIST_PLAN.md
 | File | Method | Note | Asana |
 |---|---|---|---|
 | `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register `POST /group/{id}/create_renewal_order` once the group subscription line item structure is finalised. Current group edit flow intentionally mocks commerce gaps instead of attempting partial implementation. | — |
-| `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register remaining group routes once backing business logic exists: `GET /get_membership_group_callouts`, `POST /group/{id}/move_member`, `POST /group/{id}/cancel`, `GET /group/{id}/members`, and `POST /group/{id}/import_members`. | — |
+| `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register remaining group routes once backing business logic exists: `GET /get_membership_group_callouts`, `POST /group/{id}/move_member`, `GET /group/{id}/members`, and `POST /group/{id}/import_members`. | — |

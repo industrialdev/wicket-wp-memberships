@@ -45,8 +45,9 @@ const DetailsWrap = styled.div`
  * @param {Function} props.onRecordUpdated       - Called with the updated record after a save.
  * @param {Function} props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}   props.individualMembersUrl  - URL of the individual members list page for group member links.
+ * @param {Function} [props.onGroupCancelled]    - Called with a success message after the group is cancelled.
  */
-const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl, onMemberAdded }) => {
+const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl, onMemberAdded, onGroupCancelled }) => {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isCancelGroupOpen, setIsCancelGroupOpen] = useState(false);
   const [memberRefreshKey, setMemberRefreshKey] = useState(0);
@@ -160,10 +161,13 @@ const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, 
         isOpen={isCancelGroupOpen}
         groupPostId={groupPostId}
         onRequestClose={() => setIsCancelGroupOpen(false)}
-        onSuccess={(_message) => {
+        onSuccess={(message) => {
           setIsCancelGroupOpen(false);
           if (onRecordUpdated) {
             onRecordUpdated({ ...record, status: "cancelled" });
+          }
+          if (onGroupCancelled) {
+            onGroupCancelled(message);
           }
         }}
       />

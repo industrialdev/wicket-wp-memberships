@@ -9,7 +9,8 @@ import MembershipGroupForm from "./MembershipGroupForm";
 
 const MembershipGroupPageContent = ({ postId, listUrl, individualMembersUrl }) => {
   const { pageData, setPageData, requestState, retryLoad } = useMembershipGroupBootstrap({ postId });
-  const [memberAddedNotice, setMemberAddedNotice] = useState(null);
+  const [memberAddedNotice, setMemberAddedNotice]       = useState(null);
+  const [groupCancelledNotice, setGroupCancelledNotice] = useState(null);
 
   const isLoading = requestState.status === "loading";
 
@@ -23,6 +24,15 @@ const MembershipGroupPageContent = ({ postId, listUrl, individualMembersUrl }) =
       status: "success",
       message: __("Member successfully added to the group.", "wicket-memberships"),
       onDismiss: () => setMemberAddedNotice(null),
+    });
+  };
+
+  const handleGroupCancelled = (message) => {
+    setGroupCancelledNotice({
+      id: "group-cancelled",
+      status: "success",
+      message: message || __("Membership group cancelled successfully.", "wicket-memberships"),
+      onDismiss: () => setGroupCancelledNotice(null),
     });
   };
 
@@ -44,6 +54,7 @@ const MembershipGroupPageContent = ({ postId, listUrl, individualMembersUrl }) =
         ]
       : []),
     ...(memberAddedNotice ? [memberAddedNotice] : []),
+    ...(groupCancelledNotice ? [groupCancelledNotice] : []),
   ];
 
   return (
@@ -55,6 +66,7 @@ const MembershipGroupPageContent = ({ postId, listUrl, individualMembersUrl }) =
         onOwnerUpdated={handleOwnerUpdated}
         individualMembersUrl={individualMembersUrl}
         onMemberAdded={handleMemberAdded}
+        onGroupCancelled={handleGroupCancelled}
       />
     </>
   );

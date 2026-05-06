@@ -1482,6 +1482,162 @@ class Membership_Group {
   }
 
   /**
+   * Cancel the group at its existing end date, leaving individual memberships active.
+   *
+   * Unlike transition_to('cancelled'), this path preserves the current ends_at so members
+   * retain access until the paid period runs out. expires_at is collapsed to ends_at to
+   * remove the grace period. Individual memberships are NOT cascaded — their status stays
+   * active; only expires_at is updated so daily_membership_expiry_hook fires naturally.
+   *
+   * This method exists because plan_status_transition() always recalculates ends_at on
+   * cancel (e.g. active → +1 day), making it impossible to preserve the original end date
+   * through the standard transition_to() path.
+   *
+   * @return array{success_message: string}|false False when the group is not in a cancellable status.
+   */
+  public function transition_to_cancelled_at_end_date(): array|false {
+    $cancellable = [
+      Wicket_Memberships::STATUS_PENDING,
+      Wicket_Memberships::STATUS_DELAYED,
+      Wicket_Memberships::STATUS_ACTIVE,
+      Wicket_Memberships::STATUS_GRACE,
+    ];
+
+    if ( ! in_array( $this->get_membership_status(), $cancellable, true ) ) {
+      return false;
+    }
+
+    $current_ends_at = get_post_meta( $this->post_id, 'membership_ends_at', true );
+
+    // Without an end date there is no meaningful point to defer cancellation to.
+    // The controller guards this too, but enforce here so the method is self-contained.
+    if ( $current_ends_at === '' || $current_ends_at === false ) {
+      return false;
+    }
+
+    // Collapse expires_at to ends_at to remove the grace period. starts_at and
+    // early_renew_at are preserved (null = no-op in apply_status_transition).
+    $dates = [
+      'starts_at'      => null,
+      'ends_at'        => $current_ends_at,
+      'expires_at'     => $current_ends_at,
+      'early_renew_at' => null,
+    ];
+
+    if ( ! $this->apply_status_transition( Wicket_Memberships::STATUS_CANCELLED, $dates ) ) {
+      return false;
+    }
+
+    // Collapse expires_at on each individual membership so daily_membership_expiry_hook
+    // fires at ends_at. Status stays active — members keep access until that date.
+    foreach ( $this->get_individual_memberships() as $membership_post ) {
+      update_post_meta( $membership_post->ID, 'membership_expires_at', $current_ends_at );
+    }
+
+    return [ 'success_message' => 'Membership group cancelled. Members retain access until end date.' ];
+  }
+
+  /**
+   * Cancel the group and convert every individual group membership to a standalone
+   * individual membership, preserving the remaining group term for each member.
+   *
+   * This is Path C of the group cancellation flow. assert_group_is_manageable() blocks
+   * once the group is cancelled, so all member data must be read before the group
+   * transition fires. After cancellation, each existing group membership is cancelled and
+   * a new standalone membership + WC subscription is provisioned via
+   * provision_standalone_individual_membership(), which inherits the group dates so
+   * members keep their current term rather than getting a fresh full-length period.
+   *
+   * Non-fatal per-member failures (missing user, WCS unavailable, order/subscription
+   * creation failure) are collected in the returned `warnings` array so the caller can
+   * report them without aborting the entire conversion.
+   *
+   * @return array{success_message: string, warnings?: string[]}|false
+   *   False when the group transition itself fails (hard failure).
+   */
+  public function cancel_keep_as_individual(): array|false {
+    // --- Phase 1: Read all member data before transitioning the group ---
+    //
+    // assert_group_is_manageable() in remove_member() and resolve_member_start_date()
+    // both reject calls on a cancelled group, so reads must complete first.
+    $individual_memberships = $this->get_individual_memberships();
+    $group_dates            = $this->get_dates();
+
+    $members_meta = [];
+    foreach ( $individual_memberships as $membership_post ) {
+      $membership_post_id = $membership_post->ID;
+
+      $user_id      = (int) get_post_meta( $membership_post_id, 'user_id', true );
+      $tier_post_id = (int) get_post_meta( $membership_post_id, 'membership_tier_post_id', true );
+      $product_id   = (int) get_post_meta( $membership_post_id, 'membership_product_id', true );
+
+      // Resolve variation vs parent product — mirrors extract_individual_membership_meta().
+      // provision_standalone_individual_membership() expects the variation ID when present
+      // so the correct line item price and product data are used.
+      $variation_id = null;
+      if ( $product_id > 0 ) {
+        $wc_product = wc_get_product( $product_id );
+        if ( $wc_product instanceof \WC_Product_Variation ) {
+          $variation_id = $product_id;
+          $product_id   = (int) $wc_product->get_parent_id();
+        }
+      }
+
+      $members_meta[] = [
+        'membership_post_id' => $membership_post_id,
+        'user_id'            => $user_id,
+        'tier_post_id'       => $tier_post_id,
+        'product_id'         => $product_id > 0 ? ( $variation_id ?? $product_id ) : null,
+      ];
+    }
+
+    // --- Phase 2: Cancel the group (and its subscription) ---
+    $transition_result = $this->transition_to( Wicket_Memberships::STATUS_CANCELLED );
+    if ( false === $transition_result ) {
+      return false;
+    }
+
+    // --- Phase 3: Per-member conversion ---
+    $mc         = new Membership_Controller();
+    $start_date = ( new \DateTime( 'now', new \DateTimeZone( 'UTC' ) ) )->format( 'Y-m-d\TH:i:s\Z' );
+    $errors     = [];
+
+    foreach ( $members_meta as $meta ) {
+      $membership_post_id = $meta['membership_post_id'];
+
+      // Cancel the existing group membership post so the member no longer appears as
+      // an active group member. The group_id meta is preserved intentionally — it
+      // records the origin group for audit purposes even after the record is cancelled.
+      $mc->update_membership_status( $membership_post_id, Wicket_Memberships::STATUS_CANCELLED );
+
+      $admin_note = sprintf(
+        /* translators: 1: group post ID */
+        __( 'Created automatically when membership group (ID: %d) was cancelled with the keep-as-individual option. Member continues as a standalone individual membership.', 'wicket-memberships' ),
+        $this->post_id
+      );
+
+      $result = $this->provision_standalone_individual_membership(
+        $meta['user_id'],
+        $meta['tier_post_id'],
+        $meta['product_id'],
+        $start_date,
+        $group_dates,
+        $admin_note
+      );
+
+      if ( is_wp_error( $result ) ) {
+        $errors[] = "membership {$membership_post_id}: " . $result->get_error_message();
+      }
+    }
+
+    $response = [ 'success_message' => 'Membership group cancelled. Individual memberships converted to standalone.' ];
+    if ( ! empty( $errors ) ) {
+      $response['warnings'] = $errors;
+    }
+    return $response;
+  }
+
+  /**
    * Execute a group status transition and its side effects.
    *
    * @param string $new_status

@@ -389,6 +389,39 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
       ],
     ] );
 
+    /**
+     * Cancel a membership group with configurable member handling.
+     *
+     * POST /wicket_member/v1/group/{group_post_id}/cancel
+     * Body: { member_handling, timing? }
+     */
+    register_rest_route( $this->namespace, '/group/(?P<group_post_id>\d+)/cancel', [
+      [
+        'methods'             => \WP_REST_Server::CREATABLE,
+        'callback'            => [ $this, 'cancel_group' ],
+        'permission_callback' => [ $this, 'permissions_check_write' ],
+        'args'                => [
+          'group_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the membership group to cancel.',
+          ],
+          'member_handling' => [
+            'required'    => true,
+            'type'        => 'string',
+            'enum'        => [ 'cancel_all', 'keep_as_individual' ],
+            'description' => '"cancel_all" to cancel all individual memberships, "keep_as_individual" to convert each to a standalone membership.',
+          ],
+          'timing' => [
+            'required'    => false,
+            'type'        => 'string',
+            'enum'        => [ 'immediately', 'at_end_date' ],
+            'description' => 'When to cancel. Required when member_handling is "cancel_all". "immediately" cancels now; "at_end_date" cancels at the group end date.',
+          ],
+        ],
+      ],
+    ] );
+
     // -------------------------------------------------------------------------
     // TODO stubs — no backing business logic yet (see TODO.md)
     // -------------------------------------------------------------------------
@@ -396,7 +429,6 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     //       line item structure being finalised.
 
     // TODO: GET  /get_membership_group_callouts  — group-level renewal/grace callouts
-    // TODO: POST /group/{id}/cancel              — cancel group with options (cancel all / continue as individual)
     // TODO: GET  /group/{id}/members             — list individual memberships in a group
     // TODO: POST /group/{id}/import_members      — bulk CSV import of members into a group
   }
@@ -571,6 +603,26 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     }
 
     return new \WP_REST_Response( $result, 200 );
+  }
+
+  /**
+   * POST /group/{group_post_id}/cancel
+   */
+  public function cancel_group( \WP_REST_Request $request ): \WP_REST_Response {
+    $params          = $request->get_params();
+    $group_post_id   = (int) ( $params['group_post_id'] ?? 0 );
+    $member_handling = sanitize_text_field( $params['member_handling'] ?? '' );
+    $timing          = sanitize_text_field( $params['timing'] ?? '' );
+
+    if ( ! \in_array( $member_handling, [ 'cancel_all', 'keep_as_individual' ], true ) ) {
+      return new \WP_REST_Response( [ 'error' => 'member_handling must be "cancel_all" or "keep_as_individual".' ], 400 );
+    }
+
+    if ( $member_handling === 'cancel_all' && ! \in_array( $timing, [ 'immediately', 'at_end_date' ], true ) ) {
+      return new \WP_REST_Response( [ 'error' => 'timing must be "immediately" or "at_end_date" when member_handling is "cancel_all".' ], 400 );
+    }
+
+    return Group_Admin_Controller::cancel_group( $group_post_id, $member_handling, $timing );
   }
 
   /**

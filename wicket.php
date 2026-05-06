@@ -253,6 +253,43 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       
       //checkbox toggle - can be used for view subscriptions
       add_action('init', [__NAMESPACE__.'\\Utilities', 'autorenew_checkbox_toggle_switch']);
+
+      // Fired by Action Scheduler when a cancel_all+at_end_date group cancellation reaches its end date.
+      add_action( 'wicket_group_cancel_subscription', array( $this, 'handle_group_cancel_subscription' ), 10, 1 );
+    }
+
+    /**
+     * Action Scheduler handler for wicket_group_cancel_subscription.
+     *
+     * Called at the group ends_at date when cancel_all + at_end_date was chosen.
+     * Cancels the WC subscription linked to the group.
+     *
+     * @param int $group_post_id Post ID of the membership group.
+     */
+    public function handle_group_cancel_subscription( int $group_post_id ): void {
+      if ( ! function_exists( 'wcs_get_subscription' ) ) {
+        return;
+      }
+
+      $sub_id = (int) get_post_meta( $group_post_id, 'membership_subscription_id', true );
+      if ( ! $sub_id ) {
+        return;
+      }
+
+      $sub = wcs_get_subscription( $sub_id );
+      if ( ! $sub ) {
+        return;
+      }
+
+      $sub->add_order_note(
+        sprintf(
+          /* translators: 1: membership group post ID */
+          __( 'Subscription cancelled automatically at membership group end date (group ID: %d).', 'wicket-memberships' ),
+          $group_post_id
+        )
+      );
+      $sub->update_status( 'cancelled' );
+      $sub->save();
     }
 
     public static function schedule_daily_membership_expiry() {

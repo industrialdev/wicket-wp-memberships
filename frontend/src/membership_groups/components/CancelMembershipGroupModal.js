@@ -70,9 +70,9 @@ const CancelMembershipGroupModal = ({
       if (memberHandling === MEMBER_HANDLING_CANCEL_ALL) {
         data.timing = timing;
       }
-      await cancelMembershipGroup(groupPostId, data);
+      const result = await cancelMembershipGroup(groupPostId, data);
       resetState();
-      onSuccess(__("Membership group cancelled successfully.", "wicket-memberships"));
+      onSuccess(result?.success ?? __("Membership group cancelled successfully.", "wicket-memberships"));
     } catch (err) {
       setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));
       setSubmitting(false);

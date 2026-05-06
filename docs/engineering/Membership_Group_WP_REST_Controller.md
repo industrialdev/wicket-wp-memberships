@@ -148,6 +148,20 @@ Validates `mode`, then delegates to `Group_Admin_Controller::remove_member()`. R
 
 Delegates to `Group_Admin_Controller::move_individual_membership()`. Returns `200` with `{ success, membership_post_id }` (new membership) on success; `400` with `{ error }` on failure. If the source is cancelled but the new membership cannot be created, returns `400` with an explicit message — no rollback.
 
+### `cancel_group( \WP_REST_Request $request ): \WP_REST_Response`
+
+**Route:** `POST /group/{group_post_id}/cancel`
+
+| Param | Required | Type | Notes |
+|---|---|---|---|
+| `group_post_id` | yes | integer | URL segment |
+| `member_handling` | yes | string | `"cancel_all"` or `"keep_as_individual"` |
+| `timing` | conditional | string | `"immediately"` or `"at_end_date"` — required when `member_handling` is `"cancel_all"` |
+
+Validates `member_handling` and (when applicable) `timing`, then delegates to `Group_Admin_Controller::cancel_group()`. Returns its `WP_REST_Response` directly. See `Group_Admin_Controller::cancel_group()` for full path descriptions (A/B/C).
+
+---
+
 ### `create_group_renewal_order( \WP_REST_Request $request )`
 
 **Route:** `POST /group/{group_post_id}/create_renewal_order`
@@ -175,7 +189,6 @@ These routes have no backing business logic yet. They are tracked in `TODO.md`.
 | Method | Route | Feature |
 |---|---|---|
 | `GET` | `/get_membership_group_callouts` | Group-level renewal/grace period callouts |
-| `POST` | `/group/{id}/cancel` | Cancel group with options |
 | `GET` | `/group/{id}/members` | List full individual membership records in a group |
 | `POST` | `/group/{id}/import_members` | Bulk CSV import of members into a group |
 

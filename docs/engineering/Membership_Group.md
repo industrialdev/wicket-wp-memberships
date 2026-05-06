@@ -279,9 +279,39 @@ Returns the `membership_status` meta value for this group, or `false` if not set
 
 Sets the `membership_status` meta value directly. This remains public as a low-level developer escape hatch, but normal lifecycle flows should use `transition_to()` so transition rules, dates, and side effects are applied consistently. The value must be one of the slugs returned by `Helper::get_all_status_names()`. Returns `true` on success. Logs an error and returns `false` if the status is not in the allowed list or if the meta update fails.
 
-### `transition_to( string $new_status ): array|false`
+### `transition_to( string $new_status ): array{success_message: string, bypassed: bool}|false`
 
-Executes a group status transition and its side effects. This is the supported lifecycle entrypoint for status changes. It applies transition rules, plans transition dates, activates the linked subscription for `pending -> active`, and persists the new group state. Child-status cascading is currently a TODO placeholder and does not run. Returns an array containing `success_message` and `bypassed` on success, or `false` when the requested transition cannot be performed.
+Executes a group status transition and its side effects. This is the supported lifecycle entrypoint for status changes. It applies transition rules via `can_transition_to()`, plans transition dates via `plan_status_transition()`, activates the linked subscription for `pending → active`, persists the new group state via `apply_status_transition()`, and cascades the new status to child memberships via `cascade_status_to_members()`. Returns an array containing `success_message` and `bypassed` on success, or `false` when the requested transition cannot be performed.
+
+---
+
+### `transition_to_cancelled_at_end_date(): array{success_message: string}|false`
+
+Cancels the group while preserving the existing `ends_at`, so members retain access until the paid period runs out. This is a specialised path that cannot be expressed through `transition_to('cancelled')` because `plan_status_transition()` always recalculates `ends_at` on cancel.
+
+What it does:
+- Validates the group is in a cancellable status (`pending`, `delayed`, `active`, `grace_period`). Returns `false` otherwise.
+- Returns `false` if `membership_ends_at` is empty — without an end date there is no meaningful point to defer cancellation to. (The controller guards this too, but the method is self-contained.)
+- Calls `apply_status_transition('cancelled', ...)` with `ends_at` preserved and `expires_at` collapsed to `ends_at` (removes grace period).
+- Updates `membership_expires_at` on each individual membership to match `ends_at`. **Does not change their status** — members keep active access until that date, and `daily_membership_expiry_hook` handles expiry naturally.
+
+Subscription handling (pending-cancel + deferred hard-cancel AS job) is the caller's responsibility — see `Group_Admin_Controller::cancel_group()` path B.
+
+### `cancel_keep_as_individual(): array{success_message: string, warnings?: string[]}|false`
+
+Cancels the group and converts every individual group membership to a standalone individual membership, preserving the remaining group term.
+
+This is Path C of the group cancellation flow (see `Group_Admin_Controller::cancel_group()`). It encapsulates the full conversion loop so the controller stays a thin delegator.
+
+**Phase 1 — Read before cancel.** `assert_group_is_manageable()` rejects calls on a cancelled group, so all member meta (user ID, tier, product ID, variation resolution) is collected from `get_individual_memberships()` before the group status changes.
+
+**Phase 2 — Cancel the group.** Calls `transition_to('cancelled')`, which cascades the cancelled status to child memberships and cancels the group WC subscription.
+
+**Phase 3 — Per-member conversion.** For each member:
+- Calls `Membership_Controller::update_membership_status()` to explicitly cancel the existing group membership post (the cascade in Phase 2 already does this, but the explicit call ensures the post is in the correct state before provisioning).
+- Calls `provision_standalone_individual_membership()` with the group dates, so each member inherits the remaining term rather than a fresh full-length period. The admin note on the resulting order and subscription records the origin group ID.
+
+Non-fatal per-member errors (missing user, WCS unavailable, order/subscription failure) are collected in `warnings` and returned alongside `success_message`. Returns `false` only when the group transition itself fails.
 
 ### `apply_edit_fields( array $normalized_fields ): bool`
 

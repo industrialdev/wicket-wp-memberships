@@ -7295,15 +7295,16 @@ const CancelMembershipGroupModal = ({
     setSubmitting(true);
     setError(null);
     try {
+      var _result$success;
       const data = {
         member_handling: memberHandling
       };
       if (memberHandling === MEMBER_HANDLING_CANCEL_ALL) {
         data.timing = timing;
       }
-      await (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_6__.cancelMembershipGroup)(groupPostId, data);
+      const result = await (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_6__.cancelMembershipGroup)(groupPostId, data);
       resetState();
-      onSuccess((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Membership group cancelled successfully.", "wicket-memberships"));
+      onSuccess((_result$success = result?.success) !== null && _result$success !== void 0 ? _result$success : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Membership group cancelled successfully.", "wicket-memberships"));
     } catch (err) {
       var _ref, _err$error;
       setError((_ref = (_err$error = err?.error) !== null && _err$error !== void 0 ? _err$error : err?.message) !== null && _ref !== void 0 ? _ref : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("An error occurred.", "wicket-memberships"));
@@ -7625,13 +7626,15 @@ __webpack_require__.r(__webpack_exports__);
  * @param {Function}     props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}       props.individualMembersUrl  - URL of the individual members list page.
  * @param {Function}     [props.onMemberAdded]       - Called after a member is successfully added to the group.
+ * @param {Function}     [props.onGroupCancelled]    - Called with a success message after the group is cancelled.
  */
 const MembershipGroupForm = ({
   pageData,
   isLoading,
   onOwnerUpdated,
   individualMembersUrl,
-  onMemberAdded
+  onMemberAdded,
+  onGroupCancelled
 }) => {
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_IntroBlockSection__WEBPACK_IMPORTED_MODULE_1__["default"], {
     pageData: pageData,
@@ -7641,7 +7644,8 @@ const MembershipGroupForm = ({
     isLoading: isLoading,
     onOwnerUpdated: onOwnerUpdated,
     individualMembersUrl: individualMembersUrl,
-    onMemberAdded: onMemberAdded
+    onMemberAdded: onMemberAdded,
+    onGroupCancelled: onGroupCancelled
   }));
 };
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (MembershipGroupForm);
@@ -7692,6 +7696,7 @@ const MembershipGroupPageContent = ({
     postId
   });
   const [memberAddedNotice, setMemberAddedNotice] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [groupCancelledNotice, setGroupCancelledNotice] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const isLoading = requestState.status === "loading";
   const handleOwnerUpdated = newOwner => {
     setPageData(prev => prev ? {
@@ -7710,6 +7715,14 @@ const MembershipGroupPageContent = ({
       onDismiss: () => setMemberAddedNotice(null)
     });
   };
+  const handleGroupCancelled = message => {
+    setGroupCancelledNotice({
+      id: "group-cancelled",
+      status: "success",
+      message: message || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Membership group cancelled successfully.", "wicket-memberships"),
+      onDismiss: () => setGroupCancelledNotice(null)
+    });
+  };
   const notices = [...(requestState.status === "error" ? [{
     id: "load-error",
     status: "warning",
@@ -7718,7 +7731,7 @@ const MembershipGroupPageContent = ({
       label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Retry loading", "wicket-memberships"),
       onClick: retryLoad
     }
-  }] : []), ...(memberAddedNotice ? [memberAddedNotice] : [])];
+  }] : []), ...(memberAddedNotice ? [memberAddedNotice] : []), ...(groupCancelledNotice ? [groupCancelledNotice] : [])];
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_AdminNoticeStack__WEBPACK_IMPORTED_MODULE_2__["default"], {
     notices: notices
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_MembershipGroupForm__WEBPACK_IMPORTED_MODULE_7__["default"], {
@@ -7726,7 +7739,8 @@ const MembershipGroupPageContent = ({
     isLoading: isLoading,
     onOwnerUpdated: handleOwnerUpdated,
     individualMembersUrl: individualMembersUrl,
-    onMemberAdded: handleMemberAdded
+    onMemberAdded: handleMemberAdded,
+    onGroupCancelled: handleGroupCancelled
   }));
 };
 
@@ -7839,6 +7853,7 @@ const DetailsWrap = styled_components__WEBPACK_IMPORTED_MODULE_13__["default"].d
  * @param {Function} props.onRecordUpdated       - Called with the updated record after a save.
  * @param {Function} props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}   props.individualMembersUrl  - URL of the individual members list page for group member links.
+ * @param {Function} [props.onGroupCancelled]    - Called with a success message after the group is cancelled.
  */
 const MembershipGroupRecordDetails = ({
   record,
@@ -7846,7 +7861,8 @@ const MembershipGroupRecordDetails = ({
   onRecordUpdated,
   onOwnerUpdated,
   individualMembersUrl,
-  onMemberAdded
+  onMemberAdded,
+  onGroupCancelled
 }) => {
   var _groupPageData$subscr, _groupPageData$subscr2, _groupPageData$subscr3, _groupPageData$orders, _groupPageData$ID, _groupPageData$owner, _owner$mdp_link, _owner$switch_to_url, _record$next_tier_for, _record$next_tier_id;
   const [isAddMemberOpen, setIsAddMemberOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
@@ -7958,13 +7974,16 @@ const MembershipGroupRecordDetails = ({
     isOpen: isCancelGroupOpen,
     groupPostId: groupPostId,
     onRequestClose: () => setIsCancelGroupOpen(false),
-    onSuccess: _message => {
+    onSuccess: message => {
       setIsCancelGroupOpen(false);
       if (onRecordUpdated) {
         onRecordUpdated({
           ...record,
           status: "cancelled"
         });
+      }
+      if (onGroupCancelled) {
+        onGroupCancelled(message);
       }
     }
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_AddMemberToGroupModal__WEBPACK_IMPORTED_MODULE_5__["default"], {
@@ -8068,13 +8087,15 @@ const buildColumns = pageData => [{
  * @param {Function}     props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}       props.individualMembersUrl  - URL of the individual members list page, passed to the expanded panel.
  * @param {Function}     [props.onMemberAdded]       - Called after a member is successfully added to the group.
+ * @param {Function}     [props.onGroupCancelled]    - Called with a success message after the group is cancelled.
  */
 const MembershipRecordsSection = ({
   pageData,
   isLoading,
   onOwnerUpdated,
   individualMembersUrl,
-  onMemberAdded
+  onMemberAdded,
+  onGroupCancelled
 }) => {
   var _pageData$membership_;
   // Keep a local copy of records so status/date changes update the collapsed
@@ -8095,7 +8116,8 @@ const MembershipRecordsSection = ({
     onRecordUpdated: handleRecordUpdated,
     onOwnerUpdated: onOwnerUpdated,
     individualMembersUrl: individualMembersUrl,
-    onMemberAdded: onMemberAdded
+    onMemberAdded: onMemberAdded,
+    onGroupCancelled: onGroupCancelled
   });
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipRecordsSection__WEBPACK_IMPORTED_MODULE_2__["default"], {
     columns: columns,

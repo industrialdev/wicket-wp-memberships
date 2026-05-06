@@ -18,12 +18,13 @@ import MembershipRecordsSection from "./MembershipRecordsSection";
  * @param {Function}     props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}       props.individualMembersUrl  - URL of the individual members list page.
  * @param {Function}     [props.onMemberAdded]       - Called after a member is successfully added to the group.
+ * @param {Function}     [props.onGroupCancelled]    - Called with a success message after the group is cancelled.
  */
-const MembershipGroupForm = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl, onMemberAdded }) => {
+const MembershipGroupForm = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl, onMemberAdded, onGroupCancelled }) => {
   return (
     <>
       <IntroBlockSection pageData={pageData} isLoading={isLoading} />
-      <MembershipRecordsSection pageData={pageData} isLoading={isLoading} onOwnerUpdated={onOwnerUpdated} individualMembersUrl={individualMembersUrl} onMemberAdded={onMemberAdded} />
+      <MembershipRecordsSection pageData={pageData} isLoading={isLoading} onOwnerUpdated={onOwnerUpdated} individualMembersUrl={individualMembersUrl} onMemberAdded={onMemberAdded} onGroupCancelled={onGroupCancelled} />
     </>
   );
 };

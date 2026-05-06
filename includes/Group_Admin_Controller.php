@@ -990,4 +990,197 @@ class Group_Admin_Controller {
     return new \WP_REST_Response( [ 'error' => 'Not yet implemented.' ], 501 );
   }
 
+  // Cancel group
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Cancel a membership group with configurable handling for individual memberships.
+   *
+   * Three paths, selected by $member_handling + $timing:
+   *
+   * Path A — cancel_all + immediately:
+   *   Transitions the group to cancelled (collapses dates to now via plan_status_transition,
+   *   cancels the group subscription via transition_to's internal cascade). Cancels every
+   *   individual membership immediately. No replacement memberships created.
+   *
+   * Path B — cancel_all + at_end_date:
+   *   Calls Membership_Group::transition_to_cancelled_at_end_date(), which sets group status
+   *   to cancelled while preserving ends_at, collapses expires_at to ends_at (removes grace
+   *   period), and updates individual membership expires_at without touching their active
+   *   status. Members retain access until the original end date. daily_membership_expiry_hook
+   *   handles individual expiry naturally on that date — no per-member jobs needed.
+   *   Group subscription set to pending-cancel. One AS job scheduled at ends_at to
+   *   hard-cancel it. No replacement memberships created.
+   *
+   * Path C — keep_as_individual:
+   *   Collects all individual membership meta before cancelling (assert_group_is_manageable
+   *   and resolve_member_start_date both block after cancellation). Transitions the group to
+   *   cancelled. For each collected membership: cancels it, then creates a new standalone
+   *   individual membership record + WooCommerce subscription with start=today, inheriting
+   *   the group's tier, product, and end/expires dates. membership_group_id meta is preserved
+   *   on the cancelled record for historical reference.
+   *
+   * @param int    $group_post_id   Post ID of the membership group to cancel.
+   * @param string $member_handling 'cancel_all' or 'keep_as_individual'.
+   * @param string $timing          'immediately' or 'at_end_date'. Ignored when $member_handling
+   *                                is 'keep_as_individual'.
+   * @return \WP_REST_Response
+   */
+  public static function cancel_group( int $group_post_id, string $member_handling, string $timing ): \WP_REST_Response {
+    $post = get_post( $group_post_id );
+    if ( ! $post || get_post_type( $group_post_id ) !== Helper::get_membership_group_cpt_slug() ) {
+      return new \WP_REST_Response( [ 'error' => 'Membership group not found.' ], 404 );
+    }
+
+    $member_handling = sanitize_text_field( $member_handling );
+    $timing          = sanitize_text_field( $timing );
+
+    $allowed_handling = [ 'cancel_all', 'keep_as_individual' ];
+    $allowed_timing   = [ 'immediately', 'at_end_date' ];
+
+    if ( ! in_array( $member_handling, $allowed_handling, true ) ) {
+      return new \WP_REST_Response( [ 'error' => 'Invalid member_handling value.' ], 400 );
+    }
+
+    if ( $member_handling === 'cancel_all' && ! in_array( $timing, $allowed_timing, true ) ) {
+      return new \WP_REST_Response( [ 'error' => 'Invalid timing value.' ], 400 );
+    }
+
+    $group = new Membership_Group( $group_post_id );
+
+    // -------------------------------------------------------------------------
+    // Path C — keep_as_individual
+    // -------------------------------------------------------------------------
+    if ( $member_handling === 'keep_as_individual' ) {
+      $result = $group->cancel_keep_as_individual();
+      if ( false === $result ) {
+        return new \WP_REST_Response( [ 'error' => 'Could not cancel membership group. Transition failed.' ], 400 );
+      }
+
+      $response = [ 'success' => $result['success_message'] ];
+      if ( ! empty( $result['warnings'] ) ) {
+        $response['warnings'] = $result['warnings'];
+      }
+      return new \WP_REST_Response( $response, 200 );
+    }
+
+    // -------------------------------------------------------------------------
+    // Path A — cancel_all + immediately
+    // -------------------------------------------------------------------------
+    if ( $timing === 'immediately' ) {
+      // transition_to('cancelled') collapses dates to now, cancels the group subscription
+      // via plan_status_transition, and cascades cancelled status to all child memberships
+      // via cascade_status_to_members(). No per-member loop needed.
+      $transition_result = $group->transition_to( Wicket_Memberships::STATUS_CANCELLED );
+      if ( false === $transition_result ) {
+        return new \WP_REST_Response( [ 'error' => 'Could not cancel membership group. Transition failed.' ], 400 );
+      }
+
+      self::cancel_group_subscription( $group->get_subscription_id(), array_merge( $group->get_dates(), [ 'group_post_id' => $group_post_id ] ) );
+
+      return new \WP_REST_Response( [ 'success' => 'Membership group and all individual memberships cancelled immediately.' ], 200 );
+    }
+
+    // -------------------------------------------------------------------------
+    // Path B — cancel_all + at_end_date
+    // -------------------------------------------------------------------------
+
+    $group_dates = $group->get_dates();
+    if ( empty( $group_dates['ends_at'] ) ) {
+      return new \WP_REST_Response( [ 'error' => 'Membership group has no end date. Cannot schedule deferred cancellation.' ], 400 );
+    }
+
+    // Delegates to transition_to_cancelled_at_end_date() which: sets group status to
+    // cancelled preserving ends_at, collapses group expires_at to ends_at, and updates
+    // individual membership expires_at without touching their active status.
+    $transition_result = $group->transition_to_cancelled_at_end_date();
+    if ( false === $transition_result ) {
+      return new \WP_REST_Response( [ 'error' => 'Could not cancel membership group at end date. Transition failed.' ], 400 );
+    }
+
+    // Set group subscription to pending-cancel so it stops renewing immediately.
+    $sub_id = $group->get_subscription_id();
+    if ( $sub_id && function_exists( 'wcs_get_subscription' ) ) {
+      $sub = wcs_get_subscription( $sub_id );
+      if ( $sub ) {
+        $sub->add_order_note(
+          sprintf(
+            /* translators: 1: membership group post ID */
+            __( 'Set to pending-cancel by admin — membership group (ID: %d) cancelled at end date. Subscription will be cancelled when the group end date is reached.', 'wicket-memberships' ),
+            $group_post_id
+          )
+        );
+        try {
+          $sub->update_status( 'pending-cancel' );
+        } catch ( \Exception $e ) {
+          // Subscription may already be in a terminal status (cancelled, expired).
+          // Log and continue — the AS job will still fire at ends_at.
+          Utilities::wc_log_mship_error( [
+            'Group_Admin_Controller::cancel_group (path B): could not set subscription to pending-cancel',
+            'subscription_id' => $sub->get_id(),
+            'error'           => $e->getMessage(),
+          ] );
+        }
+        $sub->save();
+      }
+    }
+
+    // Schedule one AS job at ends_at to hard-cancel the subscription.
+    // The hook handler in wicket.php calls $subscription->update_status('cancelled').
+    $ends_at_ts = strtotime( $group_dates['ends_at'] );
+    if ( $ends_at_ts && ! as_next_scheduled_action( 'wicket_group_cancel_subscription', [ $group_post_id ] ) ) {
+      as_schedule_single_action( $ends_at_ts, 'wicket_group_cancel_subscription', [ $group_post_id ] );
+    }
+
+    return new \WP_REST_Response( [ 'success' => 'Membership group set to cancel at end date. Subscription set to pending-cancel.' ], 200 );
+  }
+
+  /**
+   * Cancel the WC subscription linked to a membership group.
+   *
+   * Updates the subscription end date from $meta_data['ends_at'], clears next_payment,
+   * and sets status to cancelled. No-op when the subscription does not exist or
+   * WooCommerce Subscriptions is not active.
+   *
+   * @param int|false $subscription_id
+   * @param array     $meta_data  Group date meta — expects key 'ends_at'.
+   */
+  private static function cancel_group_subscription( $subscription_id, array $meta_data ): void {
+    if ( ! $subscription_id || ! function_exists( 'wcs_get_subscription' ) ) {
+      return;
+    }
+
+    $sub = wcs_get_subscription( $subscription_id );
+    if ( ! $sub ) {
+      return;
+    }
+
+    $date_updates = [];
+    if ( ! empty( $meta_data['ends_at'] ) ) {
+      $date_updates['end'] = date( 'Y-m-d H:i:s', strtotime( $meta_data['ends_at'] ) );
+    }
+
+    try {
+      if ( ! empty( $date_updates ) ) {
+        $sub->update_dates( $date_updates );
+      }
+    } catch ( \Exception $e ) {
+      Utilities::wc_log_mship_error( [
+        'Group_Admin_Controller::cancel_group_subscription: could not update subscription dates',
+        'subscription_id' => $subscription_id,
+        'error'           => $e->getMessage(),
+      ] );
+    }
+
+    $sub->add_order_note(
+      sprintf(
+        /* translators: 1: membership group post ID */
+        __( 'Subscription cancelled immediately by admin via membership group cancellation (group ID: %d).', 'wicket-memberships' ),
+        $meta_data['group_post_id'] ?? 0
+      )
+    );
+    $sub->update_status( 'cancelled' );
+    $sub->save();
+  }
+
 }

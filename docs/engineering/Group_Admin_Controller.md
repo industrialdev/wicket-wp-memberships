@@ -228,6 +228,30 @@ Returns `['success' => '...', 'membership_post_id' => int]` on success or `['err
 
 ---
 
+### `cancel_group( int $group_post_id, string $member_handling, string $timing ): \WP_REST_Response`
+
+Cancels a membership group with three configurable paths based on `$member_handling` and `$timing`.
+
+**Path A — `cancel_all` + `immediately`:**
+- Calls `Membership_Group::transition_to('cancelled')`, which collapses dates to now and handles the cascade via `plan_status_transition`.
+- Calls `cancel_group_subscription()` to immediately hard-cancel the WC subscription.
+- Calls `Membership_Controller::update_membership_status($post_id, 'cancelled')` on each individual membership. `membership_group_id` meta is preserved for historical reference. No replacement memberships are created.
+
+**Path B — `cancel_all` + `at_end_date`:**
+- Calls `Membership_Group::transition_to_cancelled_at_end_date()`, which sets group status to cancelled while preserving `ends_at`, collapses `expires_at` to `ends_at`, and updates individual membership `expires_at` without touching their active status.
+- Individual memberships **keep their active status** — members retain access until the original group end date. `daily_membership_expiry_hook` expires them naturally on that date. No per-member scheduled job.
+- Sets the group WC subscription to `pending-cancel`.
+- Schedules one `as_schedule_single_action` at `ends_at` with hook `wicket_group_cancel_subscription` + arg `$group_post_id`. The handler in `wicket.php` calls `$subscription->update_status('cancelled')`.
+- No replacement memberships created.
+
+**Path C — `keep_as_individual`:**
+- Delegates entirely to `Membership_Group::cancel_keep_as_individual()`. See that method's documentation for the full conversion loop detail.
+- Returns `400` if the group transition fails, `200` (with optional `warnings` array) on success.
+
+Returns `400` for invalid transitions or missing end date (path B), `404` if group not found, `200` on success.
+
+---
+
 ### `create_group_renewal_order( array $params ): \WP_REST_Response`
 
 Creates a renewal WC order and subscription for a membership group. Expects `params`:
@@ -250,7 +274,7 @@ Builds one list-table row per group post. Owner `name` and `email` are resolved 
 
 ### `cancel_group_subscription( int|false $subscription_id, array $meta_data ): void`
 
-Cancels a WC subscription and updates its end date from `$meta_data['membership_ends_at']`. Clears `next_payment`. No-op if the subscription does not exist or WC Subscriptions is not active.
+Cancels a WC subscription linked to a membership group. Sets the subscription end date from `$meta_data['ends_at']` then calls `update_status('cancelled')`. No-op if the subscription does not exist or WC Subscriptions is not active. Used by path A of `cancel_group()`.
 
 ---
 
