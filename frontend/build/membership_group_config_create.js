@@ -9945,6 +9945,7 @@ const useResolvedOption = (id, type, restSlug = "pages") => {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   addMemberToGroup: () => (/* binding */ addMemberToGroup),
+/* harmony export */   cancelMembershipGroup: () => (/* binding */ cancelMembershipGroup),
 /* harmony export */   createMembershipGroup: () => (/* binding */ createMembershipGroup),
 /* harmony export */   createRenewalOrder: () => (/* binding */ createRenewalOrder),
 /* harmony export */   fetchGroupEditPageInfo: () => (/* binding */ fetchGroupEditPageInfo),
@@ -10422,6 +10423,24 @@ const removeMemberFromGroup = (groupPostId, data) => {
 const moveIndividualMembership = (sourceGroupPostId, data) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${sourceGroupPostId}/move_individual_membership`,
+    method: "POST",
+    data
+  });
+};
+
+/**
+ * Cancel a membership group.
+ *
+ * POST /wicket_member/v1/group/{groupPostId}/cancel
+ *
+ * @param {number} groupPostId
+ * @param {object} data
+ * @param {'cancel_all'|'keep_as_individual'}  data.member_handling — what to do with individual memberships
+ * @param {'immediately'|'at_end_date'}        [data.timing]        — required when member_handling='cancel_all'
+ */
+const cancelMembershipGroup = (groupPostId, data) => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${groupPostId}/cancel`,
     method: "POST",
     data
   });

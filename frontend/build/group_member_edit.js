@@ -7210,6 +7210,172 @@ const AddMemberToGroupModal = ({
 
 /***/ }),
 
+/***/ "./src/membership_groups/components/CancelMembershipGroupModal.js":
+/*!************************************************************************!*\
+  !*** ./src/membership_groups/components/CancelMembershipGroupModal.js ***!
+  \************************************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+"use strict";
+__webpack_require__.r(__webpack_exports__);
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(react__WEBPACK_IMPORTED_MODULE_0__);
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! @wordpress/element */ "@wordpress/element");
+/* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_1__);
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(/*! @wordpress/i18n */ "@wordpress/i18n");
+/* harmony import */ var _wordpress_i18n__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__);
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
+/* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__);
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var _shared_components_WicketModal__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ../../shared/components/WicketModal */ "./src/shared/components/WicketModal.js");
+/* harmony import */ var _shared_components_Alert__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ../../shared/components/Alert */ "./src/shared/components/Alert.js");
+/* harmony import */ var _shared_services_api__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../../shared/services/api */ "./src/shared/services/api.js");
+
+
+
+
+
+
+
+
+const ModalFooter = styled_components__WEBPACK_IMPORTED_MODULE_7__["default"].div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #e0e0e0;
+`;
+const MEMBER_HANDLING_CANCEL_ALL = "cancel_all";
+const MEMBER_HANDLING_KEEP = "keep_as_individual";
+const TIMING_IMMEDIATELY = "immediately";
+const TIMING_AT_END_DATE = "at_end_date";
+
+/**
+ * CancelMembershipGroupModal
+ *
+ * Opened when an admin sets a membership group status to "cancelled".
+ * Lets the admin choose how individual memberships should be handled and,
+ * if cancelling all, when the cancellation should take effect.
+ *
+ * @param {bool}     props.isOpen
+ * @param {number}   props.groupPostId        - WP post ID of the membership group.
+ * @param {Function} props.onRequestClose
+ * @param {Function} props.onSuccess          - Called after a successful cancellation; parent should refresh.
+ */
+const CancelMembershipGroupModal = ({
+  isOpen,
+  groupPostId,
+  onRequestClose,
+  onSuccess
+}) => {
+  const [memberHandling, setMemberHandling] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)("");
+  const [timing, setTiming] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)("");
+  const [error, setError] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(null);
+  const [submitting, setSubmitting] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false);
+  const resetState = () => {
+    setMemberHandling("");
+    setTiming("");
+    setError(null);
+    setSubmitting(false);
+  };
+  const handleClose = () => {
+    resetState();
+    onRequestClose();
+  };
+  const isSubmitDisabled = () => {
+    if (!memberHandling) return true;
+    if (memberHandling === MEMBER_HANDLING_CANCEL_ALL && !timing) return true;
+    return false;
+  };
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const data = {
+        member_handling: memberHandling
+      };
+      if (memberHandling === MEMBER_HANDLING_CANCEL_ALL) {
+        data.timing = timing;
+      }
+      await (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_6__.cancelMembershipGroup)(groupPostId, data);
+      resetState();
+      onSuccess((0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Membership group cancelled successfully.", "wicket-memberships"));
+    } catch (err) {
+      var _ref, _err$error;
+      setError((_ref = (_err$error = err?.error) !== null && _err$error !== void 0 ? _err$error : err?.message) !== null && _ref !== void 0 ? _ref : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("An error occurred.", "wicket-memberships"));
+      setSubmitting(false);
+    }
+  };
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_WicketModal__WEBPACK_IMPORTED_MODULE_4__["default"], {
+    isOpen: isOpen,
+    title: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Cancel Membership Group", "wicket-memberships"),
+    onRequestClose: handleClose,
+    shouldCloseOnClickOutside: false
+  }, error && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_Alert__WEBPACK_IMPORTED_MODULE_5__["default"], {
+    saveResult: {
+      type: "error",
+      message: error
+    },
+    onDismiss: () => setError(null)
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Cancelling this membership group is permanent and cannot be undone. Choose how individual memberships should be handled before proceeding.", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginBottom: "16px"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.SelectControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("What should happen to individual memberships?", "wicket-memberships"),
+    value: memberHandling,
+    options: [{
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Select an option", "wicket-memberships"),
+      value: ""
+    }, {
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Cancel all individual memberships", "wicket-memberships"),
+      value: MEMBER_HANDLING_CANCEL_ALL
+    }, {
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Continue memberships as individual memberships", "wicket-memberships"),
+      value: MEMBER_HANDLING_KEEP
+    }],
+    onChange: val => {
+      setMemberHandling(val);
+      setTiming("");
+    }
+  })), memberHandling === MEMBER_HANDLING_CANCEL_ALL && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+    style: {
+      marginBottom: "16px"
+    }
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.SelectControl, {
+    label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("When should cancellation take effect?", "wicket-memberships"),
+    value: timing,
+    options: [{
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Select timing", "wicket-memberships"),
+      value: ""
+    }, {
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Cancel immediately", "wicket-memberships"),
+      value: TIMING_IMMEDIATELY
+    }, {
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Cancel at membership group end date", "wicket-memberships"),
+      value: TIMING_AT_END_DATE
+    }],
+    onChange: val => setTiming(val)
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(ModalFooter, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
+    variant: "secondary",
+    onClick: handleClose,
+    disabled: submitting
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Cancel", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Button, {
+    variant: "primary",
+    isDestructive: true,
+    onClick: handleSubmit,
+    disabled: isSubmitDisabled() || submitting,
+    isBusy: submitting
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)("Confirm Cancellation", "wicket-memberships"))));
+};
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (CancelMembershipGroupModal);
+
+/***/ }),
+
 /***/ "./src/membership_groups/components/GroupMembersSection.js":
 /*!*****************************************************************!*\
   !*** ./src/membership_groups/components/GroupMembersSection.js ***!
@@ -7622,15 +7788,16 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_2__);
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__);
-/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
 /* harmony import */ var _GroupMembersSection__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./GroupMembersSection */ "./src/membership_groups/components/GroupMembersSection.js");
 /* harmony import */ var _AddMemberToGroupModal__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./AddMemberToGroupModal */ "./src/membership_groups/components/AddMemberToGroupModal.js");
-/* harmony import */ var _shared_components_MembershipBillingInfoSection__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ../../shared/components/MembershipBillingInfoSection */ "./src/shared/components/MembershipBillingInfoSection.js");
-/* harmony import */ var _shared_components_MembershipOrderDetailsSection__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../../shared/components/MembershipOrderDetailsSection */ "./src/shared/components/MembershipOrderDetailsSection.js");
-/* harmony import */ var _shared_components_MembershipStatusSection__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../../shared/components/MembershipStatusSection */ "./src/shared/components/MembershipStatusSection.js");
-/* harmony import */ var _shared_components_MembershipActionsSection__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../../shared/components/MembershipActionsSection */ "./src/shared/components/MembershipActionsSection.js");
-/* harmony import */ var _shared_components_MembershipDetailsForm__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../../shared/components/MembershipDetailsForm */ "./src/shared/components/MembershipDetailsForm.js");
-/* harmony import */ var _shared_services_api__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ../../shared/services/api */ "./src/shared/services/api.js");
+/* harmony import */ var _CancelMembershipGroupModal__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./CancelMembershipGroupModal */ "./src/membership_groups/components/CancelMembershipGroupModal.js");
+/* harmony import */ var _shared_components_MembershipBillingInfoSection__WEBPACK_IMPORTED_MODULE_7__ = __webpack_require__(/*! ../../shared/components/MembershipBillingInfoSection */ "./src/shared/components/MembershipBillingInfoSection.js");
+/* harmony import */ var _shared_components_MembershipOrderDetailsSection__WEBPACK_IMPORTED_MODULE_8__ = __webpack_require__(/*! ../../shared/components/MembershipOrderDetailsSection */ "./src/shared/components/MembershipOrderDetailsSection.js");
+/* harmony import */ var _shared_components_MembershipStatusSection__WEBPACK_IMPORTED_MODULE_9__ = __webpack_require__(/*! ../../shared/components/MembershipStatusSection */ "./src/shared/components/MembershipStatusSection.js");
+/* harmony import */ var _shared_components_MembershipActionsSection__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../../shared/components/MembershipActionsSection */ "./src/shared/components/MembershipActionsSection.js");
+/* harmony import */ var _shared_components_MembershipDetailsForm__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ../../shared/components/MembershipDetailsForm */ "./src/shared/components/MembershipDetailsForm.js");
+/* harmony import */ var _shared_services_api__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ../../shared/services/api */ "./src/shared/services/api.js");
 
 
 
@@ -7644,7 +7811,8 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-const DetailsWrap = styled_components__WEBPACK_IMPORTED_MODULE_12__["default"].div`
+
+const DetailsWrap = styled_components__WEBPACK_IMPORTED_MODULE_13__["default"].div`
   padding: 4px 0;
 `;
 
@@ -7682,6 +7850,7 @@ const MembershipGroupRecordDetails = ({
 }) => {
   var _groupPageData$subscr, _groupPageData$subscr2, _groupPageData$subscr3, _groupPageData$orders, _groupPageData$ID, _groupPageData$owner, _owner$mdp_link, _owner$switch_to_url, _record$next_tier_for, _record$next_tier_id;
   const [isAddMemberOpen, setIsAddMemberOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
+  const [isCancelGroupOpen, setIsCancelGroupOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(false);
   const [memberRefreshKey, setMemberRefreshKey] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_2__.useState)(0);
 
   // Group-level subscription and order data is shared across all records until
@@ -7709,7 +7878,7 @@ const MembershipGroupRecordDetails = ({
     if (inputValue.length < 3) {
       return;
     }
-    (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_11__.fetchMdpPersons)({
+    (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_12__.fetchMdpPersons)({
       term: inputValue
     }).then(response => {
       callback(response.map(person => ({
@@ -7724,7 +7893,7 @@ const MembershipGroupRecordDetails = ({
     if (!selectedOption?.value || selectedOption.value === owner?.uuid) {
       return Promise.resolve({});
     }
-    return (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_11__.updateGroupChangeOwnership)(groupPostId, selectedOption.value);
+    return (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_12__.updateGroupChangeOwnership)(groupPostId, selectedOption.value);
   };
   const isCancelled = record.status?.toLowerCase() === "cancelled";
   const handleStatusUpdated = (_postId, newStatus) => {
@@ -7741,7 +7910,7 @@ const MembershipGroupRecordDetails = ({
     nextTierFormPageId,
     nextTierId,
     ...datepayload
-  }) => (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_11__.updateMembershipGroup)(record.ID, {
+  }) => (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_12__.updateMembershipGroup)(record.ID, {
     group_post_id: record.ID,
     renewal_type: renewalType,
     next_tier_form_page_id: nextTierFormPageId,
@@ -7762,29 +7931,43 @@ const MembershipGroupRecordDetails = ({
       });
     }
   };
-  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(DetailsWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipBillingInfoSection__WEBPACK_IMPORTED_MODULE_6__["default"], {
+  return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(DetailsWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipBillingInfoSection__WEBPACK_IMPORTED_MODULE_7__["default"], {
     subscriptionId: subscriptionId,
     subscriptionLink: subscriptionLink,
     nextPaymentDate: nextPaymentDate
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipOrderDetailsSection__WEBPACK_IMPORTED_MODULE_7__["default"], {
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipOrderDetailsSection__WEBPACK_IMPORTED_MODULE_8__["default"], {
     orders: orders
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Flex, {
     align: "normal",
     justify: "start",
     gap: 6,
     direction: ["column", "row"]
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipStatusSection__WEBPACK_IMPORTED_MODULE_8__["default"], {
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipStatusSection__WEBPACK_IMPORTED_MODULE_9__["default"], {
     postId: record.ID,
     currentStatus: record.status,
-    fetchStatuses: _shared_services_api__WEBPACK_IMPORTED_MODULE_11__.fetchMembershipGroupStatuses,
-    updateStatus: _shared_services_api__WEBPACK_IMPORTED_MODULE_11__.updateMembershipGroupStatus,
-    onStatusUpdated: handleStatusUpdated
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipActionsSection__WEBPACK_IMPORTED_MODULE_9__["default"], {
+    fetchStatuses: _shared_services_api__WEBPACK_IMPORTED_MODULE_12__.fetchMembershipGroupStatuses,
+    updateStatus: _shared_services_api__WEBPACK_IMPORTED_MODULE_12__.updateMembershipGroupStatus,
+    onStatusUpdated: handleStatusUpdated,
+    onCancelIntercept: () => setIsCancelGroupOpen(true)
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipActionsSection__WEBPACK_IMPORTED_MODULE_10__["default"], {
     actions: [{
       label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Add Member to Group", "wicket-memberships"),
       onClick: () => setIsAddMemberOpen(true)
     }]
-  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_AddMemberToGroupModal__WEBPACK_IMPORTED_MODULE_5__["default"], {
+  })), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_CancelMembershipGroupModal__WEBPACK_IMPORTED_MODULE_6__["default"], {
+    isOpen: isCancelGroupOpen,
+    groupPostId: groupPostId,
+    onRequestClose: () => setIsCancelGroupOpen(false),
+    onSuccess: _message => {
+      setIsCancelGroupOpen(false);
+      if (onRecordUpdated) {
+        onRecordUpdated({
+          ...record,
+          status: "cancelled"
+        });
+      }
+    }
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_AddMemberToGroupModal__WEBPACK_IMPORTED_MODULE_5__["default"], {
     isOpen: isAddMemberOpen,
     groupPostId: groupPostId,
     onRequestClose: () => setIsAddMemberOpen(false),
@@ -7793,7 +7976,7 @@ const MembershipGroupRecordDetails = ({
       setMemberRefreshKey(k => k + 1);
       if (onMemberAdded) onMemberAdded();
     }
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipDetailsForm__WEBPACK_IMPORTED_MODULE_10__["default"], {
+  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_MembershipDetailsForm__WEBPACK_IMPORTED_MODULE_11__["default"], {
     dates: {
       starts_at: record.starts_at,
       ends_at: record.ends_at,
@@ -9492,15 +9675,20 @@ const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_5__["default"
  *                                                       statusMap: { [slug]: { name, slug } }.
  * @param {Function}            props.updateStatus    - `(postId, newStatus) => Promise<response>`.
  *                                                       response: { success?, error? }.
- * @param {Function}            [props.onStatusUpdated] - Called with (postId, newStatus, responseData)
- *                                                         after a successful change.
+ * @param {Function}            [props.onStatusUpdated]    - Called with (postId, newStatus, responseData)
+ *                                                           after a successful change.
+ * @param {Function}            [props.onCancelIntercept]  - When provided and the selected status is
+ *                                                           'cancelled', fires this callback instead of
+ *                                                           showing the built-in confirmation step.
+ *                                                           The modal is closed before the callback fires.
  */
 const MembershipStatusSection = ({
   postId,
   currentStatus = "",
   fetchStatuses,
   updateStatus,
-  onStatusUpdated
+  onStatusUpdated,
+  onCancelIntercept
 }) => {
   const [isModalOpen, setIsModalOpen] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(false);
   const [newStatus, setNewStatus] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)("");
@@ -9544,6 +9732,10 @@ const MembershipStatusSection = ({
   const handleStatusChange = value => {
     setNewStatus(value);
     setStatusChangeConfirmed(false);
+    if (value === "cancelled" && onCancelIntercept) {
+      setIsModalOpen(false);
+      onCancelIntercept();
+    }
   };
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_3__.BorderedBox, {
     style: {
@@ -10605,6 +10797,7 @@ const normalizeCycleData = cycleData => {
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   addMemberToGroup: () => (/* binding */ addMemberToGroup),
+/* harmony export */   cancelMembershipGroup: () => (/* binding */ cancelMembershipGroup),
 /* harmony export */   createMembershipGroup: () => (/* binding */ createMembershipGroup),
 /* harmony export */   createRenewalOrder: () => (/* binding */ createRenewalOrder),
 /* harmony export */   fetchGroupEditPageInfo: () => (/* binding */ fetchGroupEditPageInfo),
@@ -11082,6 +11275,24 @@ const removeMemberFromGroup = (groupPostId, data) => {
 const moveIndividualMembership = (sourceGroupPostId, data) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
     path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${sourceGroupPostId}/move_individual_membership`,
+    method: "POST",
+    data
+  });
+};
+
+/**
+ * Cancel a membership group.
+ *
+ * POST /wicket_member/v1/group/{groupPostId}/cancel
+ *
+ * @param {number} groupPostId
+ * @param {object} data
+ * @param {'cancel_all'|'keep_as_individual'}  data.member_handling — what to do with individual memberships
+ * @param {'immediately'|'at_end_date'}        [data.timing]        — required when member_handling='cancel_all'
+ */
+const cancelMembershipGroup = (groupPostId, data) => {
+  return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${groupPostId}/cancel`,
     method: "POST",
     data
   });

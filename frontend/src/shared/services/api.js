@@ -447,3 +447,21 @@ export const moveIndividualMembership = (sourceGroupPostId, data) => {
     data,
   });
 };
+
+/**
+ * Cancel a membership group.
+ *
+ * POST /wicket_member/v1/group/{groupPostId}/cancel
+ *
+ * @param {number} groupPostId
+ * @param {object} data
+ * @param {'cancel_all'|'keep_as_individual'}  data.member_handling — what to do with individual memberships
+ * @param {'immediately'|'at_end_date'}        [data.timing]        — required when member_handling='cancel_all'
+ */
+export const cancelMembershipGroup = (groupPostId, data) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/group/${groupPostId}/cancel`,
+    method: "POST",
+    data,
+  });
+};

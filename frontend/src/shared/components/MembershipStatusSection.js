@@ -35,8 +35,12 @@ const MarginedFlex = styled(Flex)`
  *                                                       statusMap: { [slug]: { name, slug } }.
  * @param {Function}            props.updateStatus    - `(postId, newStatus) => Promise<response>`.
  *                                                       response: { success?, error? }.
- * @param {Function}            [props.onStatusUpdated] - Called with (postId, newStatus, responseData)
- *                                                         after a successful change.
+ * @param {Function}            [props.onStatusUpdated]    - Called with (postId, newStatus, responseData)
+ *                                                           after a successful change.
+ * @param {Function}            [props.onCancelIntercept]  - When provided and the selected status is
+ *                                                           'cancelled', fires this callback instead of
+ *                                                           showing the built-in confirmation step.
+ *                                                           The modal is closed before the callback fires.
  */
 const MembershipStatusSection = ({
   postId,
@@ -44,6 +48,7 @@ const MembershipStatusSection = ({
   fetchStatuses,
   updateStatus,
   onStatusUpdated,
+  onCancelIntercept,
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newStatus, setNewStatus] = useState("");
@@ -94,6 +99,10 @@ const MembershipStatusSection = ({
   const handleStatusChange = (value) => {
     setNewStatus(value);
     setStatusChangeConfirmed(false);
+    if (value === "cancelled" && onCancelIntercept) {
+      setIsModalOpen(false);
+      onCancelIntercept();
+    }
   };
 
   return (

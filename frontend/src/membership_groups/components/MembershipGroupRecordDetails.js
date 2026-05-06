@@ -4,6 +4,7 @@ import { Flex } from "@wordpress/components";
 import styled from "styled-components";
 import GroupMembersSection from "./GroupMembersSection";
 import AddMemberToGroupModal from "./AddMemberToGroupModal";
+import CancelMembershipGroupModal from "./CancelMembershipGroupModal";
 import MembershipBillingInfoSection from "../../shared/components/MembershipBillingInfoSection";
 import MembershipOrderDetailsSection from "../../shared/components/MembershipOrderDetailsSection";
 import MembershipStatusSection from "../../shared/components/MembershipStatusSection";
@@ -47,6 +48,7 @@ const DetailsWrap = styled.div`
  */
 const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl, onMemberAdded }) => {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isCancelGroupOpen, setIsCancelGroupOpen] = useState(false);
   const [memberRefreshKey, setMemberRefreshKey] = useState(0);
 
   // Group-level subscription and order data is shared across all records until
@@ -141,6 +143,7 @@ const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, 
           fetchStatuses={fetchMembershipGroupStatuses}
           updateStatus={updateMembershipGroupStatus}
           onStatusUpdated={handleStatusUpdated}
+          onCancelIntercept={() => setIsCancelGroupOpen(true)}
         />
 
         <MembershipActionsSection
@@ -152,6 +155,18 @@ const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, 
           ]}
         />
       </Flex>
+
+      <CancelMembershipGroupModal
+        isOpen={isCancelGroupOpen}
+        groupPostId={groupPostId}
+        onRequestClose={() => setIsCancelGroupOpen(false)}
+        onSuccess={(_message) => {
+          setIsCancelGroupOpen(false);
+          if (onRecordUpdated) {
+            onRecordUpdated({ ...record, status: "cancelled" });
+          }
+        }}
+      />
 
       <AddMemberToGroupModal
         isOpen={isAddMemberOpen}
