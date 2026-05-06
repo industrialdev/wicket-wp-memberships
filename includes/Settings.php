@@ -87,6 +87,7 @@ class Settings {
     add_settings_field( 'bypass_status_change_lockout', '<p>BYPASS_STATUS_CHANGE_LOCKOUT</p>', [__NAMESPACE__.'\\Settings', 'bypass_status_change_lockout'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'wicket_show_order_debug_data', '<p>WICKET_SHOW_ORDER_DEBUG_DATA</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_order_debug_data'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'allow_local_imports', '<p>ALLOW_LOCAL_IMPORTS</p>', [__NAMESPACE__.'\\Settings', 'allow_local_imports'], 'wicket_membership_plugin', 'debug_settings' );
+    add_settings_field( 'wicket_mship_import_create_subscriptions', '<p style="color:#999">Import Subscription Option:</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_import_create_subscriptions'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'wicket_memberships_debug_renew', '<p>WICKET_MEMBERSHIPS_DEBUG_RENEW</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_renew'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'wicket_memberships_debug_cart_ids', '<p>WICKET_MEMBERSHIPS_DEBUG_CART_IDS</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_cart_ids'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'bypass_wicket', '<p>BYPASS_WICKET</p>', [__NAMESPACE__.'\\Settings', 'bypass_wicket'], 'wicket_membership_plugin', 'debug_settings' );
@@ -180,6 +181,12 @@ class Settings {
 
   }
   
+  public static function wicket_mship_import_create_subscriptions() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_mship_import_create_subscriptions' name='wicket_membership_plugin_options[wicket_mship_import_create_subscriptions]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_import_create_subscriptions']), false). " />"
+      .'Create a WooCommerce Subscription for every imported membership, regardless of tier renewal type. <p>By default only Memberships created in a Tier with their renewal type = "Subscription" will have subscriptions created on import.</p>';
+  }
+
   public static function wicket_mship_subscription_renew() {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_subscription_renew]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_subscription_renew']), false). " />"
@@ -274,6 +281,7 @@ class Settings {
     $newinput['bypass_wicket'] = trim($input['bypass_wicket']);
     $newinput['wicket_mship_subscription_renew'] = trim($input['wicket_mship_subscription_renew']); 
     $newinput['wicket_mship_mdp_timezone'] = trim($input['wicket_mship_mdp_timezone']);
+    $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
     $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
     if(!empty($_REQUEST['schedule_daily_membership_expiry_hook'])) {
       $count = Membership_Controller::daily_membership_expiry_hook();
