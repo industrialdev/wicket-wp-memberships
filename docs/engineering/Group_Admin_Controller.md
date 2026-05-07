@@ -84,8 +84,6 @@ Returns the data needed to populate the membership group entity view:
 
 Returns `404` if the post is not found or wrong CPT.
 
-> **TODO:** Enrich response with WC subscription and order data — see TODO.md.
-
 ---
 
 ### `update_group_entity_record( array $data ): \WP_REST_Response`
@@ -119,6 +117,12 @@ Returns all data required to populate the membership group edit form:
   'owner'               => [ 'user_id', 'uuid', 'name', 'email', 'mdp_link', 'identifying_number', 'switch_to_url' ] | null,
   'config'              => array,   // post meta from the linked Membership_Group_Config
   'subscription_id'     => int|false,
+  'subscription'        => [ 'id', 'link', 'status', 'next_payment_date' ] | null,
+  'order'               => [ 'id', 'link', 'total', 'status', 'date_created', 'date_completed' ] | null,
+  'orders'              => [
+    [ 'id', 'link', 'total', 'status', 'date_created', 'date_completed', 'type' ],
+    // type: 'parent' | 'renewal' | 'other'
+  ],
   'dates'               => [ 'starts_at', 'ends_at', 'expires_at', 'early_renew_at' ],
   'statuses'            => array,   // all status names
   'allowed_transitions' => array,   // valid next statuses from current
@@ -140,7 +144,7 @@ Returns all data required to populate the membership group edit form:
 
 `membership_records` contains the singular membership group record shown in the edit-page "Membership Records" table. Child individual memberships are not listed there; they remain available through the separate group-members breakdown and filtered member-management links.
 
-Fetches organisation data from `Helper::get_org_data()` and person data from `wicket_get_person_by_id()`. Returns `404` if the post is not found.
+Fetches organisation data from `Helper::get_org_data()` and person data from `wicket_get_person_by_id()`. Fetches the linked WC subscription via `wcs_get_subscription()` and related orders via `WC_Subscription::get_related_orders('all')`. All date fields are ISO 8601. Returns `404` if the post is not found.
 
 ---
 
@@ -288,5 +292,8 @@ Cancels a WC subscription linked to a membership group. Sets the subscription en
 | `Utilities` | `wc_log_mship_error()` for error logging |
 | `wicket_create_wp_user_if_not_exist()` | Base plugin helper — creates WP user from MDP UUID |
 | `wicket_get_person_by_id()` | Base plugin helper — fetches MDP person record |
-| `wcs_get_subscription()` | WooCommerce Subscriptions |
-| `wcs_create_subscription()` | WooCommerce Subscriptions |
+| `wcs_get_subscription()` | WooCommerce Subscriptions — fetch subscription by ID |
+| `wcs_create_subscription()` | WooCommerce Subscriptions — create new subscription |
+| `wc_get_order()` | WooCommerce — fetch order by ID |
+| `wcs_order_contains_renewal()` | WooCommerce Subscriptions — classify order type |
+| `wcs_order_contains_subscription()` | WooCommerce Subscriptions — classify order type |

@@ -18,50 +18,6 @@ use Wicket_Memberships\Utilities;
  */
 class Group_Admin_Controller {
 
-  private const MOCK_ORDER_PAYLOAD = [
-    'id'            => 999999,
-    'link'          => 'https://example.test/wp-admin/post.php?post=999999&action=edit',
-    'total'         => '999.99',
-    'status'        => 'mock-pending',
-    'date_created'  => '2099-12-31T00:00:00+00:00',
-    'date_completed'=> '2099-12-31T00:00:00+00:00',
-  ];
-
-  private const MOCK_ORDERS_PAYLOAD = [
-    [
-      'id'            => 999999,
-      'link'          => 'https://example.test/wp-admin/post.php?post=999999&action=edit',
-      'total'         => '999.99',
-      'status'        => 'mock-pending',
-      'date_created'  => '2099-12-31T00:00:00+00:00',
-      'date_completed'=> '2099-12-31T00:00:00+00:00',
-    ],
-    [
-      'id'            => 999999,
-      'link'          => 'https://example.test/wp-admin/post.php?post=999999&action=edit',
-      'total'         => '999.99',
-      'status'        => 'mock-pending',
-      'date_created'  => '2099-12-31T00:00:00+00:00',
-      'date_completed'=> '2099-12-31T00:00:00+00:00',
-    ],
-    [
-      'id'            => 999999,
-      'link'          => 'https://example.test/wp-admin/post.php?post=999999&action=edit',
-      'total'         => '999.99',
-      'status'        => 'mock-pending',
-      'date_created'  => '2099-12-31T00:00:00+00:00',
-      'date_completed'=> '2099-12-31T00:00:00+00:00',
-    ],
-  ];
-
-  private const MOCK_SUBSCRIPTION_PAYLOAD = [
-    'id'                => 999999,
-    'link'              => 'https://example.test/wp-admin/post.php?post=999999&action=edit',
-    'status'            => 'mock-active',
-    'next_payment_date' => '2099-12-31T00:00:00+00:00',
-    'is_mocked'         => true,
-  ];
-
   private string $group_cpt_slug;
 
   public function __construct() {
@@ -306,12 +262,8 @@ class Group_Admin_Controller {
   /**
    * Return the data needed to populate the membership group entity view.
    *
-   * Returns group-level post meta only.
-   * Subscription + order detail enrichment is tracked as a TODO.
-   *
    * @param int $group_post_id
    * @return array|\WP_REST_Response
-   * @todo Enrich response with WC subscription and order data — see TODO.md
    */
   public static function get_group_entity_records( int $group_post_id ) {
     $post = get_post( $group_post_id );
@@ -700,8 +652,56 @@ class Group_Admin_Controller {
       ],
     ];
 
-    // Order/subscription enrichment is intentionally mocked until the group
-    // commerce implementation exists; see TODO.md.
+    $sub_id = $group->get_subscription_id();
+    $sub    = $sub_id ? wcs_get_subscription( $sub_id ) : null;
+
+    $subscription_payload = $sub ? [
+      'id'                => $sub->get_id(),
+      'link'              => admin_url( 'post.php?post=' . $sub->get_id() . '&action=edit' ),
+      'status'            => $sub->get_status(),
+      'next_payment_date' => $sub->get_time( 'next_payment' )
+        ? ( new \DateTime( '@' . $sub->get_time( 'next_payment' ) ) )->format( 'c' )
+        : null,
+    ] : null;
+
+    $order_payload = null;
+    if ( $sub ) {
+      $parent_ids = $sub->get_related_orders( 'all', 'parent' );
+      $parent_id  = reset( $parent_ids );
+      if ( $parent_id ) {
+        $o = wc_get_order( $parent_id );
+        if ( $o ) {
+          $order_payload = [
+            'id'             => $o->get_id(),
+            'status'         => $o->get_status(),
+            'link'           => admin_url( 'post.php?post=' . $o->get_id() . '&action=edit' ),
+            'total'          => $o->get_total(),
+            'date_created'   => $o->get_date_created() ? $o->get_date_created()->format( 'c' ) : null,
+            'date_completed' => $o->get_date_completed() ? $o->get_date_completed()->format( 'c' ) : null,
+          ];
+        }
+      }
+    }
+
+    $orders_payload = [];
+    if ( $sub ) {
+      foreach ( $sub->get_related_orders( 'all' ) as $order_id ) {
+        $o = wc_get_order( $order_id );
+        if ( ! $o ) {
+          continue;
+        }
+        $orders_payload[] = [
+          'id'             => $o->get_id(),
+          'status'         => $o->get_status(),
+          'link'           => admin_url( 'post.php?post=' . $o->get_id() . '&action=edit' ),
+          'total'          => $o->get_total(),
+          'date_created'   => $o->get_date_created() ? $o->get_date_created()->format( 'c' ) : null,
+          'date_completed' => $o->get_date_completed() ? $o->get_date_completed()->format( 'c' ) : null,
+          'type'           => wcs_order_contains_renewal( $o ) ? 'renewal' : ( wcs_order_contains_subscription( $o ) ? 'parent' : 'other' ),
+        ];
+      }
+    }
+
     return [
       'ID'                  => $group_post_id,
       'title'               => $group->get_name(),
@@ -718,9 +718,9 @@ class Group_Admin_Controller {
       'config_title'        => $config ? get_the_title( $config->get_post_id() ) : '',
       'config_renewal_type' => $config ? $config->get_renewal_type() : '',
       'subscription_id'     => $group->get_subscription_id(),
-      'subscription'        => self::MOCK_SUBSCRIPTION_PAYLOAD,
-      'order'               => self::MOCK_ORDER_PAYLOAD,
-      'orders'              => self::MOCK_ORDERS_PAYLOAD,
+      'subscription'        => $subscription_payload,
+      'order'               => $order_payload,
+      'orders'              => $orders_payload,
       'dates'               => $group_dates,
       'statuses'            => $statuses,
       'allowed_transitions' => Helper::get_allowed_transition_status( $meta['membership_status'] ?? '' ),
