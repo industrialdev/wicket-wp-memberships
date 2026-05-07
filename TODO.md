@@ -23,9 +23,7 @@ Remove the entry when the work is completed.
 | `includes/Membership_Group.php` | `create()` | Implement full group approval workflow: send approval email (link to org edit page), handle `pending→active` admin transition, show member-portal callout while pending. Mirror `Membership_Controller::create_membership_record()` lines 764–781 and `Admin_Controller::admin_manage_status()`. Also decide whether approval blocks adding individual memberships to the group until approved. | — |
 | `includes/Membership_Group.php` | `apply_edit_fields()` | Review and consider replacing with typed getters/setters per field — current `array<string,mixed>` signature allows any meta key to be written without validation | — |
 | `includes/Membership_Group.php` | `cascade_dates_to_members()` | Implement date cascading from group to all child individual memberships. Should propagate starts_at, ends_at, expires_at, early_renew_at to active members; skip cancelled members. Add QA tests in `qa/tests/WordPress/Memberships/membership-group.pest.php` once implemented. | — |
-| `includes/Membership_Group.php` | `add_member()` | Link `membership_subscription_id` and `membership_parent_order_id` to the group's WooCommerce subscription once group subscription management exists. | — |
 | `includes/Membership_Group.php` | `add_subscription_line_item()` | Bulk CSV import: `calculate_totals()` fires per `add_member()` call. For large imports, investigate batching totals recalculation. | — |
-| `includes/Membership_Group.php` | `create_group_subscription()` | Implement group subscription status transitions. Individual memberships go `pending → active` via WC order completion hook (`Membership_Subscription_Controller` lines 84–87). Group subscriptions have no parent order — need explicit activation path, likely triggered when group status transitions to `active`. | — |
 
 ## Pagination — List Pages
 
@@ -50,8 +48,8 @@ Remove the entry when the work is completed.
 
 | File | Method | Note | Asana |
 |---|---|---|---|
+| `includes/Group_Admin_Controller.php` | `update_group_entity_record()` | Sync updated dates to MDP when group dates are edited. Individual memberships call `update_mdp_record()` on date edit — group equivalent not yet implemented pending MDP group date API availability. | — |
 | `includes/Group_Admin_Controller.php` | `admin_manage_status()` | Cancel the linked group WooCommerce subscription when a group is cancelled or expired, once group subscription management is implemented. | — |
-| `includes/Group_Admin_Controller.php` | `update_group_entity_record()` | Apply real WooCommerce subscription date/status updates for group edits. Current implementation only persists local parity fields and cascades local member meta. | — |
 | `includes/Group_Admin_Controller.php` | `get_group_edit_page_info()` | Replace mocked `order` payload with real linked WooCommerce order enrichment when group order implementation exists. | — |
 | `includes/Group_Admin_Controller.php` | `get_group_edit_page_info()` | Replace mocked `subscription` payload with real linked WooCommerce subscription enrichment when group subscription implementation exists. | — |
 | `includes/Group_Admin_Controller.php` | `get_group_entity_records()` | Enrich the group entity response with WooCommerce subscription and order data. | — |

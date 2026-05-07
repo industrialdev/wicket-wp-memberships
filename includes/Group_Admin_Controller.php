@@ -544,8 +544,6 @@ class Group_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'Could not update membership group record.' ], 500 );
     }
 
-    $group->cascade_dates_to_members( $normalized_fields );
-
     $dates = $group->get_dates();
 
     return new \WP_REST_Response( [

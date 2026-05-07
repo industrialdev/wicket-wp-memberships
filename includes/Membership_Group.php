@@ -708,7 +708,7 @@ class Membership_Group {
       return new \WP_Error( 'order_create_failed', __( 'Failed to create the WooCommerce order.', 'wicket-memberships' ) );
     }
 
-    $wc_product = wc_get_product( $product_id );
+    $wc_product = $product_id ? wc_get_product( $product_id ) : null;
 
     // wc_get_price_excluding_tax() is the correct source for line item pricing —
     // it returns the tax-exclusive unit price respecting WC tax settings, matching
@@ -765,6 +765,9 @@ class Membership_Group {
       $sub_item->set_total( $unit_price );
       $sub->add_item( $sub_item );
       $sub->calculate_totals();
+      // Persist items to DB before update_status() fires hooks that may trigger
+      // an internal save and overwrite the in-memory items array.
+      $sub->save();
     }
 
     // _requires_manual_renewal is inherited from the group subscription rather than
@@ -973,8 +976,6 @@ class Membership_Group {
 
     $item_id = $sub->add_product( $product, 1 );
     if ( ! $item_id ) {
-      global $wpdb;
-      fwrite( STDERR, "\n[DEBUG add_subscription_line_item] add_product returned falsy. sub_id={$sub_id} product_id={$product_id} wpdb_last_error=" . $wpdb->last_error . "\n" );
       return new \WP_Error( 'add_product_failed', __( 'Failed to add product to the group subscription.', 'wicket-memberships' ) );
     }
 
@@ -1280,6 +1281,19 @@ class Membership_Group {
     if ( $uuid_result === false || $name_result === false ) {
       Wicket()->log()->error( 'Membership_Group: Failed to save organization meta', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'org_uuid' => $org_uuid] );
       return false;
+    }
+
+    // Keep the linked subscription's org meta in sync so billing screens and MDP
+    // sync can identify the correct organisation without following the group post link.
+    $sub_id = $this->get_subscription_id();
+    if ( $sub_id && function_exists( 'wcs_get_subscription' ) ) {
+      $sub = wcs_get_subscription( $sub_id );
+      if ( $sub ) {
+        update_post_meta( $sub_id, '_org_uuid', $org_uuid );
+        $sub->update_meta_data( '_org_uuid', $org_uuid );
+        $sub->update_meta_data( 'org_name', $org_data['name'] );
+        $sub->save();
+      }
     }
 
     return $org_data;
@@ -1841,6 +1855,9 @@ class Membership_Group {
 
     $this->meta_data = get_post_meta( $this->post_id );
 
+    $this->sync_subscription_dates();
+    $this->cascade_dates_to_members( $normalized_fields );
+
     return true;
   }
 
@@ -1883,6 +1900,75 @@ class Membership_Group {
 
     $subscription->update_dates( $subscription_dates );
     $subscription->save();
+  }
+
+  /**
+   * Sync the linked WC subscription's next_payment and end dates to the group's
+   * current ends_at / expires_at values.
+   *
+   * Called after an admin date edit succeeds. Skipped only for cancelled subscriptions,
+   * mirroring the individual membership date-edit behaviour in Admin_Controller.
+   *
+   * @return void
+   */
+  public function sync_subscription_dates(): void {
+    if ( ! function_exists( 'wcs_get_subscription' ) ) {
+      return;
+    }
+
+    $sub_id = $this->get_subscription_id();
+    if ( ! $sub_id ) {
+      return;
+    }
+
+    $sub = wcs_get_subscription( $sub_id );
+    if ( ! $sub || $sub->get_status() === 'cancelled' ) {
+      return;
+    }
+
+    $dates = $this->get_dates();
+    if ( empty( $dates['ends_at'] ) ) {
+      return;
+    }
+
+    $next_payment = Utilities::get_mdp_day_end( $dates['ends_at'] );
+
+    // Mirror individual membership logic: subscription-renewal monthly groups use ends_at
+    // for the subscription end date; all other renewal types use expires_at (grace-period end).
+    $is_monthly_subscription_renewal = (
+      ! empty( get_post_meta( $this->post_id, 'membership_next_tier_subscription_renewal', true ) )
+      && $sub->get_billing_period() === 'month'
+      && (int) $sub->get_billing_interval() === 1
+    );
+
+    if ( $is_monthly_subscription_renewal ) {
+      $end_source = $dates['ends_at'];
+    } else {
+      $end_source = ! empty( $dates['expires_at'] ) ? $dates['expires_at'] : $dates['ends_at'];
+    }
+
+    $end = Utilities::get_mdp_day_end( $end_source );
+
+    // WCS requires end > next_payment (strict). Bump by one second when equal (no grace period).
+    if ( $end <= $next_payment ) {
+      $end->modify( '+1 second' );
+    }
+
+    $date_updates = [
+      'next_payment' => $next_payment->format( 'Y-m-d H:i:s' ),
+      'end'          => $end->format( 'Y-m-d H:i:s' ),
+    ];
+
+    $sub->update_dates( $date_updates );
+
+    $sub->add_order_note( sprintf(
+      'Membership group (ID: %d) date edit synced subscription dates. Next Payment: %s End: %s',
+      $this->post_id,
+      date( 'Y-m-d', strtotime( $dates['ends_at'] ) ),
+      date( 'Y-m-d', strtotime( $end_source ) )
+    ) );
+
+    $sub->save();
   }
 
   /**
