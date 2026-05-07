@@ -275,6 +275,30 @@ Returns the stored group dates as:
 
 Returns the `membership_status` meta value for this group, or `false` if not set.
 
+### `get_allowed_status_transitions(): array<string, array{name: string, slug: string}>`
+
+Returns the admin-facing status transitions allowed from the current group status.
+
+All non-terminal statuses (`pending`, `active`, `delayed`, `grace-period`) permit only `cancelled` as a manual transition. `expired` is never offered — expiry is driven automatically by `daily_membership_expiry_hook`. `active` is not offered from `pending` — group activation is driven by subscription payment confirmation, not manual admin action.
+
+Terminal statuses (`expired`, `cancelled`) return an empty array (no further transitions).
+
+When the `BYPASS_STATUS_CHANGE_LOCKOUT` env flag is set, all statuses are returned (dev/testing only).
+
+### `can_transition_to( string $new_status ): bool`
+
+Full programmatic lifecycle guard used by `transition_to()`. Wider than `get_allowed_status_transitions()` — covers transitions that are valid but not manually selectable in the admin UI:
+
+| From | Allowed |
+|---|---|
+| `pending` | `active` (payment confirmation), `cancelled` |
+| `active` | `grace-period`, `expired` (expiry hook), `cancelled` |
+| `delayed` | `active`, `cancelled` |
+| `grace-period` | `expired` (expiry hook), `cancelled` |
+| `expired`, `cancelled` | _(none)_ |
+
+`pending → active` and `*→ expired` are intentionally absent from `get_allowed_status_transitions()` — they must not appear in the admin UI.
+
 ### `set_membership_status( string $status ): bool`
 
 Sets the `membership_status` meta value directly. This remains public as a low-level developer escape hatch, but normal lifecycle flows should use `transition_to()` so transition rules, dates, and side effects are applied consistently. The value must be one of the slugs returned by `Helper::get_all_status_names()`. Returns `true` on success. Logs an error and returns `false` if the status is not in the allowed list or if the meta update fails.

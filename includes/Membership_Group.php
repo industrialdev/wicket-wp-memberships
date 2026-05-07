@@ -1450,25 +1450,17 @@ class Membership_Group {
     $all_statuses  = Helper::get_all_status_names();
     $allowed_slugs = [];
 
-    if ( $current_status === Wicket_Memberships::STATUS_PENDING ) {
-      $allowed_slugs = [
-        Wicket_Memberships::STATUS_ACTIVE,
-        Wicket_Memberships::STATUS_CANCELLED,
-      ];
-    } elseif ( $current_status === Wicket_Memberships::STATUS_DELAYED ) {
-      $allowed_slugs = [
-        Wicket_Memberships::STATUS_CANCELLED,
-      ];
-    } elseif ( $current_status === Wicket_Memberships::STATUS_GRACE ) {
-      $allowed_slugs = [
-        Wicket_Memberships::STATUS_CANCELLED,
-        Wicket_Memberships::STATUS_EXPIRED,
-      ];
-    } elseif ( $current_status === Wicket_Memberships::STATUS_ACTIVE ) {
-      $allowed_slugs = [
-        Wicket_Memberships::STATUS_CANCELLED,
-        Wicket_Memberships::STATUS_EXPIRED,
-      ];
+    $non_terminal = [
+      Wicket_Memberships::STATUS_PENDING,
+      Wicket_Memberships::STATUS_ACTIVE,
+      Wicket_Memberships::STATUS_DELAYED,
+      Wicket_Memberships::STATUS_GRACE,
+    ];
+
+    if ( in_array( $current_status, $non_terminal, true ) ) {
+      // Expiry is driven by daily_membership_expiry_hook; activation by subscription
+      // payment confirmation. Manual admin action is cancel-only.
+      $allowed_slugs = [ Wicket_Memberships::STATUS_CANCELLED ];
     }
 
     $transitions = [];
@@ -1484,6 +1476,11 @@ class Membership_Group {
   /**
    * Check whether the group can transition to the requested status.
    *
+   * This is the full programmatic lifecycle map used by transition_to(). It is wider
+   * than get_allowed_status_transitions(), which is narrowed for admin UI use only:
+   * pending→active is valid when driven by subscription payment; active/grace-period→expired
+   * is valid when driven by daily_membership_expiry_hook. Neither is offered in the admin UI.
+   *
    * @param string $new_status
    * @return bool
    */
@@ -1492,7 +1489,32 @@ class Membership_Group {
       return true;
     }
 
-    return isset( $this->get_allowed_status_transitions()[ $new_status ] );
+    $current_status = $this->get_membership_status();
+    if ( ! $current_status ) {
+      return false;
+    }
+
+    $lifecycle_transitions = [
+      Wicket_Memberships::STATUS_PENDING      => [
+        Wicket_Memberships::STATUS_ACTIVE,
+        Wicket_Memberships::STATUS_CANCELLED,
+      ],
+      Wicket_Memberships::STATUS_ACTIVE       => [
+        Wicket_Memberships::STATUS_GRACE,
+        Wicket_Memberships::STATUS_EXPIRED,
+        Wicket_Memberships::STATUS_CANCELLED,
+      ],
+      Wicket_Memberships::STATUS_DELAYED      => [
+        Wicket_Memberships::STATUS_ACTIVE,
+        Wicket_Memberships::STATUS_CANCELLED,
+      ],
+      Wicket_Memberships::STATUS_GRACE        => [
+        Wicket_Memberships::STATUS_EXPIRED,
+        Wicket_Memberships::STATUS_CANCELLED,
+      ],
+    ];
+
+    return in_array( $new_status, $lifecycle_transitions[ $current_status ] ?? [], true );
   }
 
   /**

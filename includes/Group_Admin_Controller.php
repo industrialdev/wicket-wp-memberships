@@ -234,6 +234,15 @@ class Group_Admin_Controller {
 
     $group          = new Membership_Group( $group_post_id );
     $response_array = [];
+
+    // Guard against transitions not offered in the admin UI. Programmatic paths
+    // (payment confirmation, expiry hook) bypass this via transition_to() directly.
+    if ( ! isset( $group->get_allowed_status_transitions()[ $new_status ] ) ) {
+      $response_array['error'] = 'Invalid status transition. Request did not succeed.';
+      Utilities::wc_log_mship_error( $response_array );
+      return new \WP_REST_Response( $response_array, 400 );
+    }
+
     $transition_result = $group->transition_to( $new_status );
 
     if ( false === $transition_result ) {
