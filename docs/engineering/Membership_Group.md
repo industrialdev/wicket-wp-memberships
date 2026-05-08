@@ -359,9 +359,11 @@ Currently a TODO placeholder. It intentionally performs no updates until group/m
 
 ---
 
-### `get_individual_memberships(): array`
+### `get_individual_memberships( bool $active_only = true ): array`
 
-Returns all individual membership CPT posts that have `membership_group_id` set to this group's post ID.
+Returns individual membership CPT posts that have `membership_group_id` set to this group's post ID.
+
+When `$active_only` is `true` (default), memberships with `membership_status` of `cancelled` or `expired` are excluded. Pass `false` to retrieve all memberships regardless of status — required for internal operations that must act on every member (status cascades, date cascades, bulk cancel).
 
 ---
 

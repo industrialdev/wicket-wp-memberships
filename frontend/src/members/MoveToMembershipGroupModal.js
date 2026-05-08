@@ -98,7 +98,7 @@ const MoveToMembershipGroupModal = ({
 
       <p>
         {__(
-          "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+          "Please select the membership group this member is moving to.",
           "wicket-memberships"
         )}
       </p>

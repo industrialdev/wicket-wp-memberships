@@ -200,17 +200,27 @@ class Membership_Group {
    *
    * @return array
    */
-  public function get_individual_memberships() {
+  public function get_individual_memberships( bool $active_only = true ) {
+    $meta_query = [
+      [
+        'key'   => 'membership_group_id',
+        'value' => $this->post_id,
+      ],
+    ];
+
+    if ( $active_only ) {
+      $meta_query[] = [
+        'key'     => 'membership_status',
+        'value'   => [ 'cancelled', 'expired' ],
+        'compare' => 'NOT IN',
+      ];
+    }
+
     return get_posts( [
       'post_type'   => Helper::get_membership_cpt_slug(),
       'post_status' => 'any',
       'numberposts' => -1,
-      'meta_query'  => [
-        [
-          'key'   => 'membership_group_id',
-          'value' => $this->post_id,
-        ],
-      ],
+      'meta_query'  => $meta_query,
     ] );
   }
 
@@ -1576,7 +1586,7 @@ class Membership_Group {
 
     // Collapse expires_at on each individual membership so daily_membership_expiry_hook
     // fires at ends_at. Status stays active — members keep access until that date.
-    foreach ( $this->get_individual_memberships() as $membership_post ) {
+    foreach ( $this->get_individual_memberships( false ) as $membership_post ) {
       update_post_meta( $membership_post->ID, 'membership_expires_at', $current_ends_at );
     }
 
@@ -1606,7 +1616,7 @@ class Membership_Group {
     //
     // assert_group_is_manageable() in remove_member() and resolve_member_start_date()
     // both reject calls on a cancelled group, so reads must complete first.
-    $individual_memberships = $this->get_individual_memberships();
+    $individual_memberships = $this->get_individual_memberships( false );
     $group_dates            = $this->get_dates();
 
     $members_meta = [];
@@ -1818,7 +1828,7 @@ class Membership_Group {
    * @return void
    */
   private function cascade_status_to_members( string $new_status ): void {
-    $memberships = $this->get_individual_memberships();
+    $memberships = $this->get_individual_memberships( false );
 
     foreach ( $memberships as $membership_post ) {
       $current = get_post_meta( $membership_post->ID, 'membership_status', true );
@@ -1872,7 +1882,7 @@ class Membership_Group {
     $config              = $this->get_config();
     $renewal_window_days = $config ? $config->get_renewal_window_days() : false;
 
-    $members = $this->get_individual_memberships();
+    $members = $this->get_individual_memberships( false );
 
     foreach ( $members as $member_post ) {
       $member_id = $member_post->ID;
