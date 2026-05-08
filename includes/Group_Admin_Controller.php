@@ -455,7 +455,6 @@ class Group_Admin_Controller {
    *                     Optional: membership_renewal_type, membership_next_tier_form_page_id,
    *                     membership_next_tier_id.
    * @return \WP_REST_Response
-   * @todo Wire in subscription date updates when renewal type changes — see TODO.md
    */
   public static function update_group_entity_record( array $data ): \WP_REST_Response {
     foreach ( $data as $key => $value ) {
@@ -499,11 +498,16 @@ class Group_Admin_Controller {
     }
 
     $group             = new Membership_Group( $group_post_id );
+    $pre_edit_renewal_type = (string) get_post_meta( $group_post_id, 'membership_renewal_type', true );
+
     $normalized_fields = self::build_normalized_group_edit_fields( $group_post_id, $data, $starts_at, $ends_at, $expires_at );
 
     if ( ! $group->apply_edit_fields( $normalized_fields ) ) {
       return new \WP_REST_Response( [ 'error' => 'Could not update membership group record.' ], 500 );
     }
+
+    $new_renewal_type = (string) ( $normalized_fields['membership_renewal_type'] ?? '' );
+    self::maybe_sync_renewal_type_next_payment( $group, $pre_edit_renewal_type, $new_renewal_type );
 
     $dates = $group->get_dates();
 
@@ -522,8 +526,6 @@ class Group_Admin_Controller {
   /**
    * Normalize incoming group edit data to the same local shape used by the
    * individual membership edit flow.
-   *
-   * Order/subscription side effects are intentionally deferred; see TODO.md.
    *
    * @param int   $group_post_id
    * @param array $data
@@ -1191,6 +1193,74 @@ class Group_Admin_Controller {
     );
     $sub->update_status( 'cancelled' );
     $sub->save();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Subscription next-payment sync on renewal-type change
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Sync the subscription's next_payment date when the renewal type changes.
+   *
+   * Mirrors the individual membership convention in Helper::has_next_payment_date():
+   * - changed TO 'subscription'   → set next_payment = group ends_at (day-end)
+   * - changed AWAY from 'subscription' → delete next_payment entirely
+   *
+   * No-ops when: renewal type unchanged, no active subscription, or WCS unavailable.
+   *
+   * @param Membership_Group $group
+   * @param string           $pre_edit_renewal_type  Value stored before the edit.
+   * @param string           $new_renewal_type       Value written by the edit.
+   * @return void
+   */
+  private static function maybe_sync_renewal_type_next_payment(
+    Membership_Group $group,
+    string $pre_edit_renewal_type,
+    string $new_renewal_type
+  ): void {
+    if ( $new_renewal_type === $pre_edit_renewal_type ) {
+      return;
+    }
+
+    if ( ! function_exists( 'wcs_get_subscription' ) ) {
+      return;
+    }
+
+    $sub_id = $group->get_subscription_id();
+    if ( ! $sub_id ) {
+      return;
+    }
+
+    $subscription = wcs_get_subscription( $sub_id );
+    if ( ! $subscription || $subscription->get_status() !== 'active' ) {
+      return;
+    }
+
+    if ( $new_renewal_type === 'subscription' ) {
+      $dates    = $group->get_dates();
+      $ends_at  = $dates['ends_at'] ?? '';
+      if ( empty( $ends_at ) ) {
+        return;
+      }
+      $next_payment = Utilities::get_mdp_day_end( $ends_at )->format( 'Y-m-d H:i:s' );
+      $subscription->update_dates( [ 'next_payment' => $next_payment ] );
+      $subscription->add_order_note( sprintf(
+        'Membership group (ID: %d) renewal type changed to subscription. Next payment set to %s.',
+        $group->post_id,
+        $next_payment
+      ) );
+      $subscription->save();
+    } else {
+      // Renewal type changed away from subscription — remove the next payment date so
+      // WCS will not auto-charge on renewal.
+      $subscription->delete_date( 'next_payment' );
+      $subscription->add_order_note( sprintf(
+        'Membership group (ID: %d) renewal type changed from subscription to %s. Next payment date removed.',
+        $group->post_id,
+        $new_renewal_type
+      ) );
+      $subscription->save();
+    }
   }
 
 }

@@ -163,7 +163,7 @@ const SeasonConfigModal = ({
                     }))
                   }
                   selected={
-                    tempSeason.start_date ? new Date(tempSeason.start_date) : null
+                    tempSeason.start_date ? new Date(tempSeason.start_date + "T00:00:00") : null
                   }
                   showMonthDropdown
                   showYearDropdown
@@ -183,7 +183,7 @@ const SeasonConfigModal = ({
                       end_date: date ? formatDate(date) : "",
                     }))
                   }
-                  selected={tempSeason.end_date ? new Date(tempSeason.end_date) : null}
+                  selected={tempSeason.end_date ? new Date(tempSeason.end_date + "T00:00:00") : null}
                   showMonthDropdown
                   showYearDropdown
                 />

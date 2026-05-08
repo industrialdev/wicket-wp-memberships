@@ -740,7 +740,7 @@ class Membership_Group_Config {
       }
     }
 
-    $end_date_string = $selected_end_dt->format( 'Y-m-d' );
+    $end_date_string = $selected_end_dt->format( 'c' );
     return Utilities::get_mdp_day_end( $end_date_string )->format( 'c' );
   }
 }

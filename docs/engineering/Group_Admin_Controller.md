@@ -100,7 +100,18 @@ Updates editable fields on a group post. Expects these keys in `$data`:
 
 Validates date ordering (start < end ≤ expires) before writing.
 
-> **TODO:** Wire in subscription date updates when renewal type changes — see TODO.md.
+After a successful edit, if `membership_renewal_type` changed, calls `maybe_sync_renewal_type_next_payment()` to update the linked subscription's next-payment date.
+
+---
+
+### `maybe_sync_renewal_type_next_payment( Membership_Group $group, string $pre_edit_renewal_type, string $new_renewal_type ): void` _(private static)_
+
+Syncs the linked WC subscription's `next_payment` date when the renewal type changes on a group edit.
+
+- **Changed to `subscription`:** sets `next_payment` to `ends_at` (day-end, via `Utilities::get_mdp_day_end()`).
+- **Changed away from `subscription`:** calls `$subscription->delete_date('next_payment')`.
+
+No-ops when: renewal type is unchanged, no subscription is linked, subscription status is not `active`, or WCS is unavailable.
 
 ---
 

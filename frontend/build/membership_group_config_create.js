@@ -9602,7 +9602,7 @@ const SeasonConfigModal = ({
       ...currentSeason,
       start_date: date ? formatDate(date) : ""
     })),
-    selected: tempSeason.start_date ? new Date(tempSeason.start_date) : null,
+    selected: tempSeason.start_date ? new Date(tempSeason.start_date + "T00:00:00") : null,
     showMonthDropdown: true,
     showYearDropdown: true
   }))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_5__.ReactDatePickerStyledWrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_5__.LabelWpStyled, null, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("End Date", "wicket-memberships")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)((react_datepicker__WEBPACK_IMPORTED_MODULE_7___default()), {
@@ -9612,7 +9612,7 @@ const SeasonConfigModal = ({
       ...currentSeason,
       end_date: date ? formatDate(date) : ""
     })),
-    selected: tempSeason.end_date ? new Date(tempSeason.end_date) : null,
+    selected: tempSeason.end_date ? new Date(tempSeason.end_date + "T00:00:00") : null,
     showMonthDropdown: true,
     showYearDropdown: true
   })))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_styled_elements__WEBPACK_IMPORTED_MODULE_5__.ActionRow, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Flex, {

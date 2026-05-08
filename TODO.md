@@ -37,6 +37,7 @@ Remove the entry when the work is completed.
 |---|---|---|---|
 | `frontend/src/` | — | Build frontend tests for shared components and membership group config UI (GroupConfigForm, SeasonConfigModal, GracePeriodSection, RenewalWindowSection, etc.) | — |
 
+
 ## Membership_Group_Config — Product ID concerns
 
 | File | Method | Note | Asana |
