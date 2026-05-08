@@ -119,10 +119,21 @@ class Membership_Group {
     // Wrap the new post in a Membership_Group instance so we can use its setters.
     $group = new static( $post_id );
 
+    // Determine initial status using the same 3-way logic as individual memberships:
+    // approval required → pending; future start date → delayed; otherwise → active.
+    $config_for_status = new Membership_Group_Config( $membership_group_config_id );
+    $current_date      = Utilities::get_utc_datetime()->format( 'c' );
+    if ( $config_for_status->is_approval_required() ) {
+      $initial_status = Wicket_Memberships::STATUS_PENDING;
+    } elseif ( strtotime( $start_date ) > strtotime( $current_date ) ) {
+      $initial_status = Wicket_Memberships::STATUS_DELAYED;
+    } else {
+      $initial_status = Wicket_Memberships::STATUS_ACTIVE;
+    }
+
     // Write status, owner, org, and config meta. Any failure rolls back the post entirely
     // so we never leave a partially-populated group in the database.
-    // Status starts as pending; approval check below may leave it there intentionally.
-    if ( ! $group->set_membership_status( Wicket_Memberships::STATUS_PENDING )
+    if ( ! $group->set_membership_status( $initial_status )
       || ! $group->set_owner( $owner_uuid )
       || ! $group->set_organization( $org_uuid )
       || ! $group->set_config( $membership_group_config_id )
@@ -163,14 +174,13 @@ class Membership_Group {
       // creation is decoupled from record creation entirely.
     }
 
-    // If the config requires approval, the group stays in STATUS_PENDING (set above).
-    // TODO: Implement the full group approval workflow — send approval email, link admin
-    //       to the org edit page, handle pending→active transition, show callout in member
-    //       portal while pending. Mirror the individual/org tier approval in
-    //       Membership_Controller::create_membership_record() lines 764–781 and
-    //       Admin_Controller::admin_manage_status(). Also determine whether group-level
-    //       approval should block individual memberships from being added until approved.
-    if ( $config->is_approval_required() ) {
+    if ( $initial_status === Wicket_Memberships::STATUS_PENDING ) {
+      // TODO: Implement the full group approval workflow — send approval email, link admin
+      //       to the org edit page, handle pending→active transition, show callout in member
+      //       portal while pending. Mirror the individual/org tier approval in
+      //       Membership_Controller::create_membership_record() lines 764–781 and
+      //       Admin_Controller::admin_manage_status(). Also determine whether group-level
+      //       approval should block individual memberships from being added until approved.
       Wicket()->log()->info( 'Membership_Group::create: approval required — group remains pending', [
         'source'  => 'wicket-memberships',
         'post_id' => $post_id,
@@ -1834,12 +1844,91 @@ class Membership_Group {
   /**
    * Cascade normalized edit fields to eligible child memberships.
    *
-   * @param array<string, mixed> $normalized_fields
+   * Applies new group dates to child individual memberships, honouring per-field
+   * exception rules that preserve custom dates on individual records:
+   *   - starts_at: skip if member's current starts_at is after the group's pre-edit starts_at
+   *   - ends_at:   skip if member's current ends_at is before the group's pre-edit ends_at
+   *   - expires_at: skip if member's current expires_at is before the group's pre-edit expires_at
+   * When ends_at is updated, early_renew_at is recalculated using the config renewal window.
+   *
+   * @param array<string, mixed> $normalized_fields Normalized fields from apply_edit_fields().
+   * @param array<string, string> $pre_edit_dates   Group dates captured before meta was written; shape matches get_dates().
    * @return void
    */
-  public function cascade_dates_to_members( array $normalized_fields ): void {
-    // TODO: Re-enable child membership date cascading once the intended
-    // group/member edit propagation rules are finalized.
+  public function cascade_dates_to_members( array $normalized_fields, array $pre_edit_dates ): void {
+    $new_starts_at  = $normalized_fields['membership_starts_at']  ?? '';
+    $new_ends_at    = $normalized_fields['membership_ends_at']    ?? '';
+    $new_expires_at = $normalized_fields['membership_expires_at'] ?? '';
+
+    $baseline_starts_at  = $pre_edit_dates['starts_at']  ?? '';
+    $baseline_ends_at    = $pre_edit_dates['ends_at']    ?? '';
+    $baseline_expires_at = $pre_edit_dates['expires_at'] ?? '';
+
+    $baseline_starts_ts  = $baseline_starts_at  ? strtotime( $baseline_starts_at )  : false;
+    $baseline_ends_ts    = $baseline_ends_at    ? strtotime( $baseline_ends_at )    : false;
+    $baseline_expires_ts = $baseline_expires_at ? strtotime( $baseline_expires_at ) : false;
+
+    // Pre-compute early_renew_at offset once — same formula as build_normalized_group_edit_fields().
+    $config              = $this->get_config();
+    $renewal_window_days = $config ? $config->get_renewal_window_days() : false;
+
+    $members = $this->get_individual_memberships();
+
+    foreach ( $members as $member_post ) {
+      $member_id = $member_post->ID;
+      $status    = get_post_meta( $member_id, 'membership_status', true );
+
+      if ( $status === Wicket_Memberships::STATUS_EXPIRED || $status === Wicket_Memberships::STATUS_CANCELLED ) {
+        continue;
+      }
+
+      $member_starts_at  = (string) get_post_meta( $member_id, 'membership_starts_at', true );
+      $member_ends_at    = (string) get_post_meta( $member_id, 'membership_ends_at', true );
+      $member_expires_at = (string) get_post_meta( $member_id, 'membership_expires_at', true );
+
+      $member_starts_ts  = $member_starts_at  ? strtotime( $member_starts_at )  : false;
+      $member_ends_ts    = $member_ends_at    ? strtotime( $member_ends_at )    : false;
+      $member_expires_ts = $member_expires_at ? strtotime( $member_expires_at ) : false;
+
+      // starts_at: write unless member has a later custom start than the group had pre-edit.
+      $write_starts = $new_starts_at && (
+        $baseline_starts_ts === false || $member_starts_ts === false || $member_starts_ts <= $baseline_starts_ts
+      );
+
+      // ends_at: write unless member has a custom earlier end than the group had pre-edit.
+      $write_ends = $new_ends_at && (
+        $baseline_ends_ts === false || $member_ends_ts === false || $member_ends_ts >= $baseline_ends_ts
+      );
+
+      // expires_at: same rule as ends_at.
+      $write_expires = $new_expires_at && (
+        $baseline_expires_ts === false || $member_expires_ts === false || $member_expires_ts >= $baseline_expires_ts
+      );
+
+      if ( $write_starts ) {
+        update_post_meta( $member_id, 'membership_starts_at', $new_starts_at );
+      }
+
+      if ( $write_ends ) {
+        update_post_meta( $member_id, 'membership_ends_at', $new_ends_at );
+
+        // Recalculate early_renew_at to stay consistent with the new ends_at.
+        $new_ends_ts        = strtotime( $new_ends_at );
+        $early_renew_ts     = ( $renewal_window_days !== false && $new_ends_ts )
+          ? strtotime( '-' . absint( $renewal_window_days ) . ' days', $new_ends_ts )
+          : $new_ends_ts;
+        $early_renew_at_iso = $early_renew_ts
+          ? Utilities::get_mdp_day_start( gmdate( 'Y-m-d', $early_renew_ts ) )->format( 'c' )
+          : '';
+        if ( $early_renew_at_iso ) {
+          update_post_meta( $member_id, 'membership_early_renew_at', $early_renew_at_iso );
+        }
+      }
+
+      if ( $write_expires ) {
+        update_post_meta( $member_id, 'membership_expires_at', $new_expires_at );
+      }
+    }
   }
 
   /**
@@ -1854,6 +1943,9 @@ class Membership_Group {
    * @return bool
    */
   public function apply_edit_fields( array $normalized_fields ): bool {
+    // Capture before any writes so cascade_dates_to_members() has the correct comparison baseline.
+    $pre_edit_dates = $this->get_dates();
+
     foreach ( $normalized_fields as $key => $value ) {
       $update_result = update_post_meta( $this->post_id, $key, $value );
 
@@ -1878,7 +1970,7 @@ class Membership_Group {
     $this->meta_data = get_post_meta( $this->post_id );
 
     $this->sync_subscription_dates();
-    $this->cascade_dates_to_members( $normalized_fields );
+    $this->cascade_dates_to_members( $normalized_fields, $pre_edit_dates );
 
     return true;
   }

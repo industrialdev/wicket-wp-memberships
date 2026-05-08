@@ -22,7 +22,6 @@ Remove the entry when the work is completed.
 |---|---|---|---|
 | `includes/Membership_Group.php` | `create()` | Implement full group approval workflow: send approval email (link to org edit page), handle `pending→active` admin transition, show member-portal callout while pending. Mirror `Membership_Controller::create_membership_record()` lines 764–781 and `Admin_Controller::admin_manage_status()`. Also decide whether approval blocks adding individual memberships to the group until approved. | — |
 | `includes/Membership_Group.php` | `apply_edit_fields()` | Review and consider replacing with typed getters/setters per field — current `array<string,mixed>` signature allows any meta key to be written without validation | — |
-| `includes/Membership_Group.php` | `cascade_dates_to_members()` | Implement date cascading from group to all child individual memberships. Should propagate starts_at, ends_at, expires_at, early_renew_at to active members; skip cancelled members. Add QA tests in `qa/tests/WordPress/Memberships/membership-group.pest.php` once implemented. | — |
 | `includes/Membership_Group.php` | `add_subscription_line_item()` | Bulk CSV import: `calculate_totals()` fires per `add_member()` call. For large imports, investigate batching totals recalculation. | — |
 
 ## Pagination — List Pages

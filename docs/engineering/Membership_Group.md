@@ -31,15 +31,15 @@ Creates a new membership group post and populates all required meta in a single 
 | `$owner_user_id` | `int` | WP user ID of the group owner |
 | `$start_date` | `string` | ISO 8601 start date for the membership period (must be non-empty) |
 
-The post is created with `post_status = 'pending'`. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. A pending WooCommerce subscription is created and linked via `membership_subscription_id` post meta; if subscription creation fails the group is still returned (non-fatal, logged).
+Initial membership status is determined by the same 3-way logic used for individual memberships: if the config requires approval → `pending`; if `start_date` is in the future → `delayed`; otherwise → `active`. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. A pending WooCommerce subscription is created and linked via `membership_subscription_id` post meta; if subscription creation fails the group is still returned (non-fatal, logged).
 
 **Fields accessible on the returned object:**
 
 | Field | Access |
 |---|---|
 | Post ID | `$group->post_id` |
-| Post status (`pending`) | `get_post( $group->post_id )->post_status` |
-| Membership status | `$group->get_membership_status()` → `'pending'` |
+| Post status | `get_post( $group->post_id )->post_status` |
+| Membership status | `$group->get_membership_status()` → `'pending'`, `'delayed'`, or `'active'` depending on config and start date |
 | Start date | `$group->get_dates()['starts_at']` |
 | End date | `$group->get_dates()['ends_at']` |
 | Expiration date | `$group->get_dates()['expires_at']` _(empty string if config has no grace period)_ |

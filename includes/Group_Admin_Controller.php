@@ -646,6 +646,9 @@ class Group_Admin_Controller {
     $statuses           = Helper::get_all_status_names();
     $status_slug        = $group->get_membership_status() ?: '';
     $group_dates        = $group->get_dates();
+    // When no grace period is configured, expires_at is not stored. Fall back to
+    // ends_at so the edit form always has a valid value to submit back.
+    $expires_at_for_form = ! empty( $group_dates['expires_at'] ) ? $group_dates['expires_at'] : $group_dates['ends_at'];
     $membership_records = [
       [
         'ID'                     => $group_post_id,
@@ -653,7 +656,7 @@ class Group_Admin_Controller {
         'status'                 => $statuses[ $status_slug ]['name'] ?? $status_slug,
         'starts_at'              => $group_dates['starts_at'],
         'ends_at'                => $group_dates['ends_at'],
-        'expires_at'             => $group_dates['expires_at'],
+        'expires_at'             => $expires_at_for_form,
         'early_renew_at'         => $group_dates['early_renew_at'],
         'renewal_type'           => (string) ( $meta['membership_renewal_type'] ?? '' ),
         'next_tier_form_page_id' => (int) ( $meta['membership_next_tier_form_page_id'] ?? 0 ) ?: null,
