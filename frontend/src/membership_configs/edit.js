@@ -37,6 +37,7 @@ import {
   AppWrap,
 } from "../styled_elements";
 import DatePicker from "react-datepicker";
+import moment from "moment-timezone";
 import MembershipConfigTiers from "./tiers";
 import { fetchWcProducts } from "../services/api";
 import { Tooltip } from "react-tooltip";
@@ -166,6 +167,20 @@ const CreateMembershipConfig = ({
 
     setErrors(newErrors);
     return isValid;
+  };
+
+  const mdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+
+  const getSeasonDatePickerValue = (isoString) => {
+    if (!isoString) return null;
+    const m = moment.tz(isoString, mdpTimezone);
+    return new Date(m.year(), m.month(), m.date());
+  };
+
+  const convertSeasonDate = (dateValue, isEndDate = false) => {
+    if (!dateValue) return '';
+    const m = moment.tz([dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()], mdpTimezone);
+    return isEndDate ? m.endOf('day').utc().toISOString() : m.startOf('day').utc().toISOString();
   };
 
   const initSeasonModal = (season_index) => {
@@ -867,10 +882,10 @@ const CreateMembershipConfig = ({
                                 : __("Inactive", "wicket-memberships")}
                             </td>
                             <td className="column-columnname">
-                              {season.start_date}
+                              {season.start_date ? <span title={moment.tz(season.start_date, mdpTimezone).format()}>{moment.tz(season.start_date, mdpTimezone).format("YYYY-MM-DD")}</span> : ''}
                             </td>
                             <td className="column-columnname">
-                              {season.end_date}
+                              {season.end_date ? <span title={moment.tz(season.end_date, mdpTimezone).format()}>{moment.tz(season.end_date, mdpTimezone).format("YYYY-MM-DD")}</span> : ''}
                             </td>
                             <td>
                               <Button onClick={() => initSeasonModal(index)}>
@@ -1225,18 +1240,14 @@ const CreateMembershipConfig = ({
                         showMonthDropdown
                         showYearDropdown
                         dropdownMode="select"
-                        selected={
-                          tempSeason.start_date !== ""
-                            ? moment(tempSeason.start_date).format("YYYY-MM-DD")
-                            : null
-                        }
+                        selected={getSeasonDatePickerValue(tempSeason.start_date)}
                         popperProps={{
                           zIndex: 25,
                         }}
                         onChange={(value) => {
                           setTempSeason({
                             ...tempSeason,
-                            start_date: moment(value).format("YYYY-MM-DD"),
+                            start_date: convertSeasonDate(value, false),
                           });
                         }}
                       />
@@ -1254,18 +1265,14 @@ const CreateMembershipConfig = ({
                         showMonthDropdown
                         showYearDropdown
                         dropdownMode="select"
-                        selected={
-                          tempSeason.end_date !== ""
-                            ? moment(tempSeason.end_date).format("YYYY-MM-DD")
-                            : null
-                        }
+                        selected={getSeasonDatePickerValue(tempSeason.end_date)}
                         popperProps={{
                           zIndex: 25,
                         }}
                         onChange={(value) => {
                           setTempSeason({
                             ...tempSeason,
-                            end_date: moment(value).format("YYYY-MM-DD"),
+                            end_date: convertSeasonDate(value, true),
                           });
                         }}
                       />
