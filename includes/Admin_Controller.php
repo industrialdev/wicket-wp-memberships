@@ -869,7 +869,7 @@ class Admin_Controller {
     $old_customer_meta = get_user_meta( $membership['user_id'], '_wicket_membership_'.$membership_post_id, true );
 
     $response_array['response'] = [
-      'new_user_meta_updated' => (boolean) $user_meta_updated, 
+      'new_user_meta_updated' => (bool) $user_meta_updated, 
       'old_user_meta_cleared' => $user_meta_removed
     ];
     $response_array['success'] = "Membership ownership updated successfully.";

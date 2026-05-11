@@ -796,10 +796,26 @@ function get_item_data ( $other_data, $cart_item ) {
     return $membership;
   }
 
+
   /**
    * Update subscription status
    */
 
+   public function update_subscription_status( $membership_subscription_id, $status, $note = '' ) {
+    if( function_exists( 'wcs_get_subscription' )) {
+      $sub = wcs_get_subscription( $membership_subscription_id );
+      if(! empty($sub)) {
+        try {
+          $sub->update_status( $status, $note );
+        } catch (\Exception $e) {
+          $sub->update_status( 'active', 'Subscription temporarily set active.' );
+          $sub->update_status( $status, $note );
+        }
+      }
+    }
+  }
+
+  /*
    public function update_subscription_status( $membership_subscription_id, $status, $note = '' ) {
     if( function_exists( 'wcs_get_subscription' )) {
       $sub = wcs_get_subscription( $membership_subscription_id );
@@ -822,6 +838,7 @@ function get_item_data ( $other_data, $cart_item ) {
       }
     }
   }
+  */
 
   /**
    * Gen UUID
@@ -1745,6 +1762,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
       unset($membership_data['subscription_renewal']);
       if(!empty($next_tier_subscription_renewal)) {
+        $the_order = null;
         //We are using subscription renewals to maintain the membership
         $current_subscription = wcs_get_subscription( $membership_json_data['membership_subscription_id'] );
         if(empty($current_subscription)) {
@@ -2376,6 +2394,7 @@ function get_item_data ( $other_data, $cart_item ) {
    */
   public static function daily_membership_expiry_hook() {
     $self = new self();
+    $memberships_updated = [];
     $yesterday_timestamp = current_time('timestamp') - 86400;
     //$membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
     $membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, new \DateTimeZone('UTC') ))->format('Y-m-d\TH:i:sP');
@@ -2429,6 +2448,7 @@ function get_item_data ( $other_data, $cart_item ) {
    */
   public static function daily_membership_activation_hook() {
     $self = new self();
+    $memberships_updated = [];
     $yesterday_timestamp = current_time('timestamp') - 86400;
     $membership_starts_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d\TH:i:sP');
     $args = array(
@@ -2466,6 +2486,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
   public static function daily_membership_grace_period_hook() {
     $self = new self();
+    $memberships_updated = [];
     $yesterday_timestamp = current_time('timestamp') - 86400;
     //$membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
     $membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, new \DateTimeZone('UTC') ))->format('Y-m-d\TH:i:sP');
