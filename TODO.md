@@ -16,6 +16,12 @@ Remove the entry when the work is completed.
 ---
 
 
+## Membership_Controller
+
+| File | Method | Note | Asana |
+|---|---|---|---|
+| `includes/Membership_Controller.php` | `get_membership_callouts()` | Call `$group->get_owner_callout( $iso_code )` (to be implemented on `Membership_Group`) and append result to `$group_owner_callouts[]` inside the group-owner branch (~line 1664). | — |
+
 ## Membership_Group
 
 | File | Method | Note | Asana |
