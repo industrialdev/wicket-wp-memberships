@@ -511,6 +511,8 @@ class Group_Admin_Controller {
 
     $dates = $group->get_dates();
 
+    $group->sync_mdp_update();
+
     return new \WP_REST_Response( [
       'success'  => 'Membership group updated successfully.',
       'response' => [
@@ -1079,6 +1081,7 @@ class Group_Admin_Controller {
       if ( ! empty( $result['warnings'] ) ) {
         $response['warnings'] = $result['warnings'];
       }
+      $group->sync_mdp_update();
       return new \WP_REST_Response( $response, 200 );
     }
 
@@ -1095,6 +1098,8 @@ class Group_Admin_Controller {
       }
 
       self::cancel_group_subscription( $group->get_subscription_id(), array_merge( $group->get_dates(), [ 'group_post_id' => $group_post_id ] ) );
+
+      $group->sync_mdp_update();
 
       return new \WP_REST_Response( [ 'success' => 'Membership group and all individual memberships cancelled immediately.' ], 200 );
     }
@@ -1149,6 +1154,8 @@ class Group_Admin_Controller {
     if ( $ends_at_ts && ! as_next_scheduled_action( 'wicket_group_cancel_subscription', [ $group_post_id ] ) ) {
       as_schedule_single_action( $ends_at_ts, 'wicket_group_cancel_subscription', [ $group_post_id ] );
     }
+
+    // Deferred — sync fires when the AS job calls transition_to('cancelled') at ends_at.
 
     return new \WP_REST_Response( [ 'success' => 'Membership group set to cancel at end date. Subscription set to pending-cancel.' ], 200 );
   }

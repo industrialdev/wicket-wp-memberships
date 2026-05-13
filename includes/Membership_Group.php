@@ -190,6 +190,8 @@ class Membership_Group {
     // Reload meta so the returned instance reflects everything written above.
     $group->meta_data = get_post_meta( $post_id );
 
+    $group->sync_mdp_create();
+
     return $group;
   }
 
@@ -1198,6 +1200,8 @@ class Membership_Group {
     $this->reassign_order_customer( $user->ID );
     $this->reassign_subscription_customer( $user->ID );
 
+    $this->sync_mdp_update();
+
     $this->meta_data = get_post_meta( $this->post_id );
 
     return $user->ID;
@@ -1747,6 +1751,8 @@ class Membership_Group {
     // Propagate the new status down to child memberships last, after the group
     // record is already in its final state so children see a consistent parent.
     $this->cascade_status_to_members( $new_status );
+
+    $this->sync_mdp_update();
 
     return [
       'success_message' => $transition_plan['success_message'],
@@ -2510,5 +2516,63 @@ class Membership_Group {
     $sub->save();
 
     return $sub->get_id();
+  }
+
+  // -------------------------------------------------------------------------
+  // MDP sync stubs — no-ops until MDP group API is available.
+  // All three methods guard on bypass_wicket so dev/test environments are safe.
+  // -------------------------------------------------------------------------
+
+  /**
+   * Sync a newly created group to the MDP.
+   * Called at the end of create() on the returned instance.
+   */
+  public function sync_mdp_create(): void {
+    if ( ! empty( $this->bypass_wicket ) ) {
+      return;
+    }
+    // TODO: Call MDP group create endpoint once API is available.
+    //       Payload (inferred from $this):
+    //         get_post( $this->post_id )->post_title → group name
+    //         get_org_uuid()                         → org UUID
+    //         get_config() tier UUID                 → tier UUID
+    //         get_dates()                            → starts_at, ends_at, expires_at
+    //         get_owner_uuid()                       → owner person UUID
+    //       Store returned MDP UUID as 'membership_group_wicket_uuid' post meta.
+    //       See TODO_MDP_INTEGRATION.md §1.
+  }
+
+  /**
+   * Sync current group state to the MDP after any local write.
+   * Covers status changes, date edits, owner changes, and cancellation (end-dating).
+   * Callers commit all changes to post meta before calling this — inference is safe.
+   */
+  public function sync_mdp_update(): void {
+    if ( ! empty( $this->bypass_wicket ) ) {
+      return;
+    }
+    // TODO: Call MDP group update endpoint (likely single PATCH) once API is available.
+    //       Payload inferred from $this — no arguments needed:
+    //         get_post_meta( $this->post_id, 'membership_group_wicket_uuid', true )
+    //                                  → MDP record UUID
+    //         get_membership_status()  → status (map to MDP enum TBD with MDP team)
+    //         get_dates()              → starts_at, ends_at, expires_at
+    //         get_owner_uuid()         → owner person UUID
+    //       Cancellation sets end date to now — does NOT delete the MDP record.
+    //       See TODO_MDP_INTEGRATION.md §2, §3, §4, §5.
+  }
+
+  /**
+   * Delete the group's MDP record when the WP post is hard-deleted (wp_trash_post).
+   * NOT called on cancellation — cancellation end-dates via sync_mdp_update().
+   */
+  public function sync_mdp_delete(): void {
+    if ( ! empty( $this->bypass_wicket ) ) {
+      return;
+    }
+    // TODO: Call MDP group delete endpoint once API is available.
+    //       Read 'membership_group_wicket_uuid' post meta for the MDP record UUID.
+    //       Mirror wicket_delete_organization_membership().
+    //       See TODO_MDP_INTEGRATION.md §6.
   }
 }

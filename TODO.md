@@ -56,6 +56,35 @@ Remove the entry when the work is completed.
 |---|---|---|---|
 | `includes/Membership_Group_Config.php` | `get_late_fee_window_product_id()` | **Temporary implementation.** Reads `product_id` from `late_fee_window_data` meta (same as `Membership_Config`). The late-fee product concept for group configs has not been defined — may need to be derived from the group's tier products instead of stored directly. Review and replace before production use. Currently included in `Membership_Group::get_owner_callouts()` grace period entries — fix here will flow through automatically. | — |
 
+## MDP Group Sync — Implementation (blocked on MDP API + base plugin)
+
+Call sites are stubbed. `Membership_Group::sync_mdp_create/update/delete()` are no-ops
+until the MDP exposes a group membership API and the base plugin adds the helper functions below.
+See `TODO_MDP_INTEGRATION.md` for full context and open questions for the MDP team.
+
+### Step 1 — Base plugin: add three helper functions in `helper-unsorted.php`
+
+Mirror the existing individual/org pattern exactly (try/catch, `wicket_pre_*` filter, `WP_Error` on failure).
+Endpoint slugs follow MDP naming convention — confirm with MDP team before implementing.
+
+| Function to add | HTTP | Endpoint (assumed) | Mirrors |
+|---|---|---|---|
+| `wicket_assign_group_membership( $person_uuid, $org_uuid, $membership_uuid, $starts_at, $ends_at, $grace_period_days, $previous_membership_uuid )` | POST | `group_memberships` | `wicket_assign_organization_membership()` |
+| `wicket_update_group_membership( $membership_uuid, $starts_at, $ends_at, $grace_period_days )` | PATCH | `group_memberships/{uuid}` | `wicket_update_organization_membership_dates()` |
+| `wicket_delete_group_membership( $membership_uuid )` | DELETE | `group_memberships/{uuid}` | `wicket_delete_organization_membership()` |
+
+Payload shape, status field name, and any group-specific attributes (seats, owner UUID on create) are TBD — confirm with MDP team.
+
+### Step 2 — Memberships plugin: implement the three `sync_mdp_*` stubs
+
+Once base plugin functions exist, implement in `includes/Membership_Group.php`:
+
+| Method | Calls | Uses |
+|---|---|---|
+| `sync_mdp_create()` | `wicket_assign_group_membership()` | `get_org_uuid()`, `get_config()` tier UUID, `get_dates()`, `get_owner_uuid()`, store response UUID as `membership_group_wicket_uuid` post meta |
+| `sync_mdp_update()` | `wicket_update_group_membership()` | `membership_group_wicket_uuid` post meta, `get_dates()`, `get_membership_status()`, `get_owner_uuid()` |
+| `sync_mdp_delete()` | `wicket_delete_group_membership()` | `membership_group_wicket_uuid` post meta |
+
 ## Group_Admin_Controller
 
 | File | Method | Note | Asana |
@@ -86,19 +115,18 @@ Remove the entry when the work is completed.
 
 ## Group List & Detail — UUID-Based Navigation and Series Grouping
 
+**Design decision resolved:** MDP group UUID is stable year-to-year. `membership_group_wicket_uuid` is the dedup/navigation key — same UUID on every annual post for a group. No composite fallback or separate series key needed. See `TODO_MDP_INTEGRATION.md` for full architecture.
+
+**Blocked on MDP API availability** — `membership_group_wicket_uuid` post meta is not populated until `sync_mdp_create()` is implemented.
+
 | File | Component | Note | Asana |
 |---|---|---|---|
-| `includes/Group_Admin_Controller.php` | `get_membership_groups_list()` | Rearchitect group list to deduplicate by a stable group series identifier (mirroring how individual list deduplicates by `user_id` and org list by `org_uuid`). Each row should represent a series of annual group instances, not a single `wicket_mship_group` post. | — |
-| `includes/Group_Admin_Controller.php` | `get_group_edit_page_info()` | Detail page should load all `wicket_mship_group` posts belonging to the same series (same org + group name, or same series UUID), stacking them like individual detail stacks tiers. | — |
-| `frontend/src/members/group_list.js` | `GroupMemberList` | Update list row navigation to use a stable series key (series UUID or composite `org_uuid+group_name`) instead of WP post ID. | — |
-| `frontend/src/membership_groups/` | Group detail header | Header should show org name + group series name. Body should list all yearly group instances in the series. | — |
-
-**Design decision pending — two paths, in priority order:**
-
-1. **MDP group UUID (preferred):** Confirm with MDP team whether their upcoming group UUID endpoint returns a UUID that is stable across annual renewals of the same group (i.e. the same UUID for "ACME Board 2024" and "ACME Board 2025"). If yes, store as `membership_group_series_uuid` on each `wicket_mship_group` post and use it as the dedup/navigation key — directly parallel to `membership_wicket_uuid` on individual posts.
-2. **Composite key fallback:** If MDP assigns a fresh UUID per year, use `org_uuid + group_name` as the composite dedup key in PHP. Navigate via both values in the URL query string. Fragile if group name changes between years — document that constraint clearly.
-
-Full architecture context in `/srv/wicket-wp-stack/GROUP_MEMBERSHIP_LIST_PLAN.md`.
+| `includes/Group_Admin_Controller.php` | `get_membership_groups_list()` | Deduplicate by `membership_group_wicket_uuid`. One row per group, showing latest instance dates/status. Mirrors `get_members_list()` dedup pattern in `Membership_Controller`. | — |
+| `includes/Group_Admin_Controller.php` | `get_group_edit_page_info()` | Load all posts matching `membership_group_wicket_uuid`, stack yearly instances. Mirrors individual detail stacking tiers. | — |
+| `includes/Group_Admin_Controller.php` | `build_membership_groups_row()` | Replace `id => $post->ID` with `id => membership_group_wicket_uuid` post meta. | — |
+| `includes/Membership_CPT_Hooks.php` | `render_edit_group_member_page()` | Read `$_GET['id']` as UUID string, pass as `data-group-uuid` to React (mirrors `data-record-id` for individuals). | — |
+| `frontend/src/members/group_list.js` | `GroupMemberList` | Row navigation `id` is now UUID string, not post ID integer. | — |
+| `frontend/src/membership_groups/` | Group detail page | UUID-based post query, stacked yearly instances, org name + group name header. | — |
 
 ## Membership_Group_WP_REST_Controller
 

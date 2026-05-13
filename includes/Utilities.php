@@ -257,6 +257,11 @@ class Utilities {
         }
       }
     }
+
+    if ( get_post_type( $post_id ) === Helper::get_membership_group_cpt_slug() ) {
+      $group = new Membership_Group( $post_id );
+      $group->sync_mdp_delete();
+    }
   }
 
   function show_membership_delete_error() {
