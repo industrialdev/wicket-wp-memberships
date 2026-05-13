@@ -428,7 +428,6 @@ class Membership_Group_WP_REST_Controller extends \WP_REST_Controller {
     // TODO: POST /group/{id}/create_renewal_order — blocked on group subscription
     //       line item structure being finalised.
 
-    // TODO: GET  /get_membership_group_callouts  — group-level renewal/grace callouts
     // TODO: GET  /group/{id}/members             — list individual memberships in a group
     // TODO: POST /group/{id}/import_members      — bulk CSV import of members into a group
   }

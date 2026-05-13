@@ -16,11 +16,6 @@ Remove the entry when the work is completed.
 ---
 
 
-## Membership_Controller
-
-| File | Method | Note | Asana |
-|---|---|---|---|
-| `includes/Membership_Controller.php` | `get_membership_callouts()` | Call `$group->get_owner_callout( $iso_code )` (to be implemented on `Membership_Group`) and append result to `$group_owner_callouts[]` inside the group-owner branch (~line 1664). | — |
 
 ## Membership_Group
 
@@ -43,12 +38,23 @@ Remove the entry when the work is completed.
 |---|---|---|---|
 | `frontend/src/` | — | Build frontend tests for shared components and membership group config UI (GroupConfigForm, SeasonConfigModal, GracePeriodSection, RenewalWindowSection, etc.) | — |
 
+## QA Tests — Group Owner Callouts
+
+| File | Test | Note | Asana |
+|---|---|---|---|
+| `qa/tests/WordPress/Memberships/` | Group owner early renewal callout | Verify `Membership_Group::get_owner_callouts()` returns an `early_renewal` entry (with correct `membership` shape) when `current_time >= early_renew_at && current_time < ends_at`. | — |
+| `qa/tests/WordPress/Memberships/` | Group owner grace period callout | Verify `get_owner_callouts()` returns a `grace_period` entry when `current_time > ends_at && current_time <= expires_at`. Requires `expires_at` to be set on the group post. | — |
+| `qa/tests/WordPress/Memberships/` | Group owner pending callout | Verify `get_owner_callouts()` returns a `pending_approval` entry when group `membership_status = pending`. | — |
+| `qa/tests/WordPress/Memberships/` | Group-linked individual suppressed | Verify `Membership_Controller::get_membership_callouts()` does not include a callout for an individual `wicket_membership` post that has `membership_group_id` set. | — |
+| `qa/tests/WordPress/Memberships/` | Group owner with no individual post | Verify `get_membership_callouts()` returns group owner callouts even when the owner has no `wicket_membership` post at all. | — |
+| `qa/tests/WordPress/Memberships/` | Entry shape matches ACC contract | Verify each entry in `early_renewal`/`grace_period`/`pending_approval` from `get_owner_callouts()` has keys: `membership.ID`, `membership.ends_in_days`, `membership.meta.membership_status`, `membership.next_tier`, `membership.subscription_renewal`, `membership.multi_tier_renewal`, `callout.header`, `callout.content`. | — |
+
 
 ## Membership_Group_Config — Product ID concerns
 
 | File | Method | Note | Asana |
 |---|---|---|---|
-| `includes/Membership_Group_Config.php` | `get_late_fee_window_product_id()` | **Temporary implementation.** Reads `product_id` from `late_fee_window_data` meta (same as `Membership_Config`). The late-fee product concept for group configs has not been defined — may need to be derived from the group's tier products instead of stored directly. Review and replace before production use. | — |
+| `includes/Membership_Group_Config.php` | `get_late_fee_window_product_id()` | **Temporary implementation.** Reads `product_id` from `late_fee_window_data` meta (same as `Membership_Config`). The late-fee product concept for group configs has not been defined — may need to be derived from the group's tier products instead of stored directly. Review and replace before production use. Currently included in `Membership_Group::get_owner_callouts()` grace period entries — fix here will flow through automatically. | — |
 
 ## Group_Admin_Controller
 
@@ -99,4 +105,4 @@ Full architecture context in `/srv/wicket-wp-stack/GROUP_MEMBERSHIP_LIST_PLAN.md
 | File | Method | Note | Asana |
 |---|---|---|---|
 | `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register `POST /group/{id}/create_renewal_order` once the group subscription line item structure is finalised. Current group edit flow intentionally mocks commerce gaps instead of attempting partial implementation. | — |
-| `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register remaining group routes once backing business logic exists: `GET /get_membership_group_callouts`, `POST /group/{id}/move_member`, `GET /group/{id}/members`, and `POST /group/{id}/import_members`. | — |
+| `includes/Membership_Group_WP_REST_Controller.php` | `register_routes()` | Register remaining group routes once backing business logic exists: `POST /group/{id}/move_member`, `GET /group/{id}/members`, and `POST /group/{id}/import_members`. | — |

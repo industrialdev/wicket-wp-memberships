@@ -48,6 +48,34 @@ Initial membership status is determined by the same 3-way logic used for individ
 | Subscription ID | `$group->get_subscription_id()` |
 | Renewal type | `$group->get_config()->get_renewal_type()` _(not a direct field — via config)_ |
 
+### `get_owner_callouts( int $user_id ): array`
+
+Builds renewal/grace/pending callout arrays for all membership groups owned by `$user_id`. Entry point for `GET /get_membership_group_callouts`. Also merged into `Membership_Controller::get_membership_callouts()` for group-owner memberships.
+
+Queries all `wicket_mship_group` posts where `user_id` meta = `$user_id` and `membership_status` IN `[active, delayed, grace-period, pending]`.
+
+Per group, loads `Membership_Group_Config` via `get_config()` and dates via `get_dates()`. Three callout checks in priority order:
+
+| Check | Condition | Output key |
+|---|---|---|
+| Pending approval | `status === 'pending'` | `pending_approval` — skips remaining checks via `continue` |
+| Early renewal | `early_renew_at` non-empty AND `now >= early_renew_at && now < ends_at` | `early_renewal` |
+| Grace period | `expires_at` non-empty AND `now > ends_at && now <= expires_at` | `grace_period` |
+
+Return shape mirrors `Membership_Controller::get_membership_callouts()`:
+
+```php
+[
+  'early_renewal'    => [ [ 'group' => [...], 'callout' => [...] ], ... ],
+  'grace_period'     => [ [ 'group' => [...], 'callout' => [...], 'late_fee_product_id' => int ], ... ],
+  'pending_approval' => [ [ 'group' => [...], 'callout' => [...] ], ... ],
+  'group_owner'      => [],  // reserved
+  'debug'            => [],
+]
+```
+
+> **Note:** `late_fee_product_id` in grace period entries is sourced from `Membership_Group_Config::get_late_fee_window_product_id()`, which has a known temporary implementation. See `TODO.md`.
+
 ### `create_group_subscription(): int|false` _(private)_
 
 Creates a pending WooCommerce subscription for a freshly-created group and writes two post meta keys onto it:

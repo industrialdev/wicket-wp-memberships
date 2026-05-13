@@ -188,7 +188,6 @@ These routes have no backing business logic yet. They are tracked in `TODO.md`.
 
 | Method | Route | Feature |
 |---|---|---|
-| `GET` | `/get_membership_group_callouts` | Group-level renewal/grace period callouts |
 | `GET` | `/group/{id}/members` | List full individual membership records in a group |
 | `POST` | `/group/{id}/import_members` | Bulk CSV import of members into a group |
 

@@ -2096,6 +2096,150 @@ class Membership_Group {
   }
 
   /**
+   * Build renewal/grace/pending callout arrays for all membership groups owned by a user.
+   *
+   * Mirrors the shape of Membership_Controller::get_membership_callouts() so the ACC plugin
+   * can consume both with the same renderer. Called by the REST handler for
+   * GET /get_membership_group_callouts.
+   *
+   * Three callout types are evaluated per group:
+   * - pending_approval: status === 'pending' (no is_approval_required() gate — mirrors individual behavior)
+   * - early_renewal:    now >= early_renew_at && now < ends_at (skipped when early_renew_at is empty)
+   * - grace_period:     now > ends_at && now <= expires_at     (skipped when expires_at is empty)
+   *
+   * @param int $user_id WP user ID of the group owner.
+   * @return array{early_renewal: array, grace_period: array, pending_approval: array, group_owner: array, debug: array}
+   */
+  public static function get_owner_callouts( int $user_id ): array {
+    $early_renewal    = [];
+    $grace_period     = [];
+    $pending_approval = [];
+    $debug            = [];
+
+    $iso_code = apply_filters( 'wpml_current_language', null );
+    if ( empty( $iso_code ) ) {
+      $iso_code = substr( get_locale(), 0, 2 );
+    }
+
+    // Find all groups this user owns that are in a relevant status.
+    $group_posts = get_posts( [
+      'post_type'   => Helper::get_membership_group_cpt_slug(),
+      'post_status' => 'publish',
+      'numberposts' => -1,
+      'meta_query'  => [
+        'relation' => 'AND',
+        [
+          'key'   => 'user_id',
+          'value' => $user_id,
+        ],
+        [
+          'key'     => 'membership_status',
+          'value'   => [ 'active', 'delayed', 'grace-period', 'pending' ],
+          'compare' => 'IN',
+        ],
+      ],
+    ] );
+
+    $current_time = current_time( 'timestamp' );
+    if ( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && ! empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
+      $current_time = strtotime( date( 'Y-m-d' ) . '+' . (int) $_REQUEST['wicket_wp_membership_debug_days'] . ' days' );
+    }
+
+    foreach ( $group_posts as $post ) {
+      $group  = new self( $post->ID );
+      $config = $group->get_config();
+      if ( ! $config ) {
+        continue;
+      }
+
+      $dates  = $group->get_dates();
+      $status = $group->get_membership_status();
+
+      // Shape membership_data to match Membership_Controller individual entry format so
+      // ACC's ac-callout block can render group owner callouts without modification.
+      $ends_at_ts = ! empty( $dates['ends_at'] ) ? strtotime( $dates['ends_at'] ) : 0;
+      $membership_data = [
+        'ID'              => $post->ID,
+        'ends_in_days'    => $ends_at_ts ? (int) ceil( ( $ends_at_ts - $current_time ) / 86400 ) : 0,
+        'next_tier'       => false,
+        'form_page'       => false,
+        'subscription_renewal' => false,
+        'multi_tier_renewal'   => false,
+        'meta'            => [
+          'membership_status'         => $status,
+          'membership_tier_name'      => 'Group: ' . $group->get_name(),
+          'membership_starts_at'      => $dates['starts_at'] ?? '',
+          'membership_ends_at'        => $dates['ends_at'] ?? '',
+          'membership_expires_at'     => $dates['expires_at'] ?? '',
+          'membership_early_renew_at' => $dates['early_renew_at'] ?? '',
+          'membership_parent_order_id' => '',
+        ],
+      ];
+
+      // Pending: fires on status alone — no is_approval_required() gate.
+      // Note: ACC's renewal block skips pending status (handled by become_member block).
+      // Group owner pending callouts are surfaced here but may not render in all ACC configs.
+      if ( $status === 'pending' ) {
+        $callout = [
+          'type'         => 'pending_approval',
+          'header'       => $config->get_approval_callout_header( $iso_code ),
+          'content'      => $config->get_approval_callout_content( $iso_code ),
+          'button_label' => $config->get_approval_callout_button_label( $iso_code ),
+          'email'        => $config->get_approval_email() . '?subject=' . __( 'Re: Pending Membership Request', 'wicket-memberships' ),
+        ];
+        $pending_approval[] = [ 'membership' => $membership_data, 'callout' => $callout ];
+        continue;
+      }
+
+      // Early renewal: skip if early_renew_at is not set.
+      if ( ! empty( $dates['early_renew_at'] ) ) {
+        $early_renew_at = strtotime( $dates['early_renew_at'] );
+        $ends_at        = $ends_at_ts;
+        if ( $current_time >= $early_renew_at && $current_time < $ends_at ) {
+          $callout = [
+            'type'         => 'early_renewal',
+            'header'       => $config->get_renewal_window_callout_header( $iso_code ),
+            'content'      => $config->get_renewal_window_callout_content( $iso_code ),
+            'button_label' => $config->get_renewal_window_callout_button_label( $iso_code ),
+          ];
+          $early_renewal[] = [ 'membership' => $membership_data, 'callout' => $callout ];
+          continue;
+        }
+      }
+
+      // Grace period: skip if expires_at is not set.
+      if ( ! empty( $dates['expires_at'] ) ) {
+        $ends_at    = $ends_at_ts;
+        $expires_at = strtotime( $dates['expires_at'] );
+        if ( $current_time > $ends_at && $current_time <= $expires_at ) {
+          $callout = [
+            'type'         => 'grace_period',
+            'header'       => $config->get_late_fee_window_callout_header( $iso_code ),
+            'content'      => $config->get_late_fee_window_callout_content( $iso_code ),
+            'button_label' => $config->get_late_fee_window_callout_button_label( $iso_code ),
+          ];
+          // TODO: late_fee_product_id has a temporary implementation on Membership_Group_Config
+          // that may not reflect the correct product for groups. Revisit once group late-fee
+          // product sourcing is defined. See TODO.md.
+          $grace_period[] = [
+            'membership'          => $membership_data,
+            'callout'             => $callout,
+            'late_fee_product_id' => $config->get_late_fee_window_product_id(),
+          ];
+        }
+      }
+    }
+
+    return [
+      'early_renewal'    => $early_renewal,
+      'grace_period'     => $grace_period,
+      'pending_approval' => $pending_approval,
+      'group_owner'      => [],  // reserved for future nested group-within-group callouts
+      'debug'            => $debug,
+    ];
+  }
+
+  /**
    * Get the stored membership date fields for this group.
    *
    * @return array<string, string>

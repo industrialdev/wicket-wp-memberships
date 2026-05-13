@@ -1657,15 +1657,9 @@ function get_item_data ( $other_data, $cart_item ) {
         $membership_exists[] = str_replace( [' ','-',','], '', strToLower($membership->membership_tier_name));
       }
 
-      // Group-linked memberships get their own callout path, not individual callouts.
+      // Group-linked individual memberships are handled via group owner callouts below.
       $group_id = (int) get_post_meta( $membership->ID, 'membership_group_id', true );
       if ( $group_id > 0 ) {
-        $group = new Membership_Group( $group_id );
-        if ( $group->get_owner_id() === $user_id ) {
-          // TODO: call $group->get_owner_callout( $iso_code ) (to be implemented on Membership_Group)
-          // and append the result to $group_owner_callouts[].
-        }
-        // Non-owners: suppress callout entirely.
         continue;
       }
 
@@ -1918,10 +1912,17 @@ function get_item_data ( $other_data, $cart_item ) {
       #echo "//-->$debug_comment_eol";
     }
 
+    // Group owner callouts are independent of individual membership posts — a group
+    // owner may own a group without having a linked individual membership post.
+    $owner_callouts = Membership_Group::get_owner_callouts( $user_id );
+    $early_renewal    = array_merge( $early_renewal,    $owner_callouts['early_renewal']    ?? [] );
+    $grace_period     = array_merge( $grace_period,     $owner_callouts['grace_period']     ?? [] );
+    $pending_approval = array_merge( $pending_approval, $owner_callouts['pending_approval'] ?? [] );
+
     if(!empty($_ENV['WICKET_MSHIP_DISABLE_RENEWALS'])) {
       return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'group_owner' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
     }
-    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'group_owner' => $group_owner_callouts, 'debug' => $debug, 'membership_exists' => $membership_exists ];
+    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'group_owner' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
   }
 
   public function add_late_fee_product_to_subscription_renewal_order($subscription_id) {
