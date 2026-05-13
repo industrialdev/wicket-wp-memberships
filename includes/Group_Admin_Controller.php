@@ -896,7 +896,13 @@ class Group_Admin_Controller {
     if ( $mode === 'new' ) {
       $person_uuid = sanitize_text_field( $params['person_uuid'] ?? '' );
       // Resolve or create the WP user from the MDP person UUID.
-      $user_id = (int) wicket_create_wp_user_if_not_exist( $person_uuid );
+      // In bypass mode skip MDP and resolve against local WP only.
+      if ( $group->bypass_wicket ) {
+        $local_user = get_user_by( 'login', $person_uuid );
+        $user_id    = $local_user ? $local_user->ID : 0;
+      } else {
+        $user_id = (int) wicket_create_wp_user_if_not_exist( $person_uuid );
+      }
       if ( $user_id <= 0 ) {
         return [ 'error' => 'Could not resolve or create a WordPress user for the provided person_uuid.', 'code' => 'user_resolve_failed' ];
       }

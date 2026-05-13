@@ -1163,8 +1163,13 @@ class Membership_Group {
     }
 
     // Resolve or create the WP user for this MDP person.
-    $user_id = wicket_create_wp_user_if_not_exist( $uuid );
-    $user    = $user_id ? get_user_by( 'id', $user_id ) : false;
+    // In bypass mode skip MDP and resolve against local WP only.
+    if ( $this->bypass_wicket ) {
+      $user = get_user_by( 'login', $uuid );
+    } else {
+      $user_id = wicket_create_wp_user_if_not_exist( $uuid );
+      $user    = $user_id ? get_user_by( 'id', $user_id ) : false;
+    }
 
     if ( ! $user ) {
       Wicket()->log()->error( 'Membership_Group: Could not resolve owner UUID to WP user', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'uuid' => $uuid] );

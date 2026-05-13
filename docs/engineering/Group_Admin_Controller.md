@@ -209,7 +209,10 @@ Adds an individual membership to a group. Dispatches to `Membership_Group::add_m
 | `existing_membership_post_id` | Conditional | Existing membership post ID to cancel — required when `mode = "existing"` |
 | `product_id` | No | WC product ID — auto-resolved from tier when omitted |
 
-For `mode = "new"`: resolves or creates a WP user from `person_uuid` via `wicket_create_wp_user_if_not_exist()` before delegating to `Membership_Group::add_member()`.
+For `mode = "new"`: resolves a WP user from `person_uuid` before delegating to `Membership_Group::add_member()`. Resolution strategy depends on the `BYPASS_WICKET` flag (read from `$group->bypass_wicket`):
+
+- **Normal mode:** calls `wicket_create_wp_user_if_not_exist()` — creates the WP user from MDP if not already present.
+- **Bypass mode (`BYPASS_WICKET`):** calls `get_user_by( 'login', $person_uuid )` only — no MDP API call. Returns `user_resolve_failed` error if the user does not already exist locally.
 
 Returns `['success' => '...', 'membership_post_id' => int]` on success or `['error' => '...', 'code' => '...']` on failure. All model `WP_Error` values are mapped to the error-array shape so callers never receive a `WP_Error` directly.
 

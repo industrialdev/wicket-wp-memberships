@@ -215,7 +215,12 @@ Returns the post title (group name). Returns an empty string if the group post i
 
 ### `set_owner( string $uuid ): int|false`
 
-Accepts an MDP person UUID. Validates the format via `isValidUuid()`, then resolves or creates the corresponding WP user via `wicket_create_wp_user_if_not_exist()`. Stores only the WP user ID (`user_id`) and updates `post_author`. Derived fields — display name, email, and UUID — are intentionally not stored to avoid persisting values that can change independently of the membership record. Group ownership cannot be cleared through this method; malformed or unresolvable UUIDs are rejected. Returns the saved owner WP user ID on success and `false` on failure.
+Accepts an MDP person UUID. Validates the format via `isValidUuid()`, then resolves the corresponding WP user. Resolution strategy depends on the `BYPASS_WICKET` flag:
+
+- **Normal mode:** calls `wicket_create_wp_user_if_not_exist()` — creates the WP user from MDP if not already present.
+- **Bypass mode (`BYPASS_WICKET`):** calls `get_user_by( 'login', $uuid )` only — no MDP API call. Returns `false` if the user does not already exist locally.
+
+Stores only the WP user ID (`user_id`) and updates `post_author`. Derived fields — display name, email, and UUID — are intentionally not stored to avoid persisting values that can change independently of the membership record. Group ownership cannot be cleared through this method; malformed or unresolvable UUIDs are rejected. Returns the saved owner WP user ID on success and `false` on failure.
 
 When ownership changes, this method also reassigns the linked WooCommerce parent order and subscription customers through private helper methods.
 
