@@ -31,7 +31,7 @@ Creates a new membership group post and populates all required meta in a single 
 | `$owner_user_id` | `int` | WP user ID of the group owner |
 | `$start_date` | `string` | ISO 8601 start date for the membership period (must be non-empty) |
 
-Initial membership status is determined by the same 3-way logic used for individual memberships: if the config requires approval → `pending`; if `start_date` is in the future → `delayed`; otherwise → `active`. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. A pending WooCommerce subscription is created and linked via `membership_subscription_id` post meta; if subscription creation fails the group is still returned (non-fatal, logged).
+Initial membership status: if `start_date` is in the future → `delayed`; otherwise → `pending`. Group memberships always start `pending` so an admin must explicitly activate them — there is no automatic transition to `active` at creation time. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. When an admin later activates the group, dates are recalculated from the activation date (not the original `start_date`). A pending WooCommerce subscription is created and linked via `membership_subscription_id` post meta; if subscription creation fails the group is still returned (non-fatal, logged).
 
 **Fields accessible on the returned object:**
 
@@ -39,7 +39,7 @@ Initial membership status is determined by the same 3-way logic used for individ
 |---|---|
 | Post ID | `$group->post_id` |
 | Post status | `get_post( $group->post_id )->post_status` |
-| Membership status | `$group->get_membership_status()` → `'pending'`, `'delayed'`, or `'active'` depending on config and start date |
+| Membership status | `$group->get_membership_status()` → `'pending'` (start date today or past) or `'delayed'` (start date in future) |
 | Start date | `$group->get_dates()['starts_at']` |
 | End date | `$group->get_dates()['ends_at']` |
 | Expiration date | `$group->get_dates()['expires_at']` _(empty string if config has no grace period)_ |
@@ -324,13 +324,13 @@ Full programmatic lifecycle guard used by `transition_to()`. Wider than `get_all
 
 | From | Allowed |
 |---|---|
-| `pending` | `active` (payment confirmation), `cancelled` |
+| `pending` | `active` (admin UI only), `cancelled` |
 | `active` | `grace-period`, `expired` (expiry hook), `cancelled` |
 | `delayed` | `active`, `cancelled` |
 | `grace-period` | `expired` (expiry hook), `cancelled` |
 | `expired`, `cancelled` | _(none)_ |
 
-`pending → active`, `delayed → active`, `active → grace-period`, and `* → expired` are intentionally absent from `get_allowed_status_transitions()` — they are driven by subscription payment or daily cron hooks, not manual admin action.
+`delayed → active`, `active → grace-period`, and `* → expired` are intentionally absent from `get_allowed_status_transitions()` — they are driven by daily cron hooks, not manual admin action. `pending → active` is the exception: it is performed manually via the group admin UI status select.
 
 ### `set_membership_status( string $status ): bool`
 
@@ -341,8 +341,8 @@ Sets the `membership_status` meta value directly. This remains public as a low-l
 Executes a group status transition and its side effects. This is the supported lifecycle entrypoint for status changes. It applies transition rules via `can_transition_to()`, plans transition dates via `plan_status_transition()`, activates the linked subscription for `pending → active` and `delayed → active`, persists the new group state via `apply_status_transition()`, and cascades the new status to child memberships via `cascade_status_to_members()`. Returns an array containing `success_message` and `bypassed` on success, or `false` when the requested transition cannot be performed.
 
 `plan_status_transition()` covers the following paths:
-- `pending → active`: recalculates dates from config; activates subscription.
-- `delayed → active`: recalculates dates from config; activates subscription.
+- `pending → active`: recalculates dates from config anchored to activation date (today); activates subscription.
+- `delayed → active`: preserves dates set at creation; status change only (no subscription activation).
 - `active → grace-period`: preserves all existing dates; status change only.
 - `* → expired`: sets `ends_at` and `expires_at` to end-of-day +1; no subscription change.
 - `* → cancelled`: date behaviour varies by source status (see `transition_to_cancelled_at_end_date()` for the date-preserving cancel path).

@@ -119,16 +119,14 @@ class Membership_Group {
     // Wrap the new post in a Membership_Group instance so we can use its setters.
     $group = new static( $post_id );
 
-    // Determine initial status using the same 3-way logic as individual memberships:
-    // approval required → pending; future start date → delayed; otherwise → active.
-    $config_for_status = new Membership_Group_Config( $membership_group_config_id );
-    $current_date      = Utilities::get_utc_datetime()->format( 'c' );
-    if ( $config_for_status->is_approval_required() ) {
-      $initial_status = Wicket_Memberships::STATUS_PENDING;
-    } elseif ( strtotime( $start_date ) > strtotime( $current_date ) ) {
+    // Group memberships always start pending — dates are set now but only take effect
+    // when an admin activates the group. Future start dates still use delayed so the
+    // daily activation hook can promote them on schedule.
+    $current_date = Utilities::get_utc_datetime()->format( 'c' );
+    if ( strtotime( $start_date ) > strtotime( $current_date ) ) {
       $initial_status = Wicket_Memberships::STATUS_DELAYED;
     } else {
-      $initial_status = Wicket_Memberships::STATUS_ACTIVE;
+      $initial_status = Wicket_Memberships::STATUS_PENDING;
     }
 
     // Write status, owner, org, and config meta. Any failure rolls back the post entirely
@@ -2326,11 +2324,12 @@ class Membership_Group {
   private function plan_status_transition( string $new_status ) {
     $current_status = $this->get_membership_status();
 
-    // pending → active: derive fresh dates from the config so the subscription
-    // period reflects the current cycle, not whatever was stored at creation time.
+    // pending → active: recalculate dates anchored to today so the membership period
+    // runs from activation date, not from the original creation date.
     if ( $current_status === Wicket_Memberships::STATUS_PENDING && $new_status === Wicket_Memberships::STATUS_ACTIVE ) {
-      $config = $this->get_config();
-      $dates  = $config ? $config->get_membership_dates() : [];
+      $config     = $this->get_config();
+      $today      = Utilities::get_mdp_day_start( 'now' )->format( 'c' );
+      $dates      = $config ? $config->get_membership_dates( [ 'start_date' => $today ] ) : [];
 
       return [
         'transition_dates' => [
