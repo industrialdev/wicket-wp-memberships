@@ -71,6 +71,20 @@ Each handler logs via `Utilities::wc_log_mship_error()`:
 - On failure per group: `['handler_name: transition failed', $group_post_id]`
 - On completion: `['handler_name', $timestamp, $groups_updated]`
 
+## Date Trigger Job Handlers
+
+Three additional static methods handle one-time AS jobs scheduled by `Membership_Group::schedule_date_trigger_jobs()`. These fire `do_action` hooks consumed by AutomateWoo triggers — no status transitions.
+
+| AS hook | Handler | `do_action` fired |
+|---|---|---|
+| `wicket_group_early_renew_at` | `catch_group_early_renew_at( int $group_post_id )` | `wicket_memberships_group_renewal_period_open` |
+| `wicket_group_ends_at` | `catch_group_ends_at( int $group_post_id )` | `wicket_memberships_group_end_date_reached` |
+| `wicket_group_expires_at` | `catch_group_expires_at( int $group_post_id )` | `wicket_memberships_group_grace_period_expired` |
+
+Jobs are scheduled by `Membership_Group::schedule_date_trigger_jobs()` on group creation and on every date edit. Existing jobs are cancelled via `as_unschedule_action` before rescheduling to prevent stale jobs after date changes.
+
+These hooks are the group equivalents of `add_membership_early_renew_at`, `add_membership_ends_at`, and `add_membership_expires_at` registered in `wicket.php` lines 216–218 for individual memberships.
+
 ## Related
 
 - `Membership_Group::transition_to()` — lifecycle entrypoint used by all three handlers

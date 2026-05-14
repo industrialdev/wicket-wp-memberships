@@ -31,6 +31,11 @@ class Membership_Group_Cron_Controller {
 
     add_action( 'wp', [ $this, 'schedule_daily_group_activation' ], 10, 2 );
     add_action( 'schedule_daily_group_activation_hook', [ __NAMESPACE__ . '\\Membership_Group_Cron_Controller', 'daily_group_activation_hook' ] );
+
+    // Date trigger job handlers — AutomateWoo hook entry points.
+    add_action( 'wicket_group_early_renew_at', [ __NAMESPACE__ . '\\Membership_Group_Cron_Controller', 'catch_group_early_renew_at' ], 10, 1 );
+    add_action( 'wicket_group_ends_at',        [ __NAMESPACE__ . '\\Membership_Group_Cron_Controller', 'catch_group_ends_at' ],        10, 1 );
+    add_action( 'wicket_group_expires_at',     [ __NAMESPACE__ . '\\Membership_Group_Cron_Controller', 'catch_group_expires_at' ],     10, 1 );
   }
 
   // ---------------------------------------------------------------------------
@@ -201,6 +206,23 @@ class Membership_Group_Cron_Controller {
 
     Utilities::wc_log_mship_error( [ 'daily_group_activation_hook', $membership_starts_at, $groups_updated ] );
     return count( $groups );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Date trigger job handlers — fire do_action hooks for AutomateWoo triggers.
+  // No status transitions here; status is owned by the daily cron handlers above.
+  // ---------------------------------------------------------------------------
+
+  public static function catch_group_early_renew_at( int $group_post_id ): void {
+    do_action( 'wicket_memberships_group_renewal_period_open', $group_post_id );
+  }
+
+  public static function catch_group_ends_at( int $group_post_id ): void {
+    do_action( 'wicket_memberships_group_end_date_reached', $group_post_id );
+  }
+
+  public static function catch_group_expires_at( int $group_post_id ): void {
+    do_action( 'wicket_memberships_group_grace_period_expired', $group_post_id );
   }
 
 }

@@ -190,6 +190,9 @@ class Membership_Group {
     // Reload meta so the returned instance reflects everything written above.
     $group->meta_data = get_post_meta( $post_id );
 
+    // Schedule one-time AS jobs so AutomateWoo triggers fire at exact dates.
+    $group->schedule_date_trigger_jobs();
+
     $group->sync_mdp_create();
 
     return $group;
@@ -2547,6 +2550,43 @@ class Membership_Group {
     $sub->save();
 
     return $sub->get_id();
+  }
+
+  // -------------------------------------------------------------------------
+  // Action Scheduler date trigger jobs
+  // -------------------------------------------------------------------------
+
+  /**
+   * Schedule one-time AS jobs for each date milestone on this group.
+   *
+   * Jobs fire do_action hooks consumed by AutomateWoo triggers. They do not
+   * write status — that is the daily cron's responsibility. Safe to call on
+   * create and on every date edit; existing jobs are cancelled before rescheduling.
+   */
+  public function schedule_date_trigger_jobs(): void {
+    $dates = $this->get_dates();
+
+    $early_renew_at = ! empty( $dates['early_renew_at'] ) ? strtotime( $dates['early_renew_at'] ) : null;
+    $ends_at        = ! empty( $dates['ends_at'] )        ? strtotime( $dates['ends_at'] )        : null;
+    $expires_at     = ! empty( $dates['expires_at'] )     ? strtotime( $dates['expires_at'] )     : null;
+
+    $args  = [ 'group_post_id' => $this->post_id ];
+    $group = 'wicket-memberships';
+
+    // Cancel existing jobs before rescheduling so date edits don't leave stale jobs.
+    as_unschedule_action( 'wicket_group_early_renew_at', $args, $group );
+    as_unschedule_action( 'wicket_group_ends_at',        $args, $group );
+    as_unschedule_action( 'wicket_group_expires_at',     $args, $group );
+
+    if ( $early_renew_at ) {
+      as_schedule_single_action( $early_renew_at, 'wicket_group_early_renew_at', $args, $group, false );
+    }
+    if ( $ends_at ) {
+      as_schedule_single_action( $ends_at,    'wicket_group_ends_at',    $args, $group, false );
+    }
+    if ( $expires_at ) {
+      as_schedule_single_action( $expires_at, 'wicket_group_expires_at', $args, $group, false );
+    }
   }
 
   // -------------------------------------------------------------------------

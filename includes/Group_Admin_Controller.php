@@ -511,6 +511,9 @@ class Group_Admin_Controller {
 
     $dates = $group->get_dates();
 
+    // Reschedule date trigger jobs so AutomateWoo hooks fire at the updated dates.
+    $group->schedule_date_trigger_jobs();
+
     $group->sync_mdp_update();
 
     return new \WP_REST_Response( [

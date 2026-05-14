@@ -423,3 +423,17 @@ When `$active_only` is `true` (default), memberships with `membership_status` of
 | `membership_group_id` | `int` | Set on individual membership posts to link them to this group |
 
 ---
+
+## Action Scheduler Date Trigger Jobs
+
+### `schedule_date_trigger_jobs(): void`
+
+Schedules (or reschedules) three one-time Action Scheduler jobs for this group — one each for `early_renew_at`, `ends_at`, and `expires_at`. Jobs fire `do_action` hooks consumed by AutomateWoo triggers. No status transitions are performed.
+
+Called from `create()` after dates are set, and from `Group_Admin_Controller::update_group_entity_record()` after dates are edited. Existing jobs are cancelled via `as_unschedule_action` before scheduling new ones, so date edits never leave stale jobs.
+
+Skips scheduling for any date that is empty. Args passed to AS: `[ 'group_post_id' => $this->post_id ]` — used by the handlers in `Membership_Group_Cron_Controller` to fire the correct `do_action`.
+
+See `Membership_Group_Cron_Controller` for the handler methods and the `do_action` hooks fired.
+
+---
