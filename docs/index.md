@@ -43,6 +43,7 @@ Use `membership group` as the preferred term throughout this plugin's documentat
 - [Membership_Tier_CPT_Hooks](engineering/Class-Membership_Tier_CPT_Hooks.md) — Admin UI for tiers: list columns, trash protection, React edit page
 - [Membership_WP_REST_Controller](engineering/Class-Membership_WP_REST_Controller.md) — REST API (wicket_member/v1): search, CRUD, status management, merge webhook
 - [Group_Admin_Controller](engineering/Group_Admin_Controller.md) — Admin business logic for membership group posts (status, dates, ownership, renewal orders)
+- [Membership_Group_Cron_Controller](engineering/Membership_Group_Cron_Controller.md) — Daily Action Scheduler handlers for group grace-period, expiry, and activation transitions
 - [Membership_Group_WP_REST_Controller](engineering/Membership_Group_WP_REST_Controller.md) — REST endpoints for membership group operations
 - [Settings](engineering/Class-Settings.md) — Plugin options page: feature flags, debug toggles, scheduled action status
 - [Utilities](engineering/Class-Utilities.md) — WooCommerce integration hooks: cart/checkout modifications, product protection, timezone date helpers

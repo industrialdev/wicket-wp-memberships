@@ -2391,13 +2391,44 @@ class Membership_Group {
       ];
     }
 
-    // Expiring: same one-day notice window as cancellation for the same reason.
+    // delayed → active: status change only — dates were set at creation, preserve them.
+    // Matches individual membership behaviour: daily_membership_activation_hook writes status only.
+    if ( $current_status === Wicket_Memberships::STATUS_DELAYED && $new_status === Wicket_Memberships::STATUS_ACTIVE ) {
+      return [
+        'transition_dates' => [
+          'starts_at'      => null,
+          'ends_at'        => null,
+          'expires_at'     => null,
+          'early_renew_at' => null,
+        ],
+        'success_message'       => 'Delayed membership group activated successfully.',
+        'activate_subscription' => false,
+      ];
+    }
+
+    // active → grace-period: status change only — preserve all existing dates.
+    // Matches individual membership behaviour: daily_membership_grace_period_hook writes status only.
+    if ( $new_status === Wicket_Memberships::STATUS_GRACE ) {
+      return [
+        'transition_dates' => [
+          'starts_at'      => null,
+          'ends_at'        => null,
+          'expires_at'     => null,
+          'early_renew_at' => null,
+        ],
+        'success_message'       => 'Membership group moved to grace period.',
+        'activate_subscription' => false,
+      ];
+    }
+
+    // * → expired: status change only — preserve all existing dates.
+    // Matches individual membership behaviour: daily_membership_expiry_hook writes status only.
     if ( $new_status === Wicket_Memberships::STATUS_EXPIRED ) {
       return [
         'transition_dates' => [
           'starts_at'      => null,
-          'ends_at'        => Utilities::get_mdp_day_end( '+1 day' )->format( 'c' ),
-          'expires_at'     => Utilities::get_mdp_day_end( '+1 day' )->format( 'c' ),
+          'ends_at'        => null,
+          'expires_at'     => null,
           'early_renew_at' => null,
         ],
         'success_message'      => 'Membership group marked as expired.',

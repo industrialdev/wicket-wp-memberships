@@ -56,6 +56,7 @@ use Wicket_Memberships\Membership_WP_REST_Controller;
 use Wicket_Memberships\Membership_Group_Config_WP_REST_Controller;
 use Wicket_Memberships\Membership_Group_WP_REST_Controller;
 use Wicket_Memberships\Membership_Subscription_Controller;
+use Wicket_Memberships\Membership_Group_Cron_Controller;
 use Wicket_Memberships\Import_Controller;
 use Wicket_Memberships\Settings;
 use Wicket_Memberships\Utilities;
@@ -250,7 +251,10 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //these will activate delayed memberships once their membership_starts_at date has been reached
       add_action('wp', array($this, 'schedule_daily_membership_activation'), 10, 2);
       add_action('schedule_daily_membership_activation_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_activation_hook'), 10, 2);
-      
+
+      // group cron: mirrors individual handlers above for wicket_mship_group posts
+      new Membership_Group_Cron_Controller;
+
       //checkbox toggle - can be used for view subscriptions
       add_action('init', [__NAMESPACE__.'\\Utilities', 'autorenew_checkbox_toggle_switch']);
 

@@ -12,6 +12,7 @@ Remove the entry when the work is completed.
 |---|---|---|---|
 | `qa/tests/WordPress/Memberships/admin-controller.pest.php` | `activates a pending membership and its subscription via admin status change` | `memberships_create_fixture` creates subscription as `active` instead of expected `on-hold`. Fix the fixture then re-enable the `todo()`. | — |
 | `qa/tests/WordPress/Memberships/individual-member-filters.pest.php` | All (19 tests) | **Disabled** — file renamed to `.pest.php.disabled` to prevent suite timeout. `memberships_teardown()` runs 8× full-table `get_posts()` scans + `wp_delete_post()` per test (19 afterEach cycles). Fix: replace global teardown with targeted ID-based deletes in this file, or switch to shared `beforeAll` fixtures where test isolation allows. Re-enable by removing the `.disabled` suffix. | — |
+| `qa/tests/WordPress/Memberships/` | `Membership_Group_Cron_Controller` — all three daily handlers | **Blocked on QA suite being fixed.** Once suite is stable, add tests for: (1) `daily_group_grace_period_hook` transitions active group with elapsed `ends_at` to grace-period; (2) `daily_group_expiry_hook` transitions active/grace-period group with elapsed `expires_at` to expired; (3) `daily_group_activation_hook` transitions delayed group with elapsed `starts_at` to active. Each test must assert: correct group status after hook, child individual membership statuses cascaded, dates unchanged on the group post. | — |
 
 ---
 

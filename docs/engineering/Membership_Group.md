@@ -330,7 +330,7 @@ Full programmatic lifecycle guard used by `transition_to()`. Wider than `get_all
 | `grace-period` | `expired` (expiry hook), `cancelled` |
 | `expired`, `cancelled` | _(none)_ |
 
-`pending → active` and `*→ expired` are intentionally absent from `get_allowed_status_transitions()` — they must not appear in the admin UI.
+`pending → active`, `delayed → active`, `active → grace-period`, and `* → expired` are intentionally absent from `get_allowed_status_transitions()` — they are driven by subscription payment or daily cron hooks, not manual admin action.
 
 ### `set_membership_status( string $status ): bool`
 
@@ -338,7 +338,16 @@ Sets the `membership_status` meta value directly. This remains public as a low-l
 
 ### `transition_to( string $new_status ): array{success_message: string, bypassed: bool}|false`
 
-Executes a group status transition and its side effects. This is the supported lifecycle entrypoint for status changes. It applies transition rules via `can_transition_to()`, plans transition dates via `plan_status_transition()`, activates the linked subscription for `pending → active`, persists the new group state via `apply_status_transition()`, and cascades the new status to child memberships via `cascade_status_to_members()`. Returns an array containing `success_message` and `bypassed` on success, or `false` when the requested transition cannot be performed.
+Executes a group status transition and its side effects. This is the supported lifecycle entrypoint for status changes. It applies transition rules via `can_transition_to()`, plans transition dates via `plan_status_transition()`, activates the linked subscription for `pending → active` and `delayed → active`, persists the new group state via `apply_status_transition()`, and cascades the new status to child memberships via `cascade_status_to_members()`. Returns an array containing `success_message` and `bypassed` on success, or `false` when the requested transition cannot be performed.
+
+`plan_status_transition()` covers the following paths:
+- `pending → active`: recalculates dates from config; activates subscription.
+- `delayed → active`: recalculates dates from config; activates subscription.
+- `active → grace-period`: preserves all existing dates; status change only.
+- `* → expired`: sets `ends_at` and `expires_at` to end-of-day +1; no subscription change.
+- `* → cancelled`: date behaviour varies by source status (see `transition_to_cancelled_at_end_date()` for the date-preserving cancel path).
+
+All other combinations return `false`, causing `transition_to()` to abort.
 
 ---
 
