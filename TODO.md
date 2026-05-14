@@ -86,6 +86,14 @@ Once base plugin functions exist, implement in `includes/Membership_Group.php`:
 | `sync_mdp_update()` | `wicket_update_group_membership()` | `membership_group_wicket_uuid` post meta, `get_dates()`, `get_membership_status()`, `get_owner_uuid()` |
 | `sync_mdp_delete()` | `wicket_delete_group_membership()` | `membership_group_wicket_uuid` post meta |
 
+## Group Subscription Renewal — Membership Creation on Payment
+
+| File | Method | Note | Asana |
+|---|---|---|---|
+| `includes/Membership_Controller.php` | `catch_order_completed()` | **Gap: group subscription payments are ignored.** When a group subscription renews, `catch_order_completed()` fires but has no group awareness — no transition, no child membership renewal. Need to detect when the completing order belongs to a group subscription (check `membership_group_id` meta on subscription), then call `$group->transition_to('active')` and renew all child individual membership records. Should be implemented as an async Action Scheduler job given group subscriptions can have any number of child memberships, each requiring MDP API calls. | — |
+
+---
+
 ## Group_Admin_Controller
 
 | File | Method | Note | Asana |
