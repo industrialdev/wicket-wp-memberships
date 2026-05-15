@@ -101,7 +101,7 @@ function get_item_data ( $other_data, $cart_item ) {
    */
   private static function get_order_subscriptions( $order, array $args = array() ) {
     $subscriptions = function_exists( 'wcs_get_subscriptions_for_order' )
-      ? wcs_get_subscriptions_for_order( $order, $args )
+      ? \wcs_get_subscriptions_for_order( $order, $args )
       : array();
 
     if ( ! empty( $subscriptions ) || ! function_exists( 'wcs_get_subscription' ) ) {
@@ -127,7 +127,7 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     foreach ( $subscription_ids as $subscription_id ) {
-      $subscription = wcs_get_subscription( (int) $subscription_id );
+      $subscription = \wcs_get_subscription( (int) $subscription_id );
 
       if ( ! $subscription && class_exists( 'WC_Subscription' ) ) {
         try {
@@ -228,7 +228,7 @@ function get_item_data ( $other_data, $cart_item ) {
     $membership_post_id_renew = null;
 
     $subscriptions = self::get_order_subscriptions( $order_id, ['order_type' => 'any'] );
-    //$subscriptions_ids = wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
+    //$subscriptions_ids = \wcs_get_subscriptions_for_order( $order_id, ['order_type' => 'any'] );
     Utilities::wc_log_mship_error( [ '^get_memberships_data_from_subscription_products orderID', [$order_id]]);
     foreach( $subscriptions as $subscription_id => $subscription ) {
         $subscription_products = $subscription->get_items();
@@ -546,7 +546,10 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   public static function catch_wicket_force_set_next_payment_date($sub_id, $next_payment_date) {
-    $sub = wcs_get_subscription( $sub_id );
+    if ( ! function_exists( 'wcs_get_subscription' ) ) {
+      return;
+    }
+    $sub = \wcs_get_subscription( $sub_id );
     if(! empty($sub) && !empty($next_payment_date)) {
       $sub->update_dates(['next_payment' => $next_payment_date]);
       $sub->add_order_note( 'Wicket forced next payment date to: ' . $next_payment_date );
@@ -595,7 +598,9 @@ function get_item_data ( $other_data, $cart_item ) {
         }
     }
 
-    $sub = wcs_get_subscription( $sub_id );
+    if ( function_exists( 'wcs_get_subscription' ) ) {
+      $sub = \wcs_get_subscription( $sub_id );
+    }
     if(! empty($sub)) {
       $sub->delete_date( 'next_payment' );
       $sub->add_order_note( 'Wicket clear next payment schedule and date.' );
@@ -664,7 +669,7 @@ function get_item_data ( $other_data, $cart_item ) {
       }
     }
     if( function_exists( 'wcs_get_subscription' ) && !empty($membership['membership_subscription_id'] )) {
-      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+      $sub = \wcs_get_subscription( $membership['membership_subscription_id'] );
       if(! empty($sub) && !empty( $order_note )) {
         $sub->add_order_note( $order_note );
       }
@@ -746,9 +751,8 @@ function get_item_data ( $other_data, $cart_item ) {
     // Set autopay flags on the subscription if enabled for the user
     $autorenew_user_meta = get_user_meta($membership['user_id'], 'subscription_autopay_enabled', true);
     if($autorenew_user_meta == 'yes' && !empty( $membership['membership_next_tier_subscription_renewal'] ) && !empty($membership['membership_subscription_id'])) {
-            $subscription = wcs_get_subscription( $membership['membership_subscription_id'] );
             if (function_exists('wcs_get_subscription')) {
-                $subscription = wcs_get_subscription($membership['membership_subscription_id']);
+                $subscription = \wcs_get_subscription($membership['membership_subscription_id']);
                 if ($subscription) {
                     $subscription->update_meta_data('_requires_manual_renewal', 'false');
                     $subscription->save();
@@ -802,7 +806,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
    public function update_subscription_status( $membership_subscription_id, $status, $note = '' ) {
     if( function_exists( 'wcs_get_subscription' )) {
-      $sub = wcs_get_subscription( $membership_subscription_id );
+      $sub = \wcs_get_subscription( $membership_subscription_id );
       if(! empty($sub)) {
         try {
           $sub->update_status( $status, $note );
@@ -817,7 +821,7 @@ function get_item_data ( $other_data, $cart_item ) {
   /*
    public function update_subscription_status( $membership_subscription_id, $status, $note = '' ) {
     if( function_exists( 'wcs_get_subscription' )) {
-      $sub = wcs_get_subscription( $membership_subscription_id );
+      $sub = \wcs_get_subscription( $membership_subscription_id );
       if(! empty($sub)) {
         try {
           $sub->update_status( $status, $note );
@@ -859,7 +863,7 @@ function get_item_data ( $other_data, $cart_item ) {
   public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ], $subcription_created = false ) {
     if( function_exists( 'wcs_get_subscription' )) {
       $subscription_id = $membership['membership_subscription_id'];
-      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+      $sub = \wcs_get_subscription( $membership['membership_subscription_id'] );
       if(!empty($subcription_created)) {
         Utilities::wicket_logger( 'A MEMBERSHIP SUBSCRIPTION WAS CREATED', $fields);
       }
@@ -912,7 +916,7 @@ function get_item_data ( $other_data, $cart_item ) {
             $sub->update_dates($dates_to_update);
             Utilities::wicket_logger( 'SUBSCRIPTION DATES BEING UPDATED MANUALLY: dates_to_update', $dates_to_update);
             add_action('woocommerce_subscription_status_updated', function( $subscription_id ) use ( $dates_to_update ) {
-              $sub = wcs_get_subscription( $subscription_id );
+              $sub = \wcs_get_subscription( $subscription_id );
               if( empty( $sub ) ) {
                 return;
               }
@@ -953,7 +957,7 @@ function get_item_data ( $other_data, $cart_item ) {
           ) {
           Utilities::wc_log_mship_error( ['FINAL STAGE CLEARING of NEXT_PAYMENT:', [$subscription_id, $is_autopay_enabled, $autorenew_user_meta, (! $is_autopay_enabled && $autorenew_user_meta == 'no')]]);
           add_action('woocommerce_subscription_status_updated', function( $subscription_id )  {
-            $sub = wcs_get_subscription( $subscription_id );
+            $sub = \wcs_get_subscription( $subscription_id );
             $sub->update_dates(['next_payment' => 0]);
           }, 10, 2 );
         }
@@ -1023,8 +1027,8 @@ function get_item_data ( $other_data, $cart_item ) {
         $grace_period_days
       );
     }
-    if( !empty($membership['membership_subscription_id'])) {
-      $sub = wcs_get_subscription( $membership['membership_subscription_id'] );
+    if( !empty($membership['membership_subscription_id']) && function_exists( 'wcs_get_subscription' ) ) {
+      $sub = \wcs_get_subscription( $membership['membership_subscription_id'] );
     }
     if( is_wp_error( $response ) ) {
       $error_msg = $response->get_error_message( 'wicket_api_error' );
@@ -1350,7 +1354,10 @@ function get_item_data ( $other_data, $cart_item ) {
    * @return void
    */
   public function wicket_update_subscription_meta_membership_post_id( $membership_post_id, $membership, $new_order_processed = false ) {
-    $sub = wcs_get_subscription($membership['membership_subscription_id']);
+    if ( ! function_exists( 'wcs_get_subscription' ) ) {
+      return;
+    }
+    $sub = \wcs_get_subscription($membership['membership_subscription_id']);
     if(empty($sub)) {
       return;
     }
@@ -1739,7 +1746,9 @@ function get_item_data ( $other_data, $cart_item ) {
       }
 
       if(!empty($membership_data['meta']['membership_subscription_id'])) {
-        $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
+        if ( function_exists( 'wcs_get_subscription' ) ) {
+          $sub = \wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
+        }
         if(!empty($sub)) {
           $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
           $subscription_status = $sub->get_status();
@@ -1756,8 +1765,12 @@ function get_item_data ( $other_data, $cart_item ) {
 
       unset($membership_data['subscription_renewal']);
       if(!empty($next_tier_subscription_renewal)) {
+        $the_order = null;
         //We are using subscription renewals to maintain the membership
-        $current_subscription = wcs_get_subscription( $membership_json_data['membership_subscription_id'] );
+        if ( ! function_exists( 'wcs_get_subscription' ) ) {
+          continue;
+        }
+        $current_subscription = \wcs_get_subscription( $membership_json_data['membership_subscription_id'] );
         if(empty($current_subscription)) {
           continue;
         }
@@ -1773,7 +1786,7 @@ function get_item_data ( $other_data, $cart_item ) {
         }
 
         if( empty($renewal_link_url) && strtotime($membership_data['meta']['membership_ends_at']) > $current_time ) {
-          $renewal_link_url = wcs_get_early_renewal_url( $current_subscription );
+          $renewal_link_url = \wcs_get_early_renewal_url( $current_subscription );
           // Extract just the query string variables from the URL
           $query_string = '';
           if ($renewal_link_url) {
@@ -1787,7 +1800,7 @@ function get_item_data ( $other_data, $cart_item ) {
         } elseif( empty($renewal_link_url) && $current_time < strtotime($membership_data['meta']['membership_expires_at']) /* !empty( $the_order) /*&& $the_order->ID != $membership_data['meta']['membership_parent_order_id']*/) {
           //$the_order->update_status('on-hold', __('Order status changed generating a pending renewal order.'));
           $current_subscription->update_status('on-hold', __('Membership plugin set subscription on-hold generating a pending renewal order.'));
-          wcs_create_renewal_order($current_subscription);
+          \wcs_create_renewal_order($current_subscription);
           $renewal_orders = $current_subscription->get_related_orders('renewal');
           foreach ($renewal_orders as $order_id) {
             $the_order = wc_get_order($order_id);
@@ -1855,7 +1868,9 @@ function get_item_data ( $other_data, $cart_item ) {
       if( $current_time >= $membership_early_renew_at && $current_time < $membership_ends_at ) {
         //if autopay is enabled we do not allow or prompt for early renewal
         if(!empty($membership_data['meta']['membership_subscription_id'])) {
-          $sub = wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
+          if ( function_exists( 'wcs_get_subscription' ) ) {
+            $sub = \wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
+          }
           if(!empty($sub)) {
             $subscription_status = $sub->get_status();
             $is_autopay_enabled = $sub->get_requires_manual_renewal() ? false : true;
@@ -1906,7 +1921,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
   public function add_late_fee_product_to_subscription_renewal_order($subscription_id) {
     if (!empty($subscription_id)) {
-      $sub = wcs_get_subscription( $subscription_id );
+      $sub = \wcs_get_subscription( $subscription_id );
       $membership_tier_post_id = get_post_meta($subscription_id, '_membership_tier_post_id', true);
       $Membership_Tier = new Membership_Tier( $membership_tier_post_id );
       $config_id = $Membership_Tier->get_config_id();
@@ -2338,6 +2353,7 @@ function get_item_data ( $other_data, $cart_item ) {
    */
   public static function daily_membership_expiry_hook() {
     $self = new self();
+    $memberships_updated = [];
     $yesterday_timestamp = current_time('timestamp') - 86400;
     //$membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
     $membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, new \DateTimeZone('UTC') ))->format('Y-m-d\TH:i:sP');
@@ -2391,6 +2407,7 @@ function get_item_data ( $other_data, $cart_item ) {
    */
   public static function daily_membership_activation_hook() {
     $self = new self();
+    $memberships_updated = [];
     $yesterday_timestamp = current_time('timestamp') - 86400;
     $membership_starts_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d\TH:i:sP');
     $args = array(
@@ -2428,6 +2445,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
   public static function daily_membership_grace_period_hook() {
     $self = new self();
+    $memberships_updated = [];
     $yesterday_timestamp = current_time('timestamp') - 86400;
     //$membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
     $membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, new \DateTimeZone('UTC') ))->format('Y-m-d\TH:i:sP');

@@ -21,6 +21,9 @@ class Import_Controller {
   }
 
   public function create_individual_memberships( $record ) {
+          $options = get_option( 'wicket_membership_plugin_options' );
+          $create_subscription_on_import = !empty( $options['wicket_mship_import_create_subscriptions'] ) ? true : false;
+
           if(empty($record)) {
             return 'File line read error.';
           }
@@ -94,6 +97,8 @@ class Import_Controller {
                                                             $membership_post_mapping['membership_starts_at'], 
                                                             $membership_post_mapping['membership_ends_at'], 
                                                             $membership_post_mapping['membership_expires_at'] );
+          $is_active_membership = $membership_post_mapping['membership_status'] == Wicket_Memberships::STATUS_ACTIVE ? true : false; 
+
           if( !empty($record['Previous_External_ID'])) {
             $delta = true;
             $membership_post_mapping['previous_membership_post_id'] = $record['Previous_External_ID'];
@@ -114,9 +119,9 @@ class Import_Controller {
             (new Membership_Controller)->scheduler_dates_for_expiry( $membership_post_mapping );
             $response .= ' Delta Membership ID#'.$membership_post_mapping['previous_membership_post_id'];
           } 
-          
+
           //if this is a subscription renewal tier import we need to create the placeholder subscription for reference when renewing
-          if( $membership_tier_array['renewal_type'] == 'subscription' ) {
+          if( $is_active_membership && ($create_subscription_on_import || $membership_tier_array['renewal_type'] == 'subscription' )) {
             $subscription_id = $this->createSubscriptionForRenewal( $membership_post_mapping, $membership_id );
             $response .= ' Subscription created ID# '.$subscription_id;
           }
@@ -125,6 +130,9 @@ class Import_Controller {
         }
 
         public function create_organization_memberships( $record ) {
+          $options = get_option( 'wicket_membership_plugin_options' );
+          $create_subscription_on_import = !empty( $options['wicket_mship_import_create_subscriptions'] ) ? true : false;
+
           if(empty($record)) {
             return 'File line read error.';
           }
@@ -198,6 +206,7 @@ class Import_Controller {
                                                             $membership_post_mapping['membership_starts_at'], 
                                                             $membership_post_mapping['membership_ends_at'], 
                                                             $membership_post_mapping['membership_expires_at'] );
+          $is_active_membership = $membership_post_mapping['membership_status'] == Wicket_Memberships::STATUS_ACTIVE ? true : false; 
 
           if( !empty($record['Previous_External_ID'])) {
             $delta = true;
@@ -221,7 +230,7 @@ class Import_Controller {
           } 
           
           //if this is a subscription renewal tier import we need to create the placeholder subscription for reference when renewing
-          if( $membership_tier_array['renewal_type'] == 'subscription' ) {
+          if( $is_active_membership && ($create_subscription_on_import || $membership_tier_array['renewal_type'] == 'subscription' )) {
             $subscription_id = $this->createSubscriptionForRenewal( $membership_post_mapping, $membership_id );
             $response .= ' Subscription created ID# '.$subscription_id;
           }
@@ -287,8 +296,7 @@ class Import_Controller {
    * @return int
    */
   private function createSubscriptionForRenewal( $membership, $membership_id ) {
-    $Membership_Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
-    if( $Membership_Tier->is_renewal_subscription() ) {
+      $Membership_Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
       $Membership_Config = $Membership_Tier->get_config();
       $products = $Membership_Tier->get_products_data();
       $product_id = !empty( $products[0]['variation_id'] ) ? $products[0]['variation_id'] : $products[0]['product_id'];
@@ -331,9 +339,8 @@ class Import_Controller {
 
       $subscription_id = $subscription->get_id();
       ( new Utilities() )->wicket_assign_subscription_to_membership( $subscription_id, $membership_id  );
-      $subscription->add_order_note('This subscription was created on import. No order was created as no payment was received. Will be used for subsequent renewals.');
+      $subscription->add_order_note('This subscription was created on import. No order was created as no payment was received. It may be used for renewal depending upon the Tier renewal option.');
       return $subscription_id;
-    }
   }
 
   public function local_membership_exists($wicket_uuid) {
