@@ -219,15 +219,14 @@ const GroupMemberList = ({ editGroupUrl }) => {
                 <strong>
                   <a href={addQueryArgs(editGroupUrl, { id: group.id })} className="row-title">{group.group_name || "-"}</a>
                 </strong>
-                <pre style={{ display: "inline", fontSize: "11px" }}>({group.id})</pre>
-                <div className="row-actions">
+<div className="row-actions">
                   <span className="edit">
                     <a href={addQueryArgs(editGroupUrl, { id: group.id })}>{__("Edit", "wicket-memberships")}</a>
                   </span>
                 </div>
               </td>
               <td>{group.org_name || "-"}</td>
-              <td>{group.owner?.name || group.owner?.email || "-"}</td>
+              <td>{group.owner?.email || "-"}</td>
               <td>{group.status?.label || "-"}</td>
               <td>{group.last_updated ? moment(group.last_updated).format("MMMM D, YYYY") : "-"}</td>
               {/* TODO: enable MDP link once membership group MDP sync is implemented */}

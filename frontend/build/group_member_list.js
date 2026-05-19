@@ -14759,12 +14759,7 @@ const GroupMemberList = ({
       id: group.id
     }),
     className: "row-title"
-  }, group.group_name || "-")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("pre", {
-    style: {
-      display: "inline",
-      fontSize: "11px"
-    }
-  }, "(", group.id, ")"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
+  }, group.group_name || "-")), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("div", {
     className: "row-actions"
   }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     className: "edit"
@@ -14772,7 +14767,7 @@ const GroupMemberList = ({
     href: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_5__.addQueryArgs)(editGroupUrl, {
       id: group.id
     })
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Edit", "wicket-memberships"))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, group.org_name || "-"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, group.owner?.name || group.owner?.email || "-"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, group.status?.label || "-"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, group.last_updated ? moment__WEBPACK_IMPORTED_MODULE_3___default()(group.last_updated).format("MMMM D, YYYY") : "-"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, group.mdp_link ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Edit", "wicket-memberships"))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, group.org_name || "-"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, group.owner?.email || "-"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, group.status?.label || "-"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, group.last_updated ? moment__WEBPACK_IMPORTED_MODULE_3___default()(group.last_updated).format("MMMM D, YYYY") : "-"), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, group.mdp_link ? (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
     style: {
       color: "red",
       opacity: 0.5
