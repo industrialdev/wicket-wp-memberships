@@ -7802,7 +7802,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _wordpress_element__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(_wordpress_element__WEBPACK_IMPORTED_MODULE_2__);
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(/*! @wordpress/components */ "@wordpress/components");
 /* harmony import */ var _wordpress_components__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/__webpack_require__.n(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__);
-/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
+/* harmony import */ var styled_components__WEBPACK_IMPORTED_MODULE_14__ = __webpack_require__(/*! styled-components */ "./node_modules/styled-components/dist/styled-components.browser.esm.js");
 /* harmony import */ var _GroupMembersSection__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(/*! ./GroupMembersSection */ "./src/membership_groups/components/GroupMembersSection.js");
 /* harmony import */ var _AddMemberToGroupModal__WEBPACK_IMPORTED_MODULE_5__ = __webpack_require__(/*! ./AddMemberToGroupModal */ "./src/membership_groups/components/AddMemberToGroupModal.js");
 /* harmony import */ var _CancelMembershipGroupModal__WEBPACK_IMPORTED_MODULE_6__ = __webpack_require__(/*! ./CancelMembershipGroupModal */ "./src/membership_groups/components/CancelMembershipGroupModal.js");
@@ -7812,6 +7812,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _shared_components_MembershipActionsSection__WEBPACK_IMPORTED_MODULE_10__ = __webpack_require__(/*! ../../shared/components/MembershipActionsSection */ "./src/shared/components/MembershipActionsSection.js");
 /* harmony import */ var _shared_components_MembershipDetailsForm__WEBPACK_IMPORTED_MODULE_11__ = __webpack_require__(/*! ../../shared/components/MembershipDetailsForm */ "./src/shared/components/MembershipDetailsForm.js");
 /* harmony import */ var _shared_services_api__WEBPACK_IMPORTED_MODULE_12__ = __webpack_require__(/*! ../../shared/services/api */ "./src/shared/services/api.js");
+/* harmony import */ var _shared_components_MembershipRenewalTypeSection__WEBPACK_IMPORTED_MODULE_13__ = __webpack_require__(/*! ../../shared/components/MembershipRenewalTypeSection */ "./src/shared/components/MembershipRenewalTypeSection.js");
 
 
 
@@ -7826,7 +7827,8 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
-const DetailsWrap = styled_components__WEBPACK_IMPORTED_MODULE_13__["default"].div`
+
+const DetailsWrap = styled_components__WEBPACK_IMPORTED_MODULE_14__["default"].div`
   padding: 4px 0;
 `;
 
@@ -8006,6 +8008,7 @@ const MembershipGroupRecordDetails = ({
     nextTierFormPageId: (_record$next_tier_for = record?.next_tier_form_page_id) !== null && _record$next_tier_for !== void 0 ? _record$next_tier_for : null,
     nextTierId: (_record$next_tier_id = record?.next_tier_id) !== null && _record$next_tier_id !== void 0 ? _record$next_tier_id : null,
     disabled: isCancelled,
+    allowedRenewalTypes: _shared_components_MembershipRenewalTypeSection__WEBPACK_IMPORTED_MODULE_13__.GROUP_RENEWAL_TYPE_OPTIONS,
     onSave: handleSave,
     onSaved: handleSaved,
     ownerOption: ownerOption,
@@ -9051,6 +9054,8 @@ const MarginedFlex = (0,styled_components__WEBPACK_IMPORTED_MODULE_8__["default"
  * @param {number|null}  [props.nextTierFormPageId] - Current form page ID (for form_flow).
  * @param {number|null}  [props.nextTierId]         - Current next tier ID (for sequential_logic).
  * @param {boolean}      [props.disabled]           - Disables all inputs and the save button.
+ * @param {string[]|null} [props.allowedRenewalTypes] - When provided, restricts the renewal type
+ *                                                    selector to only these option values.
  * @param {Function}     props.onSave               - Called with merged payload:
  *                                                    { membership_starts_at, membership_ends_at,
  *                                                      membership_expires_at, renewalType,
@@ -9075,6 +9080,7 @@ const MembershipDetailsForm = ({
   nextTierFormPageId: initialNextTierFormPageId = null,
   nextTierId: initialNextTierId = null,
   disabled = false,
+  allowedRenewalTypes = null,
   onSave,
   onSaved,
   ownerOption: initialOwnerOption = null,
@@ -9214,6 +9220,7 @@ const MembershipDetailsForm = ({
     nextTierFormPageId: nextTierFormPageId,
     nextTierId: nextTierId,
     disabled: disabled,
+    allowedRenewalTypes: allowedRenewalTypes,
     onChange: handleRenewalTypeChange
   }), (renderExtra || onLoadOwnerOptions) && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, {
     align: "start",
@@ -9267,7 +9274,7 @@ const MembershipDetailsForm = ({
   })))))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(MarginedFlex, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_2__.Button, {
     variant: "primary",
     type: "submit",
-    disabled: isSaving || disabled,
+    disabled: isSaving || disabled || renewalType === "form_flow" && !nextTierFormPageId,
     isBusy: isSaving
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Update Membership", "wicket-memberships"))))));
 };
@@ -9488,6 +9495,7 @@ const MembershipRecordsSection = ({
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   GROUP_RENEWAL_TYPE_OPTIONS: () => (/* binding */ GROUP_RENEWAL_TYPE_OPTIONS),
 /* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
 /* harmony export */ });
 /* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! react */ "react");
@@ -9539,6 +9547,10 @@ const RENEWAL_TYPE_OPTIONS = [{
   value: "current_tier"
 }];
 
+// Renewal type options available for membership group records.
+// Groups support only subscription and form_flow (form_page in config terminology).
+const GROUP_RENEWAL_TYPE_OPTIONS = ["subscription", "form_flow"];
+
 /**
  * MembershipRenewalTypeSection — renewal type selector with conditional
  * sub-fields, matching the renewal type UI on individual/org membership pages.
@@ -9553,6 +9565,8 @@ const RENEWAL_TYPE_OPTIONS = [{
  * @param {number|null}  [props.nextTierFormPageId]   - Current form page ID (used when form_flow).
  * @param {number|null}  [props.nextTierId]           - Current next tier ID (used when sequential_logic).
  * @param {boolean}      [props.disabled]             - Disables all inputs.
+ * @param {string[]|null} [props.allowedRenewalTypes] - When provided, only these option values are shown.
+ *                                                      Use GROUP_RENEWAL_TYPE_OPTIONS for group memberships.
  * @param {Function}     props.onChange               - Called with a patch object on any field change:
  *                                                      { renewalType?, nextTierFormPageId?, nextTierId? }
  */
@@ -9562,9 +9576,11 @@ const MembershipRenewalTypeSection = ({
   nextTierFormPageId = null,
   nextTierId = null,
   disabled = false,
+  allowedRenewalTypes = null,
   onChange
 }) => {
-  var _ref, _RENEWAL_TYPE_OPTIONS, _RENEWAL_TYPE_OPTIONS2;
+  var _ref, _RENEWAL_TYPE_OPTIONS, _visibleOptions$find;
+  const visibleOptions = allowedRenewalTypes ? RENEWAL_TYPE_OPTIONS.filter(o => allowedRenewalTypes.includes(o.value)) : RENEWAL_TYPE_OPTIONS;
   const loadPageOptions = (0,react__WEBPACK_IMPORTED_MODULE_0__.useCallback)(() => {
     return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_2___default()({
       path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_3__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_8__.API_URL}/pages`, {
@@ -9606,8 +9622,8 @@ const MembershipRenewalTypeSection = ({
     onChange: selected => onChange({
       renewalType: selected.value
     }),
-    options: RENEWAL_TYPE_OPTIONS,
-    value: (_RENEWAL_TYPE_OPTIONS2 = RENEWAL_TYPE_OPTIONS.find(o => o.value === renewalType)) !== null && _RENEWAL_TYPE_OPTIONS2 !== void 0 ? _RENEWAL_TYPE_OPTIONS2 : null
+    options: visibleOptions,
+    value: (_visibleOptions$find = visibleOptions.find(o => o.value === renewalType)) !== null && _visibleOptions$find !== void 0 ? _visibleOptions$find : null
   }), renewalType === "inherited" && tierRenewalType && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.FlexItem, {
     style: {
       marginTop: "5px"

@@ -35,6 +35,8 @@ const MarginedFlex = styled(Flex)`
  * @param {number|null}  [props.nextTierFormPageId] - Current form page ID (for form_flow).
  * @param {number|null}  [props.nextTierId]         - Current next tier ID (for sequential_logic).
  * @param {boolean}      [props.disabled]           - Disables all inputs and the save button.
+ * @param {string[]|null} [props.allowedRenewalTypes] - When provided, restricts the renewal type
+ *                                                    selector to only these option values.
  * @param {Function}     props.onSave               - Called with merged payload:
  *                                                    { membership_starts_at, membership_ends_at,
  *                                                      membership_expires_at, renewalType,
@@ -59,6 +61,7 @@ const MembershipDetailsForm = ({
   nextTierFormPageId: initialNextTierFormPageId = null,
   nextTierId: initialNextTierId = null,
   disabled = false,
+  allowedRenewalTypes = null,
   onSave,
   onSaved,
   ownerOption: initialOwnerOption = null,
@@ -207,6 +210,7 @@ const MembershipDetailsForm = ({
           nextTierFormPageId={nextTierFormPageId}
           nextTierId={nextTierId}
           disabled={disabled}
+          allowedRenewalTypes={allowedRenewalTypes}
           onChange={handleRenewalTypeChange}
         />
 
@@ -273,7 +277,7 @@ const MembershipDetailsForm = ({
             <Button
               variant="primary"
               type="submit"
-              disabled={isSaving || disabled}
+              disabled={isSaving || disabled || (renewalType === "form_flow" && !nextTierFormPageId)}
               isBusy={isSaving}
             >
               {__("Update Membership", "wicket-memberships")}

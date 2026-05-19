@@ -22,6 +22,10 @@ const RENEWAL_TYPE_OPTIONS = [
   { label: __("Current Tier", "wicket-memberships"), value: "current_tier" },
 ];
 
+// Renewal type options available for membership group records.
+// Groups support only subscription and form_flow (form_page in config terminology).
+export const GROUP_RENEWAL_TYPE_OPTIONS = ["subscription", "form_flow"];
+
 /**
  * MembershipRenewalTypeSection — renewal type selector with conditional
  * sub-fields, matching the renewal type UI on individual/org membership pages.
@@ -36,6 +40,8 @@ const RENEWAL_TYPE_OPTIONS = [
  * @param {number|null}  [props.nextTierFormPageId]   - Current form page ID (used when form_flow).
  * @param {number|null}  [props.nextTierId]           - Current next tier ID (used when sequential_logic).
  * @param {boolean}      [props.disabled]             - Disables all inputs.
+ * @param {string[]|null} [props.allowedRenewalTypes] - When provided, only these option values are shown.
+ *                                                      Use GROUP_RENEWAL_TYPE_OPTIONS for group memberships.
  * @param {Function}     props.onChange               - Called with a patch object on any field change:
  *                                                      { renewalType?, nextTierFormPageId?, nextTierId? }
  */
@@ -45,8 +51,12 @@ const MembershipRenewalTypeSection = ({
   nextTierFormPageId = null,
   nextTierId = null,
   disabled = false,
+  allowedRenewalTypes = null,
   onChange,
 }) => {
+  const visibleOptions = allowedRenewalTypes
+    ? RENEWAL_TYPE_OPTIONS.filter((o) => allowedRenewalTypes.includes(o.value))
+    : RENEWAL_TYPE_OPTIONS;
   const loadPageOptions = useCallback(() => {
     return apiFetch({
       path: addQueryArgs(`${API_URL}/pages`, {
@@ -102,8 +112,8 @@ const MembershipRenewalTypeSection = ({
             isDisabled={disabled}
             isSearchable={false}
             onChange={(selected) => onChange({ renewalType: selected.value })}
-            options={RENEWAL_TYPE_OPTIONS}
-            value={RENEWAL_TYPE_OPTIONS.find((o) => o.value === renewalType) ?? null}
+            options={visibleOptions}
+            value={visibleOptions.find((o) => o.value === renewalType) ?? null}
           />
           {renewalType === "inherited" && tierRenewalType && (
             <FlexItem style={{ marginTop: "5px" }}>

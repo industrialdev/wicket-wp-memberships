@@ -17,6 +17,7 @@ import {
   updateMembershipGroupStatus,
   updateMembershipGroup,
 } from "../../shared/services/api";
+import { GROUP_RENEWAL_TYPE_OPTIONS } from "../../shared/components/MembershipRenewalTypeSection";
 
 const DetailsWrap = styled.div`
   padding: 4px 0;
@@ -194,6 +195,7 @@ const MembershipGroupRecordDetails = ({ record, groupPageData, onRecordUpdated, 
         nextTierFormPageId={record?.next_tier_form_page_id ?? null}
         nextTierId={record?.next_tier_id ?? null}
         disabled={isCancelled}
+        allowedRenewalTypes={GROUP_RENEWAL_TYPE_OPTIONS}
         onSave={handleSave}
         onSaved={handleSaved}
         ownerOption={ownerOption}
