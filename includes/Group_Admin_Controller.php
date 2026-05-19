@@ -153,29 +153,12 @@ class Group_Admin_Controller {
   public static function get_membership_group_filters(): array {
     $statuses = Helper::get_all_status_names();
 
-    $existing_slugs = get_posts( [
-      'post_type'      => Helper::get_membership_group_cpt_slug(),
-      'post_status'    => 'publish',
-      'posts_per_page' => -1,
-      'fields'         => 'ids',
-    ] );
-
-    $used_slugs = [];
-    foreach ( $existing_slugs as $post_id ) {
-      $slug = ( new Membership_Group( $post_id ) )->get_membership_status();
-      if ( $slug !== false && $slug !== '' && ! in_array( $slug, $used_slugs, true ) ) {
-        $used_slugs[] = $slug;
-      }
-    }
-
     $membership_status = [];
     foreach ( $statuses as $slug => $info ) {
-      if ( in_array( $slug, $used_slugs, true ) ) {
-        $membership_status[] = [
-          'name'  => $slug,
-          'value' => $info['name'],
-        ];
-      }
+      $membership_status[] = [
+        'name'  => $slug,
+        'value' => $info['name'],
+      ];
     }
 
     return [
