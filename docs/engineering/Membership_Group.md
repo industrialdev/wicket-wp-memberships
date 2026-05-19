@@ -312,7 +312,7 @@ Returns the `membership_status` meta value for this group, or `false` if not set
 
 Returns the admin-facing status transitions allowed from the current group status.
 
-All non-terminal statuses (`pending`, `active`, `delayed`, `grace-period`) permit only `cancelled` as a manual transition. `expired` is never offered — expiry is driven automatically by `daily_membership_expiry_hook`. `active` is not offered from `pending` — group activation is driven by subscription payment confirmation, not manual admin action.
+`pending` permits `active` and `cancelled`. All other non-terminal statuses (`active`, `delayed`, `grace-period`) permit only `cancelled`. `expired` is never offered — expiry is driven automatically by `daily_membership_expiry_hook`.
 
 Terminal statuses (`expired`, `cancelled`) return an empty array (no further transitions).
 

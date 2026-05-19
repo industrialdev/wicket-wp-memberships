@@ -749,7 +749,7 @@ As an admin I can edit details of the Membership Group.
 
 - Admins can update the status of the membership group from:
   - `Active` to `Cancelled`
-  - `Pending` to `Active` (TBC)
+  - `Pending` to `Active`
 - Admins can update the dates on the Membership Group
   - Edits to the membership group dates cascade to individual memberships in the group
     - Edits do not cascade to individual records with an `expired` or `canceled` status

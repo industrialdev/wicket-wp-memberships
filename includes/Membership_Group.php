@@ -1481,15 +1481,19 @@ class Membership_Group {
     $allowed_slugs = [];
 
     $non_terminal = [
-      Wicket_Memberships::STATUS_PENDING,
       Wicket_Memberships::STATUS_ACTIVE,
       Wicket_Memberships::STATUS_DELAYED,
       Wicket_Memberships::STATUS_GRACE,
     ];
 
-    if ( in_array( $current_status, $non_terminal, true ) ) {
-      // Expiry is driven by daily_membership_expiry_hook; activation by subscription
-      // payment confirmation. Manual admin action is cancel-only.
+    if ( $current_status === Wicket_Memberships::STATUS_PENDING ) {
+      // Admins can manually activate a pending group or cancel it.
+      $allowed_slugs = [
+        Wicket_Memberships::STATUS_ACTIVE,
+        Wicket_Memberships::STATUS_CANCELLED,
+      ];
+    } elseif ( in_array( $current_status, $non_terminal, true ) ) {
+      // Expiry is driven by daily_membership_expiry_hook. Manual admin action is cancel-only.
       $allowed_slugs = [ Wicket_Memberships::STATUS_CANCELLED ];
     }
 
