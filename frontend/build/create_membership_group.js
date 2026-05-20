@@ -6983,7 +6983,7 @@ const CreateMembershipGroupPageContent = ({
     if (inputValue.length < 3) return;
     (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_13__.fetchSearchOrgs)(inputValue).then(orgs => {
       callback(orgs.map(org => ({
-        label: org.name,
+        label: `${org.name} (${org.id})`,
         value: org.id
       })));
     }).catch(error => {

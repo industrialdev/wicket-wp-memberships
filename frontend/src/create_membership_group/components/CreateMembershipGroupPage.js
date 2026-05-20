@@ -146,7 +146,7 @@ const CreateMembershipGroupPageContent = ({ groupConfigCptSlug, listUrl, editGro
       .then((orgs) => {
         callback(
           orgs.map((org) => ({
-            label: org.name,
+            label: `${org.name} (${org.id})`,
             value: org.id,
           })),
         );
