@@ -7698,6 +7698,13 @@ __webpack_require__.r(__webpack_exports__);
 
 
 
+const isNewlyCreated = () => {
+  try {
+    return new URLSearchParams(window.location.search).get("new") === "1";
+  } catch {
+    return false;
+  }
+};
 const MembershipGroupPageContent = ({
   postId,
   listUrl,
@@ -7713,6 +7720,12 @@ const MembershipGroupPageContent = ({
   });
   const [memberAddedNotice, setMemberAddedNotice] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [groupCancelledNotice, setGroupCancelledNotice] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [newGroupNotice, setNewGroupNotice] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(isNewlyCreated() ? {
+    id: "new-group",
+    status: "success",
+    message: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("The membership group has been created successfully. Use the Group Members section below to begin adding members.", "wicket-memberships"),
+    onDismiss: () => setNewGroupNotice(null)
+  } : null);
   const isLoading = requestState.status === "loading";
   const handleOwnerUpdated = newOwner => {
     setPageData(prev => prev ? {
@@ -7747,7 +7760,7 @@ const MembershipGroupPageContent = ({
       label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Retry loading", "wicket-memberships"),
       onClick: retryLoad
     }
-  }] : []), ...(memberAddedNotice ? [memberAddedNotice] : []), ...(groupCancelledNotice ? [groupCancelledNotice] : [])];
+  }] : []), ...(newGroupNotice ? [newGroupNotice] : []), ...(memberAddedNotice ? [memberAddedNotice] : []), ...(groupCancelledNotice ? [groupCancelledNotice] : [])];
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(react__WEBPACK_IMPORTED_MODULE_0__.Fragment, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_shared_components_AdminNoticeStack__WEBPACK_IMPORTED_MODULE_2__["default"], {
     notices: notices
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_MembershipGroupForm__WEBPACK_IMPORTED_MODULE_7__["default"], {

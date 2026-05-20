@@ -104,19 +104,27 @@ const CreateMembershipGroupPageContent = ({ groupConfigCptSlug, listUrl, editGro
     setSubmitError(null);
   };
 
+  const ucFirst = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
+
   const loadGroupConfigs = async () => {
     const posts = await apiFetch({
       path: addQueryArgs(`${API_URL}/${groupConfigCptSlug}`, {
-        _fields: "id,title,date,modified",
+        _fields: "id,title,cycle_type,renewal_type",
         status: "publish",
         per_page: -1,
       }),
     });
+
+    const RENEWAL_TYPE_LABELS = {
+      subscription: __("Subscription", "wicket-memberships"),
+      form_page:    __("Form Flow",    "wicket-memberships"),
+    };
+
     return posts.map((p) => ({
-      title: he.decode(p.title.rendered),
-      value: p.id,
-      modified: p.modified,
-      published: p.date,
+      title:        he.decode(p.title.rendered),
+      value:        p.id,
+      cycle_type:   p.cycle_type ? ucFirst(p.cycle_type) : "—",
+      renewal_type: RENEWAL_TYPE_LABELS[p.renewal_type] ?? p.renewal_type ?? "—",
     }));
   };
 
@@ -176,7 +184,7 @@ const CreateMembershipGroupPageContent = ({ groupConfigCptSlug, listUrl, editGro
       });
 
       if (response?.success && response?.response?.ID) {
-        window.location.href = `${editGroupBaseUrl}&id=${response.response.ID}`;
+        window.location.href = `${editGroupBaseUrl}&id=${response.response.ID}&new=1`;
         return;
       }
 
@@ -216,9 +224,9 @@ const CreateMembershipGroupPageContent = ({ groupConfigCptSlug, listUrl, editGro
             onChange={set("groupConfig")}
             loadOptions={loadGroupConfigs}
             columns={[
-              { key: "title",     label: __("Config Name",   "wicket-memberships"), flex: 1,   searchable: true },
-              { key: "published", label: __("Created",       "wicket-memberships"), width: 140, format: "date" },
-              { key: "modified",  label: __("Last Modified", "wicket-memberships"), width: 160, format: "date" },
+              { key: "title",        label: __("Config Name",  "wicket-memberships"), flex: 1,   searchable: true },
+              { key: "cycle_type",   label: __("Cycle",        "wicket-memberships"), width: 130 },
+              { key: "renewal_type", label: __("Renewal Type", "wicket-memberships"), width: 150 },
             ]}
           />
           {errors.groupConfig && <p style={{ color: "#cc1818", margin: "4px 0 0" }}>{errors.groupConfig}</p>}

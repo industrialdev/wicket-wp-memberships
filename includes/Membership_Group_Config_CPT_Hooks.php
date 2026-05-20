@@ -25,6 +25,7 @@ class Membership_Group_Config_CPT_Hooks {
     add_action( 'admin_menu', [ $this, 'add_edit_page' ] );
     add_action( 'admin_init', [ $this, 'create_edit_page_redirects' ] );
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
+    add_action( 'rest_api_init', [ $this, 'register_rest_fields' ] );
     add_action( 'manage_' . $this->group_config_cpt_slug . '_posts_columns', [ $this, 'table_head' ] );
     add_action( 'manage_' . $this->group_config_cpt_slug . '_posts_custom_column', [ $this, 'table_content' ], 10, 2 );
 
@@ -160,6 +161,45 @@ class Membership_Group_Config_CPT_Hooks {
       $asset_file['dependencies'],
       $asset_file['version'],
       true
+    );
+  }
+
+  /**
+   * Expose cycle_type and renewal_type on the WP REST API response for the
+   * group config CPT so the frontend selector can display them without a
+   * separate endpoint.
+   */
+  public function register_rest_fields() {
+    register_rest_field(
+      $this->group_config_cpt_slug,
+      'cycle_type',
+      [
+        'get_callback' => function( $post_arr ) {
+          $config = new Membership_Group_Config( $post_arr['id'] );
+          return (string) $config->get_cycle_type();
+        },
+        'schema' => [
+          'type'        => 'string',
+          'description' => 'Cycle type for this group config.',
+          'context'     => [ 'view' ],
+        ],
+      ]
+    );
+
+    register_rest_field(
+      $this->group_config_cpt_slug,
+      'renewal_type',
+      [
+        'get_callback' => function( $post_arr ) {
+          $config = new Membership_Group_Config( $post_arr['id'] );
+          return (string) $config->get_renewal_type();
+        },
+        'schema' => [
+          'type'        => 'string',
+          'description' => 'Renewal type for this group config.',
+          'context'     => [ 'view' ],
+        ],
+      ]
     );
   }
 

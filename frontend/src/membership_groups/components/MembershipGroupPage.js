@@ -7,10 +7,28 @@ import { getPrimaryErrorMessage } from "../utils/formUtils";
 import { useMembershipGroupBootstrap } from "../hooks/useMembershipGroupBootstrap";
 import MembershipGroupForm from "./MembershipGroupForm";
 
+const isNewlyCreated = () => {
+  try {
+    return new URLSearchParams(window.location.search).get("new") === "1";
+  } catch {
+    return false;
+  }
+};
+
 const MembershipGroupPageContent = ({ postId, listUrl, individualMembersUrl }) => {
   const { pageData, setPageData, requestState, retryLoad } = useMembershipGroupBootstrap({ postId });
   const [memberAddedNotice, setMemberAddedNotice]       = useState(null);
   const [groupCancelledNotice, setGroupCancelledNotice] = useState(null);
+  const [newGroupNotice, setNewGroupNotice] = useState(
+    isNewlyCreated()
+      ? {
+          id: "new-group",
+          status: "success",
+          message: __("The membership group has been created successfully. Use the Group Members section below to begin adding members.", "wicket-memberships"),
+          onDismiss: () => setNewGroupNotice(null),
+        }
+      : null,
+  );
 
   const isLoading = requestState.status === "loading";
 
@@ -53,6 +71,7 @@ const MembershipGroupPageContent = ({ postId, listUrl, individualMembersUrl }) =
           },
         ]
       : []),
+    ...(newGroupNotice ? [newGroupNotice] : []),
     ...(memberAddedNotice ? [memberAddedNotice] : []),
     ...(groupCancelledNotice ? [groupCancelledNotice] : []),
   ];

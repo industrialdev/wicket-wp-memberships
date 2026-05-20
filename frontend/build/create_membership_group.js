@@ -6943,20 +6943,28 @@ const CreateMembershipGroupPageContent = ({
     }));
     setSubmitError(null);
   };
+  const ucFirst = str => str ? str.charAt(0).toUpperCase() + str.slice(1) : str;
   const loadGroupConfigs = async () => {
     const posts = await _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_3___default()({
       path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_4__.addQueryArgs)(`${_shared_constants__WEBPACK_IMPORTED_MODULE_14__.API_URL}/${groupConfigCptSlug}`, {
-        _fields: "id,title,date,modified",
+        _fields: "id,title,cycle_type,renewal_type",
         status: "publish",
         per_page: -1
       })
     });
-    return posts.map(p => ({
-      title: he__WEBPACK_IMPORTED_MODULE_15___default().decode(p.title.rendered),
-      value: p.id,
-      modified: p.modified,
-      published: p.date
-    }));
+    const RENEWAL_TYPE_LABELS = {
+      subscription: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Subscription", "wicket-memberships"),
+      form_page: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Form Flow", "wicket-memberships")
+    };
+    return posts.map(p => {
+      var _ref, _RENEWAL_TYPE_LABELS$;
+      return {
+        title: he__WEBPACK_IMPORTED_MODULE_15___default().decode(p.title.rendered),
+        value: p.id,
+        cycle_type: p.cycle_type ? ucFirst(p.cycle_type) : "—",
+        renewal_type: (_ref = (_RENEWAL_TYPE_LABELS$ = RENEWAL_TYPE_LABELS[p.renewal_type]) !== null && _RENEWAL_TYPE_LABELS$ !== void 0 ? _RENEWAL_TYPE_LABELS$ : p.renewal_type) !== null && _ref !== void 0 ? _ref : "—"
+      };
+    });
   };
   const loadOwnerOptions = (inputValue, callback) => {
     if (inputValue.length < 3) return;
@@ -7007,13 +7015,13 @@ const CreateMembershipGroupPageContent = ({
         start_date: (0,_shared_components_MembershipDatesSection__WEBPACK_IMPORTED_MODULE_12__.pickerDateToIso)(form.startDate, "membership_starts_at")
       });
       if (response?.success && response?.response?.ID) {
-        window.location.href = `${editGroupBaseUrl}&id=${response.response.ID}`;
+        window.location.href = `${editGroupBaseUrl}&id=${response.response.ID}&new=1`;
         return;
       }
       setSubmitError((_response$error = response?.error) !== null && _response$error !== void 0 ? _response$error : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("An unexpected error occurred.", "wicket-memberships"));
     } catch (err) {
-      var _ref, _err$error;
-      setSubmitError((_ref = (_err$error = err?.error) !== null && _err$error !== void 0 ? _err$error : err?.message) !== null && _ref !== void 0 ? _ref : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("An unexpected error occurred.", "wicket-memberships"));
+      var _ref2, _err$error;
+      setSubmitError((_ref2 = (_err$error = err?.error) !== null && _err$error !== void 0 ? _err$error : err?.message) !== null && _ref2 !== void 0 ? _ref2 : (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("An unexpected error occurred.", "wicket-memberships"));
     } finally {
       setIsSubmitting(false);
     }
@@ -7066,15 +7074,13 @@ const CreateMembershipGroupPageContent = ({
       flex: 1,
       searchable: true
     }, {
-      key: "published",
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Created", "wicket-memberships"),
-      width: 140,
-      format: "date"
+      key: "cycle_type",
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Cycle", "wicket-memberships"),
+      width: 130
     }, {
-      key: "modified",
-      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Last Modified", "wicket-memberships"),
-      width: 160,
-      format: "date"
+      key: "renewal_type",
+      label: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("Renewal Type", "wicket-memberships"),
+      width: 150
     }]
   }), errors.groupConfig && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("p", {
     style: {
