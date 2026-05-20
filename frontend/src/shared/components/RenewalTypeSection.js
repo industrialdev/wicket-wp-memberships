@@ -63,10 +63,9 @@ const RenewalTypeSection = ({
               disabled={disabled}
               isLoadingValue={isLoadingValue}
               loadOptions={loadPostOptions}
-              columnLabels={{
-                id: __("ID", "wicket-memberships"),
-                name: __("Title", "wicket-memberships"),
-              }}
+              columns={[
+                { key: "title", label: __("Title", "wicket-memberships"), flex: 1, searchable: true },
+              ]}
             />
           </FlexBlock>
         </div>

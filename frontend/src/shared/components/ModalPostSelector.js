@@ -9,15 +9,11 @@ import { WP_ADMIN_URL } from "../constants";
 
 const PAGE_SIZE = 20;
 
-const COLUMN_LAYOUT = {
-  id: { width: 80 },
-  title: { flex: 1 },
-  sku: { width: 180 },
-  price: { width: 120 },
-  published: { width: 140 },
-  modified: { width: 160 },
-  view: { width: 44 },
-};
+const DEFAULT_COLUMNS = [
+  { key: "title",     label: __("Title",         "wicket-memberships"), flex: 1,   searchable: true },
+  { key: "published", label: __("Created",        "wicket-memberships"), width: 140, format: "date" },
+  { key: "modified",  label: __("Last Modified",  "wicket-memberships"), width: 160, format: "date" },
+];
 
 // ─── Styled pieces ────────────────────────────────────────────────────────────
 
@@ -118,7 +114,6 @@ const TableHeader = styled.div`
   z-index: 1;
 `;
 
-// Shared layout primitive — used in both header and data rows
 const Col = styled.div`
   padding: 8px 10px;
   flex-shrink: 0;
@@ -158,6 +153,7 @@ const IconCol = styled(Col)`
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-left: auto;
 
   a {
     display: flex;
@@ -288,7 +284,11 @@ const SortIcon = ({ sortKey, activeSortKey, sortDir }) => {
  *   modalTitle      {string}    Title shown in the modal header
  *   loadOptions     {Function}  Async () => [{ value, title, ...extras }].
  *                               Called once on first modal open.
- *   columnLabels    {object}    Override column headers: { id, name }
+ *   idLabel         {string}    Override the "ID" column header label.
+ *   columns         {Array}     Column descriptors for columns between ID and the view icon.
+ *                               Each: { key, label, width?, flex?, searchable?, sortable?, format? }
+ *                               format: "text" (default) | "currency" | "date"
+ *                               Defaults to title + published (Created) + modified (Last Modified).
  */
 const ModalPostSelector = ({
   id,
@@ -300,7 +300,8 @@ const ModalPostSelector = ({
   modalTitle,
   loadOptions,
   isLoadingValue = false,
-  columnLabels = {},
+  idLabel = __("ID", "wicket-memberships"),
+  columns = DEFAULT_COLUMNS,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [options, setOptions] = useState([]);
@@ -311,38 +312,6 @@ const ModalPostSelector = ({
   const [sortDir, setSortDir] = useState("asc");
   const [currentPage, setCurrentPage] = useState(1);
   const [pendingValue, setPendingValue] = useState(null);
-
-  const colId = columnLabels.id ?? __("ID", "wicket-memberships");
-  const colName = columnLabels.name ?? __("Title", "wicket-memberships");
-
-  // Detect extra columns from the first loaded option
-  const firstOpt = options[0];
-  const isProduct = firstOpt && "sku" in firstOpt;
-  const isPost = firstOpt && "modified" in firstOpt;
-  const columns = useMemo(() => {
-    const baseColumns = [
-      { key: "id", label: colId },
-      { key: "title", label: colName },
-    ];
-
-    if (isProduct) {
-      baseColumns.push(
-        { key: "sku", label: __("SKU", "wicket-memberships") },
-        { key: "price", label: __("Price", "wicket-memberships") },
-      );
-    }
-
-    if (isPost) {
-      baseColumns.push(
-        { key: "published", label: __("Published", "wicket-memberships") },
-        { key: "modified", label: __("Modified", "wicket-memberships") },
-      );
-    }
-
-    baseColumns.push({ key: "view", label: "" });
-
-    return baseColumns;
-  }, [colId, colName, isPost, isProduct]);
 
   const formatDate = (iso, includeTime = false) => {
     if (!iso) return "—";
@@ -364,28 +333,38 @@ const ModalPostSelector = ({
     }).format(num);
   };
 
+  const formatCellValue = (col, rawValue) => {
+    if (rawValue === undefined || rawValue === null || rawValue === "") return "—";
+    if (col.format === "currency") return formatPrice(rawValue);
+    if (col.format === "date")     return formatDate(rawValue, true);
+    return String(rawValue);
+  };
+
   // ── Sort key → comparable value ──────────────────────────────────────────
   const getSortValue = (opt, key) => {
-    switch (key) {
-      case "id":      return opt.value;
-      case "value":   return opt.value;
-      case "title":   return opt.title?.toLowerCase() ?? "";
-      case "sku":     return opt.sku?.toLowerCase() ?? "";
-      case "price":   return parseFloat(opt.price) || 0;
-      case "published": return opt.published ?? "";
-      case "modified":  return opt.modified ?? "";
-      default:        return "";
-    }
+    if (key === "id" || key === "value") return opt.value;
+    const col = columns.find((c) => c.key === key);
+    const raw = opt[key];
+    if (!col || raw === undefined || raw === null) return "";
+    if (col.format === "currency") return parseFloat(raw) || 0;
+    return String(raw).toLowerCase();
   };
 
   // ── Derived: filter → sort → paginate ────────────────────────────────────
+  const searchableKeys = useMemo(
+    () => columns.filter((c) => c.searchable).map((c) => c.key),
+    [columns],
+  );
+
   const filteredSorted = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = q
       ? options.filter(
           (opt) =>
             String(opt.value).toLowerCase().includes(q) ||
-            opt.title.toLowerCase().includes(q),
+            searchableKeys.some(
+              (key) => opt[key] && String(opt[key]).toLowerCase().includes(q),
+            ),
         )
       : options;
 
@@ -396,7 +375,7 @@ const ModalPostSelector = ({
       if (av > bv) return sortDir === "asc" ? 1 : -1;
       return 0;
     });
-  }, [options, search, sortKey, sortDir]);
+  }, [options, search, sortKey, sortDir, searchableKeys]);
 
   const totalPages = Math.max(1, Math.ceil(filteredSorted.length / PAGE_SIZE));
   const safePage = Math.min(currentPage, totalPages);
@@ -478,22 +457,28 @@ const ModalPostSelector = ({
   }, [loadOptions]);
 
   // ── Sortable header helper ────────────────────────────────────────────────
-  const headerCol = (key, children) => {
+  const headerCol = (key, label, width, flex, sortable = true) => {
+    if (!sortable) {
+      return (
+        <Col key={key} $width={width} $flex={flex}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{label}</span>
+        </Col>
+      );
+    }
     const ariaSort =
       sortKey === key ? (sortDir === "asc" ? "ascending" : "descending") : "none";
-    const { width, flex } = COLUMN_LAYOUT[key] ?? {};
     return (
       <SortableCol
         key={key}
         role="columnheader"
         aria-sort={ariaSort}
         onClick={() => handleSort(key)}
-        title={typeof children === "string" ? children : undefined}
+        title={typeof label === "string" ? label : undefined}
         $width={width}
         $flex={flex}
       >
         <SortIcon sortKey={key} activeSortKey={sortKey} sortDir={sortDir} />
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{children}</span>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>{label}</span>
       </SortableCol>
     );
   };
@@ -505,84 +490,50 @@ const ModalPostSelector = ({
   const displayLabel = resolvedValue
     ? `${resolvedValue.title} (${resolvedValue.value})`
     : null;
-  const renderCell = (opt, key) => {
-    const skuVal = opt.sku || "—";
-    const priceVal = formatPrice(opt.price);
-    const publishedVal = formatDate(opt.published, true);
-    const modifiedVal = formatDate(opt.modified, true);
 
-    switch (key) {
-      case "id":
-        return (
-          <Col
-            key={key}
-            $width={COLUMN_LAYOUT.id.width}
-            data-col="id"
-            title={String(opt.value)}
-          >
-            {opt.value}
-          </Col>
-        );
-      case "title":
-        return (
-          <Col key={key} $flex={COLUMN_LAYOUT.title.flex} title={opt.title}>
-            {opt.title}
-          </Col>
-        );
-      case "sku":
-        return (
-          <Col key={key} $width={COLUMN_LAYOUT.sku.width} title={skuVal}>
-            {skuVal}
-          </Col>
-        );
-      case "price":
-        return (
-          <Col key={key} $width={COLUMN_LAYOUT.price.width} title={priceVal}>
-            {priceVal}
-          </Col>
-        );
-      case "published":
-        return (
-          <Col
-            key={key}
-            $width={COLUMN_LAYOUT.published.width}
-            title={publishedVal}
-          >
-            {publishedVal}
-          </Col>
-        );
-      case "modified":
-        return (
-          <Col
-            key={key}
-            $width={COLUMN_LAYOUT.modified.width}
-            title={modifiedVal}
-          >
-            {modifiedVal}
-          </Col>
-        );
-      case "view":
-        return (
-          <IconCol
-            key={key}
-            $width={COLUMN_LAYOUT.view.width}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <a
-              href={`${WP_ADMIN_URL}post.php?action=edit&post=${opt.value}`}
-              target="_blank"
-              rel="noreferrer"
-              title={__("Edit in admin", "wicket-memberships")}
-              aria-label={__("Edit in admin", "wicket-memberships")}
-            >
-              <span className="dashicons dashicons-visibility" />
-            </a>
-          </IconCol>
-        );
-      default:
-        return null;
+  const renderCell = (opt, col) => {
+    if (col.key === "id") {
+      return (
+        <Col key="id" $width={80} data-col="id" title={String(opt.value)}>
+          {opt.value}
+        </Col>
+      );
     }
+    if (col.key === "view") {
+      return (
+        <IconCol key="view" $width={44} onClick={(e) => e.stopPropagation()}>
+          <a
+            href={`${WP_ADMIN_URL}post.php?action=edit&post=${opt.value}`}
+            target="_blank"
+            rel="noreferrer"
+            title={__("Edit in admin", "wicket-memberships")}
+            aria-label={__("Edit in admin", "wicket-memberships")}
+          >
+            <span className="dashicons dashicons-visibility" />
+          </a>
+        </IconCol>
+      );
+    }
+    const raw = opt[col.key];
+    const display = formatCellValue(col, raw);
+    return (
+      <Col
+        key={col.key}
+        $width={col.width}
+        $flex={col.flex}
+        title={display}
+      >
+        {display}
+      </Col>
+    );
   };
+
+  // Full column list: implicit id + caller columns + implicit view
+  const allColumns = useMemo(() => [
+    { key: "id",   label: idLabel, width: 80,  sortable: true },
+    ...columns,
+    { key: "view", label: "",      width: 44,  sortable: false },
+  ], [idLabel, columns]);
 
   return (
     <>
@@ -660,15 +611,11 @@ const ModalPostSelector = ({
           ) : (
             <TableBody role="listbox">
               <TableHeader role="row">
-                {columns.map((column) =>
-                  column.key === "view" ? (
-                    <IconCol
-                      key={column.key}
-                      $width={COLUMN_LAYOUT.view.width}
-                      aria-hidden="true"
-                    />
+                {allColumns.map((col) =>
+                  col.key === "view" ? (
+                    <IconCol key="view" $width={44} aria-hidden="true" />
                   ) : (
-                    headerCol(column.key, column.label)
+                    headerCol(col.key, col.label, col.width, col.flex, col.sortable !== false)
                   ),
                 )}
               </TableHeader>
@@ -682,26 +629,24 @@ const ModalPostSelector = ({
               )}
 
               {loadState === "loaded" &&
-                pageRows.map((opt) => {
-                  return (
-                    <TableRow
-                      key={opt.value}
-                      $isSelected={pendingValue && pendingValue.value === opt.value}
-                      onClick={() => handleSelect(opt)}
-                      role="option"
-                      aria-selected={value && value.value === opt.value}
-                      tabIndex={0}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          handleSelect(opt);
-                        }
-                      }}
-                    >
-                      {columns.map((column) => renderCell(opt, column.key))}
-                    </TableRow>
-                  );
-                })}
+                pageRows.map((opt) => (
+                  <TableRow
+                    key={opt.value}
+                    $isSelected={pendingValue && pendingValue.value === opt.value}
+                    onClick={() => handleSelect(opt)}
+                    role="option"
+                    aria-selected={value && value.value === opt.value}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        handleSelect(opt);
+                      }
+                    }}
+                  >
+                    {allColumns.map((col) => renderCell(opt, col))}
+                  </TableRow>
+                ))}
             </TableBody>
           )}
         </TableWrap>

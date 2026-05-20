@@ -138,10 +138,9 @@ const MembershipRenewalTypeSection = ({
               onChange={(selected) => onChange({ nextTierFormPageId: selected ? selected.value : null })}
               disabled={disabled}
               loadOptions={loadPageOptions}
-              columnLabels={{
-                id: __("ID", "wicket-memberships"),
-                name: __("Title", "wicket-memberships"),
-              }}
+              columns={[
+                { key: "title", label: __("Title", "wicket-memberships"), flex: 1, searchable: true },
+              ]}
             />
           </FlexBlock>
         </MarginedFlex>
@@ -159,10 +158,9 @@ const MembershipRenewalTypeSection = ({
               onChange={(selected) => onChange({ nextTierId: selected ? selected.value : null })}
               disabled={disabled}
               loadOptions={loadTierOptions}
-              columnLabels={{
-                id: __("ID", "wicket-memberships"),
-                name: __("Title", "wicket-memberships"),
-              }}
+              columns={[
+                { key: "title", label: __("Tier Name", "wicket-memberships"), flex: 1, searchable: true },
+              ]}
             />
           </FlexBlock>
         </MarginedFlex>

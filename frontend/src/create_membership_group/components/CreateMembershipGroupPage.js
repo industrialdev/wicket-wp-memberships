@@ -215,7 +215,11 @@ const CreateMembershipGroupPageContent = ({ groupConfigCptSlug, listUrl, editGro
             value={form.groupConfig}
             onChange={set("groupConfig")}
             loadOptions={loadGroupConfigs}
-            columnLabels={{ name: __("Config Name", "wicket-memberships") }}
+            columns={[
+              { key: "title",     label: __("Config Name",   "wicket-memberships"), flex: 1,   searchable: true },
+              { key: "published", label: __("Created",       "wicket-memberships"), width: 140, format: "date" },
+              { key: "modified",  label: __("Last Modified", "wicket-memberships"), width: 160, format: "date" },
+            ]}
           />
           {errors.groupConfig && <p style={{ color: "#cc1818", margin: "4px 0 0" }}>{errors.groupConfig}</p>}
         </div>

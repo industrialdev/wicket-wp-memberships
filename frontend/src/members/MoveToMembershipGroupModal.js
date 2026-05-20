@@ -62,7 +62,7 @@ const MoveToMembershipGroupModal = ({
             VALID_STATUSES.includes(g.status?.slug) &&
             g.id !== sourceGroupPostId
         )
-        .map((g) => ({ value: g.id, title: g.group_name }));
+        .map((g) => ({ value: g.id, title: g.group_name, org_name: g.org_name ?? "" }));
     });
 
   const handleSubmit = async () => {
@@ -110,7 +110,10 @@ const MoveToMembershipGroupModal = ({
         value={selectedGroup}
         onChange={setSelectedGroup}
         loadOptions={loadGroupOptions}
-        columnLabels={{ name: __("Group Name", "wicket-memberships") }}
+        columns={[
+          { key: "title",    label: __("Group Name",   "wicket-memberships"), width: 250, searchable: true },
+          { key: "org_name", label: __("Organization", "wicket-memberships"), width: 250, searchable: true },
+        ]}
       />
 
       <ModalFooter>

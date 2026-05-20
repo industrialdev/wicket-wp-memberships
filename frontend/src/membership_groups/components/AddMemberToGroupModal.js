@@ -219,7 +219,9 @@ const AddMemberToGroupModal = ({
           onChange={handleTierChange}
           disabled={!selectedUser}
           loadOptions={loadTierOptions}
-          columnLabels={{ name: __("Tier Name", "wicket-memberships") }}
+          columns={[
+            { key: "title", label: __("Tier Name", "wicket-memberships"), flex: 1, searchable: true },
+          ]}
         />
       </div>
 
@@ -232,7 +234,11 @@ const AddMemberToGroupModal = ({
             value={selectedProduct}
             onChange={setSelectedProduct}
             loadOptions={loadProductOptions}
-            columnLabels={{ name: __("Product Name", "wicket-memberships") }}
+            columns={[
+              { key: "title", label: __("Product Name", "wicket-memberships"), flex: 1,   searchable: true },
+              { key: "sku",   label: __("SKU",          "wicket-memberships"), width: 180, searchable: true },
+              { key: "price", label: __("Price",        "wicket-memberships"), width: 120, format: "currency" },
+            ]}
           />
         </div>
       )}

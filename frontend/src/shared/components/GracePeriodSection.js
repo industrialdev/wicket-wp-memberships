@@ -57,10 +57,11 @@ const GracePeriodSection = ({
               disabled={disabled}
               isLoadingValue={isLoadingValue}
               loadOptions={loadProductOptions}
-              columnLabels={{
-                id: __("ID", "wicket-memberships"),
-                name: __("Product Name", "wicket-memberships"),
-              }}
+              columns={[
+                { key: "title", label: __("Product Name", "wicket-memberships"), flex: 1,   searchable: true },
+                { key: "sku",   label: __("SKU",          "wicket-memberships"), width: 180, searchable: true },
+                { key: "price", label: __("Price",        "wicket-memberships"), width: 120, format: "currency" },
+              ]}
             />
           </FlexBlock>
         )}

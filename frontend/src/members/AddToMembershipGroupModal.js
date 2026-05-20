@@ -61,6 +61,7 @@ const AddToMembershipGroupModal = ({
         .map((group) => ({
           value: group.id,
           title: group.group_name,
+          org_name: group.org_name ?? "",
         }));
     });
 
@@ -110,7 +111,10 @@ const AddToMembershipGroupModal = ({
         value={selectedGroup}
         onChange={setSelectedGroup}
         loadOptions={loadGroupOptions}
-        columnLabels={{ name: __("Group Name", "wicket-memberships") }}
+        columns={[
+          { key: "title",    label: __("Group Name",    "wicket-memberships"), width: 250, searchable: true },
+          { key: "org_name", label: __("Organization",  "wicket-memberships"), width: 250, searchable: true },
+        ]}
       />
 
       <ModalFooter>
