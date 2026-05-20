@@ -7293,7 +7293,7 @@ const MembershipGroupDetails = ({
   var _membership$group_id;
   const [removeModalOpen, setRemoveModalOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false);
   const [moveModalOpen, setMoveModalOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false);
-  const canRemove = ['active', 'delayed', 'grace_period'].includes(membership.data?.membership_status_slug);
+  const canRemove = ['pending', 'active', 'delayed'].includes(membership.data?.membership_status_slug);
   const canMove = canRemove;
 
   // TODO: Replace '#' with the real membership group MDP link once group MDP sync is implemented.
