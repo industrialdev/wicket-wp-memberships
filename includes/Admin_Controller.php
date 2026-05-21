@@ -18,7 +18,7 @@ class Admin_Controller {
    */
   public function __construct() {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
-    add_action( 'admin_menu', array( $this, 'init_menu' ) );
+    add_action( 'admin_menu', array( $this, 'init_menu' ), 20 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
     add_action( 'admin_footer', array( $this, 'admin_footer_scripts' ) );
   }
@@ -43,8 +43,7 @@ class Admin_Controller {
    * Initialize the admin menu
    */
 	public function init_menu() {
-    $menu_slug        = WICKET_MEMBERSHIP_PLUGIN_SLUG;
-    $grp_cfg_cpt_slug = Helper::get_membership_group_config_cpt_slug();
+    $menu_slug = WICKET_MEMBERSHIP_PLUGIN_SLUG;
 
 		add_menu_page(
 			esc_attr__( 'Wicket Memberships', 'wicket-memberships' ),
@@ -54,14 +53,6 @@ class Admin_Controller {
 			'',
 			'dashicons-list-view'
 		);
-
-    add_submenu_page(
-      $menu_slug,
-      esc_attr__( 'Group Configs', 'wicket-memberships' ),
-      esc_attr__( 'Group Configs', 'wicket-memberships' ),
-      Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY,
-      'edit.php?post_type=' . $grp_cfg_cpt_slug
-    );
 	}
 
 	/**

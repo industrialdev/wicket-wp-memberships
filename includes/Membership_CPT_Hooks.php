@@ -27,12 +27,17 @@ class Membership_CPT_Hooks {
 
     add_action( 'admin_menu', [ $this, 'add_individual_members_page' ] );
     add_action( 'admin_menu', [ $this, 'add_org_members_page' ] );
-    add_action( 'admin_menu', [ $this, 'add_group_members_page' ] );
+    if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_GROUPS'] ) ) {
+      add_action( 'admin_menu', [ $this, 'add_group_members_page' ], 30 );
+    }
 
     add_action( 'admin_menu', [ $this, 'edit_individual_member_page' ] );
     add_action( 'admin_menu', [ $this, 'edit_org_member_page' ] );
-    add_action( 'admin_menu', [ $this, 'edit_group_member_page' ] );
-    add_action( 'admin_menu', [ $this, 'create_group_member_page' ] );
+
+    if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_GROUPS'] ) ) {
+      add_action( 'admin_menu', [ $this, 'edit_group_member_page' ] );
+      add_action( 'admin_menu', [ $this, 'create_group_member_page' ] );
+    }
 
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
   }

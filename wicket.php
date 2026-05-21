@@ -164,6 +164,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] = $options['wicket_mship_mdp_timezone'];
             }
           }
+          if ( isset( $options['wicket_mship_enable_groups'] ) && $options['wicket_mship_enable_groups'] ) {
+            $_ENV['WICKET_MSHIP_ENABLE_GROUPS'] = true;
+          }
 
           require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/membership-code-hooks.php' );
         }

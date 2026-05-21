@@ -22,7 +22,10 @@ class Membership_Group_Config_CPT_Hooks {
   public function __construct() {
     $this->group_config_cpt_slug = Helper::get_membership_group_config_cpt_slug();
 
-    add_action( 'admin_menu', [ $this, 'add_edit_page' ] );
+    if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_GROUPS'] ) ) {
+      add_action( 'admin_menu', [ $this, 'add_group_configs_submenu' ], 20 );
+      add_action( 'admin_menu', [ $this, 'add_edit_page' ] );
+    }
     add_action( 'admin_init', [ $this, 'create_edit_page_redirects' ] );
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
     add_action( 'rest_api_init', [ $this, 'register_rest_fields' ] );
@@ -76,6 +79,19 @@ class Membership_Group_Config_CPT_Hooks {
       unset( $actions['inline hide-if-no-js'] );
     }
     return $actions;
+  }
+
+  /**
+   * Register the Group Configs submenu entry pointing to the CPT list screen.
+   */
+  public function add_group_configs_submenu() {
+    add_submenu_page(
+      WICKET_MEMBERSHIP_PLUGIN_SLUG,
+      esc_attr__( 'Group Configs', 'wicket-memberships' ),
+      esc_attr__( 'Group Configs', 'wicket-memberships' ),
+      Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY,
+      'edit.php?post_type=' . $this->group_config_cpt_slug
+    );
   }
 
   /**

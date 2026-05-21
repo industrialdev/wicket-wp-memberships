@@ -78,6 +78,7 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 | `bypass_status_change_lockout` | `BYPASS_STATUS_CHANGE_LOCKOUT` | Disables status-transition guards |
 | `wicket_show_order_debug_data` | `WICKET_SHOW_ORDER_DEBUG_DATA` | Renders order debug info in admin |
 | `allow_local_imports` | `ALLOW_LOCAL_IMPORTS` | Enables local CSV import path and memberships-sync.php |
+| `wicket_mship_enable_groups` | `WICKET_MSHIP_ENABLE_GROUPS` | Shows Membership Groups and Group Configs admin pages; off by default |
 
 ## TODO Tracking
 
