@@ -7153,13 +7153,6 @@ const GroupConfigForm = ({
       isOpen: true,
       seasonIndex: nextSeasonIndex
     })
-  }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_ApprovalSection__WEBPACK_IMPORTED_MODULE_8__["default"], {
-    form: form,
-    isDisabled: isInteractionLocked,
-    isEditing: isEditing,
-    isRecordReady: isRecordReady,
-    onChange: setForm,
-    onOpenCallout: () => setActiveCalloutModal("approval_callout_data")
   }), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_RenewalTypeSection__WEBPACK_IMPORTED_MODULE_12__["default"], {
     form: form,
     isDisabled: isInteractionLocked,

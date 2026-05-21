@@ -145,14 +145,7 @@ const GroupConfigForm = ({
           }
         />
 
-        <ApprovalSection
-          form={form}
-          isDisabled={isInteractionLocked}
-          isEditing={isEditing}
-          isRecordReady={isRecordReady}
-          onChange={setForm}
-          onOpenCallout={() => setActiveCalloutModal("approval_callout_data")}
-        />
+        {/* ApprovalSection hidden — approval system not in use */}
 
         <RenewalTypeSection
           form={form}
