@@ -5,7 +5,7 @@ const app = document.getElementById("bundle_member_edit");
 if (app) {
   createRoot(app).render(
     <MembershipBundlePage
-      postId={app.dataset.postId}
+      bundleGroupUuid={app.dataset.bundleGroupUuid}
       listUrl={app.dataset.listUrl}
       individualMembersUrl={app.dataset.individualMembersUrl}
     />

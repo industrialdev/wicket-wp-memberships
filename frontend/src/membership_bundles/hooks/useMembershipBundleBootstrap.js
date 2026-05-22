@@ -11,10 +11,10 @@ const REQUEST_SUCCESS = { status: "success", error: null };
  * Calls fetchBundleEditPageInfo from api.js — never calls apiFetch directly.
  *
  * @param {object} params
- * @param {string|number} params.postId - WP post ID of the membership bundle.
+ * @param {string} params.bundleGroupUuid - membership_bundle_group_uuid for the series.
  * @returns {{ pageData: object|null, setPageData: Function, requestState: object, retryLoad: function }}
  */
-export const useMembershipBundleBootstrap = ({ postId }) => {
+export const useMembershipBundleBootstrap = ({ bundleGroupUuid }) => {
   const [pageData, setPageData] = useState(null);
   const [requestState, setRequestState] = useState(REQUEST_LOADING);
 
@@ -22,19 +22,19 @@ export const useMembershipBundleBootstrap = ({ postId }) => {
     setRequestState(REQUEST_LOADING);
 
     try {
-      const data = await fetchBundleEditPageInfo(postId);
+      const data = await fetchBundleEditPageInfo(bundleGroupUuid);
       setPageData(data);
       setRequestState(REQUEST_SUCCESS);
     } catch (error) {
       setRequestState({ status: "error", error });
     }
-  }, [postId]);
+  }, [bundleGroupUuid]);
 
   useEffect(() => {
-    if (postId) {
+    if (bundleGroupUuid) {
       loadPageData();
     }
-  }, [postId, loadPageData]);
+  }, [bundleGroupUuid, loadPageData]);
 
   return {
     pageData,

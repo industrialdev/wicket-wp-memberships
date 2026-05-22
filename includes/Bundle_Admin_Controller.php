@@ -102,6 +102,20 @@ class Bundle_Admin_Controller {
 
     $all_posts = get_posts( $query_args );
     $rows = array_map( [ self::class, 'build_membership_bundles_row' ], $all_posts );
+
+    // Deduplicate by membership_bundle_group_uuid — one row per series, newest post_date wins.
+    // get_posts() returns posts ordered by post_modified DESC (newest first), so the first
+    // row seen for a given id is always the representative. Legacy posts (no group UUID)
+    // fall back to integer post ID and each appear as their own row.
+    $deduped = [];
+    foreach ( $rows as $row ) {
+      $key = (string) $row['id'];
+      if ( ! isset( $deduped[ $key ] ) ) {
+        $deduped[ $key ] = $row;
+      }
+    }
+    $rows = array_values( $deduped );
+
     if ( $search !== '' ) {
       $rows = array_values( array_filter( $rows, function ( array $row ) use ( $search ): bool {
         $haystacks = [
@@ -308,7 +322,7 @@ class Bundle_Admin_Controller {
       : '';
 
     return [
-      'id'            => $post_id,
+      'id'            => $bundle->get_bundle_group_uuid(),
       'bundle_name'    => $bundle->get_name(),
       'org_name'      => (string) get_post_meta( $post_id, 'org_name', true ),
       'owner'         => self::build_owner_field( $bundle ),
@@ -599,23 +613,46 @@ class Bundle_Admin_Controller {
   /**
    * Return all data required to populate the membership bundle edit form.
    *
-   * @param int $bundle_post_id
+   * Accepts a membership_bundle_group_uuid and loads all bundle posts in the series,
+   * sorted newest first by post_date. The newest post supplies all top-level fields
+   * (org, owner, config, subscription). membership_records is built from every post
+   * in the series so the UI can stack all yearly instances in the records table.
+   *
+   * @param string $bundle_group_uuid
    * @return array|\WP_REST_Response
    */
-  public static function get_bundle_edit_page_info( int $bundle_post_id ) {
-    $post = get_post( $bundle_post_id );
-    if ( ! $post || get_post_type( $bundle_post_id ) !== Helper::get_membership_bundle_cpt_slug() ) {
+  public static function get_bundle_edit_page_info( string $bundle_group_uuid ) {
+    $series_posts = get_posts( [
+      'post_type'      => Helper::get_membership_bundle_cpt_slug(),
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+      'orderby'        => 'date',
+      'order'          => 'DESC',
+      'meta_query'     => [
+        [
+          'key'     => 'membership_bundle_group_uuid',
+          'value'   => $bundle_group_uuid,
+          'compare' => '=',
+        ],
+      ],
+    ] );
+
+    if ( empty( $series_posts ) ) {
       return new \WP_REST_Response( [ 'error' => 'Membership bundle not found.' ], 404 );
     }
 
-    $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] ?? null );
-    $wicket_admin    = $wicket_settings['wicket_admin'] ?? '';
-    $bundle           = new Membership_Bundle( $bundle_post_id );
+    // Newest post is the primary — all top-level fields come from it.
+    $primary_post    = $series_posts[0];
+    $bundle_post_id  = $primary_post->ID;
+    $bundle          = new Membership_Bundle( $bundle_post_id );
     $meta            = Helper::get_post_meta( $bundle_post_id );
 
+    $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] ?? null );
+    $wicket_admin    = $wicket_settings['wicket_admin'] ?? '';
+
     // Organisation data from MDP.
-    $org_uuid = $bundle->get_org_uuid();
-    $org_data = $org_uuid ? Helper::get_org_data( $org_uuid ) : [];
+    $org_uuid     = $bundle->get_org_uuid();
+    $org_data     = $org_uuid ? Helper::get_org_data( $org_uuid ) : [];
     $mdp_org_link = ( $org_uuid && $wicket_admin )
       ? $wicket_admin . '/organizations/' . $org_uuid
       : '';
@@ -630,30 +667,7 @@ class Bundle_Admin_Controller {
     $config      = $bundle->get_config();
     $config_data = $config ? Helper::get_post_meta( $config->get_post_id() ) : [];
 
-    // The "Membership Records" table on the bundle detail page should show the
-    // membership bundle record itself. Child individual memberships are managed
-    // separately via the Bundle Members section.
-    $statuses           = Helper::get_all_status_names();
-    $status_slug        = $bundle->get_membership_status() ?: '';
-    $bundle_dates        = $bundle->get_dates();
-    // When no grace period is configured, expires_at is not stored. Fall back to
-    // ends_at so the edit form always has a valid value to submit back.
-    $expires_at_for_form = ! empty( $bundle_dates['expires_at'] ) ? $bundle_dates['expires_at'] : $bundle_dates['ends_at'];
-    $membership_records = [
-      [
-        'ID'                     => $bundle_post_id,
-        'name'                   => $bundle->get_name(),
-        'status'                 => $statuses[ $status_slug ]['name'] ?? $status_slug,
-        'starts_at'              => $bundle_dates['starts_at'],
-        'ends_at'                => $bundle_dates['ends_at'],
-        'expires_at'             => $expires_at_for_form,
-        'early_renew_at'         => $bundle_dates['early_renew_at'],
-        'renewal_type'           => (string) ( $meta['membership_renewal_type'] ?? '' ),
-        'next_tier_form_page_id' => (int) ( $meta['membership_next_tier_form_page_id'] ?? 0 ) ?: null,
-        'next_tier_id'           => (int) ( $meta['membership_next_tier_id'] ?? 0 ) ?: null,
-      ],
-    ];
-
+    // Subscription and orders come from the primary (newest) bundle post.
     $sub_id = $bundle->get_subscription_id();
     $sub    = $sub_id ? wcs_get_subscription( $sub_id ) : null;
 
@@ -703,6 +717,33 @@ class Bundle_Admin_Controller {
         ];
       }
     }
+
+    // Build one membership_records entry per post in the series (newest first).
+    // The frontend MembershipRecordsSection iterates this array — stacking is automatic.
+    $statuses           = Helper::get_all_status_names();
+    $membership_records = [];
+    foreach ( $series_posts as $series_post ) {
+      $b            = new Membership_Bundle( $series_post->ID );
+      $b_meta       = Helper::get_post_meta( $series_post->ID );
+      $b_dates      = $b->get_dates();
+      $b_status     = $b->get_membership_status() ?: '';
+      $expires_at   = ! empty( $b_dates['expires_at'] ) ? $b_dates['expires_at'] : $b_dates['ends_at'];
+
+      $membership_records[] = [
+        'ID'                     => $series_post->ID,
+        'name'                   => $b->get_name(),
+        'status'                 => $statuses[ $b_status ]['name'] ?? $b_status,
+        'starts_at'              => $b_dates['starts_at'],
+        'ends_at'                => $b_dates['ends_at'],
+        'expires_at'             => $expires_at,
+        'early_renew_at'         => $b_dates['early_renew_at'],
+        'renewal_type'           => (string) ( $b_meta['membership_renewal_type'] ?? '' ),
+        'next_tier_form_page_id' => (int) ( $b_meta['membership_next_tier_form_page_id'] ?? 0 ) ?: null,
+        'next_tier_id'           => (int) ( $b_meta['membership_next_tier_id'] ?? 0 ) ?: null,
+      ];
+    }
+
+    $bundle_dates = $bundle->get_dates();
 
     return [
       'ID'                  => $bundle_post_id,

@@ -273,14 +273,14 @@ export const createRenewalOrder = (membershipId, productId, variationId) => {
 /**
  * Fetch all data required to populate the membership bundle detail/edit page.
  *
- * Maps to GET /wicket_member/v1/bundle/admin/get_edit_page_info?bundle_post_id=<id>
+ * Maps to GET /wicket_member/v1/bundle/admin/get_edit_page_info?bundle_group_uuid=<uuid>
  *
- * @param {string|number} postId - WP post ID of the membership bundle.
+ * @param {string} bundleGroupUuid - membership_bundle_group_uuid shared by all posts in the series.
  */
-export const fetchBundleEditPageInfo = (postId) => {
+export const fetchBundleEditPageInfo = (bundleGroupUuid) => {
   return apiFetch({
     path: addQueryArgs(`${PLUGIN_API_URL}/bundle/admin/get_edit_page_info`, {
-      bundle_post_id: postId,
+      bundle_group_uuid: bundleGroupUuid,
     }),
   });
 };

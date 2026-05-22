@@ -15,8 +15,8 @@ const isNewlyCreated = () => {
   }
 };
 
-const MembershipBundlePageContent = ({ postId, listUrl, individualMembersUrl }) => {
-  const { pageData, setPageData, requestState, retryLoad } = useMembershipBundleBootstrap({ postId });
+const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembersUrl }) => {
+  const { pageData, setPageData, requestState, retryLoad } = useMembershipBundleBootstrap({ bundleGroupUuid });
   const [memberAddedNotice, setMemberAddedNotice]       = useState(null);
   const [groupCancelledNotice, setGroupCancelledNotice] = useState(null);
   const [newGroupNotice, setNewGroupNotice] = useState(
@@ -98,11 +98,11 @@ const MembershipBundlePageContent = ({ postId, listUrl, individualMembersUrl }) 
  * BundleConfigPage in membership_bundle_configs/.
  *
  * @param {object} props
- * @param {string|number} props.postId               - WP post ID passed from the PHP mount point.
- * @param {string}        props.listUrl              - URL of the membership bundle list page.
- * @param {string}        props.individualMembersUrl - URL of the individual members list page.
+ * @param {string} props.bundleGroupUuid      - membership_bundle_group_uuid for the series.
+ * @param {string} props.listUrl              - URL of the membership bundle list page.
+ * @param {string} props.individualMembersUrl - URL of the individual members list page.
  */
-const MembershipBundlePage = ({ postId, listUrl, individualMembersUrl }) => {
+const MembershipBundlePage = ({ bundleGroupUuid, listUrl, individualMembersUrl }) => {
   const [errorBoundaryResetKey, setErrorBoundaryResetKey] = useState(0);
 
   return (
@@ -129,7 +129,7 @@ const MembershipBundlePage = ({ postId, listUrl, individualMembersUrl }) => {
             <MembershipBundlePageContent
               key={errorBoundaryResetKey}
               listUrl={listUrl}
-              postId={postId}
+              bundleGroupUuid={bundleGroupUuid}
               individualMembersUrl={individualMembersUrl}
             />
           </EditWrap>

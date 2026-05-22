@@ -185,6 +185,18 @@ class Membership_Bundle {
       ] );
     }
 
+    // Generate and store the bundle group UUID that links all posts in the same
+    // renewal series. Must run after set_organization() so org_uuid is available.
+    $group_uuid = $bundle->generate_bundle_group_uuid();
+    if ( $group_uuid ) {
+      $bundle->set_bundle_group_uuid( $group_uuid );
+    } else {
+      Wicket()->log()->error( 'Membership_Bundle::create: could not generate bundle_group_uuid — org_uuid missing', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $post_id,
+      ] );
+    }
+
     // Reload meta so the returned instance reflects everything written above.
     $bundle->meta_data = get_post_meta( $post_id );
 
@@ -1347,6 +1359,41 @@ class Membership_Bundle {
     }
 
     return Helper::get_org_data( $org_uuid );
+  }
+
+  /**
+   * Get the bundle group UUID that links all posts in the same renewal series.
+   *
+   * @return string|false
+   */
+  public function get_bundle_group_uuid() {
+    $uuid = get_post_meta( $this->post_id, 'membership_bundle_group_uuid', true );
+    return ! empty( $uuid ) ? $uuid : false;
+  }
+
+  /**
+   * Store a bundle group UUID on this post.
+   *
+   * @param string $uuid
+   * @return bool
+   */
+  public function set_bundle_group_uuid( string $uuid ): bool {
+    return update_post_meta( $this->post_id, 'membership_bundle_group_uuid', $uuid ) !== false;
+  }
+
+  /**
+   * Generate a new bundle group UUID for this post.
+   * Format: {org_uuid}_{uuidv4} — org-traceable prefix, random suffix.
+   * Requires org_uuid to already be set on the post.
+   *
+   * @return string|false False if org_uuid is not yet set.
+   */
+  private function generate_bundle_group_uuid() {
+    $org_uuid = $this->get_org_uuid();
+    if ( ! $org_uuid ) {
+      return false;
+    }
+    return $org_uuid . '_' . wp_generate_uuid4();
   }
 
   // Configuration and commerce links.
@@ -2612,7 +2659,7 @@ class Membership_Bundle {
     //         get_config() tier UUID                 → tier UUID
     //         get_dates()                            → starts_at, ends_at, expires_at
     //         get_owner_uuid()                       → owner person UUID
-    //       Store returned MDP UUID as 'membership_bundle_wicket_uuid' post meta.
+    //       Store returned MDP UUID as 'membership_bundle_mdp_uuid' post meta.
     //       See TODO_MDP_INTEGRATION.md §1.
   }
 
@@ -2627,7 +2674,7 @@ class Membership_Bundle {
     }
     // TODO: Call MDP bundle update endpoint (likely single PATCH) once API is available.
     //       Payload inferred from $this — no arguments needed:
-    //         get_post_meta( $this->post_id, 'membership_bundle_wicket_uuid', true )
+    //         get_post_meta( $this->post_id, 'membership_bundle_mdp_uuid', true )
     //                                  → MDP record UUID
     //         get_membership_status()  → status (map to MDP enum TBD with MDP team)
     //         get_dates()              → starts_at, ends_at, expires_at
@@ -2645,7 +2692,7 @@ class Membership_Bundle {
       return;
     }
     // TODO: Call MDP bundle delete endpoint once API is available.
-    //       Read 'membership_bundle_wicket_uuid' post meta for the MDP record UUID.
+    //       Read 'membership_bundle_mdp_uuid' post meta for the MDP record UUID.
     //       Mirror wicket_delete_organization_membership().
     //       See TODO_MDP_INTEGRATION.md §6.
   }

@@ -202,19 +202,19 @@ class Membership_CPT_Hooks {
   }
 
   function render_edit_bundle_member_page() {
-    $post_id = isset( $_GET['id'] ) ? intval( $_GET['id'] ) : 0;
+    $bundle_group_uuid = isset( $_GET['id'] ) ? sanitize_text_field( wp_unslash( $_GET['id'] ) ) : '';
 
-    if ( ! $post_id ) {
+    if ( ! $bundle_group_uuid ) {
       echo '<div class="wrap"><p>' . esc_html__( 'No bundle ID provided.', 'wicket-memberships' ) . '</p></div>';
       return;
     }
 
-    $list_url                = admin_url( 'admin.php?page=' . self::LIST_BUNDLE_MEMBER_PAGE_SLUG );
-    $individual_members_url  = admin_url( 'admin.php?page=' . self::LIST_INDIVIDUAL_MEMBER_PAGE_SLUG );
+    $list_url               = admin_url( 'admin.php?page=' . self::LIST_BUNDLE_MEMBER_PAGE_SLUG );
+    $individual_members_url = admin_url( 'admin.php?page=' . self::LIST_INDIVIDUAL_MEMBER_PAGE_SLUG );
 
     echo '<div
       id="bundle_member_edit"
-      data-post-id="' . esc_attr( $post_id ) . '"
+      data-bundle-group-uuid="' . esc_attr( $bundle_group_uuid ) . '"
       data-list-url="' . esc_url( $list_url ) . '"
       data-individual-members-url="' . esc_url( $individual_members_url ) . '"
     ></div>';

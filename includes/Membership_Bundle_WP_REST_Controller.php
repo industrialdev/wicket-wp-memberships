@@ -173,7 +173,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     /**
      * Get all data needed to populate the membership bundle edit form.
      *
-     * GET /wicket_member/v1/bundle/admin/get_edit_page_info?bundle_post_id=123
+     * GET /wicket_member/v1/bundle/admin/get_edit_page_info?bundle_group_uuid=...
      */
     register_rest_route( $this->namespace, '/bundle/admin/get_edit_page_info', [
       [
@@ -181,10 +181,11 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
         'callback'            => [ $this, 'get_bundle_edit_page_info' ],
         'permission_callback' => [ $this, 'permissions_check_read' ],
         'args'                => [
-          'bundle_post_id' => [
-            'required'    => true,
-            'type'        => 'integer',
-            'description' => 'The WP post ID of the membership bundle.',
+          'bundle_group_uuid' => [
+            'required'          => true,
+            'type'              => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'description'       => 'The membership_bundle_group_uuid shared by all posts in the series.',
           ],
         ],
       ],
@@ -498,7 +499,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    */
   public function get_bundle_edit_page_info( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Bundle_Admin_Controller::get_bundle_edit_page_info( (int) $params['bundle_post_id'] );
+    $response = Bundle_Admin_Controller::get_bundle_edit_page_info( (string) $params['bundle_group_uuid'] );
     return rest_ensure_response( $response );
   }
 
@@ -644,7 +645,6 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   }
 
   // ---------------------------------------------------------------------------
-  // Permissions
   // ---------------------------------------------------------------------------
 
   /**
