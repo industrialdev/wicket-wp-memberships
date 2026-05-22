@@ -3,8 +3,8 @@ title: "Membership Type Model"
 audience: [developer]
 source_files: [
   "includes/Membership_Controller.php",
-  "includes/Membership_Group.php",
-  "includes/Membership_Group_Config.php",
+  "includes/Membership_Bundle.php",
+  "includes/Membership_Bundle_Config.php",
   "includes/Admin_Controller.php"
 ]
 ---
@@ -17,15 +17,15 @@ Individual and organization memberships are stored as `wicket_membership` CPT re
 
 **Both types always require a `Membership_Tier` and a `Membership_Config`.** The tier links to a WooCommerce product and holds renewal configuration; the config holds cycle, renewal window, and grace period data. Any membership record missing a valid `membership_tier_uuid` is considered invalid and cannot be updated via `Admin_Controller::update_membership_entity_record()`.
 
-## Membership Groups
+## Membership Bundles
 
-A Membership Group is a separate `wicket_mship_group` CPT record — not a `wicket_membership` post. It is managed by `Membership_Group` and `Group_Admin_Controller`.
+A Membership Bundle is a separate `wicket_mship_bundle` CPT record — not a `wicket_membership` post. It is managed by `Membership_Bundle` and `Bundle_Admin_Controller`.
 
-Membership Groups use `Membership_Group_Config` (`wicket_mship_grp_cfg` CPT) directly. This class combines the date/cycle/renewal-window logic of `Membership_Config` with the renewal-type and approval logic of `Membership_Tier` into a single record. **Membership Groups have no `Membership_Tier` — they do not need one.**
+Membership Bundles use `Membership_Bundle_Config` (`wicket_mship_bcfg` CPT) directly. This class combines the date/cycle/renewal-window logic of `Membership_Config` with the renewal-type and approval logic of `Membership_Tier` into a single record. **Membership Bundles have no `Membership_Tier` — they do not need one.**
 
-## Membership Group (member seats)
+## Membership Bundle (member seats)
 
-Individual or organization membership records can belong to a Membership Group. Membership in a group is indicated by the `membership_group_id` meta key on the `wicket_membership` post, checked via `Membership_Controller::is_membership_group()`.
+Individual or organization membership records can belong to a Membership Bundle. Membership in a group is indicated by the `membership_group_id` meta key on the `wicket_membership` post, checked via `Membership_Controller::is_membership_group()`.
 
 **Being part of a group does not change the type requirements.** A group member seat is still an individual or organization membership and still requires its own `membership_tier_uuid` and `membership_tier_post_id`. The `membership_group_id` is an additional link, not a replacement for tier data.
 

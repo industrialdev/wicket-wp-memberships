@@ -14,9 +14,9 @@ class Membership_CPT_Hooks {
   const EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG = 'wicket_individual_member_edit';
   const LIST_ORG_MEMBER_PAGE_SLUG = 'org_member_list';
   const EDIT_ORG_MEMBER_PAGE_SLUG = 'wicket_org_member_edit';
-  const LIST_GROUP_MEMBER_PAGE_SLUG   = 'group_member_list';
-  const EDIT_GROUP_MEMBER_PAGE_SLUG   = 'wicket_group_member_edit';
-  const CREATE_GROUP_MEMBER_PAGE_SLUG = 'wicket_create_membership_group';
+  const LIST_BUNDLE_MEMBER_PAGE_SLUG   = 'bundle_member_list';
+  const EDIT_BUNDLE_MEMBER_PAGE_SLUG   = 'wicket_bundle_member_edit';
+  const CREATE_BUNDLE_MEMBER_PAGE_SLUG = 'wicket_create_membership_bundle';
 
   private $status_names;
 
@@ -25,18 +25,18 @@ class Membership_CPT_Hooks {
     add_filter('manage_'.$this->membership_cpt_slug.'_posts_columns', [ $this, $this->membership_cpt_slug.'_table_head']);
     add_action('manage_'.$this->membership_cpt_slug.'_posts_custom_column', [ $this, $this->membership_cpt_slug.'_table_content'], 10, 2 );
 
-    add_action( 'admin_menu', [ $this, 'add_individual_members_page' ] );
-    add_action( 'admin_menu', [ $this, 'add_org_members_page' ] );
-    if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_GROUPS'] ) ) {
-      add_action( 'admin_menu', [ $this, 'add_group_members_page' ], 30 );
+    add_action( 'admin_menu', [ $this, 'add_individual_members_page' ], 25 );
+    add_action( 'admin_menu', [ $this, 'add_org_members_page' ], 25 );
+    if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
+      add_action( 'admin_menu', [ $this, 'add_bundle_members_page' ], 30 );
     }
 
     add_action( 'admin_menu', [ $this, 'edit_individual_member_page' ] );
     add_action( 'admin_menu', [ $this, 'edit_org_member_page' ] );
 
-    if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_GROUPS'] ) ) {
-      add_action( 'admin_menu', [ $this, 'edit_group_member_page' ] );
-      add_action( 'admin_menu', [ $this, 'create_group_member_page' ] );
+    if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
+      add_action( 'admin_menu', [ $this, 'edit_bundle_member_page' ] );
+      add_action( 'admin_menu', [ $this, 'create_bundle_member_page' ] );
     }
 
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
@@ -116,14 +116,14 @@ class Membership_CPT_Hooks {
     );
   }
 
-  function add_group_members_page() {
+  function add_bundle_members_page() {
     add_submenu_page(
       WICKET_MEMBERSHIP_PLUGIN_SLUG,
-      __( 'Membership Groups', 'wicket-memberships'),
-      __( 'Membership Groups', 'wicket-memberships'),
+      __( 'Membership Bundles', 'wicket-memberships'),
+      __( 'Membership Bundles', 'wicket-memberships'),
       'edit_posts',
-      self::LIST_GROUP_MEMBER_PAGE_SLUG,
-      [ $this, 'render_group_members_page' ]
+      self::LIST_BUNDLE_MEMBER_PAGE_SLUG,
+      [ $this, 'render_bundle_members_page' ]
     );
   }
 
@@ -140,80 +140,80 @@ class Membership_CPT_Hooks {
 
   function render_individual_members_page() {
     $edit_individual_member_page_url = admin_url( 'admin.php?page=' . self::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG );
-    $filter_group_id  = isset( $_GET['filter_group_id'] )  ? intval( $_GET['filter_group_id'] )                     : '';
+    $filter_group_id  = isset( $_GET['filter_bundle_id'] )  ? intval( $_GET['filter_bundle_id'] )                     : '';
     $filter_tier_uuid = isset( $_GET['filter_tier_uuid'] ) ? sanitize_text_field( $_GET['filter_tier_uuid'] ) : '';
 
     echo '<div
       id="member_list"
       data-edit-member-url="' . esc_url( $edit_individual_member_page_url ) . '"
       data-member-type="individual"
-      data-filter-group-id="' . esc_attr( $filter_group_id ) . '"
+      data-filter-bundle-id="' . esc_attr( $filter_group_id ) . '"
       data-filter-tier-uuid="' . esc_attr( $filter_tier_uuid ) . '"
     ></div>';
   }
 
-  function edit_group_member_page() {
+  function edit_bundle_member_page() {
     add_submenu_page(
       null,
-      __( 'Edit Group Member', 'wicket-memberships' ),
-      __( 'Edit Group Member', 'wicket-memberships' ),
+      __( 'Edit Bundle Member', 'wicket-memberships' ),
+      __( 'Edit Bundle Member', 'wicket-memberships' ),
       'edit_posts',
-      self::EDIT_GROUP_MEMBER_PAGE_SLUG,
-      [ $this, 'render_edit_group_member_page' ]
+      self::EDIT_BUNDLE_MEMBER_PAGE_SLUG,
+      [ $this, 'render_edit_bundle_member_page' ]
     );
   }
 
-  function create_group_member_page() {
+  function create_bundle_member_page() {
     add_submenu_page(
       null,
-      __( 'Create Membership Group', 'wicket-memberships' ),
-      __( 'Create Membership Group', 'wicket-memberships' ),
+      __( 'Create Membership Bundle', 'wicket-memberships' ),
+      __( 'Create Membership Bundle', 'wicket-memberships' ),
       'edit_posts',
-      self::CREATE_GROUP_MEMBER_PAGE_SLUG,
-      [ $this, 'render_create_group_member_page' ]
+      self::CREATE_BUNDLE_MEMBER_PAGE_SLUG,
+      [ $this, 'render_create_bundle_member_page' ]
     );
   }
 
-  function render_group_members_page() {
-    $edit_group_member_page_url   = admin_url( 'admin.php?page=' . self::EDIT_GROUP_MEMBER_PAGE_SLUG );
-    $create_group_member_page_url = admin_url( 'admin.php?page=' . self::CREATE_GROUP_MEMBER_PAGE_SLUG );
+  function render_bundle_members_page() {
+    $edit_bundle_member_page_url   = admin_url( 'admin.php?page=' . self::EDIT_BUNDLE_MEMBER_PAGE_SLUG );
+    $create_bundle_member_page_url = admin_url( 'admin.php?page=' . self::CREATE_BUNDLE_MEMBER_PAGE_SLUG );
 
     echo '<div class="wrap">';
-    echo '<h1 class="wp-heading-inline">' . esc_html__( 'Membership Groups', 'wicket-memberships' ) . '</h1>';
-    echo '<a href="' . esc_url( $create_group_member_page_url ) . '" class="page-title-action">'
-      . esc_html__( 'Create New Membership Group', 'wicket-memberships' )
+    echo '<h1 class="wp-heading-inline">' . esc_html__( 'Membership Bundles', 'wicket-memberships' ) . '</h1>';
+    echo '<a href="' . esc_url( $create_bundle_member_page_url ) . '" class="page-title-action">'
+      . esc_html__( 'Create New Membership Bundle', 'wicket-memberships' )
       . '</a>';
     echo '<hr class="wp-header-end" />';
-    echo '<div id="group_member_list" data-edit-group-url="' . esc_url( $edit_group_member_page_url ) . '"></div>';
+    echo '<div id="bundle_member_list" data-edit-bundle-url="' . esc_url( $edit_bundle_member_page_url ) . '"></div>';
     echo '</div>';
   }
 
-  function render_create_group_member_page() {
-    $group_config_cpt_slug = Helper::get_membership_group_config_cpt_slug();
-    $list_url              = admin_url( 'admin.php?page=' . self::LIST_GROUP_MEMBER_PAGE_SLUG );
-    $edit_group_base_url   = admin_url( 'admin.php?page=' . self::EDIT_GROUP_MEMBER_PAGE_SLUG );
+  function render_create_bundle_member_page() {
+    $bundle_config_cpt_slug = Helper::get_membership_bundle_config_cpt_slug();
+    $list_url              = admin_url( 'admin.php?page=' . self::LIST_BUNDLE_MEMBER_PAGE_SLUG );
+    $edit_bundle_base_url   = admin_url( 'admin.php?page=' . self::EDIT_BUNDLE_MEMBER_PAGE_SLUG );
 
     echo '<div
-      id="create_membership_group"
-      data-group-config-cpt-slug="' . esc_attr( $group_config_cpt_slug ) . '"
+      id="create_membership_bundle"
+      data-bundle-config-cpt-slug="' . esc_attr( $bundle_config_cpt_slug ) . '"
       data-list-url="' . esc_url( $list_url ) . '"
-      data-edit-group-base-url="' . esc_url( $edit_group_base_url ) . '"
+      data-edit-bundle-base-url="' . esc_url( $edit_bundle_base_url ) . '"
     ></div>';
   }
 
-  function render_edit_group_member_page() {
+  function render_edit_bundle_member_page() {
     $post_id = isset( $_GET['id'] ) ? intval( $_GET['id'] ) : 0;
 
     if ( ! $post_id ) {
-      echo '<div class="wrap"><p>' . esc_html__( 'No group ID provided.', 'wicket-memberships' ) . '</p></div>';
+      echo '<div class="wrap"><p>' . esc_html__( 'No bundle ID provided.', 'wicket-memberships' ) . '</p></div>';
       return;
     }
 
-    $list_url                = admin_url( 'admin.php?page=' . self::LIST_GROUP_MEMBER_PAGE_SLUG );
+    $list_url                = admin_url( 'admin.php?page=' . self::LIST_BUNDLE_MEMBER_PAGE_SLUG );
     $individual_members_url  = admin_url( 'admin.php?page=' . self::LIST_INDIVIDUAL_MEMBER_PAGE_SLUG );
 
     echo '<div
-      id="group_member_edit"
+      id="bundle_member_edit"
       data-post-id="' . esc_attr( $post_id ) . '"
       data-list-url="' . esc_url( $list_url ) . '"
       data-individual-members-url="' . esc_url( $individual_members_url ) . '"
@@ -231,7 +231,7 @@ class Membership_CPT_Hooks {
     ];
 
     if ( in_array( $page->id, $list_page_slugs ) ) {
-      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/membership_config_create.asset.php' );
+      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/member_list.asset.php' );
 
       wp_enqueue_script(
         WICKET_MEMBERSHIP_PLUGIN_SLUG . '_member_list',
@@ -242,12 +242,12 @@ class Membership_CPT_Hooks {
       );
     }
 
-    if ( $page->id === 'wicket-memberships_page_' . self::LIST_GROUP_MEMBER_PAGE_SLUG ) {
-      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/group_member_list.asset.php' );
+    if ( $page->id === 'wicket-memberships_page_' . self::LIST_BUNDLE_MEMBER_PAGE_SLUG ) {
+      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/bundle_member_list.asset.php' );
 
       wp_enqueue_script(
-        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_group_member_list',
-        WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/group_member_list.js',
+        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_bundle_member_list',
+        WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/bundle_member_list.js',
         $asset_file['dependencies'],
         $asset_file['version'],
         true
@@ -271,24 +271,24 @@ class Membership_CPT_Hooks {
       );
     }
 
-    if ( $page->id === 'admin_page_' . self::EDIT_GROUP_MEMBER_PAGE_SLUG ) {
-      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/group_member_edit.asset.php' );
+    if ( $page->id === 'admin_page_' . self::EDIT_BUNDLE_MEMBER_PAGE_SLUG ) {
+      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/bundle_member_edit.asset.php' );
 
       wp_enqueue_script(
-        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_group_member_edit',
-        WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/group_member_edit.js',
+        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_bundle_member_edit',
+        WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/bundle_member_edit.js',
         $asset_file['dependencies'],
         $asset_file['version'],
         true
       );
     }
 
-    if ( $page->id === 'admin_page_' . self::CREATE_GROUP_MEMBER_PAGE_SLUG ) {
-      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/create_membership_group.asset.php' );
+    if ( $page->id === 'admin_page_' . self::CREATE_BUNDLE_MEMBER_PAGE_SLUG ) {
+      $asset_file = include( WICKET_MEMBERSHIP_PLUGIN_DIR . 'frontend/build/create_membership_bundle.asset.php' );
 
       wp_enqueue_script(
-        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_create_membership_group',
-        WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/create_membership_group.js',
+        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_create_membership_bundle',
+        WICKET_MEMBERSHIP_PLUGIN_URL . '/frontend/build/create_membership_bundle.js',
         $asset_file['dependencies'],
         $asset_file['version'],
         true

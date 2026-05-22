@@ -33,7 +33,7 @@ Initializes the Admin_Controller. Sets the custom post type slug and hooks up ad
 Outputs JavaScript variables to the admin footer for use by the Wicket Memberships admin UI, including merge tools and multi-tier renewal settings.
 
 **init_menu()**
-Adds the main Wicket Memberships menu page to the WordPress admin sidebar. Also registers two submenu items for the group features — "Membership Groups" (links to the `wicket_mship_group` CPT list) and "Group Configs" (links to the `wicket_mship_grp_cfg` CPT list). Both group CPTs use `show_in_menu: false` so this method is the sole source of those menu entries.
+Adds the main Wicket Memberships menu page to the WordPress admin sidebar. Also registers two submenu items for the group features — "Membership Bundles" (links to the `wicket_mship_bundle` CPT list) and "Group Configs" (links to the `wicket_mship_bcfg` CPT list). Both group CPTs use `show_in_menu: false` so this method is the sole source of those menu entries.
 
 **enqueue_scripts()**
 Enqueues the main CSS stylesheet for the Wicket Memberships admin interface.

@@ -22,6 +22,27 @@ class ComposerStaticInit009063697460c8317c090b142e362e8b
 
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
+        'Wicket_Memberships\\Admin_Controller' => __DIR__ . '/../..' . '/includes/Admin_Controller.php',
+        'Wicket_Memberships\\Bundle_Admin_Controller' => __DIR__ . '/../..' . '/includes/Bundle_Admin_Controller.php',
+        'Wicket_Memberships\\Helper' => __DIR__ . '/../..' . '/includes/Helper.php',
+        'Wicket_Memberships\\Import_Controller' => __DIR__ . '/../..' . '/includes/Import_Controller.php',
+        'Wicket_Memberships\\Membership_Bundle' => __DIR__ . '/../..' . '/includes/Membership_Bundle.php',
+        'Wicket_Memberships\\Membership_Bundle_Config' => __DIR__ . '/../..' . '/includes/Membership_Bundle_Config.php',
+        'Wicket_Memberships\\Membership_Bundle_Config_CPT_Hooks' => __DIR__ . '/../..' . '/includes/Membership_Bundle_Config_CPT_Hooks.php',
+        'Wicket_Memberships\\Membership_Bundle_Config_WP_REST_Controller' => __DIR__ . '/../..' . '/includes/Membership_Bundle_Config_WP_REST_Controller.php',
+        'Wicket_Memberships\\Membership_Bundle_Cron_Controller' => __DIR__ . '/../..' . '/includes/Membership_Bundle_Cron_Controller.php',
+        'Wicket_Memberships\\Membership_Bundle_WP_REST_Controller' => __DIR__ . '/../..' . '/includes/Membership_Bundle_WP_REST_Controller.php',
+        'Wicket_Memberships\\Membership_CPT_Hooks' => __DIR__ . '/../..' . '/includes/Membership_CPT_Hooks.php',
+        'Wicket_Memberships\\Membership_Config' => __DIR__ . '/../..' . '/includes/Membership_Config.php',
+        'Wicket_Memberships\\Membership_Config_CPT_Hooks' => __DIR__ . '/../..' . '/includes/Membership_Config_CPT_Hooks.php',
+        'Wicket_Memberships\\Membership_Controller' => __DIR__ . '/../..' . '/includes/Membership_Controller.php',
+        'Wicket_Memberships\\Membership_Post_Types' => __DIR__ . '/../..' . '/includes/Membership_Post_Types.php',
+        'Wicket_Memberships\\Membership_Subscription_Controller' => __DIR__ . '/../..' . '/includes/Membership_Subscription_Controller.php',
+        'Wicket_Memberships\\Membership_Tier' => __DIR__ . '/../..' . '/includes/Membership_Tier.php',
+        'Wicket_Memberships\\Membership_Tier_CPT_Hooks' => __DIR__ . '/../..' . '/includes/Membership_Tier_CPT_Hooks.php',
+        'Wicket_Memberships\\Membership_WP_REST_Controller' => __DIR__ . '/../..' . '/includes/Membership_WP_REST_Controller.php',
+        'Wicket_Memberships\\Settings' => __DIR__ . '/../..' . '/includes/Settings.php',
+        'Wicket_Memberships\\Utilities' => __DIR__ . '/../..' . '/includes/Utilities.php',
     );
 
     public static function getInitializer(ClassLoader $loader)

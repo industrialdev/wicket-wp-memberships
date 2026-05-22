@@ -80,9 +80,9 @@ class Settings {
     add_settings_field( 'wicket_mship_autorenew_toggle', '<p>Enable User Autorenew Subscription Toggle</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_toggle'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field('wicket_mship_mdp_timezone', '<p>MDP Timezone</p>', [__NAMESPACE__ . '\\Settings', 'wicket_mship_mdp_timezone'], 'wicket_membership_plugin', 'functional_settings');
 
-    // Membership Groups section
-    add_settings_section( 'membership_groups_settings', 'Membership Groups', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_membership_groups_text'], 'wicket_membership_plugin' );
-    add_settings_field( 'wicket_mship_enable_groups', '<p>Enable Membership Groups</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_enable_groups'], 'wicket_membership_plugin', 'membership_groups_settings' );
+    // Membership Bundles section
+    add_settings_section( 'membership_bundles_settings', 'Membership Bundles', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_membership_bundles_text'], 'wicket_membership_plugin' );
+    add_settings_field( 'wicket_mship_enable_bundles', '<p>Enable Membership Bundles</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_enable_bundles'], 'wicket_membership_plugin', 'membership_bundles_settings' );
 
     //debug
     add_settings_section( 'debug_settings', 'Debug Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_debug_text'], 'wicket_membership_plugin' );
@@ -160,15 +160,15 @@ class Settings {
       .'Do not create memberships in wicket MDP.';
   }
   
-  public static function wicket_mship_enable_groups() {
+  public static function wicket_mship_enable_bundles() {
     $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_mship_enable_groups' name='wicket_membership_plugin_options[wicket_mship_enable_groups]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_enable_groups']), false). " />"
-      .'Enable the Membership Groups system. When enabled, the Membership Groups list page and Group Configs menu will appear in the admin.'
-      .'<p><span style="color:#b32d2e;font-weight:bold;">Note:</span> Disabling this toggle <strong>only hides the admin pages</strong>. It does <strong>not</strong> cancel, delete, or disable any existing membership groups, group configs, or their associated Action Scheduler jobs. All scheduled background processing for existing groups will continue to run unaffected.</p>';
+    echo "<input id='wicket_mship_enable_bundles' name='wicket_membership_plugin_options[wicket_mship_enable_bundles]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_enable_bundles']), false). " />"
+      .'Enable the Membership Bundles system. When enabled, the Membership Bundles list page and Bundle Configs menu will appear in the admin.'
+      .'<p><span style="color:#b32d2e;font-weight:bold;">Note:</span> Disabling this toggle <strong>only hides the admin pages</strong>. It does <strong>not</strong> cancel, delete, or disable any existing membership bundles, bundle configs, or their associated Action Scheduler jobs. All scheduled background processing for existing bundles will continue to run unaffected.</p>';
   }
 
-  public static function wicket_plugin_section_membership_groups_text() {
-    echo '<p>Control the visibility of the Membership Groups admin pages. Toggling this setting does not affect any existing membership group data or scheduled actions.</p>';
+  public static function wicket_plugin_section_membership_bundles_text() {
+    echo '<p>Control the visibility of the Membership Bundles admin pages. Toggling this setting does not affect any existing membership bundle data or scheduled actions.</p>';
   }
 
   public static function wicket_mship_autorenew_toggle() {
@@ -297,7 +297,7 @@ class Settings {
     $newinput['wicket_mship_subscription_renew'] = trim($input['wicket_mship_subscription_renew']); 
     $newinput['wicket_mship_mdp_timezone'] = trim($input['wicket_mship_mdp_timezone']);
     $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
-    $newinput['wicket_mship_enable_groups'] = trim($input['wicket_mship_enable_groups']);
+    $newinput['wicket_mship_enable_bundles'] = trim($input['wicket_mship_enable_bundles']);
     $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
     if(!empty($_REQUEST['schedule_daily_membership_expiry_hook'])) {
       $count = Membership_Controller::daily_membership_expiry_hook();

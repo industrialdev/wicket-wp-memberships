@@ -6,7 +6,7 @@ import { Spinner, Icon } from "@wordpress/components";
 import {
   fetchMembers,
   fetchTiersInfo,
-  fetchGroupsInfo,
+  fetchBundlesInfo,
   fetchMembershipFilters,
 } from "../shared/services/api";
 import { SelectWpStyled } from "../shared/styled_elements";
@@ -30,7 +30,7 @@ const SortableHeader = ({ label, col, currentCol, currentDir, onSort }) => {
   );
 };
 
-const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }) => {
+const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   const [members, setMembers] = useState([]);
@@ -39,14 +39,14 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
   const [totalPages, setTotalPages] = useState(0);
 
   const [tiersInfo, setTiersInfo] = useState(null);
-  const [groupsInfo, setGroupsInfo] = useState(null);
+  const [bundlesInfo, setBundlesInfo] = useState(null);
   const [membershipFilters, setMembershipFilters] = useState(null);
 
   const [activeTab, setActiveTab] = useState('all');
   const [tabCounts, setTabCounts] = useState({ all: 0, pending: 0, grace_period: 0 });
 
   const initialFilter = {};
-  if (filterGroupId) initialFilter.membership_group_id = filterGroupId;
+  if (filterBundleId) initialFilter.membership_bundle_id = filterBundleId;
   if (filterTierUuid) initialFilter.membership_tier = filterTierUuid;
 
   const [searchParams, setSearchParams] = useState({
@@ -98,14 +98,14 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
           getTiersInfo(tierIds);
         }
 
-        const groupIds = [...new Set(
+        const bundleIds = [...new Set(
           response.results
-            .flatMap((member) => member.user.all_membership_groups || (member.meta.membership_group_id ? [Number(member.meta.membership_group_id)] : []))
+            .flatMap((member) => member.user.all_membership_bundles || (member.meta.membership_bundle_id ? [Number(member.meta.membership_bundle_id)] : []))
             .filter(Boolean)
             .map(Number)
         )];
-        if (groupsInfo === null) {
-          getGroupsInfo(groupIds);
+        if (bundlesInfo === null) {
+          getBundlesInfo(bundleIds);
         }
       })
       .catch((error) => {
@@ -128,22 +128,22 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
       });
   };
 
-  const getGroupsInfo = (groupIds) => {
-    if (groupIds.length === 0) {
-      setGroupsInfo({});
+  const getBundlesInfo = (bundleIds) => {
+    if (bundleIds.length === 0) {
+      setBundlesInfo({});
       return;
     }
-    fetchGroupsInfo(groupIds)
-      .then((info) => setGroupsInfo(info))
+    fetchBundlesInfo(bundleIds)
+      .then((info) => setBundlesInfo(info))
       .catch((error) => {
-        console.log("Groups Info Error:", error);
-        setGroupsInfo({});
+        console.log("Bundles Info Error:", error);
+        setBundlesInfo({});
       });
   };
 
-  const getGroupInfo = (groupId) => {
-    if (!groupsInfo || !groupsInfo.group_data) return null;
-    return groupsInfo.group_data[String(groupId)] ?? null;
+  const getBundleInfo = (bundleId) => {
+    if (!bundlesInfo || !bundlesInfo.bundle_data) return null;
+    return bundlesInfo.bundle_data[String(bundleId)] ?? null;
   };
 
   const getMembershipFilters = () => {
@@ -215,8 +215,8 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
   // Seed filter dropdowns from prop-driven initial values once filter options load.
   useEffect(() => {
     if (membershipFilters === null) return;
-    if (filterGroupId && membershipFilters.groups) {
-      const match = membershipFilters.groups.find((g) => String(g.value) === String(filterGroupId));
+    if (filterBundleId && membershipFilters.bundles) {
+      const match = membershipFilters.bundles.find((g) => String(g.value) === String(filterBundleId));
       if (match) setTempGroup({ value: match.value, label: match.label });
     }
   }, [membershipFilters]);
@@ -322,7 +322,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
               const filter = {};
               if (tempStatus !== null) filter.membership_status = tempStatus.value;
               if (tempTier !== null) filter.membership_tier = tempTier.value;
-              if (tempGroup !== null) filter.membership_group_id = tempGroup.value;
+              if (tempGroup !== null) filter.membership_bundle_id = tempGroup.value;
               if (Object.keys(filter).length) {
                 newSearchParams.filter = filter;
               } else {
@@ -385,14 +385,14 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
                   inputId="filter_group"
                   classNamePrefix="select"
                   isClearable
-                  placeholder={__("All Groups", "wicket-memberships")}
+                  placeholder={__("All Bundles", "wicket-memberships")}
                   value={tempGroup}
                   onChange={(option) => setTempGroup(option)}
                   options={
-                    membershipFilters !== null && membershipFilters.groups
-                      ? membershipFilters.groups.map((group) => ({
-                          value: group.value,
-                          label: group.label,
+                    membershipFilters !== null && membershipFilters.bundles
+                      ? membershipFilters.bundles.map((bundle) => ({
+                          value: bundle.value,
+                          label: bundle.label,
                         }))
                       : []
                   }
@@ -478,7 +478,7 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
               />
               <th scope="col" className="manage-column">{ __( 'Tier(s)', 'wicket-memberships' ) }</th>
               { memberType === 'individual' && (
-                <th scope="col" className="manage-column">{ __( 'Group(s)', 'wicket-memberships' ) }</th>
+                <th scope="col" className="manage-column">{ __( 'Bundle(s)', 'wicket-memberships' ) }</th>
               )}
               <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
             </tr>
@@ -611,12 +611,12 @@ const MemberList = ({ memberType, editMemberUrl, filterGroupId, filterTierUuid }
                   </td>
                   { memberType === 'individual' && (
                     <td>
-                      {groupsInfo === null && <Spinner />}
-                      {groupsInfo !== null && (() => {
-                        const allGroups = member.user.all_membership_groups || (member.meta.membership_group_id ? [Number(member.meta.membership_group_id)] : []);
-                        if (allGroups.length === 0) return <span>—</span>;
-                        return allGroups.map((groupId, i) => {
-                          const info = getGroupInfo(groupId);
+                      {bundlesInfo === null && <Spinner />}
+                      {bundlesInfo !== null && (() => {
+                        const allBundles = member.user.all_membership_bundles || (member.meta.membership_bundle_id ? [Number(member.meta.membership_bundle_id)] : []);
+                        if (allBundles.length === 0) return <span>—</span>;
+                        return allBundles.map((bundleId, i) => {
+                          const info = getBundleInfo(bundleId);
                           return (
                             <span key={i}>
                               {i > 0 && ', '}

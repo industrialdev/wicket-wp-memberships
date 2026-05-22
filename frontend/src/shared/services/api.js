@@ -104,15 +104,15 @@ export const fetchMembers = (params = null) => {
 };
 
 /**
- * Fetch Membership Groups
+ * Fetch Membership Bundles
  */
-export const fetchMembershipGroups = (params = null) => {
+export const fetchMembershipBundles = (params = null) => {
   if (params === null) {
     return;
   }
 
   return apiFetch({
-    path: addQueryArgs(`${PLUGIN_API_URL}/membership_groups`, params),
+    path: addQueryArgs(`${PLUGIN_API_URL}/membership_bundles`, params),
   });
 };
 
@@ -134,16 +134,16 @@ export const fetchTiersInfo = (tierIds = []) => {
 };
 
 /**
- * Fetch Membership Groups Info
+ * Fetch Membership Bundles Info
  */
-export const fetchGroupsInfo = (groupIds = []) => {
-  if (groupIds.length === 0) {
+export const fetchBundlesInfo = (bundleIds = []) => {
+  if (bundleIds.length === 0) {
     return;
   }
   return apiFetch({
-    path: addQueryArgs(`${PLUGIN_API_URL}/membership_group_info`, {
+    path: addQueryArgs(`${PLUGIN_API_URL}/membership_bundle_info`, {
       filter: {
-        group_id: groupIds,
+        bundle_id: bundleIds,
       },
     }),
   });
@@ -201,21 +201,21 @@ export const fetchOrgByUuid = (orgUuid) => {
 };
 
 /**
- * Fetch group members broken down by tier for a given group post ID.
- * GET /wicket_member/v1/group/{groupPostId}/members_by_tier
+ * Fetch bundle members broken down by tier for a given bundle post ID.
+ * GET /wicket_member/v1/bundle/{bundlePostId}/members_by_tier
  */
-export const fetchGroupMembersByTier = (groupPostId) => {
+export const fetchBundleMembersByTier = (bundlePostId) => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/group/${groupPostId}/members_by_tier`,
+    path: `${PLUGIN_API_URL}/bundle/${bundlePostId}/members_by_tier`,
   });
 };
 
 /**
- * Fetch Membership Group Filters
+ * Fetch Membership Bundle Filters
  */
-export const fetchMembershipGroupFilters = () => {
+export const fetchMembershipBundleFilters = () => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/membership_group_filters`,
+    path: `${PLUGIN_API_URL}/membership_bundle_filters`,
   });
 };
 
@@ -271,105 +271,105 @@ export const createRenewalOrder = (membershipId, productId, variationId) => {
 };
 
 /**
- * Fetch all data required to populate the membership group detail/edit page.
+ * Fetch all data required to populate the membership bundle detail/edit page.
  *
- * Maps to GET /wicket_member/v1/group/admin/get_edit_page_info?group_post_id=<id>
+ * Maps to GET /wicket_member/v1/bundle/admin/get_edit_page_info?bundle_post_id=<id>
  *
- * @param {string|number} postId - WP post ID of the membership group.
+ * @param {string|number} postId - WP post ID of the membership bundle.
  */
-export const fetchGroupEditPageInfo = (postId) => {
+export const fetchBundleEditPageInfo = (postId) => {
   return apiFetch({
-    path: addQueryArgs(`${PLUGIN_API_URL}/group/admin/get_edit_page_info`, {
-      group_post_id: postId,
+    path: addQueryArgs(`${PLUGIN_API_URL}/bundle/admin/get_edit_page_info`, {
+      bundle_post_id: postId,
     }),
   });
 };
 
 /**
- * Fetch available status transition options for a membership group post.
+ * Fetch available status transition options for a membership bundle post.
  *
- * Maps to GET /wicket_member/v1/group/admin/status_options?group_post_id=<id>
+ * Maps to GET /wicket_member/v1/bundle/admin/status_options?bundle_post_id=<id>
  *
- * @param {string|number} groupPostId - WP post ID of the membership group.
+ * @param {string|number} bundlePostId - WP post ID of the membership bundle.
  */
-export const fetchMembershipGroupStatuses = (groupPostId = null) => {
-  if (groupPostId === null) {
+export const fetchMembershipBundleStatuses = (bundlePostId = null) => {
+  if (bundlePostId === null) {
     return;
   }
 
   return apiFetch({
-    path: addQueryArgs(`${PLUGIN_API_URL}/group/admin/status_options`, {
-      group_post_id: groupPostId,
+    path: addQueryArgs(`${PLUGIN_API_URL}/bundle/admin/status_options`, {
+      bundle_post_id: bundlePostId,
     }),
   });
 };
 
 /**
- * Transition a membership group to a new status.
+ * Transition a membership bundle to a new status.
  *
- * Maps to POST /wicket_member/v1/group/admin/manage_status
+ * Maps to POST /wicket_member/v1/bundle/admin/manage_status
  *
- * @param {string|number} groupPostId - WP post ID of the membership group.
+ * @param {string|number} bundlePostId - WP post ID of the membership bundle.
  * @param {string}        status      - New status slug.
  */
-export const updateMembershipGroupStatus = (groupPostId, status) => {
+export const updateMembershipBundleStatus = (bundlePostId, status) => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/group/admin/manage_status`,
+    path: `${PLUGIN_API_URL}/bundle/admin/manage_status`,
     method: "POST",
     data: {
-      group_post_id: groupPostId,
+      bundle_post_id: bundlePostId,
       status: status,
     },
   });
 };
 
 /**
- * Update editable fields on a membership group post (dates, renewal type, owner).
+ * Update editable fields on a membership bundle post (dates, renewal type, owner).
  *
- * Maps to POST /wicket_member/v1/membership_group_entity/{id}/update
+ * Maps to POST /wicket_member/v1/membership_bundle_entity/{id}/update
  *
- * @param {string|number} groupPostId - WP post ID of the membership group.
+ * @param {string|number} bundlePostId - WP post ID of the membership bundle.
  * @param {object}        data        - Fields to update.
  */
-export const updateMembershipGroup = (groupPostId, data) => {
+export const updateMembershipBundle = (bundlePostId, data) => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/membership_group_entity/${groupPostId}/update`,
+    path: `${PLUGIN_API_URL}/membership_bundle_entity/${bundlePostId}/update`,
     method: "POST",
     data: data,
   });
 };
 
 /**
- * Change the owner of a membership group.
+ * Change the owner of a membership bundle.
  *
- * Maps to POST /wicket_member/v1/group/{group_post_id}/change_owner
+ * Maps to POST /wicket_member/v1/bundle/{bundle_post_id}/change_owner
  *
- * @param {string|number} groupPostId   - WP post ID of the membership group.
+ * @param {string|number} bundlePostId   - WP post ID of the membership bundle.
  * @param {string}        newOwnerUuid  - MDP UUID of the new owner.
  */
-export const updateGroupChangeOwnership = (groupPostId, newOwnerUuid) => {
+export const updateBundleChangeOwnership = (bundlePostId, newOwnerUuid) => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/group/${groupPostId}/change_owner`,
+    path: `${PLUGIN_API_URL}/bundle/${bundlePostId}/change_owner`,
     method: "POST",
     data: { new_owner_uuid: newOwnerUuid },
   });
 };
 
 /**
- * Create a new membership group.
+ * Create a new membership bundle.
  *
- * Maps to POST /wicket_member/v1/group
+ * Maps to POST /wicket_member/v1/bundle
  *
  * @param {object} data
  * @param {string}        data.name
- * @param {number}        data.membership_group_config_id
+ * @param {number}        data.membership_bundle_config_id
  * @param {string}        data.org_uuid
  * @param {string}        data.owner_uuid
  * @param {string}        data.start_date  ISO 8601
  */
-export const createMembershipGroup = (data) => {
+export const createMembershipBundle = (data) => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/group`,
+    path: `${PLUGIN_API_URL}/bundle`,
     method: "POST",
     data,
   });
@@ -392,11 +392,11 @@ export const fetchMembershipProducts = (ids = []) => {
 };
 
 /**
- * Add a member to a membership group.
+ * Add a member to a membership bundle.
  *
- * POST /wicket_member/v1/group/{groupPostId}/add_member
+ * POST /wicket_member/v1/bundle/{bundlePostId}/add_member
  *
- * @param {number} groupPostId
+ * @param {number} bundlePostId
  * @param {object} data
  * @param {'new'|'existing'} data.mode
  * @param {string}  [data.person_uuid]                  — required when mode='new'
@@ -404,63 +404,63 @@ export const fetchMembershipProducts = (ids = []) => {
  * @param {number}  [data.existing_membership_post_id]  — required when mode='existing'
  * @param {number}  [data.product_id]                   — optional; auto-resolved by backend when omitted
  */
-export const addMemberToGroup = (groupPostId, data) => {
+export const addMemberToBundle = (bundlePostId, data) => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/group/${groupPostId}/add_member`,
+    path: `${PLUGIN_API_URL}/bundle/${bundlePostId}/add_member`,
     method: "POST",
     data,
   });
 };
 
 /**
- * Remove an individual membership from a membership group.
+ * Remove an individual membership from a membership bundle.
  *
- * POST /wicket_member/v1/group/{groupPostId}/remove_member
+ * POST /wicket_member/v1/bundle/{bundlePostId}/remove_member
  *
- * @param {number} groupPostId
+ * @param {number} bundlePostId
  * @param {object} data
  * @param {number} data.membership_post_id          — post ID of the membership to remove
  * @param {'cancel'|'keep_as_individual'} data.mode — 'cancel' ends immediately; 'keep_as_individual' converts to standalone
  */
-export const removeMemberFromGroup = (groupPostId, data) => {
+export const removeMemberFromBundle = (bundlePostId, data) => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/group/${groupPostId}/remove_member`,
+    path: `${PLUGIN_API_URL}/bundle/${bundlePostId}/remove_member`,
     method: "POST",
     data,
   });
 };
 
 /**
- * Move an individual membership from one membership group to another.
+ * Move an individual membership from one membership bundle to another.
  *
- * POST /wicket_member/v1/group/{sourceGroupPostId}/move_individual_membership
+ * POST /wicket_member/v1/bundle/{sourceBundlePostId}/move_individual_membership
  *
- * @param {number} sourceGroupPostId
+ * @param {number} sourceBundlePostId
  * @param {object} data
  * @param {number} data.membership_post_id    — post ID of the membership to move
- * @param {number} data.target_group_post_id  — post ID of the destination group
+ * @param {number} data.target_bundle_post_id  — post ID of the destination bundle
  */
-export const moveIndividualMembership = (sourceGroupPostId, data) => {
+export const moveIndividualMembership = (sourceBundlePostId, data) => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/group/${sourceGroupPostId}/move_individual_membership`,
+    path: `${PLUGIN_API_URL}/bundle/${sourceBundlePostId}/move_individual_membership`,
     method: "POST",
     data,
   });
 };
 
 /**
- * Cancel a membership group.
+ * Cancel a membership bundle.
  *
- * POST /wicket_member/v1/group/{groupPostId}/cancel
+ * POST /wicket_member/v1/bundle/{bundlePostId}/cancel
  *
- * @param {number} groupPostId
+ * @param {number} bundlePostId
  * @param {object} data
  * @param {'cancel_all'|'keep_as_individual'}  data.member_handling — what to do with individual memberships
  * @param {'immediately'|'at_end_date'}        [data.timing]        — required when member_handling='cancel_all'
  */
-export const cancelMembershipGroup = (groupPostId, data) => {
+export const cancelMembershipBundle = (bundlePostId, data) => {
   return apiFetch({
-    path: `${PLUGIN_API_URL}/group/${groupPostId}/cancel`,
+    path: `${PLUGIN_API_URL}/bundle/${bundlePostId}/cancel`,
     method: "POST",
     data,
   });

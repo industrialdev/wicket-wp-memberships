@@ -6,7 +6,7 @@ import MembershipActionsDropdown from "./MembershipActionsDropdown";
  *
  * A thin wrapper around MembershipActionsDropdown. Callers inject their
  * page-specific actions via the `actions` prop so this component works for
- * individual, organization, and membership group pages without modification.
+ * individual, organization, and membership bundle pages without modification.
  *
  * Data-agnostic: receives only flat props.
  *

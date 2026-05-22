@@ -36,22 +36,28 @@ const MembershipOrderDetailsSection = ({ orders = [] }) => {
           </tr>
         </thead>
         <tbody>
-          {orders.map((order, index) => (
-            <tr key={order.id ?? index}>
-              <td className="column-columnname">
-                {order.link ? (
-                  <a target="_blank" href={order.link} rel="noreferrer">
-                    #{order.id}
-                  </a>
-                ) : (
-                  `#${order.id}`
-                )}
-              </td>
-              <td className="column-columnname">{formatDateWithTooltip(order.date_created)}</td>
-              <td className="column-columnname">{formatCurrency(order.total)}</td>
-              <td className="column-columnname">{order.status}</td>
+          {orders.length === 0 ? (
+            <tr>
+              <td colSpan="4">{__("No orders currently exist", "wicket-memberships")}</td>
             </tr>
-          ))}
+          ) : (
+            orders.map((order, index) => (
+              <tr key={order.id ?? index}>
+                <td className="column-columnname">
+                  {order.link ? (
+                    <a target="_blank" href={order.link} rel="noreferrer">
+                      #{order.id}
+                    </a>
+                  ) : (
+                    `#${order.id}`
+                  )}
+                </td>
+                <td className="column-columnname">{formatDateWithTooltip(order.date_created)}</td>
+                <td className="column-columnname">{formatCurrency(order.total)}</td>
+                <td className="column-columnname">{order.status}</td>
+              </tr>
+            ))
+          )}
         </tbody>
       </table>
     </MembershipTable>

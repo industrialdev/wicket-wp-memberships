@@ -11,26 +11,26 @@ class Membership_Post_Types {
   private $membership_cpt_slug = '';
   private $membership_config_cpt_slug = '';
   private $membership_tier_cpt_slug = '';
-  private $membership_group_cpt_slug = '';
-  private $membership_group_config_cpt_slug = '';
+  private $membership_bundle_cpt_slug = '';
+  private $membership_bundle_config_cpt_slug = '';
 
 
   public function __construct() {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
     $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
     $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
-    $this->membership_group_cpt_slug = Helper::get_membership_group_cpt_slug();
-    $this->membership_group_config_cpt_slug = Helper::get_membership_group_config_cpt_slug();
+    $this->membership_bundle_cpt_slug = Helper::get_membership_bundle_cpt_slug();
+    $this->membership_bundle_config_cpt_slug = Helper::get_membership_bundle_config_cpt_slug();
     add_action('init', [ $this, 'register_membership_post_type' ]);
     add_action('init', [ $this, 'register_membership_config_post_type' ]);
     add_action('init', [ $this, 'register_membership_tier_post_type' ]);
-    add_action('init', [ $this, 'register_membership_group_post_type' ]);
-    add_action('init', [ $this, 'register_membership_group_config_post_type' ]);
+    add_action('init', [ $this, 'register_membership_bundle_post_type' ]);
+    add_action('init', [ $this, 'register_membership_bundle_config_post_type' ]);
 
     // Register the fields to the REST API and validate the data
     add_action('rest_api_init', [ $this, 'register_membership_config_cpt_fields' ]);
     add_action('rest_api_init', [ $this, 'register_membership_tier_cpt_fields' ]);
-    add_action('rest_api_init', [ $this, 'register_membership_group_config_cpt_fields' ]);
+    add_action('rest_api_init', [ $this, 'register_membership_bundle_config_cpt_fields' ]);
   }
 
   /**
@@ -719,16 +719,16 @@ class Membership_Post_Types {
   }
 
   /**
-   * Register and validate REST fields for the membership group config post type.
-   * Fields: renewal_window_data, late_fee_window_data, cycle_data, group_config_data.
+   * Register and validate REST fields for the membership bundle config post type.
+   * Fields: renewal_window_data, late_fee_window_data, cycle_data, bundle_config_data.
    * Follows the same pattern as register_membership_config_cpt_fields() and register_membership_tier_cpt_fields().
    */
-  public function register_membership_group_config_cpt_fields() {
+  public function register_membership_bundle_config_cpt_fields() {
     // Renewal Window Data
     $field = 'renewal_window_data';
 
     register_rest_field(
-      $this->membership_group_config_cpt_slug,
+      $this->membership_bundle_config_cpt_slug,
       $field,
       array(
         'get_callback'    => function ( $object ) use ( $field ) {
@@ -815,7 +815,7 @@ class Membership_Post_Types {
     $field = 'late_fee_window_data';
 
     register_rest_field(
-      $this->membership_group_config_cpt_slug,
+      $this->membership_bundle_config_cpt_slug,
       $field,
       array(
         'get_callback'    => function ( $object ) use ( $field ) {
@@ -901,7 +901,7 @@ class Membership_Post_Types {
     $field = 'cycle_data';
 
     register_rest_field(
-      $this->membership_group_config_cpt_slug,
+      $this->membership_bundle_config_cpt_slug,
       $field,
       array(
         'get_callback'    => function ( $object ) use ( $field ) {
@@ -1069,11 +1069,11 @@ class Membership_Post_Types {
       )
     );
 
-    // Group Config Data (renewal type, approval settings)
-    $field = 'group_config_data';
+    // Bundle Config Data (renewal type, approval settings)
+    $field = 'bundle_config_data';
 
     register_rest_field(
-      $this->membership_group_config_cpt_slug,
+      $this->membership_bundle_config_cpt_slug,
       $field,
       array(
         'get_callback'    => function ( $object ) use ( $field ) {
@@ -1084,13 +1084,13 @@ class Membership_Post_Types {
         },
         'schema'          => array(
           'type'        => 'object',
-          'description' => 'Group Config Data',
+          'description' => 'Bundle Config Data',
           'arg_options' => [
             'validate_callback' => function( $value ) {
               $errors = new \WP_Error();
 
               if ( ! is_array( $value ) ) {
-                $errors->add( 'rest_invalid_param', __( 'The group config data must be an object.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                $errors->add( 'rest_invalid_param', __( 'The bundle config data must be an object.', 'wicket-memberships' ), array( 'status' => 400 ) );
                 return $errors;
               }
 
@@ -1559,18 +1559,18 @@ class Membership_Post_Types {
   }
 
   /**
-   * Create the Wicket Membership Group post type
+   * Create the Wicket Membership Bundle post type
    */
-  public function register_membership_group_post_type() {
+  public function register_membership_bundle_post_type() {
     $labels = array(
-      'name'                  => _x( 'Membership Groups', 'Post Type General Name', 'wicket-memberships' ),
-      'singular_name'         => _x( 'Membership Group', 'Post Type Singular Name', 'wicket-memberships' ),
+      'name'                  => _x( 'Membership Bundles', 'Post Type General Name', 'wicket-memberships' ),
+      'singular_name'         => _x( 'Membership Bundle', 'Post Type Singular Name', 'wicket-memberships' ),
       'menu_name'             => __( 'Post Types', 'wicket-memberships' ),
       'name_admin_bar'        => __( 'Post Type', 'wicket-memberships' ),
       'archives'              => __( 'Item Archives', 'wicket-memberships' ),
       'attributes'            => __( 'Item Attributes', 'wicket-memberships' ),
       'parent_item_colon'     => __( 'Parent Item:', 'wicket-memberships' ),
-      'all_items'             => __( 'Membership Groups', 'wicket-memberships' ),
+      'all_items'             => __( 'Membership Bundles', 'wicket-memberships' ),
       'add_new_item'          => __( 'Add New Item', 'wicket-memberships' ),
       'add_new'               => __( 'Add New', 'wicket-memberships' ),
       'new_item'              => __( 'New Item', 'wicket-memberships' ),
@@ -1593,8 +1593,8 @@ class Membership_Post_Types {
     );
 
     $args = array(
-      'label'               => __( 'Membership Group', 'wicket-memberships' ),
-      'description'         => __( 'Membership Groups are defined here', 'wicket-memberships' ),
+      'label'               => __( 'Membership Bundle', 'wicket-memberships' ),
+      'description'         => __( 'Membership Bundles are defined here', 'wicket-memberships' ),
       'labels'              => $labels,
       'supports'            => array( 'title', 'custom-fields' ),
       'hierarchical'        => false,
@@ -1612,22 +1612,22 @@ class Membership_Post_Types {
       'show_in_rest'        => true,
     );
 
-    register_post_type( $this->membership_group_cpt_slug, $args );
+    register_post_type( $this->membership_bundle_cpt_slug, $args );
   }
 
   /**
-   * Create the Wicket Membership Group Config post type
+   * Create the Wicket Membership Bundle Config post type
    */
-  public function register_membership_group_config_post_type() {
+  public function register_membership_bundle_config_post_type() {
     $labels = array(
-      'name'                  => _x( 'Membership Group Configs', 'Post Type General Name', 'wicket-memberships' ),
-      'singular_name'         => _x( 'Membership Group Config', 'Post Type Singular Name', 'wicket-memberships' ),
+      'name'                  => _x( 'Membership Bundle Configs', 'Post Type General Name', 'wicket-memberships' ),
+      'singular_name'         => _x( 'Membership Bundle Config', 'Post Type Singular Name', 'wicket-memberships' ),
       'menu_name'             => __( 'Post Types', 'wicket-memberships' ),
       'name_admin_bar'        => __( 'Post Type', 'wicket-memberships' ),
       'archives'              => __( 'Item Archives', 'wicket-memberships' ),
       'attributes'            => __( 'Item Attributes', 'wicket-memberships' ),
       'parent_item_colon'     => __( 'Parent Item:', 'wicket-memberships' ),
-      'all_items'             => __( 'Membership Group Configs', 'wicket-memberships' ),
+      'all_items'             => __( 'Membership Bundle Configs', 'wicket-memberships' ),
       'add_new_item'          => __( 'Add New Item', 'wicket-memberships' ),
       'add_new'               => __( 'Add New', 'wicket-memberships' ),
       'new_item'              => __( 'New Item', 'wicket-memberships' ),
@@ -1650,8 +1650,8 @@ class Membership_Post_Types {
     );
 
     $args = array(
-      'label'               => __( 'Membership Group Config', 'wicket-memberships' ),
-      'description'         => __( 'Membership Group Configurations are defined here', 'wicket-memberships' ),
+      'label'               => __( 'Membership Bundle Config', 'wicket-memberships' ),
+      'description'         => __( 'Membership Bundle Configurations are defined here', 'wicket-memberships' ),
       'labels'              => $labels,
       'supports'            => array( 'title', 'custom-fields' ),
       'hierarchical'        => false,
@@ -1669,7 +1669,7 @@ class Membership_Post_Types {
       'show_in_rest'        => true,
     );
 
-    register_post_type( $this->membership_group_config_cpt_slug, $args );
+    register_post_type( $this->membership_bundle_config_cpt_slug, $args );
   }
 
 }

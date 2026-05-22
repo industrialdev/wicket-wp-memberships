@@ -6,7 +6,7 @@ use Wicket_Memberships\Helper;
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Config;
-use Wicket_Memberships\Membership_Group;
+use Wicket_Memberships\Membership_Bundle;
 
 /**
  * Main controller methods
@@ -621,7 +621,7 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     if ( function_exists('as_schedule_single_action') ) {
-      //as_schedule_single_action( $timestamp, $hook, $args, $group, $unique, $priority );
+      //as_schedule_single_action( $timestamp, $hook, $args, $bundle, $unique, $priority );
       if(!empty($args)) {
         as_schedule_single_action( $membership_early_renew_at, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin', false );
         as_schedule_single_action( $membership_ends_at, 'add_membership_ends_at', $args, 'wicket-membership-plugin', false );
@@ -1657,9 +1657,9 @@ function get_item_data ( $other_data, $cart_item ) {
         $membership_exists[] = str_replace( [' ','-',','], '', strToLower($membership->membership_tier_name));
       }
 
-      // Group-linked individual memberships are handled via group owner callouts below.
-      $group_id = (int) get_post_meta( $membership->ID, 'membership_group_id', true );
-      if ( $group_id > 0 ) {
+      // Group-linked individual memberships are handled via bundle owner callouts below.
+      $bundle_id = (int) get_post_meta( $membership->ID, 'membership_bundle_id', true );
+      if ( $bundle_id > 0 ) {
         continue;
       }
 
@@ -1912,9 +1912,9 @@ function get_item_data ( $other_data, $cart_item ) {
       #echo "//-->$debug_comment_eol";
     }
 
-    // Group owner callouts are independent of individual membership posts — a group
-    // owner may own a group without having a linked individual membership post.
-    $owner_callouts = Membership_Group::get_owner_callouts( $user_id );
+    // Group owner callouts are independent of individual membership posts — a bundle
+    // owner may own a bundle without having a linked individual membership post.
+    $owner_callouts = Membership_Bundle::get_owner_callouts( $user_id );
     $early_renewal    = array_merge( $early_renewal,    $owner_callouts['early_renewal']    ?? [] );
     $grace_period     = array_merge( $grace_period,     $owner_callouts['grace_period']     ?? [] );
     $pending_approval = array_merge( $pending_approval, $owner_callouts['pending_approval'] ?? [] );
@@ -1948,7 +1948,7 @@ function get_item_data ( $other_data, $cart_item ) {
     }
   }
 
-  public function get_members_list_group_by_filter($groupby){
+  public function get_members_list_bundle_by_filter($groupby){
     global $wpdb;
     return $wpdb->postmeta . '.meta_value ';
   }
@@ -2043,7 +2043,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
     if( ! empty( $filter ) ) {
       foreach($filter as $key => $val) {
-        if( in_array( $key, ['membership_status', 'membership_tier', 'membership_group_id', 'membership_tier_name'] )) {
+        if( in_array( $key, ['membership_status', 'membership_tier', 'membership_bundle_id', 'membership_tier_name'] )) {
           if( $key == 'membership_tier' ) {
             $key = 'membership_tier_uuid';
           }
@@ -2138,13 +2138,13 @@ function get_item_data ( $other_data, $cart_item ) {
             'uuid'   => get_post_meta( $user_tier->ID, 'membership_tier_uuid', true ),
             'status' => get_post_meta( $user_tier->ID, 'membership_status', true ),
           ];
-          $group_id = (int) get_post_meta( $user_tier->ID, 'membership_group_id', true );
-          if ( $group_id ) {
-            $tier->user->all_membership_groups[] = $group_id;
+          $bundle_id = (int) get_post_meta( $user_tier->ID, 'membership_bundle_id', true );
+          if ( $bundle_id ) {
+            $tier->user->all_membership_bundles[] = $bundle_id;
           }
         }
-        if ( ! isset( $tier->user->all_membership_groups ) ) {
-          $tier->user->all_membership_groups = [];
+        if ( ! isset( $tier->user->all_membership_bundles ) ) {
+          $tier->user->all_membership_bundles = [];
         }
       } else {
         $org_tiers = new \WP_Query( array(
@@ -2237,22 +2237,22 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
 
-  public static function get_group_info( $group_ids ) {
-    $group_data = [];
-    $group_ids  = array_filter( array_map( 'intval', (array) $group_ids ) );
-    if ( empty( $group_ids ) ) {
-      return [ 'group_data' => $group_data ];
+  public static function get_bundle_info( $bundle_ids ) {
+    $bundle_data = [];
+    $bundle_ids  = array_filter( array_map( 'intval', (array) $bundle_ids ) );
+    if ( empty( $bundle_ids ) ) {
+      return [ 'bundle_data' => $bundle_data ];
     }
     $posts = get_posts( [
-      'post_type'      => Helper::get_membership_group_cpt_slug(),
+      'post_type'      => Helper::get_membership_bundle_cpt_slug(),
       'post_status'    => 'publish',
       'posts_per_page' => -1,
-      'post__in'       => $group_ids,
+      'post__in'       => $bundle_ids,
     ] );
     foreach ( $posts as $post ) {
-      $group_data[ $post->ID ] = [ 'name' => $post->post_title ];
+      $bundle_data[ $post->ID ] = [ 'name' => $post->post_title ];
     }
-    return [ 'group_data' => $group_data ];
+    return [ 'bundle_data' => $bundle_data ];
   }
 
   public static function get_org_info( $org_uuids, $properties = [] ) {
@@ -2352,10 +2352,10 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     //tiers assigned to membership records as filters
-    add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    add_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
     $args['meta_key'] = 'membership_tier_uuid';
     $tiers = new \WP_Query( $args );
-    remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    remove_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
     foreach ($tiers->posts as $tier) {
       $filters['tiers'][] = [
         'value' => $tier->membership_tier_uuid
@@ -2363,10 +2363,10 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     //status assigned to membership records as filters
-    add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    add_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
     $args['meta_key'] = 'membership_status';
     $tiers = new \WP_Query( $args );
-    remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    remove_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
     foreach ($tiers->posts as $tier) {
       $filters['membership_status'][] = [
         'name' => $tier->membership_status,
@@ -2377,23 +2377,23 @@ function get_item_data ( $other_data, $cart_item ) {
       // get locations assigned to membership records as filters???
     }
 
-    // groups assigned to membership records as filters (individual only)
+    // bundles assigned to membership records as filters (individual only)
     if ( $type === 'individual' ) {
-      add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
-      $args['meta_key'] = 'membership_group_id';
+      add_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
+      $args['meta_key'] = 'membership_bundle_id';
       $group_query = new \WP_Query( $args );
-      remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+      remove_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
       foreach ( $group_query->posts as $post ) {
-        $group_id = $post->membership_group_id;
-        if ( ! empty( $group_id ) ) {
-          $group_name = (string) get_post_meta( (int) $group_id, 'membership_group_name', true );
-          if ( $group_name === '' ) {
-            $group_post = get_post( (int) $group_id );
-            $group_name = $group_post ? $group_post->post_title : "Group #{$group_id}";
+        $bundle_id = $post->membership_bundle_id;
+        if ( ! empty( $bundle_id ) ) {
+          $bundle_name = (string) get_post_meta( (int) $bundle_id, 'membership_bundle_name', true );
+          if ( $bundle_name === '' ) {
+            $bundle_post = get_post( (int) $bundle_id );
+            $bundle_name = $bundle_post ? $bundle_post->post_title : "Bundle #{$bundle_id}";
           }
-          $filters['groups'][] = [
-            'value' => (string) $group_id,
-            'label' => $group_name,
+          $filters['bundles'][] = [
+            'value' => (string) $bundle_id,
+            'label' => $bundle_name,
           ];
         }
       }
@@ -2535,27 +2535,27 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Check if a membership belongs to a membership group.
+   * Check if a membership belongs to a membership bundle.
    *
    * @param int $membership_post_id
    * @return bool
    */
-  public function is_membership_group( $membership_post_id ) {
-    $group_id = get_post_meta( $membership_post_id, 'membership_group_id', true );
-    return !empty( $group_id );
+  public function is_membership_bundle( $membership_post_id ) {
+    $bundle_id = get_post_meta( $membership_post_id, 'membership_bundle_id', true );
+    return !empty( $bundle_id );
   }
 
   /**
-   * Get the Membership_Group object for a membership, or false if not part of a group.
+   * Get the Membership_Bundle object for a membership, or false if not part of a bundle.
    *
    * @param int $membership_post_id
-   * @return Membership_Group|false
+   * @return Membership_Bundle|false
    */
-  public function get_membership_group( $membership_post_id ) {
-    $group_id = get_post_meta( $membership_post_id, 'membership_group_id', true );
-    if ( empty( $group_id ) ) {
+  public function get_membership_bundle( $membership_post_id ) {
+    $bundle_id = get_post_meta( $membership_post_id, 'membership_bundle_id', true );
+    if ( empty( $bundle_id ) ) {
       return false;
     }
-    return new Membership_Group( $group_id );
+    return new Membership_Bundle( $bundle_id );
   }
 }

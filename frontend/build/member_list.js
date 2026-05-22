@@ -2444,20 +2444,20 @@ const formatDateWithTooltip = isoString => {
 "use strict";
 __webpack_require__.r(__webpack_exports__);
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
-/* harmony export */   addMemberToGroup: () => (/* binding */ addMemberToGroup),
-/* harmony export */   cancelMembershipGroup: () => (/* binding */ cancelMembershipGroup),
-/* harmony export */   createMembershipGroup: () => (/* binding */ createMembershipGroup),
+/* harmony export */   addMemberToBundle: () => (/* binding */ addMemberToBundle),
+/* harmony export */   cancelMembershipBundle: () => (/* binding */ cancelMembershipBundle),
+/* harmony export */   createMembershipBundle: () => (/* binding */ createMembershipBundle),
 /* harmony export */   createRenewalOrder: () => (/* binding */ createRenewalOrder),
-/* harmony export */   fetchGroupEditPageInfo: () => (/* binding */ fetchGroupEditPageInfo),
-/* harmony export */   fetchGroupMembersByTier: () => (/* binding */ fetchGroupMembersByTier),
-/* harmony export */   fetchGroupsInfo: () => (/* binding */ fetchGroupsInfo),
+/* harmony export */   fetchBundleEditPageInfo: () => (/* binding */ fetchBundleEditPageInfo),
+/* harmony export */   fetchBundleMembersByTier: () => (/* binding */ fetchBundleMembersByTier),
+/* harmony export */   fetchBundlesInfo: () => (/* binding */ fetchBundlesInfo),
 /* harmony export */   fetchMdpPersons: () => (/* binding */ fetchMdpPersons),
 /* harmony export */   fetchMemberInfo: () => (/* binding */ fetchMemberInfo),
 /* harmony export */   fetchMembers: () => (/* binding */ fetchMembers),
+/* harmony export */   fetchMembershipBundleFilters: () => (/* binding */ fetchMembershipBundleFilters),
+/* harmony export */   fetchMembershipBundleStatuses: () => (/* binding */ fetchMembershipBundleStatuses),
+/* harmony export */   fetchMembershipBundles: () => (/* binding */ fetchMembershipBundles),
 /* harmony export */   fetchMembershipFilters: () => (/* binding */ fetchMembershipFilters),
-/* harmony export */   fetchMembershipGroupFilters: () => (/* binding */ fetchMembershipGroupFilters),
-/* harmony export */   fetchMembershipGroupStatuses: () => (/* binding */ fetchMembershipGroupStatuses),
-/* harmony export */   fetchMembershipGroups: () => (/* binding */ fetchMembershipGroups),
 /* harmony export */   fetchMembershipProducts: () => (/* binding */ fetchMembershipProducts),
 /* harmony export */   fetchMembershipStatuses: () => (/* binding */ fetchMembershipStatuses),
 /* harmony export */   fetchMembershipTiers: () => (/* binding */ fetchMembershipTiers),
@@ -2469,11 +2469,11 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   fetchTiersInfo: () => (/* binding */ fetchTiersInfo),
 /* harmony export */   fetchWcProducts: () => (/* binding */ fetchWcProducts),
 /* harmony export */   moveIndividualMembership: () => (/* binding */ moveIndividualMembership),
-/* harmony export */   removeMemberFromGroup: () => (/* binding */ removeMemberFromGroup),
-/* harmony export */   updateGroupChangeOwnership: () => (/* binding */ updateGroupChangeOwnership),
+/* harmony export */   removeMemberFromBundle: () => (/* binding */ removeMemberFromBundle),
+/* harmony export */   updateBundleChangeOwnership: () => (/* binding */ updateBundleChangeOwnership),
 /* harmony export */   updateMembership: () => (/* binding */ updateMembership),
-/* harmony export */   updateMembershipGroup: () => (/* binding */ updateMembershipGroup),
-/* harmony export */   updateMembershipGroupStatus: () => (/* binding */ updateMembershipGroupStatus),
+/* harmony export */   updateMembershipBundle: () => (/* binding */ updateMembershipBundle),
+/* harmony export */   updateMembershipBundleStatus: () => (/* binding */ updateMembershipBundleStatus),
 /* harmony export */   updateMembershipStatus: () => (/* binding */ updateMembershipStatus)
 /* harmony export */ });
 /* harmony import */ var _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! @wordpress/api-fetch */ "@wordpress/api-fetch");
@@ -2577,14 +2577,14 @@ const fetchMembers = (params = null) => {
 };
 
 /**
- * Fetch Membership Groups
+ * Fetch Membership Bundles
  */
-const fetchMembershipGroups = (params = null) => {
+const fetchMembershipBundles = (params = null) => {
   if (params === null) {
     return;
   }
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_groups`, params)
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_bundles`, params)
   });
 };
 
@@ -2605,16 +2605,16 @@ const fetchTiersInfo = (tierIds = []) => {
 };
 
 /**
- * Fetch Membership Groups Info
+ * Fetch Membership Bundles Info
  */
-const fetchGroupsInfo = (groupIds = []) => {
-  if (groupIds.length === 0) {
+const fetchBundlesInfo = (bundleIds = []) => {
+  if (bundleIds.length === 0) {
     return;
   }
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_group_info`, {
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_bundle_info`, {
       filter: {
-        group_id: groupIds
+        bundle_id: bundleIds
       }
     })
   });
@@ -2682,21 +2682,21 @@ const fetchOrgByUuid = orgUuid => {
 };
 
 /**
- * Fetch group members broken down by tier for a given group post ID.
- * GET /wicket_member/v1/group/{groupPostId}/members_by_tier
+ * Fetch bundle members broken down by tier for a given bundle post ID.
+ * GET /wicket_member/v1/bundle/{bundlePostId}/members_by_tier
  */
-const fetchGroupMembersByTier = groupPostId => {
+const fetchBundleMembersByTier = bundlePostId => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${groupPostId}/members_by_tier`
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/bundle/${bundlePostId}/members_by_tier`
   });
 };
 
 /**
- * Fetch Membership Group Filters
+ * Fetch Membership Bundle Filters
  */
-const fetchMembershipGroupFilters = () => {
+const fetchMembershipBundleFilters = () => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_group_filters`
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_bundle_filters`
   });
 };
 
@@ -2748,84 +2748,84 @@ const createRenewalOrder = (membershipId, productId, variationId) => {
 };
 
 /**
- * Fetch all data required to populate the membership group detail/edit page.
+ * Fetch all data required to populate the membership bundle detail/edit page.
  *
- * Maps to GET /wicket_member/v1/group/admin/get_edit_page_info?group_post_id=<id>
+ * Maps to GET /wicket_member/v1/bundle/admin/get_edit_page_info?bundle_post_id=<id>
  *
- * @param {string|number} postId - WP post ID of the membership group.
+ * @param {string|number} postId - WP post ID of the membership bundle.
  */
-const fetchGroupEditPageInfo = postId => {
+const fetchBundleEditPageInfo = postId => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/admin/get_edit_page_info`, {
-      group_post_id: postId
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/bundle/admin/get_edit_page_info`, {
+      bundle_post_id: postId
     })
   });
 };
 
 /**
- * Fetch available status transition options for a membership group post.
+ * Fetch available status transition options for a membership bundle post.
  *
- * Maps to GET /wicket_member/v1/group/admin/status_options?group_post_id=<id>
+ * Maps to GET /wicket_member/v1/bundle/admin/status_options?bundle_post_id=<id>
  *
- * @param {string|number} groupPostId - WP post ID of the membership group.
+ * @param {string|number} bundlePostId - WP post ID of the membership bundle.
  */
-const fetchMembershipGroupStatuses = (groupPostId = null) => {
-  if (groupPostId === null) {
+const fetchMembershipBundleStatuses = (bundlePostId = null) => {
+  if (bundlePostId === null) {
     return;
   }
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/admin/status_options`, {
-      group_post_id: groupPostId
+    path: (0,_wordpress_url__WEBPACK_IMPORTED_MODULE_1__.addQueryArgs)(`${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/bundle/admin/status_options`, {
+      bundle_post_id: bundlePostId
     })
   });
 };
 
 /**
- * Transition a membership group to a new status.
+ * Transition a membership bundle to a new status.
  *
- * Maps to POST /wicket_member/v1/group/admin/manage_status
+ * Maps to POST /wicket_member/v1/bundle/admin/manage_status
  *
- * @param {string|number} groupPostId - WP post ID of the membership group.
+ * @param {string|number} bundlePostId - WP post ID of the membership bundle.
  * @param {string}        status      - New status slug.
  */
-const updateMembershipGroupStatus = (groupPostId, status) => {
+const updateMembershipBundleStatus = (bundlePostId, status) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/admin/manage_status`,
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/bundle/admin/manage_status`,
     method: "POST",
     data: {
-      group_post_id: groupPostId,
+      bundle_post_id: bundlePostId,
       status: status
     }
   });
 };
 
 /**
- * Update editable fields on a membership group post (dates, renewal type, owner).
+ * Update editable fields on a membership bundle post (dates, renewal type, owner).
  *
- * Maps to POST /wicket_member/v1/membership_group_entity/{id}/update
+ * Maps to POST /wicket_member/v1/membership_bundle_entity/{id}/update
  *
- * @param {string|number} groupPostId - WP post ID of the membership group.
+ * @param {string|number} bundlePostId - WP post ID of the membership bundle.
  * @param {object}        data        - Fields to update.
  */
-const updateMembershipGroup = (groupPostId, data) => {
+const updateMembershipBundle = (bundlePostId, data) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_group_entity/${groupPostId}/update`,
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/membership_bundle_entity/${bundlePostId}/update`,
     method: "POST",
     data: data
   });
 };
 
 /**
- * Change the owner of a membership group.
+ * Change the owner of a membership bundle.
  *
- * Maps to POST /wicket_member/v1/group/{group_post_id}/change_owner
+ * Maps to POST /wicket_member/v1/bundle/{bundle_post_id}/change_owner
  *
- * @param {string|number} groupPostId   - WP post ID of the membership group.
+ * @param {string|number} bundlePostId   - WP post ID of the membership bundle.
  * @param {string}        newOwnerUuid  - MDP UUID of the new owner.
  */
-const updateGroupChangeOwnership = (groupPostId, newOwnerUuid) => {
+const updateBundleChangeOwnership = (bundlePostId, newOwnerUuid) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${groupPostId}/change_owner`,
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/bundle/${bundlePostId}/change_owner`,
     method: "POST",
     data: {
       new_owner_uuid: newOwnerUuid
@@ -2834,20 +2834,20 @@ const updateGroupChangeOwnership = (groupPostId, newOwnerUuid) => {
 };
 
 /**
- * Create a new membership group.
+ * Create a new membership bundle.
  *
- * Maps to POST /wicket_member/v1/group
+ * Maps to POST /wicket_member/v1/bundle
  *
  * @param {object} data
  * @param {string}        data.name
- * @param {number}        data.membership_group_config_id
+ * @param {number}        data.membership_bundle_config_id
  * @param {string}        data.org_uuid
  * @param {string}        data.owner_uuid
  * @param {string}        data.start_date  ISO 8601
  */
-const createMembershipGroup = data => {
+const createMembershipBundle = data => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group`,
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/bundle`,
     method: "POST",
     data
   });
@@ -2872,11 +2872,11 @@ const fetchMembershipProducts = (ids = []) => {
 };
 
 /**
- * Add a member to a membership group.
+ * Add a member to a membership bundle.
  *
- * POST /wicket_member/v1/group/{groupPostId}/add_member
+ * POST /wicket_member/v1/bundle/{bundlePostId}/add_member
  *
- * @param {number} groupPostId
+ * @param {number} bundlePostId
  * @param {object} data
  * @param {'new'|'existing'} data.mode
  * @param {string}  [data.person_uuid]                  — required when mode='new'
@@ -2884,63 +2884,63 @@ const fetchMembershipProducts = (ids = []) => {
  * @param {number}  [data.existing_membership_post_id]  — required when mode='existing'
  * @param {number}  [data.product_id]                   — optional; auto-resolved by backend when omitted
  */
-const addMemberToGroup = (groupPostId, data) => {
+const addMemberToBundle = (bundlePostId, data) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${groupPostId}/add_member`,
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/bundle/${bundlePostId}/add_member`,
     method: "POST",
     data
   });
 };
 
 /**
- * Remove an individual membership from a membership group.
+ * Remove an individual membership from a membership bundle.
  *
- * POST /wicket_member/v1/group/{groupPostId}/remove_member
+ * POST /wicket_member/v1/bundle/{bundlePostId}/remove_member
  *
- * @param {number} groupPostId
+ * @param {number} bundlePostId
  * @param {object} data
  * @param {number} data.membership_post_id          — post ID of the membership to remove
  * @param {'cancel'|'keep_as_individual'} data.mode — 'cancel' ends immediately; 'keep_as_individual' converts to standalone
  */
-const removeMemberFromGroup = (groupPostId, data) => {
+const removeMemberFromBundle = (bundlePostId, data) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${groupPostId}/remove_member`,
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/bundle/${bundlePostId}/remove_member`,
     method: "POST",
     data
   });
 };
 
 /**
- * Move an individual membership from one membership group to another.
+ * Move an individual membership from one membership bundle to another.
  *
- * POST /wicket_member/v1/group/{sourceGroupPostId}/move_individual_membership
+ * POST /wicket_member/v1/bundle/{sourceBundlePostId}/move_individual_membership
  *
- * @param {number} sourceGroupPostId
+ * @param {number} sourceBundlePostId
  * @param {object} data
  * @param {number} data.membership_post_id    — post ID of the membership to move
- * @param {number} data.target_group_post_id  — post ID of the destination group
+ * @param {number} data.target_bundle_post_id  — post ID of the destination bundle
  */
-const moveIndividualMembership = (sourceGroupPostId, data) => {
+const moveIndividualMembership = (sourceBundlePostId, data) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${sourceGroupPostId}/move_individual_membership`,
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/bundle/${sourceBundlePostId}/move_individual_membership`,
     method: "POST",
     data
   });
 };
 
 /**
- * Cancel a membership group.
+ * Cancel a membership bundle.
  *
- * POST /wicket_member/v1/group/{groupPostId}/cancel
+ * POST /wicket_member/v1/bundle/{bundlePostId}/cancel
  *
- * @param {number} groupPostId
+ * @param {number} bundlePostId
  * @param {object} data
  * @param {'cancel_all'|'keep_as_individual'}  data.member_handling — what to do with individual memberships
  * @param {'immediately'|'at_end_date'}        [data.timing]        — required when member_handling='cancel_all'
  */
-const cancelMembershipGroup = (groupPostId, data) => {
+const cancelMembershipBundle = (bundlePostId, data) => {
   return _wordpress_api_fetch__WEBPACK_IMPORTED_MODULE_0___default()({
-    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/group/${groupPostId}/cancel`,
+    path: `${_constants__WEBPACK_IMPORTED_MODULE_2__.PLUGIN_API_URL}/bundle/${bundlePostId}/cancel`,
     method: "POST",
     data
   });
@@ -14559,7 +14559,7 @@ const SortableHeader = ({
 const MemberList = ({
   memberType,
   editMemberUrl,
-  filterGroupId,
+  filterBundleId,
   filterTierUuid
 }) => {
   const [isLoading, setIsLoading] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(true);
@@ -14567,7 +14567,7 @@ const MemberList = ({
   const [totalMembers, setTotalMembers] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(0);
   const [totalPages, setTotalPages] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(0);
   const [tiersInfo, setTiersInfo] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
-  const [groupsInfo, setGroupsInfo] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
+  const [bundlesInfo, setBundlesInfo] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [membershipFilters, setMembershipFilters] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)(null);
   const [activeTab, setActiveTab] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)('all');
   const [tabCounts, setTabCounts] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
@@ -14576,7 +14576,7 @@ const MemberList = ({
     grace_period: 0
   });
   const initialFilter = {};
-  if (filterGroupId) initialFilter.membership_group_id = filterGroupId;
+  if (filterBundleId) initialFilter.membership_bundle_id = filterBundleId;
   if (filterTierUuid) initialFilter.membership_tier = filterTierUuid;
   const [searchParams, setSearchParams] = (0,react__WEBPACK_IMPORTED_MODULE_0__.useState)({
     type: memberType,
@@ -14622,9 +14622,9 @@ const MemberList = ({
       if (tiersInfo === null) {
         getTiersInfo(tierIds);
       }
-      const groupIds = [...new Set(response.results.flatMap(member => member.user.all_membership_groups || (member.meta.membership_group_id ? [Number(member.meta.membership_group_id)] : [])).filter(Boolean).map(Number))];
-      if (groupsInfo === null) {
-        getGroupsInfo(groupIds);
+      const bundleIds = [...new Set(response.results.flatMap(member => member.user.all_membership_bundles || (member.meta.membership_bundle_id ? [Number(member.meta.membership_bundle_id)] : [])).filter(Boolean).map(Number))];
+      if (bundlesInfo === null) {
+        getBundlesInfo(bundleIds);
       }
     }).catch(error => {
       console.error(error);
@@ -14641,20 +14641,20 @@ const MemberList = ({
       console.log(error);
     });
   };
-  const getGroupsInfo = groupIds => {
-    if (groupIds.length === 0) {
-      setGroupsInfo({});
+  const getBundlesInfo = bundleIds => {
+    if (bundleIds.length === 0) {
+      setBundlesInfo({});
       return;
     }
-    (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_5__.fetchGroupsInfo)(groupIds).then(info => setGroupsInfo(info)).catch(error => {
-      console.log("Groups Info Error:", error);
-      setGroupsInfo({});
+    (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_5__.fetchBundlesInfo)(bundleIds).then(info => setBundlesInfo(info)).catch(error => {
+      console.log("Bundles Info Error:", error);
+      setBundlesInfo({});
     });
   };
-  const getGroupInfo = groupId => {
-    var _groupsInfo$group_dat;
-    if (!groupsInfo || !groupsInfo.group_data) return null;
-    return (_groupsInfo$group_dat = groupsInfo.group_data[String(groupId)]) !== null && _groupsInfo$group_dat !== void 0 ? _groupsInfo$group_dat : null;
+  const getBundleInfo = bundleId => {
+    var _bundlesInfo$bundle_d;
+    if (!bundlesInfo || !bundlesInfo.bundle_data) return null;
+    return (_bundlesInfo$bundle_d = bundlesInfo.bundle_data[String(bundleId)]) !== null && _bundlesInfo$bundle_d !== void 0 ? _bundlesInfo$bundle_d : null;
   };
   const getMembershipFilters = () => {
     (0,_shared_services_api__WEBPACK_IMPORTED_MODULE_5__.fetchMembershipFilters)(memberType).then(filters => {
@@ -14742,8 +14742,8 @@ const MemberList = ({
   // Seed filter dropdowns from prop-driven initial values once filter options load.
   (0,react__WEBPACK_IMPORTED_MODULE_0__.useEffect)(() => {
     if (membershipFilters === null) return;
-    if (filterGroupId && membershipFilters.groups) {
-      const match = membershipFilters.groups.find(g => String(g.value) === String(filterGroupId));
+    if (filterBundleId && membershipFilters.bundles) {
+      const match = membershipFilters.bundles.find(g => String(g.value) === String(filterBundleId));
       if (match) setTempGroup({
         value: match.value,
         label: match.label
@@ -14850,7 +14850,7 @@ const MemberList = ({
       const filter = {};
       if (tempStatus !== null) filter.membership_status = tempStatus.value;
       if (tempTier !== null) filter.membership_tier = tempTier.value;
-      if (tempGroup !== null) filter.membership_group_id = tempGroup.value;
+      if (tempGroup !== null) filter.membership_bundle_id = tempGroup.value;
       if (Object.keys(filter).length) {
         newSearchParams.filter = filter;
       } else {
@@ -14933,12 +14933,12 @@ const MemberList = ({
     inputId: "filter_group",
     classNamePrefix: "select",
     isClearable: true,
-    placeholder: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("All Groups", "wicket-memberships"),
+    placeholder: (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)("All Bundles", "wicket-memberships"),
     value: tempGroup,
     onChange: option => setTempGroup(option),
-    options: membershipFilters !== null && membershipFilters.groups ? membershipFilters.groups.map(group => ({
-      value: group.value,
-      label: group.label
+    options: membershipFilters !== null && membershipFilters.bundles ? membershipFilters.bundles.map(bundle => ({
+      value: bundle.value,
+      label: bundle.label
     })) : [],
     styles: {
       container: base => ({
@@ -15015,7 +15015,7 @@ const MemberList = ({
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Tier(s)', 'wicket-memberships')), memberType === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     scope: "col",
     className: "manage-column"
-  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Group(s)', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
+  }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Bundle(s)', 'wicket-memberships')), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("th", {
     scope: "col",
     className: "manage-column"
   }, (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_1__.__)('Link to MDP', 'wicket-memberships')))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tbody", null, isLoading && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("tr", {
@@ -15089,11 +15089,11 @@ const MemberList = ({
         key: i
       }, i > 0 && ', ', name);
     });
-  })()), memberType === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, groupsInfo === null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Spinner, null), groupsInfo !== null && (() => {
-    const allGroups = member.user.all_membership_groups || (member.meta.membership_group_id ? [Number(member.meta.membership_group_id)] : []);
-    if (allGroups.length === 0) return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", null, "\u2014");
-    return allGroups.map((groupId, i) => {
-      const info = getGroupInfo(groupId);
+  })()), memberType === 'individual' && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("td", null, bundlesInfo === null && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_4__.Spinner, null), bundlesInfo !== null && (() => {
+    const allBundles = member.user.all_membership_bundles || (member.meta.membership_bundle_id ? [Number(member.meta.membership_bundle_id)] : []);
+    if (allBundles.length === 0) return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", null, "\u2014");
+    return allBundles.map((bundleId, i) => {
+      const info = getBundleInfo(bundleId);
       return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("span", {
         key: i
       }, i > 0 && ', ', info ? info.name : '—');

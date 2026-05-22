@@ -225,4 +225,4 @@ Daily cron hook to move memberships to grace period whose end date was yesterday
 Returns true if the membership post has a `membership_group_id` meta value set, false otherwise.
 
 **get_membership_group($membership_post_id)**
-Returns a `Membership_Group` object for the group the membership belongs to, or false if the `membership_group_id` meta is not set.
+Returns a `Membership_Bundle` object for the group the membership belongs to, or false if the `membership_group_id` meta is not set.

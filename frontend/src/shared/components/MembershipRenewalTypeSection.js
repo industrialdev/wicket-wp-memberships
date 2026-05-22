@@ -22,9 +22,9 @@ const RENEWAL_TYPE_OPTIONS = [
   { label: __("Current Tier", "wicket-memberships"), value: "current_tier" },
 ];
 
-// Renewal type options available for membership group records.
+// Renewal type options available for membership bundle records.
 // Groups support only subscription and form_flow (form_page in config terminology).
-export const GROUP_RENEWAL_TYPE_OPTIONS = ["subscription", "form_flow"];
+export const BUNDLE_RENEWAL_TYPE_OPTIONS = ["subscription", "form_flow"];
 
 /**
  * MembershipRenewalTypeSection — renewal type selector with conditional
@@ -41,7 +41,7 @@ export const GROUP_RENEWAL_TYPE_OPTIONS = ["subscription", "form_flow"];
  * @param {number|null}  [props.nextTierId]           - Current next tier ID (used when sequential_logic).
  * @param {boolean}      [props.disabled]             - Disables all inputs.
  * @param {string[]|null} [props.allowedRenewalTypes] - When provided, only these option values are shown.
- *                                                      Use GROUP_RENEWAL_TYPE_OPTIONS for group memberships.
+ *                                                      Use BUNDLE_RENEWAL_TYPE_OPTIONS for bundle memberships.
  * @param {Function}     props.onChange               - Called with a patch object on any field change:
  *                                                      { renewalType?, nextTierFormPageId?, nextTierId? }
  */

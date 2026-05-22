@@ -178,12 +178,12 @@ class Helper {
     return 'wicket_mship_tier';
   }
 
-  public static function get_membership_group_cpt_slug() {
-    return 'wicket_mship_group';
+  public static function get_membership_bundle_cpt_slug() {
+    return 'wicket_mship_bundle';
   }
 
-  public static function get_membership_group_config_cpt_slug() {
-    return 'wicket_mship_grp_cfg';
+  public static function get_membership_bundle_config_cpt_slug() {
+    return 'wicket_mship_bcfg';
   }
 
   public static function is_valid_membership_post( $membership_post_id ) {

@@ -75,7 +75,7 @@ Returns the custom post type slug for memberships.
 Returns the custom post type slug for membership tiers.
 
 **get_membership_group_cpt_slug()** (static)
-Returns the custom post type slug for membership groups (`wicket_mship_group`).
+Returns the custom post type slug for membership bundles (`wicket_mship_bundle`).
 
 **is_valid_membership_post($membership_post_id)** (static)
 Checks if a given post ID is a published membership post.

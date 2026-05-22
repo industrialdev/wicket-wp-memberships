@@ -53,10 +53,10 @@ use Wicket_Memberships\Membership_Config_CPT_Hooks;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Tier_CPT_Hooks;
 use Wicket_Memberships\Membership_WP_REST_Controller;
-use Wicket_Memberships\Membership_Group_Config_WP_REST_Controller;
-use Wicket_Memberships\Membership_Group_WP_REST_Controller;
+use Wicket_Memberships\Membership_Bundle_Config_WP_REST_Controller;
+use Wicket_Memberships\Membership_Bundle_WP_REST_Controller;
 use Wicket_Memberships\Membership_Subscription_Controller;
-use Wicket_Memberships\Membership_Group_Cron_Controller;
+use Wicket_Memberships\Membership_Bundle_Cron_Controller;
 use Wicket_Memberships\Import_Controller;
 use Wicket_Memberships\Settings;
 use Wicket_Memberships\Utilities;
@@ -164,8 +164,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] = $options['wicket_mship_mdp_timezone'];
             }
           }
-          if ( isset( $options['wicket_mship_enable_groups'] ) && $options['wicket_mship_enable_groups'] ) {
-            $_ENV['WICKET_MSHIP_ENABLE_GROUPS'] = true;
+          if ( isset( $options['wicket_mship_enable_bundles'] ) && $options['wicket_mship_enable_bundles'] ) {
+            $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] = true;
           }
 
           require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/membership-code-hooks.php' );
@@ -191,11 +191,11 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 			new Membership_CPT_Hooks;
 			new Membership_Controller;
 			new Membership_Config_CPT_Hooks;
-			new Membership_Group_Config_CPT_Hooks;
+			new Membership_Bundle_Config_CPT_Hooks;
 			new Membership_Tier_CPT_Hooks;
       new Membership_WP_REST_Controller;
-      new Membership_Group_Config_WP_REST_Controller;
-      new Membership_Group_WP_REST_Controller;
+      new Membership_Bundle_Config_WP_REST_Controller;
+      new Membership_Bundle_WP_REST_Controller;
       new Membership_Subscription_Controller;
       new Helper;
       new Settings;
@@ -255,30 +255,30 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action('wp', array($this, 'schedule_daily_membership_activation'), 10, 2);
       add_action('schedule_daily_membership_activation_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_activation_hook'), 10, 2);
 
-      // group cron: mirrors individual handlers above for wicket_mship_group posts
-      new Membership_Group_Cron_Controller;
+      // bundle cron: mirrors individual handlers above for wicket_mship_bundle posts
+      new Membership_Bundle_Cron_Controller;
 
       //checkbox toggle - can be used for view subscriptions
       add_action('init', [__NAMESPACE__.'\\Utilities', 'autorenew_checkbox_toggle_switch']);
 
-      // Fired by Action Scheduler when a cancel_all+at_end_date group cancellation reaches its end date.
-      add_action( 'wicket_group_cancel_subscription', array( $this, 'handle_group_cancel_subscription' ), 10, 1 );
+      // Fired by Action Scheduler when a cancel_all+at_end_date bundle cancellation reaches its end date.
+      add_action( 'wicket_bundle_cancel_subscription', array( $this, 'handle_bundle_cancel_subscription' ), 10, 1 );
     }
 
     /**
-     * Action Scheduler handler for wicket_group_cancel_subscription.
+     * Action Scheduler handler for wicket_bundle_cancel_subscription.
      *
-     * Called at the group ends_at date when cancel_all + at_end_date was chosen.
-     * Cancels the WC subscription linked to the group.
+     * Called at the bundle ends_at date when cancel_all + at_end_date was chosen.
+     * Cancels the WC subscription linked to the bundle.
      *
-     * @param int $group_post_id Post ID of the membership group.
+     * @param int $bundle_post_id Post ID of the membership bundle.
      */
-    public function handle_group_cancel_subscription( int $group_post_id ): void {
+    public function handle_bundle_cancel_subscription( int $bundle_post_id ): void {
       if ( ! function_exists( 'wcs_get_subscription' ) ) {
         return;
       }
 
-      $sub_id = (int) get_post_meta( $group_post_id, 'membership_subscription_id', true );
+      $sub_id = (int) get_post_meta( $bundle_post_id, 'membership_subscription_id', true );
       if ( ! $sub_id ) {
         return;
       }
@@ -290,9 +290,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
       $sub->add_order_note(
         sprintf(
-          /* translators: 1: membership group post ID */
-          __( 'Subscription cancelled automatically at membership group end date (group ID: %d).', 'wicket-memberships' ),
-          $group_post_id
+          /* translators: 1: membership bundle post ID */
+          __( 'Subscription cancelled automatically at membership bundle end date (bundle ID: %d).', 'wicket-memberships' ),
+          $bundle_post_id
         )
       );
       $sub->update_status( 'cancelled' );

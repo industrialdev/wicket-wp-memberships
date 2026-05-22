@@ -18,7 +18,7 @@ class Admin_Controller {
    */
   public function __construct() {
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
-    add_action( 'admin_menu', array( $this, 'init_menu' ), 20 );
+    add_action( 'admin_menu', array( $this, 'init_menu' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_scripts' ) );
     add_action( 'admin_footer', array( $this, 'admin_footer_scripts' ) );
   }
@@ -92,7 +92,7 @@ class Admin_Controller {
    * @param string $new_post_status
    * @return \WP_REST_Response
    */
-  public static function admin_manage_status( $membership_post_id, $new_post_status ) {
+  public static function bundle_admin_manage_status( $membership_post_id, $new_post_status ) {
 
     $tomorrow_iso_date = Utilities::get_mdp_day_end("+1 day")->format('c');
     $yesterday_iso_date = Utilities::get_mdp_day_start("-1 day")->format('c');
@@ -555,20 +555,20 @@ class Admin_Controller {
       $membership_item['_sort_start_ts'] = strtotime($meta['membership_starts_at'] ?? '');
       $membership_item['_sort_tier_weight'] = $tier_sort_weights[$meta['membership_tier_uuid'] ?? ''] ?? 0;
 
-      $group_id = get_post_meta( $membership->ID, 'membership_group_id', true );
-      if ( !empty( $group_id ) ) {
-        $group_obj         = new Membership_Group( (int) $group_id );
-        $group_owner       = $group_obj->get_owner();
-        $group_dates       = $group_obj->get_dates();
-        $membership_item['is_membership_group'] = true;
-        $membership_item['group_id']            = (int) $group_id;
-        $membership_item['group_name']          = $group_obj->get_name();
-        $membership_item['group_admin_name']    = $group_owner ? $group_owner['name'] : '';
-        $membership_item['group_starts_at']     = $group_dates['starts_at'] ?? '';
-        $membership_item['group_ends_at']       = $group_dates['ends_at'] ?? '';
-        $membership_item['group_edit_url']      = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_GROUP_MEMBER_PAGE_SLUG . '&id=' . (int) $group_id );
+      $bundle_id = get_post_meta( $membership->ID, 'membership_bundle_id', true );
+      if ( !empty( $bundle_id ) ) {
+        $bundle_obj        = new Membership_Bundle( (int) $bundle_id );
+        $bundle_owner      = $bundle_obj->get_owner();
+        $bundle_dates      = $bundle_obj->get_dates();
+        $membership_item['is_membership_bundle'] = true;
+        $membership_item['bundle_id']            = (int) $bundle_id;
+        $membership_item['bundle_name']          = $bundle_obj->get_name();
+        $membership_item['bundle_admin_name']    = $bundle_owner ? $bundle_owner['name'] : '';
+        $membership_item['bundle_starts_at']     = $bundle_dates['starts_at'] ?? '';
+        $membership_item['bundle_ends_at']       = $bundle_dates['ends_at'] ?? '';
+        $membership_item['bundle_edit_url']      = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_BUNDLE_MEMBER_PAGE_SLUG . '&id=' . (int) $bundle_id );
       } else {
-        $membership_item['is_membership_group'] = false;
+        $membership_item['is_membership_bundle'] = false;
       }
 
       $membership_items[] = $membership_item;

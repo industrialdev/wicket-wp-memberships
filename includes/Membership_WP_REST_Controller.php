@@ -93,12 +93,12 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     );
     /**
     * Get Group Data WP
-    * Filter by group post IDs
+    * Filter by bundle post IDs
     */
-    register_rest_route( $this->namespace, '/membership_group_info', array(
+    register_rest_route( $this->namespace, '/membership_bundle_info', array(
       array(
         'methods'             => \WP_REST_Server::READABLE,
-        'callback'            => array( $this, 'get_group_info' ),
+        'callback'            => array( $this, 'get_bundle_info' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
     )
@@ -238,7 +238,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     register_rest_route( $this->namespace, '/admin/manage_status', array(
       array(
         'methods'  => \WP_REST_Server::CREATABLE,
-        'callback'  => array( $this, 'admin_manage_status' ),
+        'callback'  => array( $this, 'bundle_admin_manage_status' ),
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
       //'schema' => array( $this, '' ),
@@ -511,9 +511,9 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     return rest_ensure_response( $response );
   }
 
-  public function admin_manage_status( \WP_REST_Request $request ) {
+  public function bundle_admin_manage_status( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Admin_Controller::admin_manage_status( $params['post_id'], $params['status']);
+    $response = Admin_Controller::bundle_admin_manage_status( $params['post_id'], $params['status']);
     return rest_ensure_response( $response );
   }
 
@@ -581,10 +581,10 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     return rest_ensure_response( $org_info );
   }
 
-  public function get_group_info( \WP_REST_Request $request ) {
+  public function get_bundle_info( \WP_REST_Request $request ) {
     $params    = $request->get_params();
-    $group_ids = isset( $params['filter']['group_id'] ) ? (array) $params['filter']['group_id'] : [];
-    return rest_ensure_response( Membership_Controller::get_group_info( $group_ids ) );
+    $bundle_ids = isset( $params['filter']['bundle_id'] ) ? (array) $params['filter']['bundle_id'] : [];
+    return rest_ensure_response( Membership_Controller::get_bundle_info( $bundle_ids ) );
   }
 
   public function get_org_data(  \WP_REST_Request $request  ) {

@@ -258,9 +258,9 @@ class Utilities {
       }
     }
 
-    if ( get_post_type( $post_id ) === Helper::get_membership_group_cpt_slug() ) {
-      $group = new Membership_Group( $post_id );
-      $group->sync_mdp_delete();
+    if ( get_post_type( $post_id ) === Helper::get_membership_bundle_cpt_slug() ) {
+      $bundle = new Membership_Bundle( $post_id );
+      $bundle->sync_mdp_delete();
     }
   }
 

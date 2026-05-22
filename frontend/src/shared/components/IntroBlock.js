@@ -17,7 +17,7 @@ const IntroBoxWrap = styled(BorderedBox)`
  * page-specific data shapes to these props.
  *
  * @param {object}   props
- * @param {string}   props.title       - Primary heading (e.g. group name, org name).
+ * @param {string}   props.title       - Primary heading (e.g. bundle name, org name).
  * @param {Array}    props.infoFields  - Metadata items: [{ label, value }].
  *                                      Rendered in the RecordTopInfo bar.
  *                                      Different pages pass different fields.

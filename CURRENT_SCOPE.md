@@ -6,14 +6,14 @@ This file is a working snapshot of the current project scope for `wicket-wp-memb
 - It is meant to help with quick reference, feature audits, and gap analysis.
 - It should not be treated as absolute or exhaustive.
 
-## Membership Group Configuration (Plugin)
+## Membership Bundle Configuration (Plugin)
 
-As an Implementation Specialist, I can create a membership configuration for Membership Group.
+As an Implementation Specialist, I can create a membership configuration for Membership Bundle.
 
-Membership Group configs will combine aspects of Membership Config + Tier configuration for organizations and individuals.
+Membership Bundle configs will combine aspects of Membership Config + Tier configuration for organizations and individuals.
 
-- Membership Group Configuration determines
-  - How dates are calculated when Membership Group records are created
+- Membership Bundle Configuration determines
+  - How dates are calculated when Membership Bundle records are created
   - When renewal callout show to Membership Owners (early + grace)
   - If new membership records become active immediately upon being created or if they are created in a pending state
   - The renewal behaviour in the member portal
@@ -39,27 +39,27 @@ Includes fields:
   - Limited to `Renewal Form Flow` and `Subscription` renewal type
   - If `Renewal Form Flow` is selected, a page must be assigned
 
-Membership Group Config:
+Membership Bundle Config:
 
 - Set date/type
 - Set renewal settings (only subscription or form)
 
-Include global option to enable/disable membership group.
+Include global option to enable/disable membership bundle.
 
-## Membership Group Entity / Object (Org)
+## Membership Bundle Entity / Object (Org)
 
-A Membership Group record is a container that holds multiple individual memberships. Each Membership Group will be linked to an organization record in the MDP. All Membership Group Posts will be collected in a list view and each membership group will have a detail view. Each membership record related to the group will be collected there.
+A Membership Bundle record is a container that holds multiple individual memberships. Each Membership Bundle will be linked to an organization record in the MDP. All Membership Bundle Posts will be collected in a list view and each membership bundle will have a detail view. Each membership record related to the group will be collected there.
 
 Attributes:
 
 - `Name`
-- `Membership Group ID (need to confirm if this is WP Post or MDP UUID)`
+- `Membership Bundle ID (need to confirm if this is WP Post or MDP UUID)`
 - `Membership Post ID (Membership Plugin)`
 - `UUID (MDP)`
 - `Organization`
   - UUID of a linked organization record in the MDP
-- `Membership Group Config`
-  - Reference to config post in Membership plugin `Membership Group Configuration (Plugin)`
+- `Membership Bundle Config`
+  - Reference to config post in Membership plugin `Membership Bundle Configuration (Plugin)`
 - `Membership Owner`
   - UUID of person record in the MDP
   - User name
@@ -77,23 +77,23 @@ Attributes:
   - `OR`
   - `Subscription Renewal (membership_next_tier_subscription_renewal)`
 
-## Admin > Create Membership Group
+## Admin > Create Membership Bundle
 
-As an admin, I can create a Membership Group.
+As an admin, I can create a Membership Bundle.
 
-The Membership Group record is a container that individual memberships can be added to.
+The Membership Bundle record is a container that individual memberships can be added to.
 
-- Admins can manually create the Membership Group in the membership plugin.
+- Admins can manually create the Membership Bundle in the membership plugin.
 - Upon saving the new group post a subscription is created in WooCommerce.
-- Subsequently, individual memberships can be added to the membership group
+- Subsequently, individual memberships can be added to the membership bundle
 
 Steps:
 
-- From the `Membership Groups` list page there is a button to `Create Membership Group`
+- From the `Membership Bundles` list page there is a button to `Create Membership Bundle`
 - Create page/form
   - `Name` - single line text
-  - `Membership Group Config`
-    - Dropdown of available Membership Group Configs in plugin
+  - `Membership Bundle Config`
+    - Dropdown of available Membership Bundle Configs in plugin
   - `Organization` - lookup of all Organization records in the MDP, single select
     - Search on name or ID
     - Search displays
@@ -105,39 +105,39 @@ Steps:
       - First Last Name (ID)
       - Email address
   - `Start date` - date/calendar selection
-  - `Create Membership Group` - button
+  - `Create Membership Bundle` - button
 
-- Upon saving the new Membership Group
-  - Membership Group post is created
+- Upon saving the new Membership Bundle
+  - Membership Bundle post is created
     - ID assigned
     - The post status = `Pending`
     - Start date = date set by admin
-    - End date = calculated based on selected Membership Group config
-    - Expiration date = calculated based on selected Membership Group config
-    - Renewal type = based on selected Membership Group config
+    - End date = calculated based on selected Membership Bundle config
+    - Expiration date = calculated based on selected Membership Bundle config
+    - Renewal type = based on selected Membership Bundle config
     - Org + Membership owner assigned
   - A subscription is created for the group
     - Subscription status = `Pending`
     - Customer = Membership Owner
     - Subscription schedule based on membership dates
       - Next payment date only populated if Renewal Type = `Subscription`
-    - Membership Group ID added to subscription as meta
+    - Membership Bundle ID added to subscription as meta
     - Org UUID added to subscription as meta
     - No line items are added to the subscription yet
 - Admin is prompted to add members to group
 
 ## Individual Membership (Group)
 
-Individual membership records can be a part of a Membership Group.
+Individual membership records can be a part of a Membership Bundle.
 
-Individual membership records in a membership group inherit dates and billing information from the group and must be detached from the group to be managed independently. These records are renewed via the group.
+Individual membership records in a membership bundle inherit dates and billing information from the group and must be detached from the group to be managed independently. These records are renewed via the group.
 
 Attributes:
 
 - `Person UUID`
 - `Post ID (Membership Plugin)`
 - `UUID (MDP)`
-- `Membership Group ID (Membership Plugin)`
+- `Membership Bundle ID (Membership Plugin)`
   - `Start Date - calculated upon creation`
     - If start date is within group start/end date = date of creation
   - `End Date (inherited from group)`
@@ -147,9 +147,9 @@ Attributes:
 
 ## Admin > Add to Group (New Member)
 
-As an admin, I can add new individuals to a Membership Group.
+As an admin, I can add new individuals to a Membership Bundle.
 
-When adding to a Membership Group, individual membership records must be created, and the membership IDs added to the group.
+When adding to a Membership Bundle, individual membership records must be created, and the membership IDs added to the group.
 
 Steps:
 
@@ -164,32 +164,32 @@ Steps:
 Result:
 
 - Individual membership created
-  - Membership Group ID assigned as meta
+  - Membership Bundle ID assigned as meta
   - Membership status = inherited from group (`pending`, `active` or `delayed`)
   - Start date:
-    - If today is within membership group start date and end date, start date = today
-    - If today is before membership group start date, start date = membership group start date
-    - If today is after membership group end date = error
-      - Individuals cannot be added to a membership group beyond the membership group end date
-  - End date + expiration date inherited from membership group
-  - Individual membership post ID assigned to membership group
+    - If today is within membership bundle start date and end date, start date = today
+    - If today is before membership bundle start date, start date = membership bundle start date
+    - If today is after membership bundle end date = error
+      - Individuals cannot be added to a membership bundle beyond the membership bundle end date
+  - End date + expiration date inherited from membership bundle
+  - Individual membership post ID assigned to membership bundle
   - Membership tier line item assigned to group subscription with individual membership post ID
 
 ## Admin > Add to Group (Existing Member)
 
-As an admin, I can add an existing member to a Membership Group.
+As an admin, I can add an existing member to a Membership Bundle.
 
-When adding an existing member to a Membership Group, the original individual membership must be ended and a new individual membership record must be created. The new membership ID is added to the group.
+When adding an existing member to a Membership Bundle, the original individual membership must be ended and a new individual membership record must be created. The new membership ID is added to the group.
 
 Via Individual Membership Record
 
 Steps:
 
-- On individual membership records, there will be an option to `Add to Membership Group`
-  - Only available if Membership Groups are enabled in the environment
-- Selecting `Add to Membership Group` opens a modal to complete the action
-  - User must select the Membership Group
-    - Lookup of all Membership Groups in the plugin
+- On individual membership records, there will be an option to `Add to Membership Bundle`
+  - Only available if Membership Bundles are enabled in the environment
+- Selecting `Add to Membership Bundle` opens a modal to complete the action
+  - User must select the Membership Bundle
+    - Lookup of all Membership Bundles in the plugin
       - Displays Name + Org Name
     - Membership group must be `pending`, `active` or `delayed` status
   - User must confirm the action before proceeding
@@ -198,31 +198,31 @@ Result:
 
 - Existing individual membership is end dated (canceled)
 - New individual membership created
-  - Membership Group ID assigned as meta
+  - Membership Bundle ID assigned as meta
   - Membership status = inherited from group (`pending`, `active` or `delayed`)
   - Start date:
-    - If today is within membership group start date and end date, start date = today
-    - If today is before membership group start date, start date = membership group start date
-    - If today is after membership group end date = error
-      - Individuals cannot be added to a membership group beyond the membership group end date
-  - End date + expiration date inherited from membership group
-  - Individual membership post ID assigned to membership group
+    - If today is within membership bundle start date and end date, start date = today
+    - If today is before membership bundle start date, start date = membership bundle start date
+    - If today is after membership bundle end date = error
+      - Individuals cannot be added to a membership bundle beyond the membership bundle end date
+  - End date + expiration date inherited from membership bundle
+  - Individual membership post ID assigned to membership bundle
   - Membership tier line item assigned to subscription with individual membership post ID
 
 ## Admin > Add to Group (Bulk)
 
-As an admin, I can add multiple individuals to a Membership Group by importing a CSV file.
+As an admin, I can add multiple individuals to a Membership Bundle by importing a CSV file.
 
-When adding individuals to a Membership Group in bulk, the system must process each row in the CSV, identify or create the person using their email address, and create a new individual membership record that is added to the group.
+When adding individuals to a Membership Bundle in bulk, the system must process each row in the CSV, identify or create the person using their email address, and create a new individual membership record that is added to the group.
 
 If the individual already has a matching individual membership, the original membership must be ended and a new individual membership record must be created and added to the group.
 
-Via Membership Group Record
+Via Membership Bundle Record
 
 Steps:
 
-- On Membership Group records, there will be an option to `Add to Group (Bulk Import)`
-- Action is available via the `Membership Group` edit view
+- On Membership Bundle records, there will be an option to `Add to Group (Bulk Import)`
+- Action is available via the `Membership Bundle` edit view
 - Membership group must be `pending`, or `active` status
 - User uploads a `CSV file`
 - The CSV file must include the following fields per row:
@@ -261,9 +261,9 @@ Existing Membership Identification Rules:
     - The row is skipped
     - The row is included in the error report
 
-Membership Group Validation:
+Membership Bundle Validation:
 
-- If the person already has a membership in the selected Membership Group with the same membership tier:
+- If the person already has a membership in the selected Membership Bundle with the same membership tier:
   - The row is skipped
   - The row is included in the error report
 
@@ -271,16 +271,16 @@ Result (Per Successful Row):
 
 - Individual membership created
   - If applicable, existing individual membership is end dated (canceled)
-  - Membership Group ID assigned as meta
+  - Membership Bundle ID assigned as meta
   - Membership status = inherited from group (`pending`, `active` or `delayed`)
   - `Start Date`
-    - If today is within membership group start date and end date, start date = `today`
-    - If today is before membership group start date, start date = `membership group start date`
-    - If today is after membership group end date = `error`
-      - Individuals cannot be added to a membership group beyond the membership group end date
+    - If today is within membership bundle start date and end date, start date = `today`
+    - If today is before membership bundle start date, start date = `membership bundle start date`
+    - If today is after membership bundle end date = `error`
+      - Individuals cannot be added to a membership bundle beyond the membership bundle end date
   - `End Date`
-    - End date + expiration date inherited from membership group
-  - Individual membership post ID assigned to membership group
+    - End date + expiration date inherited from membership bundle
+  - Individual membership post ID assigned to membership bundle
   - Membership tier line item assigned to group subscription with individual membership post ID
 
 Post Import Result:
@@ -297,9 +297,9 @@ Acceptance Criteria:
 
 CSV Import
 
-- Admin can launch bulk import from the Membership Group edit view
-- Import is only available when Membership Groups are enabled
-- Import is only available when the Membership Group status is `pending`, `active`, or `delayed`
+- Admin can launch bulk import from the Membership Bundle edit view
+- Import is only available when Membership Bundles are enabled
+- Import is only available when the Membership Bundle status is `pending`, `active`, or `delayed`
 - System validates CSV structure before processing
 - Required fields are first name, last name, email, and membership tier
 - Optional fields are membership UUID and membership post ID
@@ -320,7 +320,7 @@ Membership Handling
 - Membership start date follows the defined group rules
 - Membership end date and expiration date are inherited from the group
 - Membership group ID is stored on the individual membership
-- Individual membership post ID is assigned to the Membership Group
+- Individual membership post ID is assigned to the Membership Bundle
 - Membership tier line item is assigned to the group subscription with the individual membership post ID
 
 Duplicate Prevention
@@ -342,9 +342,9 @@ Import Processing
 
 ## Admin > Remove from Group
 
-As an admin, I can remove an individual membership from a Membership Group and choose what should happen to the member's membership after removal.
+As an admin, I can remove an individual membership from a Membership Bundle and choose what should happen to the member's membership after removal.
 
-When removing a member from a Membership Group, the admin must choose one of two actions:
+When removing a member from a Membership Bundle, the admin must choose one of two actions:
 
 1. Cancel the individual membership
 2. Continue the membership as an individual membership
@@ -353,9 +353,9 @@ Via Individual Membership Record
 
 Steps:
 
-- On individual membership records, there will be an option to `Remove from Membership Group`
-- This option is only available when the individual membership is associated with a Membership Group
-- Selecting `Remove from Membership Group` opens a modal
+- On individual membership records, there will be an option to `Remove from Membership Bundle`
+- This option is only available when the individual membership is associated with a Membership Bundle
+- Selecting `Remove from Membership Bundle` opens a modal
 - The modal displays the following options:
   1. `Cancel Individual Membership`
   2. `Continue membership as Individual`
@@ -366,7 +366,7 @@ Option 1: Cancel Individual Membership
 Result:
 
 - The individual membership is end dated (canceled)
-- Membership post ID is removed from the Membership Group
+- Membership post ID is removed from the Membership Bundle
 - Membership line item associated with the membership ID (`membership renewl id` meta) is removed from the subscription
 - No replacement membership is created
 
@@ -375,13 +375,13 @@ Option 2: Continue Membership as Individual
 Result:
 
 - The existing individual membership associated with the group is end dated (canceled)
-- Membership post ID is removed from the Membership Group
+- Membership post ID is removed from the Membership Bundle
 - Membership line item associated with the membership ID (`membership renewl id` meta) is removed from the subscription
 - A new individual membership record is created:
   - Membership tier = same individual tier as the original membership
   - Start date = today
-  - End date = same end date as the membership group
-  - Expiration date = same expiration date as the membership group
+  - End date = same end date as the membership bundle
+  - Expiration date = same expiration date as the membership bundle
   - Membership renewal type = determined by the membership tier default
 - A subscription is created to match the membership:
   - Uses the WooCommerce product associated with the membership tier
@@ -393,24 +393,24 @@ Acceptance Criteria:
 
 Access
 
-- `Remove from Membership Group` action is available on individual membership records associated with a group
+- `Remove from Membership Bundle` action is available on individual membership records associated with a group
 - Selecting the action opens a modal with removal options
 
 Cancel Individual Membership
 
 - Membership is end dated
-- Membership post ID is removed from the membership group
+- Membership post ID is removed from the membership bundle
 - Membership line item is removed from the group subscription
 - No new membership is created
 
 Continue as Individual
 
 - Existing membership is end dated
-- Membership post ID removed from the membership group
+- Membership post ID removed from the membership bundle
 - Membership line item removed from the group subscription
 - A new individual membership is created with the same membership tier
 - Start date = today
-- End date and expiration date match the membership group the user was removed from
+- End date and expiration date match the membership bundle the user was removed from
 - Membership renewal type determined by tier default
 - A subscription is created using the WooCommerce product associated with the membership tier
 - New membership post ID is stored as `membership_renewal_id` on the subscription line item
@@ -419,75 +419,75 @@ Continue as Individual
 
 ## Admin > Move to Another Group
 
-As an admin, I can move an individual membership from one Membership Group to another Membership Group.
+As an admin, I can move an individual membership from one Membership Bundle to another Membership Bundle.
 
-When moving a member between Membership Groups, the individual membership associated with the original group must be ended and a new individual membership record must be created and assigned to the new group.
+When moving a member between Membership Bundles, the individual membership associated with the original group must be ended and a new individual membership record must be created and assigned to the new group.
 
 Via Individual Membership Record
 
 Steps:
 
-- On individual membership records, there will be an option to `Move to Another Membership Group`
+- On individual membership records, there will be an option to `Move to Another Membership Bundle`
 - This option is only available when the individual membership is associated with a group
-- Selecting `Move to Another Membership Group` opens a modal
-- User must select the destination Membership Group
-- Lookup of all Membership Groups in the plugin
+- Selecting `Move to Another Membership Bundle` opens a modal
+- User must select the destination Membership Bundle
+- Lookup of all Membership Bundles in the plugin
   - Displays:
-    - Membership Group Name
+    - Membership Bundle Name
     - Organization Name
-- Destination Membership Group must be `pending`, `active` or `delayed` status
+- Destination Membership Bundle must be `pending`, `active` or `delayed` status
 - Admin must confirm the action before proceeding
 
 Result:
 
 - The existing individual membership associated with the original group is end dated (canceled)
-- Membership post ID is removed from the original Membership Group
+- Membership post ID is removed from the original Membership Bundle
 - Membership related line item is removed from the group subscription
-- The system then performs the `Add to Group (Existing Member)` process for the selected Membership Group.
+- The system then performs the `Add to Group (Existing Member)` process for the selected Membership Bundle.
 
 New Membership Created:
 
 - A new individual membership record is created.
-- Membership Group ID assigned as meta.
+- Membership Bundle ID assigned as meta.
 - Membership status = inherited from the new group (`pending`, `active` or `delayed`)
   - `Start Date`
-    - If today is within membership group start date and end date, start date = `today`
-    - If today is before membership group start date, start date = `membership group start date`
-    - If today is after membership group end date = `error`
-    - Individuals cannot be added to a membership group beyond the membership group end date.
+    - If today is within membership bundle start date and end date, start date = `today`
+    - If today is before membership bundle start date, start date = `membership bundle start date`
+    - If today is after membership bundle end date = `error`
+    - Individuals cannot be added to a membership bundle beyond the membership bundle end date.
   - `End Date`
-    - End date + expiration date inherited from the new membership group
-  - Individual membership post ID assigned to the new membership group
+    - End date + expiration date inherited from the new membership bundle
+  - Individual membership post ID assigned to the new membership bundle
   - Membership tier line item assigned to the new group subscription with individual membership post ID
 
 Acceptance Criteria:
 
 Access
 
-- `Move to Another Membership Group` action is available on individual membership records associated with a group
+- `Move to Another Membership Bundle` action is available on individual membership records associated with a group
 - Selecting the action opens a modal
-- Admin must select a destination membership group
+- Admin must select a destination membership bundle
 
-Membership Group Selection
+Membership Bundle Selection
 
-- Lookup displays all available membership groups
-- Destination membership group must be `pending`, `active`, or `delayed`
+- Lookup displays all available membership bundles
+- Destination membership bundle must be `pending`, `active`, or `delayed`
 - Admin must confirm the action before processing
 
 Original Membership Handling
 
 - Existing individual membership associated with the original group is end dated
-- Membership post ID is removed from the original membership group
+- Membership post ID is removed from the original membership bundle
 - Membership line item is removed from the original group subscription
 
 New Membership Creation
 
 - A new individual membership record is created
-- Membership is associated with the selected membership group
+- Membership is associated with the selected membership bundle
 - Membership status is inherited from the group
 - Start date follows group start date rules
-- End date and expiration date are inherited from the new membership group
-- Individual membership post ID is assigned to the membership group
+- End date and expiration date are inherited from the new membership bundle
+- Individual membership post ID is assigned to the membership bundle
 - Membership tier line item is assigned to the group subscription with the individual membership post ID
 
 Validation Rules:
@@ -500,7 +500,7 @@ Implementation Note (Important):
 
 This feature should reuse the existing logic from:
 
-- `Remove from Membership Group`
+- `Remove from Membership Bundle`
 - `Add to Group (Existing Member)`
 
 to ensure:
@@ -511,16 +511,16 @@ to ensure:
 
 ## Admin > Cancel Group
 
-As an admin, I can cancel a Membership Group and choose what should happen to the individual memberships associated with the group.
+As an admin, I can cancel a Membership Bundle and choose what should happen to the individual memberships associated with the group.
 
-When canceling a Membership Group, the admin must choose what should happen to the individual memberships currently in the group.
+When canceling a Membership Bundle, the admin must choose what should happen to the individual memberships currently in the group.
 
-Via Membership Group Record
+Via Membership Bundle Record
 
 Steps:
 
-- On Membership Group records, there will be an option to `Cancel Membership Group`
-- This action is available when the Membership Group status is `pending`, `active` or `delayed`
+- On Membership Bundle records, there will be an option to `Cancel Membership Bundle`
+- This action is available when the Membership Bundle status is `pending`, `active` or `delayed`
 - Selecting Manage Status opens a modal
   - Admin can update the status to `Cancelled`
   - The modal displays the following options for handling the individual memberships in the group:
@@ -530,7 +530,7 @@ Steps:
 - Additional option, displayed only when `Cancel all individual memberships` is selected
   - Admin must choose when the cancellation should take effect:
     1. `Cancel Immediately`
-    2. `Cancel at Membership Group End Date`
+    2. `Cancel at Membership Bundle End Date`
 - Admin must confirm the action before proceeding
 
 Option 1: Cancel All Individual Memberships
@@ -541,21 +541,21 @@ Admin must choose one of the following:
 
 Cancel Immediately
 
-- The Membership Group is canceled immediately
+- The Membership Bundle is canceled immediately
 - The group subscription is canceled immediately
 - For each individual membership associated with the group:
   - The individual membership is end dated (canceled)
-  - Membership Group ID meta remains for historical reference
+  - Membership Bundle ID meta remains for historical reference
 - Members lose membership access when the cancellation takes effect.
 
-Cancel at Membership Group End Date
+Cancel at Membership Bundle End Date
 
-- The Membership Group is marked as canceled (non-renewing)
+- The Membership Bundle is marked as canceled (non-renewing)
 - The group subscription is set to not renew
   - The expiration date is updated to match the end date (remove grace period)
 - The group and associated memberships remain active until the existing group end date
   - At the group end date:
-    - The Membership Group expires
+    - The Membership Bundle expires
     - The group subscription is canceled
 - For each individual membership in the group:
   - The individual membership is end dated (canceled)
@@ -565,15 +565,15 @@ Option 2: Continue Memberships as Individual
 
 Result:
 
-- The Membership Group is canceled
+- The Membership Bundle is canceled
 - The group subscription is canceled
 - For each individual membership associated with the group:
   - The existing individual membership associated with the group is end dated (canceled)
 - A new individual membership record is created:
   - Membership tier = same individual tier as the original membership
   - Start date = today
-  - End date = same end date as the membership group
-  - Expiration date = same expiration date as the membership group
+  - End date = same end date as the membership bundle
+  - Expiration date = same expiration date as the membership bundle
   - Membership renewal type = determined by the membership tier default
 - A subscription is created to match the membership:
   - The individual member is assigned as the customer
@@ -587,8 +587,8 @@ Acceptance Criteria:
 
 Access
 
-- `Cancel Membership Group` action is available on Membership Group records
-- Action is available when the Membership Group status is `pending`, `active`, or `delayed`
+- `Cancel Membership Bundle` action is available on Membership Bundle records
+- Action is available when the Membership Bundle status is `pending`, `active`, or `delayed`
 - Selecting the action opens a confirmation modal
 
 Admin Selection
@@ -599,7 +599,7 @@ Admin Selection
 - If `Cancel all memberships` is selected:
   - Admin must choose cancellation timing:
     - Cancel immediately
-    - Cancel at membership group end date
+    - Cancel at membership bundle end date
 - Admin must confirm the action before processing
 
 Cancel All Memberships
@@ -617,28 +617,28 @@ Continue as Individual Memberships
 - A new individual membership is created for each member
 - Membership tier matches the original individual tier
 - Start date = today
-- End date and expiration date match the membership group
+- End date and expiration date match the membership bundle
 - Subscription is created using the WooCommerce product associated with the membership tier
 - New membership post ID is stored as `membership_renewal_id` on the subscription line item
 - Subscription schedule matches the membership record
 - Next payment date is only populated if renewal type = `subscription`
 
-## View Membership Group (Table)
+## View Membership Bundle (Table)
 
-As an admin, I can view Membership Groups in a table.
+As an admin, I can view Membership Bundles in a table.
 
-- The option is available in the Wicket Memberships menu when Membership Groups are enabled
-- The table displays all unique membership groups, based on Membership Group ID
+- The option is available in the Wicket Memberships menu when Membership Bundles are enabled
+- The table displays all unique membership bundles, based on Membership Bundle ID
 - The table includes columns for:
   - `Organization Name (MDP)`
   - `Owners (email)`
-    - Lists email address(es) of each unique membership owner associated with a membership group
+    - Lists email address(es) of each unique membership owner associated with a membership bundle
   - `Groups` column
     - Show all groups (names) in `Active`, `Delayed`, `Grace Period`, or `Pending` status, comma separated
     - Display = `Group 1(Status), Group 2(Status)`
     - If no record exists in any of `Active`, `Delayed`, `Grace Period`, or `Pending` status, meaning `Expired` or `Cancelled`, column displays `Inactive` label with no groups
   - `Last Updated Date`
-    - Date of most recent update to any membership group record for the org
+    - Date of most recent update to any membership bundle record for the org
   - `Link to MDP`
     - Links to org record in MDP
 
@@ -649,25 +649,25 @@ Sorting:
 
 Additional Tabs:
 
-- Tab for active membership group records
-  - Filtered view of group table for any organization with at least one membership group record in status = `active`
+- Tab for active membership bundle records
+  - Filtered view of group table for any organization with at least one membership bundle record in status = `active`
   - Label shows count of total records in that status
-- Tab for pending membership group records
-  - Filtered view of group table for any organization with at least one membership group record in status = `pending`
+- Tab for pending membership bundle records
+  - Filtered view of group table for any organization with at least one membership bundle record in status = `pending`
   - Label shows count of total records in that status
 - Tab for grace period membership record
-  - Filtered view of members table for any organization with at least one membership group record in status = `Grace Period`
+  - Filtered view of members table for any organization with at least one membership bundle record in status = `Grace Period`
   - Label shows count of total records in that status
 
 ## View Individual Group Members (Table)
 
-Individual members who are part of a Membership Group will be listed in the Individual Members Table. Need to add a `Group` column to that table.
+Individual members who are part of a Membership Bundle will be listed in the Individual Members Table. Need to add a `Group` column to that table.
 
-If any current membership for an individual is part of a Membership Group, the Group name will be listed.
+If any current membership for an individual is part of a Membership Bundle, the Group name will be listed.
 
 Current = `Active`, `Pending`, `Delayed`, or `Grace Period` status.
 
-- Sorting available by Membership Group name
+- Sorting available by Membership Bundle name
 - The individual members table can be filtered by Group
 - Add filter option to table
 - Default is `All Groups`
@@ -675,16 +675,16 @@ Current = `Active`, `Pending`, `Delayed`, or `Grace Period` status.
 - Current = `Active`, `Pending`, `Delayed`, or `Grace Period` status
 - This could be many so should be a searchable dropdown
 
-## View > Membership Group (Detail)
+## View > Membership Bundle (Detail)
 
-As an admin I can view the details of Membership Groups.
+As an admin I can view the details of Membership Bundles.
 
-The detail page will include each record associated with the membership group.
+The detail page will include each record associated with the membership bundle.
 
 Note: This page is modeled after existing membership plugin views.
 
-- The detail view will include a title block for the membership group, including:
-  - Membership Group Name
+- The detail view will include a title block for the membership bundle, including:
+  - Membership Bundle Name
   - Link to Group in MDP (destination pending)
   - Organization name
 
@@ -721,37 +721,37 @@ Note: This page is modeled after existing membership plugin views.
       - leads to individual membership table filtered by Group
 - Admins can access `Group Actions`
 
-## Membership Group Subscription
+## Membership Bundle Subscription
 
-Membership Group subscriptions will have a line item for each individual membership included in the group. Subscriptions will include Membership Group ID as meta at the subscription level, and individual membership IDs as meta at the line item level.
+Membership Bundle subscriptions will have a line item for each individual membership included in the group. Subscriptions will include Membership Bundle ID as meta at the subscription level, and individual membership IDs as meta at the line item level.
 
-- Subscription Customer = Membership Group Owner
+- Subscription Customer = Membership Bundle Owner
 - Subscription level meta:
-  - Membership Group ID
-  - Membership Membership Group Post ID
+  - Membership Bundle ID
+  - Membership Membership Bundle Post ID
   - Organization (`UUID`, Org Name for display)
 - Subscription line items:
   - 1 line item for each individual membership in the group
     - Product is determined by the individual membership tier
   - Each line item must include the individual membership post ID as meta
   - Each line item should include the individual member name (`Firstname Lastname`) as meta
-- Subscription schedule is defined by the Membership Group config
+- Subscription schedule is defined by the Membership Bundle config
   - Start date = date assigned at creation
   - Next Payment Date = Membership End Date
-    - This value is calculated based on Membership Group config. Uses same logic as Membership Config (Wicket membership plugin)
+    - This value is calculated based on Membership Bundle config. Uses same logic as Membership Config (Wicket membership plugin)
   - End Date = Membership Expiration Date
-    - This value is calculated based on Membership Group config. Uses same logic as Membership Config (Wicket membership plugin)
+    - This value is calculated based on Membership Bundle config. Uses same logic as Membership Config (Wicket membership plugin)
 - Membership IDs on line items for the tier
 
-## Edit Membership Group
+## Edit Membership Bundle
 
-As an admin I can edit details of the Membership Group.
+As an admin I can edit details of the Membership Bundle.
 
-- Admins can update the status of the membership group from:
+- Admins can update the status of the membership bundle from:
   - `Active` to `Cancelled`
   - `Pending` to `Active`
-- Admins can update the dates on the Membership Group
-  - Edits to the membership group dates cascade to individual memberships in the group
+- Admins can update the dates on the Membership Bundle
+  - Edits to the membership bundle dates cascade to individual memberships in the group
     - Edits do not cascade to individual records with an `expired` or `canceled` status
     - If the start date on the individual record is after the Group start date (before the change), the start date on the individual record is maintained
     - If the End date on the individual record is before the Group end date (before the change), the individual membership end date is maintained
@@ -763,7 +763,7 @@ As an admin I can edit details of the Membership Group.
     - Removes Next payment date from related subscription
   - Form Flow to Subscription
     - Adds next payment date to related subscription
-    - Next payment date = Membership Group End date
+    - Next payment date = Membership Bundle End date
 - Admins can update the Membership owner
   - Follows established membership plugin rules
   - Updates the customer on the related subscription and order

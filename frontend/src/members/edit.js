@@ -14,9 +14,9 @@ import he from 'he';
 import moment from 'moment-timezone';
 import { CreateRenewalOrderModal, getRenewalOrderAction } from './create_renewal_order';
 import MembershipActionsDropdown from '../shared/components/MembershipActionsDropdown';
-import MembershipGroupDetails from './MembershipGroupDetails';
-import MembershipGroupBadge from './MembershipGroupBadge';
-import AddToMembershipGroupModal from './AddToMembershipGroupModal';
+import MembershipBundleDetails from './MembershipBundleDetails';
+import MembershipBundleBadge from './MembershipBundleBadge';
+import AddToMembershipBundleModal from './AddToMembershipBundleModal';
 import AdminNoticeStack from '../shared/components/AdminNoticeStack';
 
 export const EditWrap = styled.div`
@@ -589,8 +589,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                         >
                           <td className="column-columnname">
                             {membership.data.membership_tier_name}
-                            {membership.is_membership_group && (
-                              <MembershipGroupBadge groupName={membership.group_name} />
+                            {membership.is_membership_bundle && (
+                              <MembershipBundleBadge bundleName={membership.bundle_name} />
                             )}
                           </td>
                           <td className="column-columnname">
@@ -626,8 +626,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                           style={{ display: membership.showRow ? 'table-row' : 'none' }}
                         >
                           <td colSpan={7} >
-                            {membership.is_membership_group ? (
-                              <MembershipGroupDetails
+                            {membership.is_membership_bundle ? (
+                              <MembershipBundleDetails
                                 membership={membership}
                                 onSuccess={(message) => {
                                   const noticeId = `member-removed-${Date.now()}`;
@@ -764,9 +764,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                     setMemberships([...memberships]);
                                   }),
                                   {
-                                    label: __('Add to Membership Group', 'wicket-memberships'),
+                                    label: __('Add to Membership Bundle', 'wicket-memberships'),
                                     onClick: () => {
-                                      membership.isAddToGroupOpen = true;
+                                      membership.isAddToBundleOpen = true;
                                       setMemberships([...memberships]);
                                     },
                                   },
@@ -782,16 +782,16 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                 }}
                               />
 
-                              <AddToMembershipGroupModal
-                                isOpen={!!membership.isAddToGroupOpen}
+                              <AddToMembershipBundleModal
+                                isOpen={!!membership.isAddToBundleOpen}
                                 membershipPostId={membership.data.membership_post_id}
                                 tierPostId={membership.data.membership_tier_post_id}
                                 onRequestClose={() => {
-                                  membership.isAddToGroupOpen = false;
+                                  membership.isAddToBundleOpen = false;
                                   setMemberships([...memberships]);
                                 }}
                                 onSuccess={() => {
-                                  membership.isAddToGroupOpen = false;
+                                  membership.isAddToBundleOpen = false;
                                   getMemberships();
                                 }}
                               />

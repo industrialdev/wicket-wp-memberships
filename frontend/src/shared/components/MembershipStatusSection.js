@@ -27,7 +27,7 @@ const MarginedFlex = styled(Flex)`
  *
  * Data-agnostic: receives only flat props. API calls are injected via
  * `fetchStatuses` and `updateStatus` so this component works for both
- * individual and membership group pages without modification.
+ * individual and membership bundle pages without modification.
  *
  * @param {number|string|null}  props.postId          - WP post ID of the record.
  * @param {string}              props.currentStatus   - Current status label/slug.
