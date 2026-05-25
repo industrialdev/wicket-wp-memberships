@@ -894,7 +894,7 @@ function get_item_data ( $other_data, $cart_item ) {
         }
       }
       if( in_array ( 'next_payment_date', $fields ) && !empty($sub) && !($sub->get_billing_period() == 'month' && $sub->get_billing_interval() == 1)) {
-        $next_payment_obj = Utilities::get_mdp_day_start($end_date);
+        $next_payment_obj = Utilities::get_mdp_day_end($end_date);
         $dates_to_update['next_payment'] = $next_payment_obj->format('Y-m-d H:i:s');
         Utilities::wicket_logger( 'Setting Subscription NEXT_PAYMENT date', $dates_to_update['next_payment']);
       }
