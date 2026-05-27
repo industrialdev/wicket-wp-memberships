@@ -2440,6 +2440,11 @@ function get_item_data ( $other_data, $cart_item ) {
       'posts_per_page' => -1,
       'meta_query'     => array(
         'relation' => 'AND',
+        // Exclude bundle members — their lifecycle is managed by Membership_Bundle_Cron_Controller.
+        array(
+          'key'     => 'membership_bundle_id',
+          'compare' => 'NOT EXISTS',
+        ),
         array(
           'relation' => 'OR',
           array(
@@ -2491,6 +2496,11 @@ function get_item_data ( $other_data, $cart_item ) {
       'post_status' => 'publish',
       'posts_per_page' => -1,
       'meta_query'     => array(
+        // Exclude bundle members — their lifecycle is managed by Membership_Bundle_Cron_Controller.
+        array(
+          'key'     => 'membership_bundle_id',
+          'compare' => 'NOT EXISTS',
+        ),
         array(
           'key'     => 'membership_status',
           'value'   => Wicket_Memberships::STATUS_DELAYED,
@@ -2531,6 +2541,11 @@ function get_item_data ( $other_data, $cart_item ) {
       'post_status' => 'publish',
       'posts_per_page' => -1,
       'meta_query'     => array(
+        // Exclude bundle members — their lifecycle is managed by Membership_Bundle_Cron_Controller.
+        array(
+          'key'     => 'membership_bundle_id',
+          'compare' => 'NOT EXISTS',
+        ),
         array(
           'key'     => 'membership_status',
           'value'   => Wicket_Memberships::STATUS_ACTIVE,
