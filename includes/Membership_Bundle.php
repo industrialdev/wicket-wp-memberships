@@ -494,17 +494,82 @@ class Membership_Bundle {
   }
 
   /**
-   * Cancel an individual membership by setting its status to cancelled.
+   * Cancel a single individual membership that belongs to this bundle.
    *
-   * Uses Membership_Controller::update_membership_status() directly — avoids
-   * Admin_Controller::bundle_admin_manage_status() which depends on WC order JSON that
-   * bundle-path memberships never have.
+   * Performs the full local cancellation sequence: date collapse per current status,
+   * update_local_membership_record(), update_membership_status(), amend_membership_json().
+   * Mirrors the logic in Admin_Controller::bundle_admin_manage_status() for cancelled status.
    *
-   * @param int $membership_post_id
+   * $sync_mdp controls whether the cancellation is pushed to MDP:
+   *
+   * - Pass true  when cancelling a SINGLE member (remove_member, move_individual_membership,
+   *   add_member with existing_membership_post_id). MDP does not know about these single-member
+   *   operations from the bundle level — we must notify it directly.
+   *
+   * - Pass false when called from cascade_status_to_members() during a bundle-level cancel.
+   *   MDP propagates the cancellation automatically from the bundle org record — a per-member
+   *   call would be redundant and risk double-processing.
+   *
+   * @param int  $membership_post_id
+   * @param bool $sync_mdp Whether to push the cancellation to MDP. Default true.
    */
-  private function cancel_individual_membership( int $membership_post_id ): void {
-    $mc = new Membership_Controller();
+  private function cancel_individual_membership( int $membership_post_id, bool $sync_mdp = true ): void {
+    $mc             = new Membership_Controller();
+    $now            = Utilities::get_mdp_now()->format( 'c' );
+    $yesterday      = Utilities::get_mdp_day_start( '-1 day' )->format( 'c' );
+    $current_status = get_post_meta( $membership_post_id, 'membership_status', true );
+
+    // Collapse dates per current status — mirrors Admin_Controller::bundle_admin_manage_status() rules.
+    // pending/delayed: back-date starts_at so the record is unambiguously in the past.
+    // grace-period: only collapse expires_at; ends_at has already passed.
+    // all others (active, expired, etc.): collapse both ends_at and expires_at to now.
+    if ( in_array( $current_status, [ Wicket_Memberships::STATUS_PENDING, Wicket_Memberships::STATUS_DELAYED ], true ) ) {
+      $meta_data = [
+        'membership_starts_at'         => $yesterday,
+        'membership_ends_at'           => $now,
+        'membership_expires_at'        => $now,
+        'membership_grace_period_days' => 0,
+      ];
+    } elseif ( $current_status === Wicket_Memberships::STATUS_GRACE ) {
+      $meta_data = [
+        'membership_expires_at'        => $now,
+        'membership_grace_period_days' => 0,
+      ];
+    } else {
+      $meta_data = [
+        'membership_ends_at'           => $now,
+        'membership_expires_at'        => $now,
+        'membership_grace_period_days' => 0,
+      ];
+    }
+
+    // update_local_membership_record() recalculates status from dates — it would derive
+    // 'expired' given collapsed dates. Call update_membership_status() after to stamp
+    // 'cancelled' on top of whatever update_local_membership_record() wrote.
+    $mc->update_local_membership_record( $membership_post_id, $meta_data );
     $mc->update_membership_status( $membership_post_id, Wicket_Memberships::STATUS_CANCELLED );
+    $mc->amend_membership_json( $membership_post_id, array_merge( $meta_data, [ 'membership_status' => Wicket_Memberships::STATUS_CANCELLED ] ) );
+
+    // Only sync to MDP for single-member operations. Bundle-level cancellations propagate
+    // automatically from the bundle org record — per-member calls would be redundant.
+    if ( $sync_mdp ) {
+      $wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
+      if ( ! empty( $wicket_uuid ) && empty( $this->bypass_wicket ) ) {
+        $membership_data = [
+          'membership_type'        => get_post_meta( $membership_post_id, 'membership_type', true ),
+          'membership_wicket_uuid' => $wicket_uuid,
+          'membership_starts_at'   => get_post_meta( $membership_post_id, 'membership_starts_at', true ),
+          'org_seats'              => get_post_meta( $membership_post_id, 'org_seats', true ),
+        ];
+        $mc->update_mdp_record( $membership_data, $meta_data );
+      } elseif ( empty( $wicket_uuid ) ) {
+        Wicket()->log()->error( 'Membership_Bundle::cancel_individual_membership: no membership_wicket_uuid, skipping MDP sync', [
+          'source'             => 'wicket-memberships',
+          'bundle_post_id'     => $this->post_id,
+          'membership_post_id' => $membership_post_id,
+        ] );
+      }
+    }
   }
 
   /**
@@ -1885,32 +1950,61 @@ class Membership_Bundle {
   }
 
   /**
-   * Cascade a status update to non-final child memberships.
+   * Cascade a status update to all non-cancelled child memberships.
+   *
+   * Performs the full local write sequence per member (date collapse where needed,
+   * update_local_membership_record, update_membership_status, amend_membership_json).
+   * No MDP calls — MDP handles bundle members at the org/bundle level.
+   *
+   * cancelled: routes through cancel_individual_membership() with sync_mdp = false so
+   *   date collapse and the full local sequence run correctly without a per-member MDP call.
+   *
+   * expired: collapses ends_at and expires_at to tomorrow (mirrors bundle_admin_manage_status()
+   *   date rules for expired status). grace_period_days zeroed.
+   *
+   * active, delayed, grace-period: no date mutation — provision-time dates are authoritative.
+   *   Status stamped locally only.
    *
    * @param string $new_status
    * @return void
    */
   private function cascade_status_to_members( string $new_status ): void {
-    $memberships = $this->get_individual_memberships( false );
+    $mc      = new Membership_Controller();
+    $members = $this->get_individual_memberships( false );
 
-    foreach ( $memberships as $membership_post ) {
-      $current = get_post_meta( $membership_post->ID, 'membership_status', true );
+    foreach ( $members as $membership_post ) {
+      $membership_post_id = $membership_post->ID;
+      $current            = get_post_meta( $membership_post_id, 'membership_status', true );
 
       // Cancelled is a final state — never overwrite it.
       if ( $current === Wicket_Memberships::STATUS_CANCELLED ) {
         continue;
       }
 
-      $result = update_post_meta( $membership_post->ID, 'membership_status', $new_status );
-
-      if ( false === $result && (string) get_post_meta( $membership_post->ID, 'membership_status', true ) !== (string) $new_status ) {
-        Wicket()->log()->error( 'Membership_Bundle::cascade_status_to_members: failed to update membership status', [
-          'source'             => 'wicket-memberships',
-          'bundle_post_id'      => $this->post_id,
-          'membership_post_id' => $membership_post->ID,
-          'new_status'         => $new_status,
-        ] );
+      if ( $new_status === Wicket_Memberships::STATUS_CANCELLED ) {
+        // Route through cancel_individual_membership() for correct date collapse and local
+        // write sequence. Pass sync_mdp = false — MDP propagates from the bundle org record.
+        $this->cancel_individual_membership( $membership_post_id, false );
+        continue;
       }
+
+      // expired: collapse dates so the record is unambiguously past. All other statuses
+      // (active, delayed, grace-period): no date mutation — keep provision-time dates.
+      if ( $new_status === Wicket_Memberships::STATUS_EXPIRED ) {
+        $tomorrow  = Utilities::get_mdp_day_end( '+1 day' )->format( 'c' );
+        $meta_data = [
+          'membership_ends_at'           => $tomorrow,
+          'membership_expires_at'        => $tomorrow,
+          'membership_grace_period_days' => 0,
+        ];
+      } else {
+        $meta_data = [];
+      }
+
+      // Local writes only — MDP handles bundle members at the org/bundle level.
+      $mc->update_local_membership_record( $membership_post_id, array_merge( $meta_data, [ 'membership_status' => $new_status ] ) );
+      $mc->update_membership_status( $membership_post_id, $new_status );
+      $mc->amend_membership_json( $membership_post_id, array_merge( $meta_data, [ 'membership_status' => $new_status ] ) );
     }
   }
 

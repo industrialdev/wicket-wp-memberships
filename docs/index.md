@@ -25,6 +25,7 @@ audience: [implementer, support, developer, end-user]
 
 ### Feature Plans
 - [Create Membership Bundle Page](engineering/create-membership-bundle-page.md) — Implementation plan and progress tracker for the new membership bundle creation flow
+- [Membership Bundle Renewal](engineering/membership-bundle-renewal.md) — Implementation plan for bundle subscription renewal: new bundle creation, individual membership renewal, activation
 
 ### Class Reference
 - [Admin_Controller](engineering/Class-Admin_Controller.md) — Admin menu pages, status transition validation, React app mounting

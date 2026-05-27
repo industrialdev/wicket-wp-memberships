@@ -87,6 +87,14 @@ Once base plugin functions exist, implement in `includes/Membership_Group.php`:
 | `sync_mdp_update()` | `wicket_update_group_membership()` | `membership_group_wicket_uuid` post meta, `get_dates()`, `get_membership_status()`, `get_owner_uuid()` |
 | `sync_mdp_delete()` | `wicket_delete_group_membership()` | `membership_group_wicket_uuid` post meta |
 
+## Bundle Member MDP Create Call
+
+| File | Method | Note | Asana |
+|---|---|---|---|
+| `includes/Membership_Bundle.php` | `provision_individual_membership_record()` | Currently calls `create_membership_record()` → `wicket_assign_individual_membership()` for MDP creation. Bundle members require a **different MDP API call** — the correct endpoint and payload will be provided in a later task. Replace `create_mdp_record()` with the bundle-specific MDP call once confirmed. | — |
+
+---
+
 ## Group Subscription Renewal — Membership Creation on Payment
 
 | File | Method | Note | Asana |
