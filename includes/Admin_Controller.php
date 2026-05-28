@@ -566,7 +566,7 @@ class Admin_Controller {
         $membership_item['bundle_admin_name']    = $bundle_owner ? $bundle_owner['name'] : '';
         $membership_item['bundle_starts_at']     = $bundle_dates['starts_at'] ?? '';
         $membership_item['bundle_ends_at']       = $bundle_dates['ends_at'] ?? '';
-        $membership_item['bundle_edit_url']      = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_BUNDLE_MEMBER_PAGE_SLUG . '&id=' . (int) $bundle_id );
+        $membership_item['bundle_edit_url']      = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_BUNDLE_MEMBER_PAGE_SLUG . '&id=' . $bundle_obj->get_bundle_group_uuid() );
       } else {
         $membership_item['is_membership_bundle'] = false;
       }

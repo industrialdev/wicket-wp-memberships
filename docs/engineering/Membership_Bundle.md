@@ -17,7 +17,7 @@ Loads the group by post ID. Sets `$post_id = 0` and `$meta_data = []` if the pos
 
 ## Static Methods
 
-### `create( string $name, int $membership_group_config_id, string $org_uuid, int $owner_user_id, string $start_date ): static|null`
+### `create( string $name, int $membership_bundle_config_id, string $org_uuid, string $owner_uuid, string $start_date ): static|null`
 
 Creates a new membership bundle post and populates all required meta in a single call. All parameters are required. Returns a new `Membership_Bundle` instance on success, `null` on any failure (the partially-created post is deleted before returning). Errors are logged via `Wicket()->log()`.
 
@@ -25,13 +25,34 @@ Creates a new membership bundle post and populates all required meta in a single
 
 | Parameter | Type | Description |
 |---|---|---|
-| `$name` | `string` | Post title for the group (must be non-empty) |
-| `$membership_group_config_id` | `int` | Post ID of the linked `Membership_Bundle_Config` |
+| `$name` | `string` | Post title for the bundle (must be non-empty) |
+| `$membership_bundle_config_id` | `int` | Post ID of the linked `Membership_Bundle_Config` |
 | `$org_uuid` | `string` | MDP organisation UUID |
-| `$owner_user_id` | `int` | WP user ID of the group owner |
+| `$owner_uuid` | `string` | MDP person UUID of the bundle owner |
 | `$start_date` | `string` | ISO 8601 start date for the membership period (must be non-empty) |
 
-Initial membership status: if `start_date` is in the future → `delayed`; otherwise → `pending`. Group memberships always start `pending` so an admin must explicitly activate them — there is no automatic transition to `active` at creation time. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. When an admin later activates the group, dates are recalculated from the activation date (not the original `start_date`). A pending WooCommerce subscription is created and linked via `membership_subscription_id` post meta; if subscription creation fails the group is still returned (non-fatal, logged).
+Initial membership status: if `start_date` is in the future → `delayed`; otherwise → `pending`. Bundle memberships always start `pending` so an admin must explicitly activate them. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. A pending WooCommerce subscription is created and linked via `membership_subscription_id` post meta; if subscription creation fails the bundle is still returned (non-fatal, logged). A fresh `membership_bundle_group_uuid` is generated — use `renew_bundle()` instead when creating a renewal term that must share the same series UUID.
+
+---
+
+### `renew_bundle( \WC_Subscription $subscription, array $new_dates ): static|null`
+
+Instance method. Creates a new bundle post for a renewal term of the current bundle. **Use this instead of `create()` for all renewal flows.**
+
+Key differences from `create()`:
+- Reuses the existing WC subscription (updates its `next_payment` and `end` dates to the new term) — no new subscription created.
+- Carries the existing `membership_bundle_group_uuid` forward so all renewal posts share a series link.
+- Accepts pre-calculated `$new_dates` from `Membership_Bundle_Config::get_membership_dates()` rather than deriving internally.
+- Does **not** cancel the old bundle — that is handled by the caller (`handle_bundle_renewal`).
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|---|---|---|
+| `$subscription` | `\WC_Subscription` | The existing WC subscription to reuse |
+| `$new_dates` | `array` | Output of `Membership_Bundle_Config::get_membership_dates()` for the new term |
+
+Returns `null` and logs on failure (post is rolled back). On success the new bundle post is in `pending` or `delayed` status depending on whether the new term starts now or in the future.
 
 **Fields accessible on the returned object:**
 

@@ -67,20 +67,27 @@ const ManageLink = styled.div`
  * bordered container (e.g. MembershipDetailsForm's BorderedBox).
  *
  * @param {object}       props
- * @param {object|null}  props.pageData              - Data returned by fetchBundleEditPageInfo. Must include `ID`.
+ * @param {object|null}  props.pageData              - Data returned by fetchBundleEditPageInfo.
+ * @param {number|null}  [props.bundlePostId]        - Explicit bundle post ID to query. When provided,
+ *                                                     overrides pageData.ID so each expanded record row
+ *                                                     fetches members for its own specific bundle post.
  * @param {boolean}      [props.isLoading]           - True while page data is pending.
  * @param {string}       props.individualMembersUrl  - Base URL of the individual members list page.
  */
-const BundleMembersSection = ({ pageData, isLoading, individualMembersUrl, refreshKey }) => {
+const BundleMembersSection = ({ pageData, bundlePostId: bundlePostIdProp, isLoading, individualMembersUrl, refreshKey }) => {
   const [tierData, setTierData] = useState(null);
   const [isFetching, setIsFetching] = useState(false);
 
+  // Prefer the explicit prop so an expanded record row can show its own members,
+  // not the members of whatever pageData.ID happens to be (the primary bundle).
+  const resolvedPostId = bundlePostIdProp ?? pageData?.ID ?? null;
+
   useEffect(() => {
-    if (!pageData?.ID) {
+    if (!resolvedPostId) {
       return;
     }
     setIsFetching(true);
-    fetchBundleMembersByTier(pageData.ID)
+    fetchBundleMembersByTier(resolvedPostId)
       .then((data) => {
         setTierData(data);
       })
@@ -90,7 +97,7 @@ const BundleMembersSection = ({ pageData, isLoading, individualMembersUrl, refre
       .finally(() => {
         setIsFetching(false);
       });
-  }, [pageData?.ID, refreshKey]);
+  }, [resolvedPostId, refreshKey]);
 
   if (isLoading || isFetching) {
     return (
@@ -105,7 +112,7 @@ const BundleMembersSection = ({ pageData, isLoading, individualMembersUrl, refre
   const totalMembers = tierData?.total_members ?? 0;
 
   const manageUrl = individualMembersUrl
-    ? addQueryArgs(individualMembersUrl, { filter_bundle_id: pageData?.ID })
+    ? addQueryArgs(individualMembersUrl, { filter_bundle_id: resolvedPostId })
     : "";
 
   return (
@@ -135,7 +142,7 @@ const BundleMembersSection = ({ pageData, isLoading, individualMembersUrl, refre
             {tiers.map((tier) => {
               const viewUrl = individualMembersUrl
                 ? addQueryArgs(individualMembersUrl, {
-                    filter_bundle_id: pageData?.ID,
+                    filter_bundle_id: resolvedPostId,
                     filter_tier_uuid: tier.tier_uuid,
                   })
                 : "";

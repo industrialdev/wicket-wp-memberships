@@ -108,7 +108,16 @@ Gets the membership JSON data from order and product ID, using post meta.
 Updates the membership JSON data stored on user meta, order, and subscription with new values.
 
 **catch_order_completed($order_id)** (static)
-Processes a completed WooCommerce order, creating membership records as needed.
+Processes a completed WooCommerce order, creating membership records as needed. When `WICKET_MSHIP_ENABLE_BUNDLES` is active and the order belongs to a bundle subscription (identified by `membership_bundle_id` on the subscription), delegates immediately to `handle_bundle_renewal()` and returns — skipping the individual membership monthly-guard loop.
+
+**handle_bundle_renewal( int $old_bundle_post_id, WC_Subscription $subscription, WC_Abstract_Order $order ): void** (private static)
+Orchestrates the full bundle renewal sequence:
+1. Calculates new term dates from the old bundle's `ends_at` via `Membership_Bundle_Config::get_membership_dates()`.
+2. Idempotency guard: aborts if a bundle in the same `membership_bundle_group_uuid` series with the same start date already exists.
+3. Creates a new `wicket_mship_bundle` post via `Membership_Bundle::create()`, passing the old bundle's `group_uuid` to keep the renewal series link atomic.
+4. Cancels the old bundle (cascades locally to child memberships — no per-member MDP calls) and cancels the old WC subscription.
+5. Counts eligible members from the renewal order line items (items with `_membership_post_id` set), writes `membership_renewal_processing` meta to both old and new bundle posts, and dispatches a `wicket_bundle_renewal_process_members` AS action at offset 0.
+6. Adds an order note summarising the renewal and logs via `Utilities::wc_log_mship_error()`.
 
 **schedule_wicket_wipe_next_payment_date($subscription_id)**
 Schedules a background action to clear the next payment date for a subscription.

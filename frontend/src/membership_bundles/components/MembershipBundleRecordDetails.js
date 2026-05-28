@@ -213,6 +213,7 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
         renderExtra={() => (
           <BundleMembersSection
             pageData={bundlePageData}
+            bundlePostId={record.ID}
             individualMembersUrl={individualMembersUrl}
             refreshKey={memberRefreshKey}
           />

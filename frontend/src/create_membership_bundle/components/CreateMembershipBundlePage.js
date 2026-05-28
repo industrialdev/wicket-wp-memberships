@@ -183,8 +183,8 @@ const CreateMembershipBundlePageContent = ({ bundleConfigCptSlug, listUrl, editB
         start_date:                 pickerDateToIso(form.startDate, "membership_starts_at"),
       });
 
-      if (response?.success && response?.response?.ID) {
-        window.location.href = `${editBundleBaseUrl}&id=${response.response.ID}&new=1`;
+      if (response?.success && response?.response?.bundle_group_uuid) {
+        window.location.href = `${editBundleBaseUrl}&id=${response.response.bundle_group_uuid}&new=1`;
         return;
       }
 

@@ -185,11 +185,13 @@ class Membership_Bundle {
       ] );
     }
 
-    // Generate and store the bundle group UUID that links all posts in the same
-    // renewal series. Must run after set_organization() so org_uuid is available.
-    $group_uuid = $bundle->generate_bundle_group_uuid();
-    if ( $group_uuid ) {
-      $bundle->set_bundle_group_uuid( $group_uuid );
+    // Generate a fresh group UUID anchored to org_uuid. Every new bundle starts its own
+    // renewal series. renew_bundle() reuses the existing group UUID when creating a
+    // renewal term — create() always generates a new one.
+    // Must run after set_organization() so org_uuid is available for generation.
+    $generated_uuid = $bundle->generate_bundle_group_uuid();
+    if ( $generated_uuid ) {
+      $bundle->set_bundle_group_uuid( $generated_uuid );
     } else {
       Wicket()->log()->error( 'Membership_Bundle::create: could not generate bundle_group_uuid — org_uuid missing', [
         'source'  => 'wicket-memberships',
@@ -206,6 +208,122 @@ class Membership_Bundle {
     $bundle->sync_mdp_create();
 
     return $bundle;
+  }
+
+  /**
+   * Create a new bundle post for a renewal term of this bundle.
+   *
+   * This is the renewal-specific factory. It differs from create() in three ways:
+   * 1. Reuses the existing WC subscription (updates its dates to the new term) instead
+   *    of creating a new one — WCS continues to fire renewal orders against the same sub.
+   * 2. Carries the same membership_bundle_group_uuid so all renewal posts share a series link.
+   * 3. Accepts pre-calculated $new_dates from Membership_Bundle_Config::get_membership_dates()
+   *    rather than deriving them internally, since the caller (handle_bundle_renewal) has
+   *    already anchored dates to the old bundle's ends_at.
+   *
+   * The old bundle and its subscription are NOT cancelled here — that is deferred to either
+   * cancel_old_bundle_on_new_starts_at (early renewal, future start) or handle_bundle_renewal
+   * (same-day renewal, immediate cancel).
+   *
+   * @param \WC_Subscription $subscription The existing WC subscription to reuse.
+   * @param array            $new_dates    Output of Membership_Bundle_Config::get_membership_dates().
+   * @return static|null New bundle instance on success, null on failure.
+   */
+  public function renew_bundle( \WC_Subscription $subscription, array $new_dates ): ?static {
+    $config = $this->get_config();
+    if ( ! $config ) {
+      Wicket()->log()->error( 'Membership_Bundle::renew_bundle: old bundle has no config', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+      ] );
+      return null;
+    }
+
+    // New term start date — drives initial status (delayed vs pending).
+    $start_date = $new_dates['start_date'];
+
+    // Insert new bundle post shell.
+    $post_id = wp_insert_post( [
+      'post_type'   => Helper::get_membership_bundle_cpt_slug(),
+      'post_title'  => get_the_title( $this->post_id ),
+      'post_status' => 'publish',
+    ], true );
+
+    if ( is_wp_error( $post_id ) || empty( $post_id ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::renew_bundle: wp_insert_post failed', [
+        'source'      => 'wicket-memberships',
+        'old_post_id' => $this->post_id,
+      ] );
+      return null;
+    }
+
+    $new_bundle = new static( $post_id );
+
+    // Renewal bundles always start as delayed — this preserves the pre-calculated renewal
+    // dates when transition_to(active) fires later. pending→active recalculates dates from
+    // today (correct for new purchases), but renewals have dates anchored to the old term's
+    // ends_at and must not be overwritten. delayed→active is date-preserving.
+    $initial_status = Wicket_Memberships::STATUS_DELAYED;
+
+    // Write status, owner, org, config — same as create(). Roll back on any failure.
+    if ( ! $new_bundle->set_membership_status( $initial_status )
+      || ! $new_bundle->set_owner( $this->get_owner_uuid() )
+      || ! $new_bundle->set_organization( $this->get_org_uuid() )
+      || ! $new_bundle->set_config( $config->get_post_id() )
+    ) {
+      Wicket()->log()->error( 'Membership_Bundle::renew_bundle: failed to set bundle data, rolling back', [
+        'source'      => 'wicket-memberships',
+        'old_post_id' => $this->post_id,
+        'new_post_id' => $post_id,
+      ] );
+      wp_delete_post( $post_id, true );
+      return null;
+    }
+
+    // Write dates from the pre-calculated new term.
+    if ( ! $new_bundle->set_dates( [
+      'starts_at'      => $new_dates['start_date'],
+      'ends_at'        => $new_dates['end_date'],
+      'expires_at'     => $new_dates['expires_at'] ?? null,
+      'early_renew_at' => $new_dates['early_renew_at'] ?? null,
+    ] ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::renew_bundle: failed to set dates, rolling back', [
+        'source'      => 'wicket-memberships',
+        'old_post_id' => $this->post_id,
+        'new_post_id' => $post_id,
+      ] );
+      wp_delete_post( $post_id, true );
+      return null;
+    }
+
+    // Reuse the existing subscription — link the new bundle post to it and update
+    // the subscription's dates to the new term so WCS schedules the next renewal correctly.
+    $sub_id = $subscription->get_id();
+    update_post_meta( $post_id, 'membership_subscription_id', $sub_id );
+    update_post_meta( $sub_id,  'membership_bundle_id',       $post_id );
+
+    // Update subscription dates to match the new term. Mirrors create_bundle_subscription()
+    // date logic — next_payment at ends_at, end at expires_at (or ends_at + 1s).
+    $ends_at_ts  = strtotime( $new_dates['end_date'] );
+    $end_target  = ! empty( $new_dates['expires_at'] ) ? $new_dates['expires_at'] : $new_dates['end_date'];
+    $end_ts      = strtotime( $end_target );
+    $subscription->update_dates( [
+      'next_payment' => date( 'Y-m-d H:i:s', $ends_at_ts ),
+      'end'          => date( 'Y-m-d H:i:s', $end_ts > $ends_at_ts ? $end_ts : $ends_at_ts + 1 ),
+    ] );
+
+    // Carry the group UUID forward — this post joins the existing renewal series.
+    $new_bundle->set_bundle_group_uuid( $this->get_bundle_group_uuid() );
+
+    // Reload meta so the returned instance is fully hydrated.
+    $new_bundle->meta_data = get_post_meta( $post_id );
+
+    // Schedule one-time AS date trigger jobs for the new term.
+    $new_bundle->schedule_date_trigger_jobs();
+
+    $new_bundle->sync_mdp_create();
+
+    return $new_bundle;
   }
 
   // Membership bundle relations.
@@ -253,11 +371,13 @@ class Membership_Bundle {
    * date is calculated from today relative to the bundle date window (see
    * resolve_member_start_date()).
    *
-   * @param int|null $user_id                     WP user ID. Required when $existing_membership_post_id is null.
-   * @param int      $tier_post_id                Post ID of the individual Membership_Tier CPT.
-   * @param int|null $product_id                  WC parent product ID. Auto-resolved from tier when null (fails if tier has >1 product).
-   * @param int|null $variation_id                WC variation ID. When provided, stored as membership_product_id instead of parent product_id, matching the subscription-driven membership flow.
-   * @param int|null $existing_membership_post_id Existing wicket_membership post ID to cancel before creating the new record.
+   * @param int|null    $user_id                     WP user ID. Required when $existing_membership_post_id is null.
+   * @param int         $tier_post_id                Post ID of the individual Membership_Tier CPT.
+   * @param int|null    $product_id                  WC parent product ID. Auto-resolved from tier when null (fails if tier has >1 product).
+   * @param int|null    $variation_id                WC variation ID. When provided, stored as membership_product_id instead of parent product_id, matching the subscription-driven membership flow.
+   * @param int|null    $existing_membership_post_id Existing wicket_membership post ID to cancel before creating the new record.
+   * @param bool        $is_renewal                  When true, skips MDP create call and subscription line item creation (renewal batch handler manages both).
+   * @param string|null $start_date_override         ISO 8601 start date. When provided, bypasses resolve_member_start_date(). Used by renewal batch handler to anchor new memberships to the bundle's starts_at rather than the current timestamp.
    * @return int|\WP_Error New membership post ID on success, WP_Error on failure.
    *
    * TODO: Link membership_subscription_id and membership_parent_order_id to the
@@ -269,7 +389,9 @@ class Membership_Bundle {
     int $tier_post_id,
     ?int $product_id = null,
     ?int $variation_id = null,
-    ?int $existing_membership_post_id = null
+    ?int $existing_membership_post_id = null,
+    bool $is_renewal = false,
+    ?string $start_date_override = null
   ): int|\WP_Error {
     if ( $err = $this->assert_bundle_is_manageable() ) {
       return $err;
@@ -307,12 +429,18 @@ class Membership_Bundle {
       return new \WP_Error( 'missing_user_id', __( 'user_id is required when not providing an existing membership.', 'wicket-memberships' ) );
     }
 
-    $start_date = $this->resolve_member_start_date();
-    if ( is_wp_error( $start_date ) ) {
-      return $start_date;
+    // Use explicit override when provided (renewal path — anchors to bundle starts_at).
+    // Otherwise resolve dynamically relative to today vs bundle date window.
+    if ( $start_date_override !== null ) {
+      $start_date = $start_date_override;
+    } else {
+      $start_date = $this->resolve_member_start_date();
+      if ( is_wp_error( $start_date ) ) {
+        return $start_date;
+      }
     }
 
-    return $this->provision_individual_membership_record( $user_id, $tier_post_id, $product_id, $variation_id, $start_date, $this->post_id );
+    return $this->provision_individual_membership_record( $user_id, $tier_post_id, $product_id, $variation_id, $start_date, $this->post_id, $is_renewal );
   }
 
   /**
@@ -629,7 +757,7 @@ class Membership_Bundle {
    * @param int      $link_to_bundle_id Bundle post ID to store in membership_bundle_id meta. Required.
    * @return int|\WP_Error New membership post ID on success, WP_Error on failure.
    */
-  private function provision_individual_membership_record( int $user_id, int $tier_post_id, ?int $product_id, ?int $variation_id, string $start_date, int $link_to_bundle_id ): int|\WP_Error {
+  private function provision_individual_membership_record( int $user_id, int $tier_post_id, ?int $product_id, ?int $variation_id, string $start_date, int $link_to_bundle_id, bool $is_renewal = false ): int|\WP_Error {
     $user = get_user_by( 'id', $user_id );
     if ( ! $user ) {
       Wicket()->log()->error( 'Membership_Bundle::provision_individual_membership_record: invalid user_id', [
@@ -703,14 +831,17 @@ class Membership_Bundle {
       // Store variation_id as membership_product_id when present — matches the
       // subscription-driven flow where variation_id takes precedence over parent product_id.
       'membership_product_id'                     => $variation_id ?? $product_id,
-      'membership_parent_order_id'                => 0,
+      // Use bundle post ID as unique anchor — prevents check_local_membership_record_exists()
+      // collision when multiple members share the same tier, starts_at, and ends_at in a
+      // single batch (which would otherwise all match on parent_order_id=0).
+      'membership_parent_order_id'                => $link_to_bundle_id,
       'membership_subscription_id'                => 0,
       'membership_grace_period_days'              => 0,
       'membership_wp_user_display_name'           => $user->display_name,
       'membership_wp_user_last_name'              => get_user_meta( $user_id, 'last_name', true ) ?: '',
       'membership_wp_user_email'                  => $user->user_email,
       'membership_user_uuid'                      => $user->user_login,
-    ] );
+    ], $is_renewal );
 
     $result = apply_filters(
       'wicket_memberships_individual_membership_created_for_bundle',
@@ -735,17 +866,23 @@ class Membership_Bundle {
     update_post_meta( $membership_post_id, 'membership_bundle_id', $link_to_bundle_id );
 
     $stored_product_id = $variation_id ?? $product_id;
-    $line_item_result  = $this->add_subscription_line_item( $membership_post_id, $stored_product_id, $user_id );
 
-    if ( is_wp_error( $line_item_result ) ) {
-      // Non-fatal: membership record was created successfully. A missing line item is a
-      // billing gap the admin can reconcile in WC admin, not a data-loss event.
-      Wicket()->log()->error( 'Membership_Bundle::provision_individual_membership_record: could not add subscription line item', [
-        'source'             => 'wicket-memberships',
-        'post_id'            => $this->post_id,
-        'membership_post_id' => $membership_post_id,
-        'error'              => $line_item_result->get_error_message(),
-      ] );
+    // On renewal the batch handler (process_bundle_renewal_members) updates the existing
+    // subscription line item in-place by swapping _membership_post_id to the new post ID.
+    // Adding a new line item here would duplicate it — skip for renewals.
+    if ( ! $is_renewal ) {
+      $line_item_result = $this->add_subscription_line_item( $membership_post_id, $stored_product_id, $user_id );
+
+      if ( is_wp_error( $line_item_result ) ) {
+        // Non-fatal: membership record was created successfully. A missing line item is a
+        // billing gap the admin can reconcile in WC admin, not a data-loss event.
+        Wicket()->log()->error( 'Membership_Bundle::provision_individual_membership_record: could not add subscription line item', [
+          'source'             => 'wicket-memberships',
+          'post_id'            => $this->post_id,
+          'membership_post_id' => $membership_post_id,
+          'error'              => $line_item_result->get_error_message(),
+        ] );
+      }
     }
 
     return $membership_post_id;
@@ -1712,11 +1849,58 @@ class Membership_Bundle {
 
     // Collapse expires_at on each individual membership so daily_membership_expiry_hook
     // fires at ends_at. Status stays active — members keep access until that date.
+    // Skip already-final members — collapsing expires_at on cancelled/expired records
+    // is meaningless and could cause confusion in date-based queries.
     foreach ( $this->get_individual_memberships( false ) as $membership_post ) {
+      $status = get_post_meta( $membership_post->ID, 'membership_status', true );
+      if ( in_array( $status, [ Wicket_Memberships::STATUS_CANCELLED, Wicket_Memberships::STATUS_EXPIRED ], true ) ) {
+        continue;
+      }
       update_post_meta( $membership_post->ID, 'membership_expires_at', $current_ends_at );
     }
 
     return [ 'success_message' => 'Membership bundle cancelled. Members retain access until end date.' ];
+  }
+
+  /**
+   * Cancel this bundle post as part of a renewal — marks it cancelled WITHOUT cascading
+   * the cancellation to child individual memberships.
+   *
+   * Used exclusively by cancel_old_bundle_after_renewal() and cancel_old_bundle_on_new_starts_at().
+   * Child memberships are historical records of the old term; they must NOT be cancelled
+   * because the UI shows per-bundle member counts and cancelled members are excluded from
+   * those counts. The new term's members already exist on the new bundle post.
+   *
+   * @param bool $preserve_end_date When true (early renewal path), keeps the current ends_at
+   *                                 so the bundle record reflects the full term that was paid for.
+   *                                 When false (same-day renewal), collapses ends_at to now.
+   * @return bool True on success, false if status write failed.
+   */
+  public function cancel_for_renewal( bool $preserve_end_date = false ): bool {
+    $now = Utilities::get_mdp_now()->format( 'c' );
+
+    if ( $preserve_end_date ) {
+      $ends_at = get_post_meta( $this->post_id, 'membership_ends_at', true ) ?: $now;
+    } else {
+      $ends_at = $now;
+    }
+
+    $dates = [
+      'starts_at'      => null,
+      'ends_at'        => $ends_at,
+      'expires_at'     => $ends_at,
+      'early_renew_at' => null,
+    ];
+
+    if ( ! $this->apply_status_transition( Wicket_Memberships::STATUS_CANCELLED, $dates ) ) {
+      return false;
+    }
+
+    // No cascade — child memberships stay in their current status so get_individual_memberships()
+    // continues to return the historical member list for this term.
+    $this->sync_mdp_update();
+
+    return true;
   }
 
   /**
@@ -2240,14 +2424,24 @@ class Membership_Bundle {
       'end'          => $end->format( 'Y-m-d H:i:s' ),
     ];
 
-    $sub->update_dates( $date_updates );
+    try {
+      $sub->update_dates( $date_updates );
 
-    $sub->add_order_note( sprintf(
-      'Membership bundle (ID: %d) date edit synced subscription dates. Next Payment: %s End: %s',
-      $this->post_id,
-      date( 'Y-m-d', strtotime( $dates['ends_at'] ) ),
-      date( 'Y-m-d', strtotime( $end_source ) )
-    ) );
+      $sub->add_order_note( sprintf(
+        'Membership bundle (ID: %d) date edit synced subscription dates. Next Payment: %s End: %s',
+        $this->post_id,
+        date( 'Y-m-d', strtotime( $dates['ends_at'] ) ),
+        date( 'Y-m-d', strtotime( $end_source ) )
+      ) );
+    } catch ( \Exception $e ) {
+      $sub->add_order_note( sprintf(
+        'Membership bundle (ID: %d) attempted to sync subscription dates but failed. Next Payment: %s End: %s Error: %s',
+        $this->post_id,
+        date( 'Y-m-d', strtotime( $dates['ends_at'] ) ),
+        date( 'Y-m-d', strtotime( $end_source ) ),
+        $e->getMessage()
+      ) );
+    }
 
     $sub->save();
   }

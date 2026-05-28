@@ -226,6 +226,10 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //expire current membership when new one starts
       add_action( 'expire_old_membership_on_new_starts_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_expire_current_membership' ), 10, 2 );
 
+      // Cancel old bundle after all renewal members are provisioned.
+      // Deferred from handle_bundle_renewal() to avoid cancelling children before batch reads their meta.
+      add_action( 'wicket_memberships_bundle_renewal_complete', array( __NAMESPACE__.'\\Membership_Bundle_Cron_Controller', 'cancel_old_bundle_after_renewal' ), 10, 3 );
+
       //check items in cart for valid renewal dates or return error
       //TODO: currently disabled need validate and remove, replaced with 'memberships_verify_cart' on checkout hooks
       //add_action( 'woocommerce_checkout_create_order_line_item', [  __NAMESPACE__.'\\Membership_Controller', 'validate_renewal_order_items'], 10, 4 );

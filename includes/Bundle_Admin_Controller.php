@@ -290,6 +290,7 @@ class Bundle_Admin_Controller {
 
     return [
       'ID'                 => $bundle_post_id,
+      'bundle_group_uuid'  => $bundle->get_bundle_group_uuid(),
       'title'              => $bundle->get_name(),
       'data'               => array_merge( $meta, [
         'membership_status'         => $statuses[ $status_slug ]['name'] ?? $status_slug,
@@ -641,7 +642,7 @@ class Bundle_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'Membership bundle not found.' ], 404 );
     }
 
-    // Newest post is the primary — all top-level fields come from it.
+    // Newest post is the primary — all top-level fields (org, owner, config, subscription) come from it.
     $primary_post    = $series_posts[0];
     $bundle_post_id  = $primary_post->ID;
     $bundle          = new Membership_Bundle( $bundle_post_id );

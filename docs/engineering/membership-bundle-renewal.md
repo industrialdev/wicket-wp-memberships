@@ -764,10 +764,13 @@ After completing each phase, verify:
 
 | File | Change |
 |---|---|
-| `includes/Membership_Bundle.php` | **Phase 1:** rewrite `cancel_individual_membership()` with date collapse; route `cascade_status_to_members('cancelled')` through it. **Phase 3:** extend cascade for `expired` date collapse + consistent local writes for all statuses. **Phase 4:** add status skip guard to `transition_to_cancelled_at_end_date()` loop. |
-| `includes/Membership_Controller.php` | **Renewal:** bundle pre-check in `catch_order_completed()`; new `handle_bundle_renewal()` |
+| `includes/Membership_Bundle.php` | **Phase 1:** rewrite `cancel_individual_membership()` with date collapse; route `cascade_status_to_members('cancelled')` through it. **Phase 3:** extend cascade for `expired` date collapse + consistent local writes for all statuses. **Phase 4:** add status skip guard to `transition_to_cancelled_at_end_date()` loop. **Phase 2:** `add_member()` and `provision_individual_membership_record()` accept `$is_renewal`. **Phase 5+:** add `renew_bundle()` instance method; simplify `create()` back to 5 params (group_uuid removed). |
+| `includes/Membership_Controller.php` | **Phase 5:** bundle pre-check in `catch_order_completed()`; new `handle_bundle_renewal()` private static method; uses `renew_bundle()` in Step 2; early-renewal AS scheduling in Step 4. |
+| `includes/Membership_Bundle_Cron_Controller.php` | **Phase 5:** register `wicket_bundle_renewal_process_members` + `wicket_bundle_cancel_old_on_new_starts_at` AS actions; implement `process_bundle_renewal_members()` batch handler and `cancel_old_bundle_on_new_starts_at()`. |
 | `wicket.php` | Confirm existing `woocommerce_order_status_processing` hook registration covers bundle path (no new add_action needed if pre-check is inline) |
 | `qa/tests/WordPress/Memberships/bundle-admin-controller.pest.php` | **Phase 1:** update cascade cancel tests to assert date collapse; add pending and grace-period branch tests |
+| `qa/tests/WordPress/Memberships/membership-bundle-lifecycle.pest.php` | **Phase 4:** add tests asserting individual cron hooks exclude bundle members |
+| `qa/tests/WordPress/Memberships/membership-bundle-renewal.pest.php` | **Phase 5:** renewal orchestration, idempotency guard, batch handler, catch_order_completed bypass tests |
 | `docs/engineering/membership-bundle-renewal.md` | This file |
 | `docs/engineering/Class-Membership_Controller.md` | Document new method |
 | `CURRENT_SCOPE.md` | Add bundle renewal to scope |

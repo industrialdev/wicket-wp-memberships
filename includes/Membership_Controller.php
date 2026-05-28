@@ -495,7 +495,25 @@ function get_item_data ( $other_data, $cart_item ) {
     $user = get_user_by( 'id', $user_id );
     $person_uuid = $user->data->user_login;
 
-    $subscriptions = self::get_order_subscriptions( $order_id, ['order_type' => 'parent'] );
+    $subscriptions = self::get_order_subscriptions( $order_id, ['order_type' => 'any'] );
+
+    // Bundle renewal pre-check — must run before the monthly subscription guard loop
+    // below (lines ~512–519). Bundle configs support month period type, so a monthly
+    // bundle renewal would be killed by that guard before we could detect it here.
+    if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
+      foreach ( $subscriptions as $subscription ) {
+        $bundle_post_id = (int) get_post_meta( $subscription->get_id(), 'membership_bundle_id', true );
+        if ( $bundle_post_id > 0
+          && get_post_type( $bundle_post_id ) === Helper::get_membership_bundle_cpt_slug()
+          && function_exists( 'wcs_order_contains_subscription' )
+          && wcs_order_contains_subscription( $order, 'renewal' )
+        ) {
+          self::handle_bundle_renewal( $bundle_post_id, $subscription, $order );
+          return;
+        }
+      }
+    }
+
     if( 0 && empty( $subscriptions ) ) {
       //create subscriptions for non-subscription products tied to tiers
       $MSC = new Membership_Subscription_Controller();
@@ -538,6 +556,195 @@ function get_item_data ( $other_data, $cart_item ) {
       $membership['person_uuid'] = $self->get_person_uuid( $user_id );
       do_action( 'wicket_member_create_record' , $membership, $self->processing_renewal, $self->status_cycled );
     }
+  }
+
+  /**
+   * Handle a bundle subscription renewal order.
+   *
+   * Called from catch_order_completed() when the completing order belongs to a bundle
+   * subscription. Owns the full renewal sequence: date calculation, new bundle creation,
+   * old bundle cancellation, and batch job dispatch for individual member provisioning.
+   *
+   * @param int                  $old_bundle_post_id Bundle post ID linked to the renewing subscription.
+   * @param \WC_Subscription     $subscription       The renewing WC subscription.
+   * @param \WC_Abstract_Order   $order              The renewal order that triggered processing status.
+   */
+  private static function handle_bundle_renewal(
+    int $old_bundle_post_id,
+    \WC_Subscription $subscription,
+    \WC_Abstract_Order $order
+  ): void {
+    $old_bundle = new Membership_Bundle( $old_bundle_post_id );
+    $config     = $old_bundle->get_config();
+
+    if ( ! $config ) {
+      Utilities::wc_log_mship_error( [ 'handle_bundle_renewal: old bundle has no config, aborting', [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'order_id'           => $order->get_id(),
+      ] ] );
+      return;
+    }
+
+    // Step 1: Calculate new term dates anchored to old ends_at.
+    $old_dates = $old_bundle->get_dates();
+    $new_dates = $config->get_membership_dates( [
+      'membership_ends_at'   => $old_dates['ends_at'],
+      'membership_starts_at' => $old_dates['starts_at'],
+    ] );
+
+    // Idempotency guard: abort if a bundle in the same series with the same start date
+    // already exists — order status was cycled, not a genuine renewal.
+    $existing = get_posts( [
+      'post_type'      => Helper::get_membership_bundle_cpt_slug(),
+      'post_status'    => 'any',
+      'numberposts'    => 1,
+      'fields'         => 'ids',
+      'meta_query'     => [
+        [ 'key' => 'membership_bundle_group_uuid', 'value' => $old_bundle->get_bundle_group_uuid() ],
+        [ 'key' => 'membership_starts_at',         'value' => $new_dates['start_date'] ],
+      ],
+    ] );
+
+    if ( ! empty( $existing ) ) {
+      Utilities::wc_log_mship_error( [ 'handle_bundle_renewal: new-term bundle already exists, skipping', [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'existing_post_id'   => $existing[0],
+        'order_id'           => $order->get_id(),
+      ] ] );
+      return;
+    }
+
+    // Step 2: Create new bundle post via renew_bundle() — reuses the existing WC subscription
+    // rather than creating a new one. renew_bundle() updates the subscription dates to the new
+    // term and carries the group_uuid forward so the renewal series stays linked.
+    $new_bundle = $old_bundle->renew_bundle( $subscription, $new_dates );
+
+    if ( ! $new_bundle ) {
+      Utilities::wc_log_mship_error( [ 'handle_bundle_renewal: renew_bundle() failed, aborting', [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'order_id'           => $order->get_id(),
+      ] ] );
+      return;
+    }
+
+    // Step 3: Subscription is reused — no new subscription created. renew_bundle() updated
+    // its dates to the new term.
+
+    // Step 4: Old bundle cancellation is deferred to after the batch job completes.
+    // Cancelling here would mark all child memberships as cancelled before the batch
+    // handler reads their meta — causing check_local_membership_record_exists() to miss
+    // them and overwrite records instead of creating new ones.
+    //
+    // cancel_old_bundle_after_renewal() is called from the wicket_memberships_bundle_renewal_complete
+    // action which fires at the end of the final batch. For early renewals (new term in the
+    // future) the AS job wicket_bundle_cancel_old_on_new_starts_at fires at the new start
+    // date instead — giving members their full remaining term on the old bundle.
+
+    // Step 5: Count eligible members from renewal order line items and dispatch batch job.
+    // Eligible members = line items with _membership_post_id set (written by add_subscription_line_item()).
+    // This is the authoritative list — not the full old bundle member list.
+    $total_members = 0;
+    foreach ( $order->get_items() as $item ) {
+      if ( (int) wc_get_order_item_meta( $item->get_id(), '_membership_post_id', true ) > 0 ) {
+        $total_members++;
+      }
+    }
+
+    // Step 6: Determine early vs same-day renewal BEFORE writing processing meta or dispatching
+    // any batches. The is_early_renewal flag must be persisted before the first batch runs —
+    // if it were written after dispatch, a fast AS worker could complete the batch and fire
+    // cancel_old_bundle_after_renewal() before the flag is stamped, cancelling the active
+    // old bundle prematurely on an early renewal.
+    $new_starts_at_ts = strtotime( $new_dates['start_date'] ?? '' );
+    $is_early_renewal = $new_starts_at_ts && $new_starts_at_ts > time();
+
+    $processing_meta = [
+      'started_at'         => current_time( 'c' ),
+      'renewal_order_id'   => $order->get_id(),
+      'old_bundle_post_id' => $old_bundle_post_id,
+      'new_bundle_post_id' => $new_bundle->post_id,
+      'total_members'      => $total_members,
+      'batch_size'         => 25,
+      'offset'             => 0,
+      'is_early_renewal'   => $is_early_renewal,
+    ];
+    update_post_meta( $old_bundle_post_id,   'membership_renewal_processing', wp_json_encode( $processing_meta ) );
+    update_post_meta( $new_bundle->post_id,  'membership_renewal_processing', wp_json_encode( $processing_meta ) );
+
+    // Early renewal: schedule deferred old-bundle cancellation at new term start date.
+    // Same-day/grace renewal: cancel_old_bundle_after_renewal() (hooked to batch complete) handles it.
+    if ( $is_early_renewal ) {
+      as_schedule_single_action(
+        $new_starts_at_ts,
+        'wicket_bundle_cancel_old_on_new_starts_at',
+        [
+          'old_bundle_post_id' => $old_bundle_post_id,
+          'new_bundle_post_id' => $new_bundle->post_id,
+        ],
+        'wicket-memberships',
+        false
+      );
+    }
+
+    // ==========================================================================
+    // DEBUG PAUSE MODE — FOR DEBUGGING ONLY, NOT FOR PRODUCTION
+    //
+    // When WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE is set (true/1/"1") in $_ENV,
+    // the first batch is scheduled 24 hours in the future instead of immediately.
+    // This lets you inspect state BEFORE any members are provisioned.
+    //
+    // To trigger the batch manually:
+    //   WP Admin → Tools → Scheduled Actions → find "wicket_bundle_renewal_process_members"
+    //   → click "Run" to execute it. Each batch will then schedule the NEXT batch
+    //   24 hours out again, so you can step through one batch at a time.
+    //
+    // To disable: unset WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE or set it to false/0.
+    // ==========================================================================
+    $debug_pause    = ! empty( $_ENV['WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE'] );
+    $first_run_time = $debug_pause ? ( time() + DAY_IN_SECONDS ) : time();
+
+    as_schedule_single_action(
+      $first_run_time,
+      'wicket_bundle_renewal_process_members',
+      [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'new_bundle_post_id' => $new_bundle->post_id,
+        'renewal_order_id'   => $order->get_id(),
+        'offset'             => 0,
+        'batch_size'         => 25,
+      ],
+      'wicket-memberships',
+      false
+    );
+
+    // Step 7: Add note to both order and subscription — mirrors individual membership pattern
+    // in scheduler_dates_for_expiry() which writes the same note to both locations.
+    $renewal_note = sprintf(
+      'Membership bundle renewal process has begun. Creating %d new individual memberships. Old bundle: #%d → New bundle: #%d.',
+      $total_members,
+      $old_bundle_post_id,
+      $new_bundle->post_id
+    );
+
+    $wc_order = wc_get_order( $order->get_id() );
+    if ( $wc_order ) {
+      $wc_order->add_order_note( $renewal_note );
+    }
+
+    $sub = wcs_get_subscription( $subscription->get_id() );
+    if ( $sub ) {
+      $sub->add_order_note( $renewal_note );
+    }
+
+    Utilities::wc_log_mship_error( [
+      'handle_bundle_renewal: renewal started',
+      [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'new_bundle_post_id' => $new_bundle->post_id,
+        'order_id'           => $order->get_id(),
+        'total_members'      => $total_members,
+      ],
+    ] );
   }
 
   public function schedule_force_set_next_payment_date( $subscription_id, $next_payment_date ) {
