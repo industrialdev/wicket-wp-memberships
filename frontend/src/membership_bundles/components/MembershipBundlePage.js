@@ -1,11 +1,19 @@
 import { useState } from "react";
 import { __ } from "@wordpress/i18n";
+import styled from "styled-components";
 import AdminNoticeStack from "../../shared/components/AdminNoticeStack";
 import AdminPageErrorBoundary from "../../shared/components/AdminPageErrorBoundary";
 import { AppWrap, EditWrap } from "../../shared/styled_elements";
 import { getPrimaryErrorMessage } from "../utils/formUtils";
 import { useMembershipBundleBootstrap } from "../hooks/useMembershipBundleBootstrap";
 import MembershipBundleForm from "./MembershipBundleForm";
+import RenewalProcessingOverlay from "./RenewalProcessingOverlay";
+
+// Positioned container so RenewalProcessingOverlay (position: absolute) is scoped
+// to the bundle content area rather than the entire viewport.
+const ContentArea = styled.div`
+  position: relative;
+`;
 
 const isNewlyCreated = () => {
   try {
@@ -16,7 +24,7 @@ const isNewlyCreated = () => {
 };
 
 const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembersUrl }) => {
-  const { pageData, setPageData, requestState, retryLoad } = useMembershipBundleBootstrap({ bundleGroupUuid });
+  const { pageData, setPageData, requestState, retryLoad, renewalProcessingMeta } = useMembershipBundleBootstrap({ bundleGroupUuid });
   const [memberAddedNotice, setMemberAddedNotice]       = useState(null);
   const [groupCancelledNotice, setGroupCancelledNotice] = useState(null);
   const [newGroupNotice, setNewGroupNotice] = useState(
@@ -79,14 +87,17 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
   return (
     <>
       <AdminNoticeStack notices={notices} />
-      <MembershipBundleForm
-        pageData={pageData}
-        isLoading={isLoading}
-        onOwnerUpdated={handleOwnerUpdated}
-        individualMembersUrl={individualMembersUrl}
-        onMemberAdded={handleMemberAdded}
-        onBundleCancelled={handleGroupCancelled}
-      />
+      <ContentArea>
+        <RenewalProcessingOverlay processingMeta={renewalProcessingMeta} />
+        <MembershipBundleForm
+          pageData={pageData}
+          isLoading={isLoading}
+          onOwnerUpdated={handleOwnerUpdated}
+          individualMembersUrl={individualMembersUrl}
+          onMemberAdded={handleMemberAdded}
+          onBundleCancelled={handleGroupCancelled}
+        />
+      </ContentArea>
     </>
   );
 };

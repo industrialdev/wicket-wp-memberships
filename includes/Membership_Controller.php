@@ -699,6 +699,9 @@ function get_item_data ( $other_data, $cart_item ) {
     //   24 hours out again, so you can step through one batch at a time.
     //
     // To disable: unset WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE or set it to false/0.
+    //
+    // TODO: Remove this debug block and the $debug_pause/$first_run_time variables
+    // before going to production. See TODO.md — "Remove WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE".
     // ==========================================================================
     $debug_pause    = ! empty( $_ENV['WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE'] );
     $first_run_time = $debug_pause ? ( time() + DAY_IN_SECONDS ) : time();

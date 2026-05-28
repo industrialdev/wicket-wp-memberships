@@ -294,6 +294,14 @@ class Membership_Bundle_Cron_Controller {
 
     $batch = array_slice( $eligible_items, $offset, $batch_size );
 
+    // Stamp current offset into the processing meta so the frontend polling sees
+    // progress after each batch, not just at the end.
+    foreach ( [ $old_bundle_post_id, $new_bundle_post_id ] as $post_id ) {
+      $pm = json_decode( get_post_meta( $post_id, 'membership_renewal_processing', true ), true ) ?: [];
+      $pm['offset'] = $offset;
+      update_post_meta( $post_id, 'membership_renewal_processing', wp_json_encode( $pm ) );
+    }
+
     $processed = 0;
     $errors     = [];
 
@@ -379,6 +387,9 @@ class Membership_Bundle_Cron_Controller {
       //   with offset={next_offset} → click "Run".
       //
       // To disable: unset WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE or set it to false/0.
+      //
+      // TODO: Remove this debug block and the $debug_pause/$next_run_time variables
+      // before going to production. See TODO.md — "Remove WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE".
       // ==========================================================================
       $debug_pause    = ! empty( $_ENV['WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE'] );
       $next_run_time  = $debug_pause ? ( time() + DAY_IN_SECONDS ) : time();
@@ -409,9 +420,11 @@ class Membership_Bundle_Cron_Controller {
 
       // Write completion note to both order and subscription — mirrors individual membership
       // pattern in scheduler_dates_for_expiry() which writes the same note to both.
+      // Use total_members from processing meta for the count — $processed is only this batch.
+      $total_provisioned = (int) ( $meta['total_members'] ?? 0 ) - \count( $errors );
       $completion_note = sprintf(
         'Membership bundle renewal complete. %d member(s) provisioned on new bundle #%d. Errors: %d.',
-        $processed,
+        $total_provisioned,
         $new_bundle_post_id,
         count( $errors )
       );

@@ -87,6 +87,15 @@ Once base plugin functions exist, implement in `includes/Membership_Group.php`:
 | `sync_mdp_update()` | `wicket_update_group_membership()` | `membership_group_wicket_uuid` post meta, `get_dates()`, `get_membership_status()`, `get_owner_uuid()` |
 | `sync_mdp_delete()` | `wicket_delete_group_membership()` | `membership_group_wicket_uuid` post meta |
 
+## Bundle Renewal — Debug Code to Remove Before Production
+
+| File | Method | Note | Asana |
+|---|---|---|---|
+| `includes/Membership_Controller.php` | `handle_bundle_renewal()` | Remove `WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE` debug block (`$debug_pause`, `$first_run_time`) and revert first batch to schedule at `time()` unconditionally. | — |
+| `includes/Membership_Bundle_Cron_Controller.php` | `process_bundle_renewal_members()` | Remove `WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE` debug block (`$debug_pause`, `$next_run_time`) and revert next batch to schedule at `time()` unconditionally. | — |
+
+---
+
 ## Bundle Member MDP Create Call
 
 | File | Method | Note | Asana |
