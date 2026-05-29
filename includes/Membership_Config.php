@@ -234,11 +234,11 @@ class Membership_Config {
 
     foreach ( $seasons as $key => $season ) {
 
-      $start_date = date("Y-m-d", strtotime($season['start_date']));
-      $end_date = date("Y-m-d", strtotime($season['end_date']));
+      $start_dt = new \DateTime( $season['start_date'], new \DateTimeZone('UTC') );
+      $end_dt   = new \DateTime( $season['end_date'],   new \DateTimeZone('UTC') );
 
-      $seasons[ $key ]['start_date'] = Utilities::get_mdp_day_start($start_date)->format('c');
-      $seasons[ $key ]['end_date'] = Utilities::get_mdp_day_end($end_date)->format('c');
+      $seasons[ $key ]['start_date'] = Utilities::get_mdp_day_start( $start_dt->format('c') )->format('c');
+      $seasons[ $key ]['end_date']   = Utilities::get_mdp_day_end( $end_dt->format('c') )->format('c');
       // $seasons[ $key ]['active'] = $season['active'] === '1' ? true : false; // we don't this because it's already registered as boolean field
     }
 
@@ -288,14 +288,13 @@ class Membership_Config {
 
     if (!$is_new_membership) {
       // For renewal: day after current membership ends in MDP timezone
-      $datetime_string = strtotime($membership['membership_ends_at'] . '+1 day');
-      $date = date("Y-m-d", $datetime_string);
-      $utc_date = Utilities::get_mdp_day_start($date);
+      $utc_date = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
+      $utc_date->modify( '+1 day' );
     } else {
       // For new membership: today at midnight in MDP timezone
       $utc_date = Utilities::get_mdp_day_start('now');
     }
-    
+
     // Return ISO 8601 format
     return $utc_date->format('c');
   }
@@ -307,14 +306,13 @@ class Membership_Config {
 
     if (!$is_new_membership) {
       // For renewal: day after current membership ends in MDP timezone
-      $datetime_string = strtotime($membership['membership_ends_at'] . '+1 day');
-      $date = date("Y-m-d", $datetime_string);
-      $utc_date = Utilities::get_mdp_day_start($date);
+      $utc_date = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
+      $utc_date->modify( '+1 day' );
     } else {
       // For new membership: today at midnight in MDP timezone
       $utc_date = Utilities::get_mdp_day_start('now');
     }
-    
+
     // Return ISO 8601 format
     return $utc_date->format('c');
   }
@@ -322,16 +320,15 @@ class Membership_Config {
   private function get_seasonal_end_date( $membership = [] ) {
     // Get MDP timezone, fallback to UTC
     $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
-    
+
     $is_new_membership = empty($membership);
     $seasons = $this->get_calendar_seasons();
 
     // Create membership start and default end in MDP timezone
     if ( ! $is_new_membership ) {
       // For renewal: day after current membership ends in MDP timezone
-      $datetime_string = strtotime($membership['membership_ends_at'] . '+1 day');
-      $date = date("Y-m-d", $datetime_string);
-      $membership_start_dt = Utilities::get_mdp_day_start($date);
+      $membership_start_dt = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
+      $membership_start_dt->modify( '+1 day' );
       $membership_start_dt->setTimezone($mdp_timezone);
       
       $membership_default_end_dt = clone $membership_start_dt;
@@ -368,8 +365,7 @@ class Membership_Config {
     }
 
     // Extract date string and use get_mdp_day_end helper for consistency
-    $end_date_string = $selected_end_dt->format('Y-m-d');
-    return Utilities::get_mdp_day_end($end_date_string)->format('c');
+    return $selected_end_dt->setTimezone( new \DateTimeZone('UTC') )->format('c');
   }
 
   public function is_valid_renewal_date( $membership, $date = null ) {

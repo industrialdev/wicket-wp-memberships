@@ -305,10 +305,10 @@ class Membership_Post_Types {
                   }
 
                   $next_season_start = strtotime( $seasons[ $i + 1 ]['start_date'] );
-                  $next_correct_season_start = strtotime( $season['end_date'] . ' +1 day' );
+                  $season_end = strtotime( $season['end_date'] );
 
-                  if ( $next_season_start !== $next_correct_season_start ) {
-                    $errors->add( 'rest_invalid_param_calendar_dates', __( 'The season dates must be consecutive.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  if ( $next_season_start < $season_end || $next_season_start > $season_end + DAY_IN_SECONDS ) {
+                    $errors->add( 'rest_invalid_param_calendar_dates', __( 'The season dates must be within one day of each other.', 'wicket-memberships' ), array( 'status' => 400 ) );
                   }
                 }
 
