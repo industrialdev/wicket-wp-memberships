@@ -2364,14 +2364,22 @@ function get_item_data ( $other_data, $cart_item ) {
             )
           )
         ) );
+        $seen_bundle_ids = [];
         foreach ( $user_tiers->posts as $user_tier ) {
           $tier->user->all_membership_tiers[] = [
             'uuid'   => get_post_meta( $user_tier->ID, 'membership_tier_uuid', true ),
             'status' => get_post_meta( $user_tier->ID, 'membership_status', true ),
           ];
           $bundle_id = (int) get_post_meta( $user_tier->ID, 'membership_bundle_id', true );
-          if ( $bundle_id ) {
-            $tier->user->all_membership_bundles[] = $bundle_id;
+          if ( $bundle_id > 0 && ! isset( $seen_bundle_ids[ $bundle_id ] ) ) {
+            $seen_bundle_ids[ $bundle_id ] = true;
+            $bundle_post                   = get_post( $bundle_id );
+            if ( $bundle_post && $bundle_post->post_type === 'wicket_mship_bundle' && $bundle_post->post_status === 'publish' ) {
+              $tier->user->all_membership_bundles[] = [
+                'name'   => $bundle_post->post_title,
+                'status' => get_post_meta( $bundle_id, 'membership_status', true ),
+              ];
+            }
           }
         }
         if ( ! isset( $tier->user->all_membership_bundles ) ) {

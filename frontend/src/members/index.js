@@ -30,7 +30,8 @@ const SortableHeader = ({ label, col, currentCol, currentDir, onSort }) => {
   );
 };
 
-const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid }) => {
+const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid, bundlesEnabled }) => {
+  const showBundlesColumn = memberType === 'individual' && bundlesEnabled === '1';
   const [isLoading, setIsLoading] = useState(true);
 
   const [members, setMembers] = useState([]);
@@ -477,7 +478,7 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid 
                 onSort={handleSort}
               />
               <th scope="col" className="manage-column">{ __( 'Tier(s)', 'wicket-memberships' ) }</th>
-              { memberType === 'individual' && (
+              { showBundlesColumn && (
                 <th scope="col" className="manage-column">{ __( 'Bundle(s)', 'wicket-memberships' ) }</th>
               )}
               <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
@@ -488,7 +489,7 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid 
               <tr className="alternate">
                 <td
                   className="column-columnname"
-                  colSpan={memberType === 'organization' ? 7 : 7}
+                  colSpan={memberType === 'organization' ? 7 : (showBundlesColumn ? 7 : 6)}
                 >
                   <Spinner />
                 </td>
@@ -496,7 +497,7 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid 
             )}
             {!isLoading && members.length === 0 && (
               <tr className="alternate">
-                <td className="column-columnname" colSpan={memberType === 'organization' ? 7 : 6}>
+                <td className="column-columnname" colSpan={memberType === 'organization' ? 7 : (showBundlesColumn ? 6 : 5)}>
                   { __( 'No members found.', 'wicket-memberships' ) }
                 </td>
               </tr>
@@ -609,7 +610,7 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid 
                       });
                     })()}
                   </td>
-                  { memberType === 'individual' && (
+                  { showBundlesColumn && (
                     <td>
                       {bundlesInfo === null && <Spinner />}
                       {bundlesInfo !== null && (() => {

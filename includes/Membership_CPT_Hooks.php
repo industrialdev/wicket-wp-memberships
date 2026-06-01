@@ -149,6 +149,7 @@ class Membership_CPT_Hooks {
       data-member-type="individual"
       data-filter-bundle-id="' . esc_attr( $filter_group_id ) . '"
       data-filter-tier-uuid="' . esc_attr( $filter_tier_uuid ) . '"
+      data-bundles-enabled="' . ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ? '1' : '0' ) . '"
     ></div>';
   }
 
@@ -311,6 +312,9 @@ class Membership_CPT_Hooks {
     $columns['membership_early_renew_at']  = __( 'Early Renew Date', 'wicket-memberships' );
     $columns['membership_ends_at']  = __( 'End Date', 'wicket-memberships' );
     $columns['membership_expires_at']  = __( 'Expiry Date', 'wicket-memberships' );
+    if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
+      $columns['membership_bundle'] = __( 'Bundle', 'wicket-memberships' );
+    }
     unset($columns['date']);
     return $columns;
   }
@@ -362,6 +366,16 @@ class Membership_CPT_Hooks {
       } catch ( \Exception $e ) {
         // If date parsing fails, show raw value
         echo $date_value;
+      }
+    } else if ( $column_name === 'membership_bundle' ) {
+      $bundle_id = ! empty( $meta['membership_bundle_id'][0] ) ? (int) $meta['membership_bundle_id'][0] : 0;
+      if ( $bundle_id ) {
+        $bundle_post = get_post( $bundle_id );
+        if ( $bundle_post ) {
+          echo esc_html( $bundle_post->post_title );
+        } else {
+          echo $bundle_id;
+        }
       }
     } else {
       echo $meta[$column_name][0] ?? '';
