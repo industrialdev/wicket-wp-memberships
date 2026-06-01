@@ -392,7 +392,7 @@ class Admin_Controller {
     foreach( $memberships as $membership) {
       update_post_meta( $membership->ID, 'org_name', $org_name);
       $customer_meta = get_user_meta( $membership->user_id, '_wicket_membership_'.$membership->ID );
-      $customer_meta_array = json_decode( $customer_meta[0], true);
+      $customer_meta_array = json_decode( $customer_meta[0] ?? '', true) ?? [];
       $customer_meta_array['org_name'] = $org_name;
       update_user_meta( $membership->user_id, '_wicket_membership_'.$membership->ID, json_encode( $customer_meta_array) );
     }
@@ -823,7 +823,7 @@ class Admin_Controller {
         $order = wc_get_order( $order_id );
         if(!empty($order)) {
           $order_meta = get_post_meta( $order_id, '_wicket_membership_'.$membership['membership_product_id'] );
-          $order_meta_array = json_decode( $order_meta[0], true);
+          $order_meta_array = json_decode( $order_meta[0] ?? '', true) ?? [];
           $order_meta_array['membership_wp_user_id'] = $user->ID;
           $order_meta_array['membership_wp_user_display_name'] = $user->display_name;
           $order_meta_array['membership_wp_user_email'] = $user->user_email;
@@ -842,7 +842,7 @@ class Admin_Controller {
         $sub = wcs_get_subscription( $subscription_id );
         if( !empty( $sub )) {
           $subscription_meta = get_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] );
-          $subscription_meta_array = json_decode( $subscription_meta[0], true);
+          $subscription_meta_array = json_decode( $subscription_meta[0] ?? '', true) ?? [];
           $subscription_meta_array['user_id'] = $user->ID;
           $subscription_meta_array['user_name'] = $user->display_name;
           $subscription_meta_array['user_email'] = $user->user_email;
@@ -1030,7 +1030,7 @@ class Admin_Controller {
       update_post_meta( $membership_post_id, 'user_email', $merged_user->user_email);
 
       $customer_meta = get_user_meta( $orig_user_id, '_wicket_membership_'.$membership_post_id );
-      $customer_meta_array = json_decode( $customer_meta[0], true);
+      $customer_meta_array = json_decode( $customer_meta[0] ?? '', true) ?? [];
 
       if(empty($customer_meta)) {
         $customer_meta = get_post_meta( $membership_post_id );

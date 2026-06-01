@@ -311,6 +311,7 @@ class Membership_Bundle {
       'next_payment' => date( 'Y-m-d H:i:s', $ends_at_ts ),
       'end'          => date( 'Y-m-d H:i:s', $end_ts > $ends_at_ts ? $end_ts : $ends_at_ts + 1 ),
     ] );
+    $subscription->save();
 
     // Carry the group UUID forward — this post joins the existing renewal series.
     $new_bundle->set_bundle_group_uuid( $this->get_bundle_group_uuid() );

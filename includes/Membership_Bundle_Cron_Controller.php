@@ -295,7 +295,8 @@ class Membership_Bundle_Cron_Controller {
     $batch = array_slice( $eligible_items, $offset, $batch_size );
 
     // Stamp current offset into the processing meta so the frontend polling sees
-    // progress after each batch, not just at the end.
+    // progress after each batch, not just at the end. Errors will be appended
+    // after the batch loop runs — see the post-loop meta update below.
     foreach ( [ $old_bundle_post_id, $new_bundle_post_id ] as $post_id ) {
       $pm = json_decode( get_post_meta( $post_id, 'membership_renewal_processing', true ), true ) ?: [];
       $pm['offset'] = $offset;
@@ -371,6 +372,16 @@ class Membership_Bundle_Cron_Controller {
       }
     }
 
+    // Persist any errors from this batch into processing meta immediately so that
+    // subsequent batches and the final completion block see the full error history.
+    if ( ! empty( $errors ) ) {
+      foreach ( [ $old_bundle_post_id, $new_bundle_post_id ] as $post_id ) {
+        $pm               = json_decode( get_post_meta( $post_id, 'membership_renewal_processing', true ), true ) ?: [];
+        $pm['errors']     = array_merge( $pm['errors'] ?? [], $errors );
+        update_post_meta( $post_id, 'membership_renewal_processing', wp_json_encode( $pm ) );
+      }
+    }
+
     $next_offset = $offset + $batch_size;
     $has_more    = $next_offset < count( $eligible_items );
 
@@ -413,15 +424,19 @@ class Membership_Bundle_Cron_Controller {
 
       foreach ( [ $old_bundle_post_id, $new_bundle_post_id ] as $post_id ) {
         $meta = json_decode( get_post_meta( $post_id, 'membership_renewal_processing', true ), true ) ?: [];
+        // Merge prior-batch errors (already in meta) with this batch's errors so the
+        // completion note reflects ALL failures, not just the final batch.
+        $prior_errors         = $meta['errors'] ?? [];
+        $all_errors           = array_merge( $prior_errors, $errors );
         $meta['completed_at'] = $completion_stamp;
-        $meta['errors']       = $errors;
+        $meta['errors']       = $all_errors;
         update_post_meta( $post_id, 'membership_renewal_processing', wp_json_encode( $meta ) );
       }
 
       // Write completion note to both order and subscription — mirrors individual membership
       // pattern in scheduler_dates_for_expiry() which writes the same note to both.
       // Use total_members from processing meta for the count — $processed is only this batch.
-      $total_provisioned = (int) ( $meta['total_members'] ?? 0 ) - \count( $errors );
+      $total_provisioned = (int) ( $meta['total_members'] ?? 0 ) - \count( $all_errors );
       $completion_note = sprintf(
         'Membership bundle renewal complete. %d member(s) provisioned on new bundle #%d. Errors: %d.',
         $total_provisioned,

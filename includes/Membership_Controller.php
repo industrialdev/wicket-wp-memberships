@@ -450,8 +450,12 @@ function get_item_data ( $other_data, $cart_item ) {
     if( ! empty( $membership_array ) ) {
       $updated_membership_array = array_merge($membership_array, $meta_array);
       update_user_meta( $membership_array['user_id'], '_wicket_membership_'.$membership_post_id, json_encode( $updated_membership_array) );
-      update_post_meta( $membership_array['membership_parent_order_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
-      update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+      if ( ! empty( $membership_array['membership_parent_order_id'] ) && ! empty( $membership_array['membership_product_id'] ) ) {
+        update_post_meta( $membership_array['membership_parent_order_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+      }
+      if ( ! empty( $membership_array['membership_subscription_id'] ) && ! empty( $membership_array['membership_product_id'] ) ) {
+        update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+      }
       return true;
     }
     return false;
@@ -1519,7 +1523,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
     if( !empty( $membership['membership_parent_order_id'] )) {
       $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
-      $order_meta_array = json_decode( $order_meta[0], true);
+      $order_meta_array = json_decode( $order_meta[0] ?? '', true) ?? [];
       $order_meta_array['membership_post_id'] = $membership_post;
       $order_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
       update_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $order_meta_array) );
@@ -1528,7 +1532,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
     if( !empty( $membership['membership_subscription_id'] )) {
       $subscription_meta = get_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] );
-      $subscription_meta_array = json_decode( $subscription_meta[0], true);
+      $subscription_meta_array = json_decode( $subscription_meta[0] ?? '', true) ?? [];
       $subscription_meta_array['membership_post_id'] = $membership_post;
       $subscription_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
       update_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );
