@@ -316,25 +316,30 @@ class Bundle_Admin_Controller {
     $bundle           = new Membership_Bundle( $post_id );
     $status_slug     = $bundle->get_membership_status() ?: '';
     $org_uuid        = $bundle->get_org_uuid() ?: '';
-    $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] ?? null );
-    $wicket_admin    = $wicket_settings['wicket_admin'] ?? '';
-    $mdp_link        = ( $org_uuid && $wicket_admin )
+    $wicket_settings    = get_wicket_settings( $_ENV['WP_ENV'] ?? null );
+    $wicket_admin       = rtrim( $wicket_settings['wicket_admin'] ?? '', '/' );
+    $mdp_link           = ( $org_uuid && $wicket_admin )
       ? $wicket_admin . '/organizations/' . $org_uuid
+      : '';
+    $bundle_mdp_uuid    = (string) get_post_meta( $post_id, 'membership_bundle_mdp_uuid', true );
+    $bundle_mdp_link    = ( $org_uuid && $bundle_mdp_uuid && $wicket_admin )
+      ? $wicket_admin . '/organizations/' . $org_uuid . '/bundles/' . $bundle_mdp_uuid
       : '';
 
     return [
-      'id'            => $bundle->get_bundle_group_uuid(),
+      'id'             => $bundle->get_bundle_group_uuid(),
       'bundle_name'    => $bundle->get_name(),
-      'org_name'      => (string) get_post_meta( $post_id, 'org_name', true ),
-      'owner'         => self::build_owner_field( $bundle ),
-      'status'        => [
+      'org_name'       => (string) get_post_meta( $post_id, 'org_name', true ),
+      'owner'          => self::build_owner_field( $bundle ),
+      'status'         => [
         'slug'  => $status_slug,
         'label' => $statuses[ $status_slug ]['name'] ?? $status_slug,
       ],
-      'last_updated'  => (string) $post->post_modified,
-      'post_modified' => (string) $post->post_modified,
-      'org_uuid'      => $org_uuid,
-      'mdp_link'      => $mdp_link,
+      'last_updated'   => (string) $post->post_modified,
+      'post_modified'  => (string) $post->post_modified,
+      'org_uuid'       => $org_uuid,
+      'mdp_link'       => $mdp_link,
+      'bundle_mdp_link' => $bundle_mdp_link,
     ];
   }
 
@@ -649,13 +654,17 @@ class Bundle_Admin_Controller {
     $meta            = Helper::get_post_meta( $bundle_post_id );
 
     $wicket_settings = get_wicket_settings( $_ENV['WP_ENV'] ?? null );
-    $wicket_admin    = $wicket_settings['wicket_admin'] ?? '';
+    $wicket_admin    = rtrim( $wicket_settings['wicket_admin'] ?? '', '/' );
 
     // Organisation data from MDP.
-    $org_uuid     = $bundle->get_org_uuid();
-    $org_data     = $org_uuid ? Helper::get_org_data( $org_uuid ) : [];
-    $mdp_org_link = ( $org_uuid && $wicket_admin )
+    $org_uuid        = $bundle->get_org_uuid();
+    $org_data        = $org_uuid ? Helper::get_org_data( $org_uuid ) : [];
+    $mdp_org_link    = ( $org_uuid && $wicket_admin )
       ? $wicket_admin . '/organizations/' . $org_uuid
+      : '';
+    $bundle_mdp_uuid = (string) get_post_meta( $bundle_post_id, 'membership_bundle_mdp_uuid', true );
+    $bundle_mdp_link = ( $org_uuid && $bundle_mdp_uuid && $wicket_admin )
+      ? $wicket_admin . '/organizations/' . $org_uuid . '/bundles/' . $bundle_mdp_uuid
       : '';
 
     $owner_data = self::resolve_owner_data( $bundle );
@@ -769,6 +778,7 @@ class Bundle_Admin_Controller {
       'statuses'            => $statuses,
       'allowed_transitions' => Helper::get_allowed_transition_status( $meta['membership_status'] ?? '' ),
       'membership_records'  => $membership_records,
+      'bundle_mdp_link'     => $bundle_mdp_link,
     ];
   }
 

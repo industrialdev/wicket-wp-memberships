@@ -560,6 +560,7 @@ class Admin_Controller {
         $bundle_obj        = new Membership_Bundle( (int) $bundle_id );
         $bundle_owner      = $bundle_obj->get_owner();
         $bundle_dates      = $bundle_obj->get_dates();
+        $bundle_mdp_uuid = (string) get_post_meta( (int) $bundle_id, 'membership_bundle_mdp_uuid', true );
         $membership_item['is_membership_bundle'] = true;
         $membership_item['bundle_id']            = (int) $bundle_id;
         $membership_item['bundle_name']          = $bundle_obj->get_name();
@@ -567,6 +568,10 @@ class Admin_Controller {
         $membership_item['bundle_starts_at']     = $bundle_dates['starts_at'] ?? '';
         $membership_item['bundle_ends_at']       = $bundle_dates['ends_at'] ?? '';
         $membership_item['bundle_edit_url']      = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_BUNDLE_MEMBER_PAGE_SLUG . '&id=' . $bundle_obj->get_bundle_group_uuid() );
+        $person_uuid = $membership_data['membership_user_uuid'] ?? '';
+        $membership_item['bundle_mdp_link']      = ( $person_uuid && ! empty( $wicket_settings['wicket_admin'] ) )
+          ? rtrim( $wicket_settings['wicket_admin'], '/' ) . '/people/' . $person_uuid . '/memberships'
+          : '';
       } else {
         $membership_item['is_membership_bundle'] = false;
       }

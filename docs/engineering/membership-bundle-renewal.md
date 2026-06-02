@@ -396,20 +396,27 @@ pointing to `catch_order_completed()` and add the bundle pre-check inline, gated
 
 ## Detection: Is This a Bundle Renewal?
 
-`create_bundle_subscription()` already writes `membership_bundle_id` = bundle post ID onto
-the WC subscription via `update_post_meta()` at [Membership_Bundle.php:2593](../includes/Membership_Bundle.php).
-WCS carries this meta forward onto renewal orders. Use it for detection.
+`create_bundle_subscription()` writes `membership_bundle_id` = bundle post ID onto the WC
+subscription via `update_post_meta()`. The existence of this meta on the subscription is the
+authoritative signal that the order is a bundle renewal.
+
+**Do NOT use `wcs_order_contains_subscription( $order, 'renewal' )`** for detection.
+Bundle subscriptions are created without an initial order — no parent order exists when the
+subscription is first set up. The first order WCS generates (at the end of the membership
+term) is therefore classified by WCS as a parent order, not a renewal order. Using the WCS
+renewal check here would silently skip all first-time bundle renewals.
+
+`handle_bundle_renewal()` has its own idempotency guard (checks for an existing bundle post
+in the same group with the same start date) that prevents double-processing if the order
+status is cycled.
 
 ```php
 // Inside catch_order_completed(), before the existing memberships loop:
-if ( empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
-    // Bundles not enabled — skip bundle path entirely.
-} else {
+if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
     foreach ( $subscriptions as $subscription ) {
         $bundle_post_id = (int) get_post_meta( $subscription->get_id(), 'membership_bundle_id', true );
         if ( $bundle_post_id > 0
             && get_post_type( $bundle_post_id ) === Helper::get_membership_bundle_cpt_slug()
-            && wcs_order_contains_subscription( $order, 'renewal' )
         ) {
             self::handle_bundle_renewal( $bundle_post_id, $subscription, $order );
             return;

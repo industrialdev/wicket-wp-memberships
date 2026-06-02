@@ -42,12 +42,6 @@ const ManageLink = styled.div`
     color: var(--wp-admin-theme-color);
     text-decoration: underline;
 
-    &.disabled-link {
-      color: #b32d2e;
-      pointer-events: none;
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
   }
 `;
 
@@ -75,9 +69,7 @@ const MembershipBundleDetails = ({ membership, onSuccess }) => {
   const canRemove = ['pending', 'active', 'delayed'].includes(membership.data?.membership_status_slug);
   const canMove   = canRemove;
 
-  // TODO: Replace '#' with the real membership bundle MDP link once bundle MDP sync is implemented.
-  const mdpLink = '#';
-
+  const mdpLink = membership.bundle_mdp_link || '';
   const manageBundleUrl = membership.bundle_edit_url;
 
   return (
@@ -88,10 +80,11 @@ const MembershipBundleDetails = ({ membership, onSuccess }) => {
             <BundleTitle>{membership.bundle_name || __('Membership Bundle', 'wicket-memberships')}</BundleTitle>
           </FlexBlock>
           <FlexItem>
-            {/* TODO: Enable once bundle MDP sync is implemented — link destination TBD */}
-            <a className='disabled-link' href={mdpLink} target='_blank' rel='noreferrer' style={{ textDecoration: 'underline' }}>
-              {__('View in MDP', 'wicket-memberships')}
-            </a>
+            {mdpLink && (
+              <a href={mdpLink} target='_blank' rel='noreferrer' style={{ textDecoration: 'underline' }}>
+                {__('View in MDP', 'wicket-memberships')}
+              </a>
+            )}
           </FlexItem>
         </Flex>
 

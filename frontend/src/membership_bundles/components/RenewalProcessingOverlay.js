@@ -11,7 +11,7 @@ const spin = keyframes`
 const Overlay = styled.div`
   position: absolute;
   inset: 0;
-  z-index: 9999;
+  z-index: 100;
   background: rgba(255, 255, 255, 0.92);
   display: flex;
   align-items: center;

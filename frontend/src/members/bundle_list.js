@@ -229,8 +229,7 @@ const BundleMemberList = ({ editBundleUrl }) => {
               <td>{bundle.owner?.email || "-"}</td>
               <td>{bundle.status?.label || "-"}</td>
               <td>{bundle.last_updated ? moment(bundle.last_updated).format("MMMM D, YYYY") : "-"}</td>
-              {/* TODO: enable MDP link once membership bundle MDP sync is implemented */}
-              <td>{bundle.mdp_link ? <span style={{ color: "red", opacity: 0.5 }}>{__("View in MDP", "wicket-memberships")}</span> : "-"}</td>
+              <td>{bundle.bundle_mdp_link ? <a href={bundle.bundle_mdp_link} target="_blank" rel="noreferrer">{__("View in MDP", "wicket-memberships")}</a> : "-"}</td>
             </tr>
           ))}
         </tbody>

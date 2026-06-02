@@ -171,6 +171,7 @@ const AddMemberToBundleModal = ({
       resetState();
       onSuccess();
     } catch (err) {
+      console.error("[AddMemberToBundleModal] add member failed", err);
       setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));
       setSubmitting(false);
     }

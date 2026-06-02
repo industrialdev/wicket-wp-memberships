@@ -7273,12 +7273,6 @@ const ManageLink = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div
     color: var(--wp-admin-theme-color);
     text-decoration: underline;
 
-    &.disabled-link {
-      color: #b32d2e;
-      pointer-events: none;
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
   }
 `;
 const ActionsRow = styled_components__WEBPACK_IMPORTED_MODULE_8__["default"].div`
@@ -7307,16 +7301,13 @@ const MembershipBundleDetails = ({
   const [moveModalOpen, setMoveModalOpen] = (0,_wordpress_element__WEBPACK_IMPORTED_MODULE_1__.useState)(false);
   const canRemove = ['pending', 'active', 'delayed'].includes(membership.data?.membership_status_slug);
   const canMove = canRemove;
-
-  // TODO: Replace '#' with the real membership bundle MDP link once bundle MDP sync is implemented.
-  const mdpLink = '#';
+  const mdpLink = membership.bundle_mdp_link || '';
   const manageBundleUrl = membership.bundle_edit_url;
   return (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(Wrap, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(WhiteBox, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.Flex, {
     align: "start",
     justify: "space-between",
     gap: 4
-  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BundleTitle, null, membership.bundle_name || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)('Membership Bundle', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.FlexItem, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
-    className: "disabled-link",
+  }, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.FlexBlock, null, (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(BundleTitle, null, membership.bundle_name || (0,_wordpress_i18n__WEBPACK_IMPORTED_MODULE_2__.__)('Membership Bundle', 'wicket-memberships'))), (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)(_wordpress_components__WEBPACK_IMPORTED_MODULE_3__.FlexItem, null, mdpLink && (0,react__WEBPACK_IMPORTED_MODULE_0__.createElement)("a", {
     href: mdpLink,
     target: "_blank",
     rel: "noreferrer",

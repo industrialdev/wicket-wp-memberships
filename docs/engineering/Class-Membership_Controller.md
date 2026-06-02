@@ -110,6 +110,8 @@ Updates the membership JSON data stored on user meta, order, and subscription wi
 **catch_order_completed($order_id)** (static)
 Processes a completed WooCommerce order, creating membership records as needed. When `WICKET_MSHIP_ENABLE_BUNDLES` is active and the order belongs to a bundle subscription (identified by `membership_bundle_id` on the subscription), delegates immediately to `handle_bundle_renewal()` and returns — skipping the individual membership monthly-guard loop.
 
+> **Bundle order type note:** Bundle subscriptions are created without an initial order. The first order WCS generates at renewal time is classified by WCS as a parent order, not a renewal order — `wcs_order_contains_subscription( $order, 'renewal' )` always returns false for bundle renewals. The bundle pre-check therefore uses only the existence of `membership_bundle_id` on the subscription as the signal. `handle_bundle_renewal()` has its own idempotency guard that aborts on duplicate runs.
+
 **handle_bundle_renewal( int $old_bundle_post_id, WC_Subscription $subscription, WC_Abstract_Order $order ): void** (private static)
 Orchestrates the full bundle renewal sequence:
 1. Calculates new term dates from the old bundle's `ends_at` via `Membership_Bundle_Config::get_membership_dates()`.

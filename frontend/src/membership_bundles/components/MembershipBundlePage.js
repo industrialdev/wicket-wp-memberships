@@ -13,6 +13,7 @@ import RenewalProcessingOverlay from "./RenewalProcessingOverlay";
 // to the bundle content area rather than the entire viewport.
 const ContentArea = styled.div`
   position: relative;
+  overflow: hidden;
 `;
 
 const isNewlyCreated = () => {

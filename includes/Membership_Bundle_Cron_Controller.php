@@ -386,27 +386,8 @@ class Membership_Bundle_Cron_Controller {
     $has_more    = $next_offset < count( $eligible_items );
 
     if ( $has_more ) {
-      // ==========================================================================
-      // DEBUG PAUSE MODE — FOR DEBUGGING ONLY, NOT FOR PRODUCTION
-      //
-      // When WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE is set, each subsequent batch
-      // schedules 24 hours out instead of immediately. This pauses the pipeline
-      // between batches so you can inspect intermediate state.
-      //
-      // To advance to the next batch:
-      //   WP Admin → Tools → Scheduled Actions → find "wicket_bundle_renewal_process_members"
-      //   with offset={next_offset} → click "Run".
-      //
-      // To disable: unset WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE or set it to false/0.
-      //
-      // TODO: Remove this debug block and the $debug_pause/$next_run_time variables
-      // before going to production. See TODO.md — "Remove WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE".
-      // ==========================================================================
-      $debug_pause    = ! empty( $_ENV['WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE'] );
-      $next_run_time  = $debug_pause ? ( time() + DAY_IN_SECONDS ) : time();
-
       as_schedule_single_action(
-        $next_run_time,
+        time(),
         'wicket_bundle_renewal_process_members',
         [
           'old_bundle_post_id' => $old_bundle_post_id,

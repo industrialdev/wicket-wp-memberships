@@ -842,7 +842,43 @@ class Membership_Bundle {
       'membership_wp_user_last_name'              => get_user_meta( $user_id, 'last_name', true ) ?: '',
       'membership_wp_user_email'                  => $user->user_email,
       'membership_user_uuid'                      => $user->user_login,
+      // When the bundle has been synced to MDP, pass the bundle UUID so create_mdp_record()
+      // links this person_membership to the bundle instead of creating a standalone record.
+      'membership_bundle_mdp_uuid'                => (string) get_post_meta( $link_to_bundle_id, 'membership_bundle_mdp_uuid', true ),
     ], $is_renewal );
+
+    // When the bundle is synced to MDP and the MDP member assignment failed,
+    // surface the error immediately rather than silently creating an unlinked WP post.
+    if ( ! empty( $result['mdp_error'] ) && ! empty( $result['membership_bundle_mdp_uuid'] ) ) {
+      $mdp_post_id = (int) ( $result['membership_post_id'] ?? 0 );
+      if ( $mdp_post_id > 0 ) {
+        wp_delete_post( $mdp_post_id, true );
+      }
+
+      $raw_error = $result['mdp_error'];
+
+      // Extract the MDP message field from the JSON body embedded in the Guzzle error string.
+      // Falls back to a generic message when parsing fails.
+      $clean_message = __( 'Failed to add member in MDP.', 'wicket-memberships' );
+      if ( preg_match( '/\{.*\}/s', $raw_error, $matches ) ) {
+        $body = json_decode( $matches[0], true );
+        if ( ! empty( $body['message'] ) ) {
+          $clean_message = sprintf(
+            /* translators: %s: MDP error message */
+            __( 'Failed to add member in MDP: %s', 'wicket-memberships' ),
+            $body['message']
+          );
+        }
+      }
+
+      Wicket()->log()->error( 'Membership_Bundle::provision_individual_membership_record: MDP error', [
+        'source'          => 'wicket-memberships',
+        'post_id'         => $this->post_id,
+        'mdp_error'       => $raw_error,
+      ] );
+
+      return new \WP_Error( 'mdp_create_failed', $clean_message, [ 'mdp_error' => $raw_error ] );
+    }
 
     $result = apply_filters(
       'wicket_memberships_individual_membership_created_for_bundle',
@@ -2941,15 +2977,58 @@ class Membership_Bundle {
     if ( ! empty( $this->bypass_wicket ) ) {
       return;
     }
-    // TODO: Call MDP bundle create endpoint once API is available.
-    //       Payload (inferred from $this):
-    //         get_post( $this->post_id )->post_title → bundle name
-    //         get_org_uuid()                         → org UUID
-    //         get_config() tier UUID                 → tier UUID
-    //         get_dates()                            → starts_at, ends_at, expires_at
-    //         get_owner_uuid()                       → owner person UUID
-    //       Store returned MDP UUID as 'membership_bundle_mdp_uuid' post meta.
-    //       See TODO_MDP_INTEGRATION.md §1.
+
+    if ( ! function_exists( 'wicket_create_bundle_membership' ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::sync_mdp_create: wicket_create_bundle_membership() not available', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+      ] );
+      return;
+    }
+
+    $owner_uuid = $this->get_owner_uuid();
+    $org_uuid   = $this->get_org_uuid();
+    $name       = $this->get_name();
+    $dates      = $this->get_dates();
+
+    if ( empty( $owner_uuid ) || empty( $org_uuid ) || empty( $name ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::sync_mdp_create: missing required fields', [
+        'source'     => 'wicket-memberships',
+        'post_id'    => $this->post_id,
+        'owner_uuid' => $owner_uuid,
+        'org_uuid'   => $org_uuid,
+        'name'       => $name,
+      ] );
+      return;
+    }
+
+    $config            = $this->get_config();
+    $grace_period_days = $config ? (int) $config->get_late_fee_window_days() : 0;
+
+    $response = wicket_create_bundle_membership(
+      $owner_uuid,
+      $org_uuid,
+      $name,
+      $dates['starts_at'] ?? '',
+      $dates['ends_at'] ?? '',
+      $grace_period_days,
+      '',
+      (string) $this->post_id
+    );
+
+    if ( is_wp_error( $response ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::sync_mdp_create: MDP error', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+        'error'   => $response->get_error_message(),
+      ] );
+      return;
+    }
+
+    $bundle_mdp_uuid = $response['data']['id'] ?? '';
+    if ( ! empty( $bundle_mdp_uuid ) ) {
+      update_post_meta( $this->post_id, 'membership_bundle_mdp_uuid', $bundle_mdp_uuid );
+    }
   }
 
   /**
@@ -2961,15 +3040,53 @@ class Membership_Bundle {
     if ( ! empty( $this->bypass_wicket ) ) {
       return;
     }
-    // TODO: Call MDP bundle update endpoint (likely single PATCH) once API is available.
-    //       Payload inferred from $this — no arguments needed:
-    //         get_post_meta( $this->post_id, 'membership_bundle_mdp_uuid', true )
-    //                                  → MDP record UUID
-    //         get_membership_status()  → status (map to MDP enum TBD with MDP team)
-    //         get_dates()              → starts_at, ends_at, expires_at
-    //         get_owner_uuid()         → owner person UUID
-    //       Cancellation sets end date to now — does NOT delete the MDP record.
-    //       See TODO_MDP_INTEGRATION.md §2, §3, §4, §5.
+
+    $bundle_mdp_uuid = get_post_meta( $this->post_id, 'membership_bundle_mdp_uuid', true );
+    if ( empty( $bundle_mdp_uuid ) ) {
+      return;
+    }
+
+    if ( ! function_exists( 'wicket_update_bundle_membership' ) || ! function_exists( 'wicket_update_bundle_membership_owner' ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::sync_mdp_update: base-plugin bundle helpers not available', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+      ] );
+      return;
+    }
+
+    $dates  = $this->get_dates();
+    $config = $this->get_config();
+    $grace  = $config ? (int) $config->get_late_fee_window_days() : false;
+
+    $response = wicket_update_bundle_membership(
+      $bundle_mdp_uuid,
+      $dates['starts_at'] ?? '',
+      $dates['ends_at'] ?? '',
+      $grace,
+      $this->get_name()
+    );
+
+    if ( is_wp_error( $response ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::sync_mdp_update: MDP date/name update error', [
+        'source'          => 'wicket-memberships',
+        'post_id'         => $this->post_id,
+        'bundle_mdp_uuid' => $bundle_mdp_uuid,
+        'error'           => $response->get_error_message(),
+      ] );
+    }
+
+    $owner_uuid = $this->get_owner_uuid();
+    if ( ! empty( $owner_uuid ) ) {
+      $owner_response = wicket_update_bundle_membership_owner( $bundle_mdp_uuid, $owner_uuid );
+      if ( is_wp_error( $owner_response ) ) {
+        Wicket()->log()->error( 'Membership_Bundle::sync_mdp_update: MDP owner update error', [
+          'source'          => 'wicket-memberships',
+          'post_id'         => $this->post_id,
+          'bundle_mdp_uuid' => $bundle_mdp_uuid,
+          'error'           => $owner_response->get_error_message(),
+        ] );
+      }
+    }
   }
 
   /**
@@ -2980,9 +3097,29 @@ class Membership_Bundle {
     if ( ! empty( $this->bypass_wicket ) ) {
       return;
     }
-    // TODO: Call MDP bundle delete endpoint once API is available.
-    //       Read 'membership_bundle_mdp_uuid' post meta for the MDP record UUID.
-    //       Mirror wicket_delete_organization_membership().
-    //       See TODO_MDP_INTEGRATION.md §6.
+
+    $bundle_mdp_uuid = get_post_meta( $this->post_id, 'membership_bundle_mdp_uuid', true );
+    if ( empty( $bundle_mdp_uuid ) ) {
+      return;
+    }
+
+    if ( ! function_exists( 'wicket_delete_bundle_membership' ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::sync_mdp_delete: wicket_delete_bundle_membership() not available', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+      ] );
+      return;
+    }
+
+    $response = wicket_delete_bundle_membership( $bundle_mdp_uuid );
+
+    if ( is_wp_error( $response ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::sync_mdp_delete: MDP error', [
+        'source'          => 'wicket-memberships',
+        'post_id'         => $this->post_id,
+        'bundle_mdp_uuid' => $bundle_mdp_uuid,
+        'error'           => $response->get_error_message(),
+      ] );
+    }
   }
 }

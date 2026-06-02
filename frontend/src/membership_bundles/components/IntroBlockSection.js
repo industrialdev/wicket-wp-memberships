@@ -22,16 +22,16 @@ const IntroBlockSection = ({ pageData, isLoading }) => {
     },
   ];
 
-  // TODO: Replace org MDP link with the correct membership bundle MDP link once
-  // membership bundle MDP sync is implemented — see TODO.md.
-  const actions = [
-    {
-      label: __("View in MDP", "wicket-memberships"),
-      href: pageData?.org?.mdp_link || "",
-      target: "_blank",
-      icon: "external",
-    },
-  ];
+  const actions = pageData?.bundle_mdp_link
+    ? [
+        {
+          label: __("View in MDP", "wicket-memberships"),
+          href: pageData.bundle_mdp_link,
+          target: "_blank",
+          icon: "external",
+        },
+      ]
+    : [];
 
   return (
     <IntroBlock

@@ -504,13 +504,17 @@ function get_item_data ( $other_data, $cart_item ) {
     // Bundle renewal pre-check — must run before the monthly subscription guard loop
     // below (lines ~512–519). Bundle configs support month period type, so a monthly
     // bundle renewal would be killed by that guard before we could detect it here.
+    //
+    // We do NOT check wcs_order_contains_subscription( $order, 'renewal' ) here because
+    // bundle subscriptions are created without an initial order — the first order WCS
+    // generates at renewal time is classified as a parent order, not a renewal order.
+    // The bundle post existing on the subscription is the authoritative signal.
+    // handle_bundle_renewal() has its own idempotency guard that aborts on duplicate runs.
     if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
       foreach ( $subscriptions as $subscription ) {
         $bundle_post_id = (int) get_post_meta( $subscription->get_id(), 'membership_bundle_id', true );
         if ( $bundle_post_id > 0
           && get_post_type( $bundle_post_id ) === Helper::get_membership_bundle_cpt_slug()
-          && function_exists( 'wcs_order_contains_subscription' )
-          && wcs_order_contains_subscription( $order, 'renewal' )
         ) {
           self::handle_bundle_renewal( $bundle_post_id, $subscription, $order );
           return;
@@ -690,28 +694,8 @@ function get_item_data ( $other_data, $cart_item ) {
       );
     }
 
-    // ==========================================================================
-    // DEBUG PAUSE MODE — FOR DEBUGGING ONLY, NOT FOR PRODUCTION
-    //
-    // When WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE is set (true/1/"1") in $_ENV,
-    // the first batch is scheduled 24 hours in the future instead of immediately.
-    // This lets you inspect state BEFORE any members are provisioned.
-    //
-    // To trigger the batch manually:
-    //   WP Admin → Tools → Scheduled Actions → find "wicket_bundle_renewal_process_members"
-    //   → click "Run" to execute it. Each batch will then schedule the NEXT batch
-    //   24 hours out again, so you can step through one batch at a time.
-    //
-    // To disable: unset WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE or set it to false/0.
-    //
-    // TODO: Remove this debug block and the $debug_pause/$first_run_time variables
-    // before going to production. See TODO.md — "Remove WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE".
-    // ==========================================================================
-    $debug_pause    = ! empty( $_ENV['WICKET_MSHIP_BUNDLE_RENEWAL_DEBUG_PAUSE'] );
-    $first_run_time = $debug_pause ? ( time() + DAY_IN_SECONDS ) : time();
-
     as_schedule_single_action(
-      $first_run_time,
+      time(),
       'wicket_bundle_renewal_process_members',
       [
         'old_bundle_post_id' => $old_bundle_post_id,
@@ -953,8 +937,15 @@ function get_item_data ( $other_data, $cart_item ) {
 
     $tier = new Membership_Tier( $membership['membership_tier_post_id'] );
     //we only create the mdp record if tier not pending approval | tier pending approval and is renewal
+    $mdp_attempted = false;
     if( ! $tier->is_approval_required() || ( ! $tier->is_renew_approval_required() && $tier->is_approval_required() && $self->processing_renewal )) {
+      $mdp_attempted = true;
       $membership_wicket_uuid = $self->create_mdp_record( $membership );
+    }
+
+    // Surface MDP failure so bundle member flows can return a UI error.
+    if ( $mdp_attempted && empty( $membership_wicket_uuid ) ) {
+      $membership['mdp_error'] = ! empty( $self->error_message ) ? $self->error_message : 'MDP record creation failed.';
     }
 
     //always create the local membership record to get post_id
@@ -1265,6 +1256,30 @@ function get_item_data ( $other_data, $cart_item ) {
   public function create_mdp_record( $membership ) {
     $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
     $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
+
+    // Bundle-member path: assign person_membership linked to the MDP bundle record.
+    // Fires only when the bundle has already been synced (membership_bundle_mdp_uuid present).
+    // Falls through to the individual path when the UUID is absent — safe degradation.
+    if ( ! empty( $membership['membership_bundle_mdp_uuid'] ) && function_exists( 'wicket_assign_person_to_bundle_membership' ) ) {
+      Utilities::wc_log_mship_error( ['create_mdp_record: bundle path', 'bundle_mdp_uuid' => $membership['membership_bundle_mdp_uuid'], 'person_uuid' => $membership['person_uuid'], 'tier_uuid' => $membership['membership_tier_uuid']] );
+      $response = wicket_assign_person_to_bundle_membership(
+        $membership['person_uuid'],
+        $membership['membership_tier_uuid'],
+        $membership['membership_bundle_mdp_uuid'],
+        $membership['membership_starts_at'] ?? '',
+        $membership['membership_ends_at'] ?? '',
+        (int) ( $membership['membership_grace_period_days'] ?? 0 )
+      );
+
+      Utilities::wc_log_mship_error( ['create_mdp_record: bundle path response', $response] );
+
+      if ( is_wp_error( $response ) ) {
+        $this->error_message = $response->get_error_message( 'wicket_api_error' );
+        return '';
+      }
+
+      return $response['data']['id'] ?? '';
+    }
 
     $previous_membership_wicket_uuid = '';
     if(!empty($membership['previous_membership_post_id'])) {
