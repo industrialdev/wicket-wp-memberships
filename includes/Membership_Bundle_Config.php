@@ -157,13 +157,6 @@ class Membership_Bundle_Config {
   /**
    * Get the late fee window product ID.
    *
-   * TODO [Product ID concerns]: Temporary implementation. The late-fee product
-   * concept for Membership Bundle Configs has not yet been fully defined at the
-   * product level. This currently reads product_id directly from
-   * late_fee_window_data meta (matching Membership_Config behaviour) and may
-   * need to be derived from the bundle's associated tier products instead.
-   * Review and replace before production use.
-   *
    * @return int|false
    */
   public function get_late_fee_window_product_id() {

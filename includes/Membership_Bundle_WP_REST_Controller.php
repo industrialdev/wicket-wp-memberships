@@ -16,9 +16,6 @@ use \WP_REST_Response;
  * browsing endpoints are intentionally absent — those concerns remain in
  * Membership_WP_REST_Controller or Membership_Bundle_Config_WP_REST_Controller.
  *
- * Routes with no backing business logic yet are registered as TODO stubs
- * and documented in TODO.md.
- *
  * @package Wicket_Memberships
  */
 class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
@@ -423,14 +420,24 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       ],
     ] );
 
-    // -------------------------------------------------------------------------
-    // TODO stubs — no backing business logic yet (see TODO.md)
-    // -------------------------------------------------------------------------
-    // TODO: POST /bundle/{id}/create_renewal_order — blocked on bundle subscription
-    //       line item structure being finalised.
+    /**
+     * POST /wicket_member/v1/bundle/{bundle_post_id}/create_renewal_order
+     */
+    register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/create_renewal_order', [
+      [
+        'methods'             => \WP_REST_Server::CREATABLE,
+        'callback'            => [ $this, 'create_bundle_renewal_order' ],
+        'permission_callback' => [ $this, 'permissions_check_write' ],
+        'args'                => [
+          'bundle_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the membership bundle.',
+          ],
+        ],
+      ],
+    ] );
 
-    // TODO: GET  /bundle/{id}/members             — list individual memberships in a bundle
-    // TODO: POST /bundle/{id}/import_members      — bulk CSV import of members into a bundle
   }
 
   // ---------------------------------------------------------------------------
@@ -623,6 +630,55 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     }
 
     return Bundle_Admin_Controller::cancel_bundle( $bundle_post_id, $member_handling, $timing );
+  }
+
+  /**
+   * POST /bundle/{bundle_post_id}/create_renewal_order
+   *
+   * Creates a WooCommerce renewal order off the bundle's existing subscription
+   * using wcs_create_renewal_order(). Does not create a new subscription —
+   * the bundle subscription carries all member line items and must remain the
+   * parent so billing history stays intact.
+   */
+  public function create_bundle_renewal_order( \WP_REST_Request $request ): \WP_REST_Response {
+    $bundle_post_id = (int) ( $request->get_param( 'bundle_post_id' ) ?? 0 );
+
+    if ( ! $bundle_post_id ) {
+      return new \WP_REST_Response( [ 'error' => 'Invalid bundle_post_id.' ], 400 );
+    }
+
+    if ( ! function_exists( 'wcs_get_subscription' ) || ! function_exists( 'wcs_create_renewal_order' ) ) {
+      return new \WP_REST_Response( [ 'error' => 'WooCommerce Subscriptions is not active.' ], 500 );
+    }
+
+    if ( get_post_type( $bundle_post_id ) !== Helper::get_membership_bundle_cpt_slug() ) {
+      return new \WP_REST_Response( [ 'error' => 'Membership bundle not found.' ], 404 );
+    }
+
+    $bundle = new Membership_Bundle( $bundle_post_id );
+
+    $subscription_id = $bundle->get_subscription_id();
+    if ( ! $subscription_id ) {
+      return new \WP_REST_Response( [ 'error' => 'This membership bundle has no linked WooCommerce subscription.' ], 400 );
+    }
+
+    $subscription = wcs_get_subscription( $subscription_id );
+    if ( ! $subscription ) {
+      return new \WP_REST_Response( [ 'error' => 'The linked WooCommerce subscription could not be loaded.' ], 400 );
+    }
+
+    $renewal_order = wcs_create_renewal_order( $subscription );
+    if ( is_wp_error( $renewal_order ) ) {
+      return new \WP_REST_Response( [ 'error' => $renewal_order->get_error_message() ], 500 );
+    }
+
+    $order_url = admin_url( 'admin.php?page=wc-orders&action=edit&id=' . $renewal_order->get_id(), 'https' );
+
+    return new \WP_REST_Response( [
+      'success'   => __( 'Renewal order created successfully.', 'wicket-memberships' ),
+      'order_url' => $order_url,
+      'order_id'  => $renewal_order->get_id(),
+    ], 200 );
   }
 
   /**

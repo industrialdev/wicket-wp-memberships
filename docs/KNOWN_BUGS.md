@@ -7,19 +7,17 @@ Add an entry here when a bug is identified. Remove it when resolved.
 
 | File | Area | Note | Asana |
 |---|---|---|---|
-| `includes/Membership_Group.php` + `includes/Membership_Controller.php` | `add_subscription_line_item()` / `create_membership_record()` | **Group subscription line items silently skipped under SQLite.** See full write-up below. | — |
-| `includes/Group_Admin_Controller.php` | `update_group_entity_record()` | Suspected timezone drift on start/end/expiry dates. The frontend converts picker dates to ISO via `pickerDateToIso` (MDP timezone → UTC), PHP then re-interprets via `strtotime` and `Utilities::get_utc_datetime`. Round-trip needs audit to confirm the stored value matches the user's intended calendar day after a save-reload cycle. | — |
-| `includes/Admin_Controller.php` | Individual memberships group filter | Investigation needed: on the individual memberships list page, filtering by a group with no matching members may be behaving incorrectly because the expected group name is not shown in the results list. Confirm whether this is a display issue on the list page or a true filtering/no-results bug. | — |
+| `includes/Membership_Bundle.php` + `includes/Membership_Controller.php` | `add_subscription_line_item()` / `create_membership_record()` | **Bundle subscription line items silently skipped under SQLite.** See full write-up below. | — |
 
 ---
 
-## Group subscription line items silently skipped under SQLite
+## Bundle subscription line items silently skipped under SQLite
 
 **Status:** Known. Not a production bug. Tests worked around with `BYPASS_WICKET`. Needs a proper fix before this feature ships.
 
 ### What happens
 
-When `Membership_Group::add_member()` is called, `provision_individual_membership_record()` does two things back-to-back in the same PHP request:
+When `Membership_Bundle::add_member()` is called, `provision_individual_membership_record()` does two things back-to-back in the same PHP request:
 
 1. Calls `Membership_Controller::create_membership_record()` — a heavyweight write chain:
    - `wp_insert_post()` (membership CPT)
@@ -35,11 +33,11 @@ The test environment uses the **wp-sqlite-integration** drop-in (SQLite). SQLite
 
 ### Why it is non-fatal by design
 
-`add_subscription_line_item()` failure is deliberately non-fatal (`Membership_Group.php` ~line 611). A missing line item is a billing gap an admin can reconcile; it should never roll back a successfully created membership record.
+`add_subscription_line_item()` failure is deliberately non-fatal (`Membership_Bundle.php` ~line 913). A missing line item is a billing gap an admin can reconcile; it should never roll back a successfully created membership record.
 
 ### Current workaround
 
-The 6 QA tests that verify line item behaviour set `$_ENV['BYPASS_WICKET'] = '1'` before calling `add_member()`. This causes `create_membership_record()` to take the short-circuit path (`Membership_Controller.php` line 729) — only a local WP post is created, the heavyweight write chain is skipped, and the SQLite lock clears in time for the line item INSERT. The flag is unset immediately after `add_member()` returns so it does not affect the rest of each test.
+The QA tests that verify line item behaviour set `$_ENV['BYPASS_WICKET'] = '1'` before calling `add_member()`. This causes `create_membership_record()` to take the short-circuit path (`Membership_Controller.php` line 932) — only a local WP post is created, the heavyweight write chain is skipped, and the SQLite lock clears in time for the line item INSERT. The flag is unset immediately after `add_member()` returns so it does not affect the rest of each test.
 
 This is correct for those tests because they cover **line item behaviour**, not MDP API integration.
 
@@ -55,6 +53,6 @@ Option 2 is the most targeted fix without changing the write order of existing c
 
 ### Files involved
 
-- `includes/Membership_Group.php` — `provision_individual_membership_record()` (line ~555), `add_subscription_line_item()` (line ~638)
-- `includes/Membership_Controller.php` — `create_membership_record()` (line ~717), `scheduler_dates_for_expiry()` (line ~609), `update_membership_subscription()` (line ~791)
-- `qa/tests/WordPress/Memberships/membership-group.pest.php` — 6 tests from line ~2010, all using `BYPASS_WICKET` workaround
+- `includes/Membership_Bundle.php` — `provision_individual_membership_record()` (line ~761), `add_subscription_line_item()` (line ~911)
+- `includes/Membership_Controller.php` — `create_membership_record()` (line ~920), short-circuit path (line ~932)
+- `qa/tests/WordPress/Memberships/membership-bundle-subscriptions.pest.php` — tests from line ~134, all using `BYPASS_WICKET` workaround

@@ -256,6 +256,20 @@ export const fetchProductVariations = (productId, queryParams = {}) => {
 };
 
 /**
+ * Create Renewal Order for a membership bundle.
+ * Uses the bundle's existing subscription — does not create a new subscription.
+ */
+export const createBundleRenewalOrder = (bundlePostId) => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/bundle/${bundlePostId}/create_renewal_order`,
+    method: "POST",
+    data: {
+      bundle_post_id: bundlePostId,
+    },
+  });
+};
+
+/**
  * Create Renewal Order
  */
 export const createRenewalOrder = (membershipId, productId, variationId) => {

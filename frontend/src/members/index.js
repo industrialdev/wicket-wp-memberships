@@ -6,7 +6,6 @@ import { Spinner, Icon } from "@wordpress/components";
 import {
   fetchMembers,
   fetchTiersInfo,
-  fetchBundlesInfo,
   fetchMembershipFilters,
 } from "../shared/services/api";
 import { SelectWpStyled } from "../shared/styled_elements";
@@ -40,7 +39,6 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid,
   const [totalPages, setTotalPages] = useState(0);
 
   const [tiersInfo, setTiersInfo] = useState(null);
-  const [bundlesInfo, setBundlesInfo] = useState(null);
   const [membershipFilters, setMembershipFilters] = useState(null);
 
   const [activeTab, setActiveTab] = useState('all');
@@ -99,15 +97,6 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid,
           getTiersInfo(tierIds);
         }
 
-        const bundleIds = [...new Set(
-          response.results
-            .flatMap((member) => member.user.all_membership_bundles || (member.meta.membership_bundle_id ? [Number(member.meta.membership_bundle_id)] : []))
-            .filter(Boolean)
-            .map(Number)
-        )];
-        if (bundlesInfo === null) {
-          getBundlesInfo(bundleIds);
-        }
       })
       .catch((error) => {
         console.error(error);
@@ -127,24 +116,6 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid,
         console.log("Tiers Info Error:");
         console.log(error);
       });
-  };
-
-  const getBundlesInfo = (bundleIds) => {
-    if (bundleIds.length === 0) {
-      setBundlesInfo({});
-      return;
-    }
-    fetchBundlesInfo(bundleIds)
-      .then((info) => setBundlesInfo(info))
-      .catch((error) => {
-        console.log("Bundles Info Error:", error);
-        setBundlesInfo({});
-      });
-  };
-
-  const getBundleInfo = (bundleId) => {
-    if (!bundlesInfo || !bundlesInfo.bundle_data) return null;
-    return bundlesInfo.bundle_data[String(bundleId)] ?? null;
   };
 
   const getMembershipFilters = () => {
@@ -612,19 +583,21 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid,
                   </td>
                   { showBundlesColumn && (
                     <td>
-                      {bundlesInfo === null && <Spinner />}
-                      {bundlesInfo !== null && (() => {
-                        const allBundles = member.user.all_membership_bundles || (member.meta.membership_bundle_id ? [Number(member.meta.membership_bundle_id)] : []);
-                        if (allBundles.length === 0) return <span>—</span>;
-                        return allBundles.map((bundleId, i) => {
-                          const info = getBundleInfo(bundleId);
-                          return (
-                            <span key={i}>
-                              {i > 0 && ', '}
-                              {info ? info.name : '—'}
-                            </span>
-                          );
-                        });
+                      {(() => {
+                        const BUNDLE_STATUS_LABELS = {
+                          active:  __('Active', 'wicket-memberships'),
+                          pending: __('Pending Approval', 'wicket-memberships'),
+                          delayed: __('Delayed', 'wicket-memberships'),
+                        };
+                        const visibleBundles = (member.user.all_membership_bundles || [])
+                          .filter((b) => Object.hasOwn(BUNDLE_STATUS_LABELS, b.status));
+                        if (visibleBundles.length === 0) return <span>—</span>;
+                        return visibleBundles.map((bundle, i) => (
+                          <span key={i}>
+                            {i > 0 && ', '}
+                            {bundle.name || '—'} ({BUNDLE_STATUS_LABELS[bundle.status]})
+                          </span>
+                        ));
                       })()}
                     </td>
                   )}

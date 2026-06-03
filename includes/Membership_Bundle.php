@@ -380,10 +380,6 @@ class Membership_Bundle {
    * @param bool        $is_renewal                  When true, skips MDP create call and subscription line item creation (renewal batch handler manages both).
    * @param string|null $start_date_override         ISO 8601 start date. When provided, bypasses resolve_member_start_date(). Used by renewal batch handler to anchor new memberships to the bundle's starts_at rather than the current timestamp.
    * @return int|\WP_Error New membership post ID on success, WP_Error on failure.
-   *
-   * TODO: Link membership_subscription_id and membership_parent_order_id to the
-   *       bundle's WooCommerce subscription once bundle subscription management exists.
-   *       Also add a tier line item to the bundle subscription on each add.
    */
   public function add_member(
     ?int $user_id,
@@ -1223,12 +1219,19 @@ class Membership_Bundle {
    * renewal flows can identify which memberships are covered. Failure is non-fatal —
    * the caller logs and continues.
    *
-   * @param int $membership_post_id  Post ID of the newly created individual membership.
-   * @param int $product_id          WC product ID to add (variation ID when present, else parent).
-   * @param int $user_id             WP user ID of the member (for _member_name meta).
-   * @return int|\WP_Error           WC order item ID on success, WP_Error on failure.
+   * $recalculate_totals controls whether calculate_totals() runs immediately after the line
+   * item is added. Pass false when adding many members in a batch (e.g. bulk CSV import) to
+   * avoid recalculating on every single add — the caller is responsible for calling
+   * calculate_totals() + save() once after all members are added. Leave true (default) for
+   * single-member adds so the subscription total is always persisted correctly.
+   *
+   * @param int  $membership_post_id   Post ID of the newly created individual membership.
+   * @param int  $product_id           WC product ID to add (variation ID when present, else parent).
+   * @param int  $user_id              WP user ID of the member (for _member_name meta).
+   * @param bool $recalculate_totals   Whether to call calculate_totals() after adding the item.
+   * @return int|\WP_Error             WC order item ID on success, WP_Error on failure.
    */
-  private function add_subscription_line_item( int $membership_post_id, int $product_id, int $user_id ): int|\WP_Error {
+  private function add_subscription_line_item( int $membership_post_id, int $product_id, int $user_id, bool $recalculate_totals = true ): int|\WP_Error {
     if ( ! function_exists( 'wcs_get_subscription' ) ) {
       return new \WP_Error( 'wcs_unavailable', __( 'WooCommerce Subscriptions is not active.', 'wicket-memberships' ) );
     }
@@ -1260,7 +1263,9 @@ class Membership_Bundle {
       wc_add_order_item_meta( $item_id, '_member_name', $user->display_name );
     }
 
-    $sub->calculate_totals();
+    if ( $recalculate_totals ) {
+      $sub->calculate_totals();
+    }
     $sub->save();
 
     return $item_id;
@@ -1304,18 +1309,6 @@ class Membership_Bundle {
     // No matching line item — not an error; item may never have been added (non-fatal path).
     return true;
   }
-
-  // TODO: Add subscription line items for bulk CSV import path.
-  //       Currently each add_member() call fires calculate_totals() individually.
-  //       For large imports, investigate batching totals recalculation.
-  //       See plan-bundle-subscription-line-items.md.
-
-  // TODO: Implement bundle subscription status transitions.
-  //       Individual memberships go pending → active when parent order completes
-  //       (Membership_Subscription_Controller::create_subscriptions() lines 84–87).
-  //       Group subscriptions have no parent order — need an explicit activation
-  //       path, likely triggered when the bundle status transitions to 'active'.
-  //       See plan-bundle-subscription-line-items.md.
 
   /**
    * Remove an individual membership from this bundle.
@@ -2322,12 +2315,7 @@ class Membership_Bundle {
   /**
    * Apply normalized bundle edit fields to this bundle.
    *
-   * TODO: Review and consider replacing with typed getters/setters per field. The current
-   * array<string, mixed> signature is wide open — any meta key can be written without
-   * validation. Given that we have strict meta field requirements, per-field setters with
-   * type enforcement would be safer.
-   *
-   * @param array<string, mixed> $normalized_fields
+   *@param array<string, mixed> $normalized_fields
    * @return bool
    */
   public function apply_edit_fields( array $normalized_fields ): bool {
@@ -2606,9 +2594,6 @@ class Membership_Bundle {
             'content'      => $config->get_late_fee_window_callout_content( $iso_code ),
             'button_label' => $config->get_late_fee_window_callout_button_label( $iso_code ),
           ];
-          // TODO: late_fee_product_id has a temporary implementation on Membership_Bundle_Config
-          // that may not reflect the correct product for groups. Revisit once bundle late-fee
-          // product sourcing is defined. See TODO.md.
           $grace_period[] = [
             'membership'          => $membership_data,
             'callout'             => $callout,

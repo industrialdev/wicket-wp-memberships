@@ -5,6 +5,7 @@ import styled from "styled-components";
 import BundleMembersSection from "./BundleMembersSection";
 import AddMemberToBundleModal from "./AddMemberToBundleModal";
 import CancelMembershipBundleModal from "./CancelMembershipBundleModal";
+import CreateBundleRenewalOrderModal from "./CreateBundleRenewalOrderModal";
 import MembershipBillingInfoSection from "../../shared/components/MembershipBillingInfoSection";
 import MembershipOrderDetailsSection from "../../shared/components/MembershipOrderDetailsSection";
 import MembershipStatusSection from "../../shared/components/MembershipStatusSection";
@@ -51,6 +52,7 @@ const DetailsWrap = styled.div`
 const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl, onMemberAdded, onBundleCancelled }) => {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isCancelGroupOpen, setIsCancelGroupOpen] = useState(false);
+  const [isCreateRenewalOrderOpen, setIsCreateRenewalOrderOpen] = useState(false);
   const [memberRefreshKey, setMemberRefreshKey] = useState(0);
 
   // Group-level subscription and order data is shared across all records until
@@ -159,6 +161,11 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
               label: __("Add Member to Bundle", "wicket-memberships"),
               onClick: () => setIsAddMemberOpen(true),
             },
+            {
+              label: __("Create Renewal Order", "wicket-memberships"),
+              onClick: () => setIsCreateRenewalOrderOpen(true),
+              disabled: isCancelled,
+            },
           ]}
         />
       </Flex>
@@ -187,6 +194,13 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
           setMemberRefreshKey((k) => k + 1);
           if (onMemberAdded) onMemberAdded();
         }}
+      />
+
+      <CreateBundleRenewalOrderModal
+        isOpen={isCreateRenewalOrderOpen}
+        bundlePostId={bundlePostId}
+        onRequestClose={() => setIsCreateRenewalOrderOpen(false)}
+        onSuccess={() => setIsCreateRenewalOrderOpen(false)}
       />
 
       <MembershipDetailsForm
