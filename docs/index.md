@@ -40,5 +40,9 @@ audience: [implementer, support, developer, end-user]
 - [Settings](engineering/Class-Settings.md) — Plugin options page: feature flags, debug toggles, scheduled action status
 - [Utilities](engineering/Class-Utilities.md) — WooCommerce integration hooks: cart/checkout modifications, product protection, timezone date helpers
 
+## Public Docs (External Developers & New Team Members)
+- [Overview](public/index.md) — Entry point for all public developer documentation
+- [Membership Bundles](public/membership-bundles/index.md) — Class APIs, REST endpoints, and conceptual guides for the Membership Bundles feature
+
 ## Guides (End Users)
 - [Link a Membership Tier to a WooCommerce Product](guides/link-tier-to-product.md) — Connect tiers to subscription products so memberships are created on purchase

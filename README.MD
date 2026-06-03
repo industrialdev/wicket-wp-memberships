@@ -83,3 +83,10 @@ For complete documentation, see **[docs/index.md](docs/index.md)**.
 | Operators & Support | [docs/product/](docs/product/) |
 | Developers & Agents | [docs/engineering/](docs/engineering/) |
 | End Users | [docs/guides/](docs/guides/) |
+| External Developers | [docs/public/](docs/public/) |
+
+### Membership Bundles
+
+Public API reference for the Membership Bundles feature — class APIs, REST endpoints, and conceptual guides for external developers and new team members.
+
+**[docs/public/membership-bundles/](docs/public/membership-bundles/index.md)**

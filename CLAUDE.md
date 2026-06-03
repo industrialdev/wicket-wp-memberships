@@ -93,6 +93,15 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 - The class docs map 1:1 to the PHP files in `includes/`. Preserve that convention — never leave a class undocumented.
 - When changing membership config or tier data structures, also update the related markdown file in `docs/`.
 - Do not leave doc updates for later. Code and docs must change together whenever behavior, signatures, properties, fields, hooks, or responsibilities change.
+- **Membership Bundles public docs** live in `docs/public/membership-bundles/`. When changing any of the following, update the corresponding public doc in the same task:
+  - `Membership_Bundle` → `docs/public/membership-bundles/classes/membership-bundle.md`
+  - `Membership_Bundle_Config` → `docs/public/membership-bundles/classes/membership-bundle-config.md`
+  - `Membership_Bundle_Admin_Controller` → `docs/public/membership-bundles/classes/membership-bundle-admin-controller.md`
+  - `Membership_Bundle_WP_REST_Controller` → `docs/public/membership-bundles/endpoints/` (relevant file)
+  - `Membership_Bundle_Config_WP_REST_Controller` → `docs/public/membership-bundles/endpoints/bundle-config-dates.md`
+  - Bundle status constants, lifecycle transitions, or cron behaviour → `docs/public/membership-bundles/concepts/bundle-lifecycle.md`
+  - Renewal type, grace period, or cycle logic → `docs/public/membership-bundles/concepts/renewal-types.md`
+  - Member add/remove/move semantics → `docs/public/membership-bundles/concepts/member-handling.md`
 
 ## External References
 
@@ -134,6 +143,7 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 - Did the work reference `wicket-wp-base-plugin` without modifying it?
 - If tests were added or updated, were they placed in `qa/` and run from there when possible?
 - If the change touches membership bundle logic, were the relevant `docs/engineering/Membership_Bundle*.md` docs consulted?
+- If the change affects public bundle behaviour (methods, endpoints, status transitions, lifecycle, renewal, member handling), was the corresponding file in `docs/public/membership-bundles/` updated?
 
 ## Current Branch Scope
 
