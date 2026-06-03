@@ -1,22 +1,24 @@
 ---
-title: "Bundle_Admin_Controller"
+title: "Membership_Bundle_Admin_Controller"
 audience: [developer]
-php_class: Bundle_Admin_Controller
-source_files: ["includes/Bundle_Admin_Controller.php"]
+php_class: Membership_Bundle_Admin_Controller
+source_files: ["includes/Membership_Bundle_Admin_Controller.php"]
 ---
 
-# Bundle_Admin_Controller
+# Membership_Bundle_Admin_Controller
 
-**File:** `includes/Bundle_Admin_Controller.php`
+**File:** `includes/Membership_Bundle_Admin_Controller.php`
 **Namespace:** `Wicket_Memberships`
 
-Admin operations for membership bundle posts. Mirrors the shape of `Admin_Controller` but operates exclusively on the `wicket_mship_bundle` CPT. Individual-membership concerns (MDP record sync, tier/config lookups, user-meta JSON blobs) are intentionally absent — groups are containers that hold individual memberships and do not have their own MDP membership records.
+Admin operations for membership bundle posts. Mirrors the shape of `Admin_Controller` but operates exclusively on the `wicket_mship_bundle` CPT. Individual-membership concerns (MDP record sync, tier/config lookups, user-meta JSON blobs) are intentionally absent — bundles are containers that hold individual memberships and do not have their own MDP membership records.
 
 All public methods are `static` and return `\WP_REST_Response` or a plain `array` (for data retrieval methods).
 
-## Architectural convention
+**CPT slug:** `wicket_mship_bundle` — via `Helper::get_membership_bundle_cpt_slug()`
 
-`Bundle_Admin_Controller` is a thin orchestrator. Request validation, payload normalization, and transition planning stay here. Group-domain mutations and WooCommerce side effects are delegated to `Membership_Bundle`, which keeps WC coupling contained in the model and the controller readable as a sequence of model calls.
+**Architecture position:** Orchestration layer — sits between the REST controller and the model. Request validation, payload normalisation, and transition planning stay here. All bundle-domain mutations and WooCommerce side effects are delegated to `Membership_Bundle`.
+
+Call chain: `Membership_Bundle_WP_REST_Controller` → **`Membership_Bundle_Admin_Controller`** → `Membership_Bundle`
 
 ---
 
@@ -24,7 +26,7 @@ All public methods are `static` and return `\WP_REST_Response` or a plain `array
 
 ### `__construct()`
 
-Stores the group CPT slug from `Helper::get_membership_group_cpt_slug()`. Also instantiated implicitly by the static methods via `new self()` where needed.
+Stores the bundle CPT slug from `Helper::get_membership_bundle_cpt_slug()`. Also instantiated implicitly by the static methods via `new self()` where needed.
 
 ---
 
@@ -34,12 +36,12 @@ Stores the group CPT slug from `Helper::get_membership_group_cpt_slug()`. Also i
 
 Returns available status options for a membership bundle.
 
-- If `$bundle_post_id` is supplied, returns only valid transitions from the group's current `membership_status` meta value, via `Helper::get_allowed_transition_status()`.
+- If `$bundle_post_id` is supplied, returns only valid transitions from the bundle's current `membership_status` meta value, via `Helper::get_allowed_transition_status()`.
 - If omitted, returns all status names from `Helper::get_all_status_names()`.
 
 ---
 
-### `admin_manage_status( int $bundle_post_id, string $new_status ): \WP_REST_Response`
+### `bundle_admin_manage_status( int $bundle_post_id, string $new_status ): \WP_REST_Response`
 
 Transitions a membership bundle to a new status. Supported transitions:
 
@@ -52,23 +54,20 @@ Transitions a membership bundle to a new status. Supported transitions:
 | `active` | `expired` | Sets end = tomorrow, expires = tomorrow; cancels subscription |
 | `grace-period` | `cancelled` | Preserves existing end date; sets expires = now |
 
-Delegates the full lifecycle operation to `Membership_Bundle::transition_to()`, which applies transition rules, plans dates, activates the linked subscription for `pending -> active`, and persists the new group status. Child-status cascading is currently a TODO placeholder and does not run.
+Delegates the full lifecycle operation to `Membership_Bundle::transition_to()`, which applies transition rules, plans dates, activates the linked subscription for `pending -> active`, and persists the new bundle status.
 
-Respects the `BYPASS_STATUS_CHANGE_LOCKOUT` env flag: when set, forces the status directly without enforcing transition rules.
-
-Returns a `400` response for invalid transitions (unless bypass is active), `404` if the post is not found or is the wrong CPT.
-
-> **TODO:** Cancel the linked WC subscription on `cancelled`/`expired` transitions once group subscription management is implemented — see TODO.md.
+Returns a `400` response for invalid transitions, `404` if the post is not found or is the wrong CPT.
 
 ---
 
-### `get_group_entity_records( int $bundle_post_id ): array|\WP_REST_Response`
+### `get_bundle_entity_records( int $bundle_post_id ): array|\WP_REST_Response`
 
 Returns the data needed to populate the membership bundle entity view:
 
 ```php
 [
   'ID'                 => int,
+  'bundle_group_uuid'  => string,
   'title'              => string,
   'data'               => [  // all post meta + formatted fields
     'membership_status'      => string,  // human-readable label
@@ -86,13 +85,13 @@ Returns `404` if the post is not found or wrong CPT.
 
 ---
 
-### `update_group_entity_record( array $data ): \WP_REST_Response`
+### `update_bundle_entity_record( array $data ): \WP_REST_Response`
 
-Updates editable fields on a group post. Expects these keys in `$data`:
+Updates editable fields on a bundle post. Expects these keys in `$data`:
 
 | Key | Required | Notes |
 |---|---|---|
-| `bundle_post_id` | Yes | Must be a valid group CPT post |
+| `bundle_post_id` | Yes | Must be a valid bundle CPT post |
 | `membership_starts_at` | No | Must be before `membership_ends_at` |
 | `membership_ends_at` | No | Must not be after `membership_expires_at` |
 | `membership_expires_at` | No | |
@@ -104,9 +103,9 @@ After a successful edit, if `membership_renewal_type` changed, calls `maybe_sync
 
 ---
 
-### `maybe_sync_renewal_type_next_payment( Membership_Bundle $group, string $pre_edit_renewal_type, string $new_renewal_type ): void` _(private static)_
+### `maybe_sync_renewal_type_next_payment( Membership_Bundle $bundle, string $pre_edit_renewal_type, string $new_renewal_type ): void` _(private static)_
 
-Syncs the linked WC subscription's `next_payment` date when the renewal type changes on a group edit.
+Syncs the linked WC subscription's `next_payment` date when the renewal type changes on a bundle edit.
 
 - **Changed to `subscription`:** sets `next_payment` to `ends_at` (day-end, via `Utilities::get_mdp_day_end()`).
 - **Changed away from `subscription`:** calls `$subscription->delete_date('next_payment')`.
@@ -115,15 +114,18 @@ No-ops when: renewal type is unchanged, no subscription is linked, subscription 
 
 ---
 
-### `get_group_edit_page_info( int $bundle_post_id ): array|\WP_REST_Response`
+### `get_bundle_edit_page_info( string $bundle_group_uuid ): array|\WP_REST_Response`
 
-Returns all data required to populate the membership bundle edit form:
+Returns all data required to populate the membership bundle edit form. Accepts a bundle group UUID, queries all bundle posts sharing that UUID, and sorts them newest-first by `post_date`. The newest post supplies all top-level fields (org, owner, config, subscription). `membership_records` is built from every post in the series so the UI can stack all yearly instances.
+
+Returns `404` if no posts in the series are found.
 
 ```php
 [
   'ID'                  => int,
   'title'               => string,
   'meta'                => array,   // raw post meta
+  'bundle_group_uuid'   => string,
   'org'                 => [ 'uuid', 'name', 'location', 'mdp_link' ],
   'owner'               => [ 'user_id', 'uuid', 'name', 'email', 'mdp_link', 'identifying_number', 'switch_to_url' ] | null,
   'config'              => array,   // post meta from the linked Membership_Bundle_Config
@@ -139,8 +141,8 @@ Returns all data required to populate the membership bundle edit form:
   'allowed_transitions' => array,   // valid next statuses from current
   'membership_records'  => [
     [
-      'ID'                     => int,     // the group post ID
-      'name'                   => string,  // stored group name or post title
+      'ID'                     => int,     // the bundle post ID
+      'name'                   => string,  // stored bundle name or post title
       'status'                 => string,  // human-readable label
       'starts_at'              => string,
       'ends_at'                => string,
@@ -153,44 +155,44 @@ Returns all data required to populate the membership bundle edit form:
 ]
 ```
 
-`membership_records` contains the singular membership bundle record shown in the edit-page "Membership Records" table. Child individual memberships are not listed there; they remain available through the separate group-members breakdown and filtered member-management links.
+`membership_records` contains one entry per bundle post in the series (newest first). Child individual memberships are not listed there; they remain available through the separate bundle-members breakdown and filtered member-management links.
 
-Fetches organisation data from `Helper::get_org_data()` and person data from `wicket_get_person_by_id()`. Fetches the linked WC subscription via `wcs_get_subscription()` and related orders via `WC_Subscription::get_related_orders('all')`. All date fields are ISO 8601. Returns `404` if the post is not found.
+Fetches organisation data from `Helper::get_org_data()` and person data from `wicket_get_person_by_id()`. Fetches the linked WC subscription via `wcs_get_subscription()` and related orders via `WC_Subscription::get_related_orders('all')`. All date fields are ISO 8601.
 
 ---
 
-### `get_group_members_by_tier( int $bundle_post_id ): array|\WP_REST_Response`
+### `get_bundle_members_by_tier( int $bundle_post_id ): array|\WP_REST_Response`
 
-Returns the total member count and per-tier breakdown for a group:
+Returns the total member count and per-tier breakdown for a bundle:
 
 ```php
 [
   'total_members' => int,
   'tiers'         => [
-    [ 'tier_name' => string, 'member_count' => int ],
+    [ 'tier_uuid' => string, 'tier_name' => string, 'member_count' => int ],
     // ...sorted alphabetically by tier_name
   ],
 ]
 ```
 
-Queries child memberships via `Membership_Bundle::get_individual_memberships()`, groups them by `membership_tier_name` meta, and returns the totals. Members without a tier name count toward `total_members` but are omitted from `tiers`. Tiers are sorted alphabetically. Returns `404` if the post is not found or is the wrong CPT.
+Queries child memberships via `Membership_Bundle::get_individual_memberships()`, groups them by `membership_tier_uuid` meta, and returns the totals. Members without a `tier_uuid` are skipped entirely (they do not count toward `total_members` within tiers). Tiers are sorted alphabetically by `tier_name`. Returns `404` if the post is not found or is the wrong CPT.
 
 ---
 
-### `update_group_change_ownership( array $params ): \WP_REST_Response`
+### `update_bundle_change_ownership( array $params ): \WP_REST_Response`
 
-Changes the membership owner on a group post. Expects `params`:
+Changes the membership owner on a bundle post. Expects `params`:
 
 | Key | Required |
 |---|---|
 | `bundle_post_id` | Yes |
 | `new_owner_uuid` | Yes — MDP person UUID |
 
-- Rejects the request when the selected UUID is already the canonical owner.
+- Returns `204` if the new owner is the same as the current owner (no-op).
 - Delegates ownership storage (including WP user resolution/creation) to `Membership_Bundle::set_owner()` — see `Membership_Bundle` docs for rationale.
 - Reassigns the linked WC order and subscription customers (handled internally by `set_owner()`).
 
-Returns `400` if the new owner is the same as the current owner, or if the user cannot be resolved.
+Returns `500` if the user cannot be resolved.
 
 Ownership reassignment of linked WooCommerce order/subscription records is handled internally by `Membership_Bundle::set_owner()`.
 
@@ -198,7 +200,7 @@ Ownership reassignment of linked WooCommerce order/subscription records is handl
 
 ### `add_member( array $params ): array`
 
-Adds an individual membership to a group. Dispatches to `Membership_Bundle::add_member()` based on `mode`.
+Adds an individual membership to a bundle. Dispatches to `Membership_Bundle::add_member()` based on `mode`.
 
 | Key | Required | Description |
 |---|---|---|
@@ -209,7 +211,7 @@ Adds an individual membership to a group. Dispatches to `Membership_Bundle::add_
 | `existing_membership_post_id` | Conditional | Existing membership post ID to cancel — required when `mode = "existing"` |
 | `product_id` | No | WC product ID — auto-resolved from tier when omitted |
 
-For `mode = "new"`: resolves a WP user from `person_uuid` before delegating to `Membership_Bundle::add_member()`. Resolution strategy depends on the `BYPASS_WICKET` flag (read from `$group->bypass_wicket`):
+For `mode = "new"`: resolves a WP user from `person_uuid` before delegating to `Membership_Bundle::add_member()`. Resolution strategy depends on the `BYPASS_WICKET` flag (read from `$bundle->bypass_wicket`):
 
 - **Normal mode:** calls `wicket_create_wp_user_if_not_exist()` — creates the WP user from MDP if not already present.
 - **Bypass mode (`BYPASS_WICKET`):** calls `get_user_by( 'login', $person_uuid )` only — no MDP API call. Returns `user_resolve_failed` error if the user does not already exist locally.
@@ -220,7 +222,7 @@ Returns `['success' => '...', 'membership_post_id' => int]` on success or `['err
 
 ### `remove_member( array $params ): array`
 
-Removes an individual membership from a group. Dispatches to `Membership_Bundle::remove_member()`.
+Removes an individual membership from a bundle. Dispatches to `Membership_Bundle::remove_member()`.
 
 | Key | Required | Description |
 |---|---|---|
@@ -234,7 +236,7 @@ Returns `['success' => '...', 'membership_post_id' => int]` on success or `['err
 
 ### `move_individual_membership( array $params ): array`
 
-Moves an individual membership from one group to another. Dispatches to `Membership_Bundle::move_individual_membership()`.
+Moves an individual membership from one bundle to another. Dispatches to `Membership_Bundle::move_individual_membership()`.
 
 | Key | Required | Description |
 |---|---|---|
@@ -246,33 +248,33 @@ Returns `['success' => '...', 'membership_post_id' => int]` on success or `['err
 
 ---
 
-### `cancel_group( int $bundle_post_id, string $member_handling, string $timing ): \WP_REST_Response`
+### `cancel_bundle( int $bundle_post_id, string $member_handling, string $timing ): \WP_REST_Response`
 
 Cancels a membership bundle with three configurable paths based on `$member_handling` and `$timing`.
 
 **Path A — `cancel_all` + `immediately`:**
 - Calls `Membership_Bundle::transition_to('cancelled')`, which collapses dates to now and handles the cascade via `plan_status_transition`.
-- Calls `cancel_group_subscription()` to immediately hard-cancel the WC subscription.
-- Calls `Membership_Controller::update_membership_status($post_id, 'cancelled')` on each individual membership. `membership_group_id` meta is preserved for historical reference. No replacement memberships are created.
+- Calls `cancel_bundle_subscription()` to immediately hard-cancel the WC subscription.
+- Calls `$bundle->transition_to(STATUS_CANCELLED)` which cascades cancellation to child memberships via `cascade_status_to_members()`. No replacement memberships are created.
 
 **Path B — `cancel_all` + `at_end_date`:**
-- Calls `Membership_Bundle::transition_to_cancelled_at_end_date()`, which sets group status to cancelled while preserving `ends_at`, collapses `expires_at` to `ends_at`, and updates individual membership `expires_at` without touching their active status.
-- Individual memberships **keep their active status** — members retain access until the original group end date. `daily_membership_expiry_hook` expires them naturally on that date. No per-member scheduled job.
-- Sets the group WC subscription to `pending-cancel`.
-- Schedules one `as_schedule_single_action` at `ends_at` with hook `wicket_group_cancel_subscription` + arg `$bundle_post_id`. The handler in `wicket.php` calls `$subscription->update_status('cancelled')`.
+- Calls `Membership_Bundle::transition_to_cancelled_at_end_date()`, which sets bundle status to cancelled while preserving `ends_at`, collapses `expires_at` to `ends_at`, and updates individual membership `expires_at` without touching their active status.
+- Individual memberships **keep their active status** — members retain access until the original bundle end date. `daily_membership_expiry_hook` expires them naturally on that date. No per-member scheduled job.
+- Sets the bundle WC subscription to `pending-cancel`.
+- Schedules one `as_schedule_single_action` at `ends_at` with hook `wicket_bundle_cancel_subscription` + arg `$bundle_post_id`. The handler in `wicket.php` calls `$subscription->update_status('cancelled')`.
 - No replacement memberships created.
 
 **Path C — `keep_as_individual`:**
 - Delegates entirely to `Membership_Bundle::cancel_keep_as_individual()`. See that method's documentation for the full conversion loop detail.
-- Returns `400` if the group transition fails, `200` (with optional `warnings` array) on success.
+- Returns `400` if the bundle transition fails, `200` (with optional `warnings` array) on success.
 
-Returns `400` for invalid transitions or missing end date (path B), `404` if group not found, `200` on success.
+Returns `400` for invalid transitions or missing end date (path B), `404` if bundle not found, `200` on success.
 
 ---
 
-### `create_group_renewal_order( array $params ): \WP_REST_Response`
+### `create_bundle_renewal_order( array $params ): \WP_REST_Response`
 
-Creates a renewal WC order and subscription for a membership bundle. Expects `params`:
+Creates a WooCommerce renewal order for the bundle by calling `wcs_create_renewal_order()` on the linked subscription. Returns `200` with the order URL and ID on success. Expects `params`:
 
 | Key | Required |
 |---|---|
@@ -280,19 +282,17 @@ Creates a renewal WC order and subscription for a membership bundle. Expects `pa
 | `product_id` | Yes |
 | `variation_id` | No — overrides `product_id` if provided |
 
-This is currently a stub that returns `501 Not yet implemented.` The remaining blocker is the group subscription line item structure.
-
 ---
 
 ## Private Helpers
 
-### `build_membership_groups_row( \WP_Post $post ): array`
+### `build_membership_bundles_row( \WP_Post $post ): array`
 
-Builds one list-table row per group post. Owner `name` and `email` are resolved in controller response-shaping code from the live WP user via the stored `user_id`.
+Builds one list-table row per bundle post. Owner `name` and `email` are resolved in controller response-shaping code from the live WP user via the stored `user_id`.
 
-### `cancel_group_subscription( int|false $subscription_id, array $meta_data ): void`
+### `cancel_bundle_subscription( int|false $subscription_id, array $meta_data ): void`
 
-Cancels a WC subscription linked to a membership bundle. Sets the subscription end date from `$meta_data['ends_at']` then calls `update_status('cancelled')`. No-op if the subscription does not exist or WC Subscriptions is not active. Used by path A of `cancel_group()`.
+Cancels a WC subscription linked to a membership bundle. Sets the subscription end date from `$meta_data['ends_at']`, writes a completion note to the subscription, then calls `update_status('cancelled')`. No-op if the subscription does not exist or WC Subscriptions is not active. Used by path A of `cancel_bundle()`.
 
 ---
 
@@ -300,7 +300,7 @@ Cancels a WC subscription linked to a membership bundle. Sets the subscription e
 
 | Class / Function | Purpose |
 |---|---|
-| `Membership_Bundle` | Model — reads/writes group post meta; child date/status cascade hooks are currently TODO placeholders |
+| `Membership_Bundle` | Model — reads/writes bundle post meta; child date/status cascade is fully implemented |
 | `Membership_Bundle_Config` | Reads date calculation config for `pending → active` transition |
 | `Helper` | `get_post_meta()`, `get_all_status_names()`, `get_allowed_transition_status()`, `get_org_data()` |
 | `Utilities` | `wc_log_mship_error()` for error logging |

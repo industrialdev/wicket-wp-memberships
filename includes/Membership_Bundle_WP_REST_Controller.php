@@ -2,7 +2,7 @@
 
 namespace Wicket_Memberships;
 
-use Wicket_Memberships\Bundle_Admin_Controller;
+use Wicket_Memberships\Membership_Bundle_Admin_Controller;
 use \WP_REST_Response;
 
 /**
@@ -10,7 +10,7 @@ use \WP_REST_Response;
  *
  * Mirrors the shape of Membership_WP_REST_Controller but operates exclusively
  * on membership bundle (wicket_mship_bundle) posts.  All business logic is
- * delegated to Bundle_Admin_Controller and the Membership_Bundle model.
+ * delegated to Membership_Bundle_Admin_Controller and the Membership_Bundle model.
  *
  * Tier-management, individual-membership imports, MDP person merges, and org
  * browsing endpoints are intentionally absent — those concerns remain in
@@ -449,7 +449,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    */
   public function get_membership_bundles( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Bundle_Admin_Controller::get_membership_bundles_list(
+    $response = Membership_Bundle_Admin_Controller::get_membership_bundles_list(
       $params['page'] ?? 1,
       $params['posts_per_page'] ?? 25,
       $params['status'] ?? 'all',
@@ -466,7 +466,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    */
   public function get_bundle_entity( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Bundle_Admin_Controller::get_bundle_entity_records( (int) $params['bundle_post_id'] );
+    $response = Membership_Bundle_Admin_Controller::get_bundle_entity_records( (int) $params['bundle_post_id'] );
     return rest_ensure_response( $response );
   }
 
@@ -475,7 +475,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    */
   public function update_bundle_entity( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Bundle_Admin_Controller::update_bundle_entity_record( $params );
+    $response = Membership_Bundle_Admin_Controller::update_bundle_entity_record( $params );
     return rest_ensure_response( $response );
   }
 
@@ -485,7 +485,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   public function get_bundle_admin_status_options( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $bundle_post_id = ! empty( $params['bundle_post_id'] ) ? (int) $params['bundle_post_id'] : null;
-    $response = Bundle_Admin_Controller::get_admin_status_options( $bundle_post_id );
+    $response = Membership_Bundle_Admin_Controller::get_admin_status_options( $bundle_post_id );
     return rest_ensure_response( $response );
   }
 
@@ -494,7 +494,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    */
   public function bundle_bundle_admin_manage_status( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Bundle_Admin_Controller::bundle_admin_manage_status(
+    $response = Membership_Bundle_Admin_Controller::bundle_admin_manage_status(
       (int) $params['bundle_post_id'],
       (string) $params['status']
     );
@@ -506,7 +506,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    */
   public function get_bundle_edit_page_info( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Bundle_Admin_Controller::get_bundle_edit_page_info( (string) $params['bundle_group_uuid'] );
+    $response = Membership_Bundle_Admin_Controller::get_bundle_edit_page_info( (string) $params['bundle_group_uuid'] );
     return rest_ensure_response( $response );
   }
 
@@ -514,7 +514,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    * GET /membership_bundle_filters
    */
   public function get_membership_bundle_filters( \WP_REST_Request $request ) {
-    $response = Bundle_Admin_Controller::get_membership_bundle_filters();
+    $response = Membership_Bundle_Admin_Controller::get_membership_bundle_filters();
     return rest_ensure_response( $response );
   }
 
@@ -523,7 +523,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    */
   public function get_bundle_members_by_tier( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Bundle_Admin_Controller::get_bundle_members_by_tier( (int) $params['bundle_post_id'] );
+    $response = Membership_Bundle_Admin_Controller::get_bundle_members_by_tier( (int) $params['bundle_post_id'] );
     return rest_ensure_response( $response );
   }
 
@@ -551,7 +551,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
 
     return new WP_REST_Response( [
       'success'  => 'Membership bundle created.',
-      'response' => Bundle_Admin_Controller::get_bundle_entity_records( $bundle->post_id ),
+      'response' => Membership_Bundle_Admin_Controller::get_bundle_entity_records( $bundle->post_id ),
     ], 200 );
   }
 
@@ -560,7 +560,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    */
   public function update_bundle_change_ownership( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Bundle_Admin_Controller::update_bundle_change_ownership( $params );
+    $response = Membership_Bundle_Admin_Controller::update_bundle_change_ownership( $params );
     return rest_ensure_response( $response );
   }
 
@@ -583,7 +583,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       return new WP_REST_Response( [ 'error' => 'existing_membership_post_id is required when mode is "existing".' ], 400 );
     }
 
-    $result = Bundle_Admin_Controller::add_member( $params );
+    $result = Membership_Bundle_Admin_Controller::add_member( $params );
 
     if ( isset( $result['error'] ) ) {
       return new WP_REST_Response( [ 'error' => $result['error'] ], 400 );
@@ -603,7 +603,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       return new \WP_REST_Response( [ 'error' => 'mode must be "cancel" or "keep_as_individual".' ], 400 );
     }
 
-    $result = Bundle_Admin_Controller::remove_member( $params );
+    $result = Membership_Bundle_Admin_Controller::remove_member( $params );
 
     if ( isset( $result['error'] ) ) {
       return new \WP_REST_Response( [ 'error' => $result['error'] ], 400 );
@@ -629,7 +629,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       return new \WP_REST_Response( [ 'error' => 'timing must be "immediately" or "at_end_date" when member_handling is "cancel_all".' ], 400 );
     }
 
-    return Bundle_Admin_Controller::cancel_bundle( $bundle_post_id, $member_handling, $timing );
+    return Membership_Bundle_Admin_Controller::cancel_bundle( $bundle_post_id, $member_handling, $timing );
   }
 
   /**
@@ -687,7 +687,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   public function move_individual_membership( \WP_REST_Request $request ): \WP_REST_Response {
     $params = $request->get_params();
 
-    $result = Bundle_Admin_Controller::move_individual_membership( [
+    $result = Membership_Bundle_Admin_Controller::move_individual_membership( [
       'source_bundle_post_id' => (int) ( $params['bundle_post_id'] ?? 0 ),
       'membership_post_id'   => (int) ( $params['membership_post_id'] ?? 0 ),
       'target_bundle_post_id' => (int) ( $params['target_bundle_post_id'] ?? 0 ),

@@ -11,11 +11,15 @@ source_files: ["includes/Membership_Bundle_WP_REST_Controller.php"]
 **Namespace:** `Wicket_Memberships`
 **REST Namespace:** `wicket_member/v1`
 
-REST API gateway for membership bundle operations. Extends `WP_REST_Controller` and registers all group-related endpoints on `rest_api_init`.
+REST API gateway for membership bundle operations. Extends `WP_REST_Controller` and registers all bundle REST endpoints on `rest_api_init`.
 
-Tier management, individual-membership imports, MDP person merges, and org-browsing endpoints are intentionally absent — those remain in `Membership_WP_REST_Controller`. Group config date calculation is handled by `Membership_Bundle_Config_WP_REST_Controller`.
+Tier management, individual-membership imports, MDP person merges, and org-browsing endpoints are intentionally absent — those remain in `Membership_WP_REST_Controller`. Bundle config date calculation is handled by `Membership_Bundle_Config_WP_REST_Controller`.
 
-All business logic is delegated to `Bundle_Admin_Controller`.
+All business logic is delegated to `Membership_Bundle_Admin_Controller`.
+
+**Architecture position:** HTTP layer only — validates request params, delegates everything to `Membership_Bundle_Admin_Controller`, returns the response. Contains no business logic.
+
+Call chain: **`Membership_Bundle_WP_REST_Controller`** → `Membership_Bundle_Admin_Controller` → `Membership_Bundle`
 
 ---
 
@@ -23,19 +27,21 @@ All business logic is delegated to `Bundle_Admin_Controller`.
 
 | Method | Route | Handler | Backed |
 |---|---|---|---|
-| `GET` | `/membership_group_entity` | `get_group_entity` | Yes |
-| `POST` | `/membership_group_entity/{bundle_post_id}/update` | `update_group_entity` | Yes |
-| `GET` | `/bundle/admin/status_options` | `get_group_admin_status_options` | Yes |
-| `POST` | `/bundle/admin/manage_status` | `group_admin_manage_status` | Yes |
-| `GET` | `/bundle/admin/get_edit_page_info` | `get_group_edit_page_info` | Yes |
-| `GET` | `/bundle/{bundle_post_id}/members_by_tier` | `get_group_members_by_tier` | Yes |
-| `POST` | `/bundle/{bundle_post_id}/change_owner` | `update_group_change_ownership` | Yes |
-| `POST` | `/bundle/{bundle_post_id}/add_member` | `add_member_to_group` | Yes |
-| `POST` | `/bundle/{bundle_post_id}/remove_member` | `remove_member_from_group` | Yes |
+| `GET` | `/membership_bundles` | `get_membership_bundles` | Yes |
+| `GET` | `/membership_bundle_entity` | `get_bundle_entity` | Yes |
+| `POST` | `/membership_bundle_entity/{bundle_post_id}/update` | `update_bundle_entity` | Yes |
+| `GET` | `/bundle/admin/status_options` | `get_bundle_admin_status_options` | Yes |
+| `POST` | `/bundle/admin/manage_status` | `bundle_bundle_admin_manage_status` | Yes |
+| `GET` | `/bundle/admin/get_edit_page_info` | `get_bundle_edit_page_info` | Yes |
+| `GET` | `/membership_bundle_filters` | `get_membership_bundle_filters` | Yes |
+| `GET` | `/bundle/{bundle_post_id}/members_by_tier` | `get_bundle_members_by_tier` | Yes |
+| `POST` | `/bundle` | `create_membership_bundle` | Yes |
+| `POST` | `/bundle/{bundle_post_id}/change_owner` | `update_bundle_change_ownership` | Yes |
+| `POST` | `/bundle/{bundle_post_id}/add_member` | `add_member_to_bundle` | Yes |
+| `POST` | `/bundle/{bundle_post_id}/remove_member` | `remove_member_from_bundle` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/move_individual_membership` | `move_individual_membership` | Yes |
-| `POST` | `/bundle/{bundle_post_id}/create_renewal_order` | `create_group_renewal_order` | Yes |
-
-Routes with no backing business logic yet are documented as TODO stubs in `register_routes()` source comments and tracked in `TODO.md`.
+| `POST` | `/bundle/{bundle_post_id}/cancel` | `cancel_bundle` | Yes |
+| `POST` | `/bundle/{bundle_post_id}/create_renewal_order` | `create_bundle_renewal_order` | Yes |
 
 ---
 
@@ -47,63 +53,60 @@ Sets `$this->namespace = 'wicket_member/v1'` and hooks `register_routes` to `res
 
 ### `register_routes()`
 
-Registers all group REST routes. TODO stub routes are listed as comments — they register no endpoints until business logic is implemented.
+Registers all bundle REST routes.
 
-### `get_group_entity( \WP_REST_Request $request )`
+### `get_bundle_entity( \WP_REST_Request $request )`
 
-**Route:** `GET /membership_group_entity?bundle_post_id={id}`
+**Route:** `GET /membership_bundle_entity?bundle_post_id={id}`
 
-Delegates to `Bundle_Admin_Controller::get_group_entity_records()`. Returns group post meta, formatted dates, and child membership post IDs.
+Delegates to `Membership_Bundle_Admin_Controller::get_bundle_entity_records()`. Returns bundle post meta, formatted dates, and child membership post IDs.
 
-### `update_group_entity( \WP_REST_Request $request )`
+### `update_bundle_entity( \WP_REST_Request $request )`
 
-**Route:** `POST /membership_group_entity/{bundle_post_id}/update`
+**Route:** `POST /membership_bundle_entity/{bundle_post_id}/update`
 
-Delegates to `Bundle_Admin_Controller::update_group_entity_record()`. Validates date ordering and cascades changes to child members.
+Delegates to `Membership_Bundle_Admin_Controller::update_bundle_entity_record()`. Validates date ordering and cascades changes to child members.
 
-### `get_group_admin_status_options( \WP_REST_Request $request )`
+### `get_bundle_admin_status_options( \WP_REST_Request $request )`
 
 **Route:** `GET /bundle/admin/status_options`
 
-Optional param `bundle_post_id`. Delegates to `Bundle_Admin_Controller::get_admin_status_options()`. Returns all statuses or valid transitions from the current group status.
+Optional param `bundle_post_id`. Delegates to `Membership_Bundle_Admin_Controller::get_admin_status_options()`. Returns all statuses or valid transitions from the current bundle status.
 
-### `group_admin_manage_status( \WP_REST_Request $request )`
+### `bundle_bundle_admin_manage_status( \WP_REST_Request $request )`
 
 **Route:** `POST /bundle/admin/manage_status`
 
-Params: `bundle_post_id`, `status`. Delegates to `Bundle_Admin_Controller::admin_manage_status()`. Handles status transitions, subscription updates, and cascades to child memberships.
+Params: `bundle_post_id`, `status`. Delegates to `Membership_Bundle_Admin_Controller::bundle_admin_manage_status()`. Handles status transitions, subscription updates, and cascades to child memberships.
 
-### `get_group_edit_page_info( \WP_REST_Request $request )`
+### `get_bundle_edit_page_info( \WP_REST_Request $request )`
 
-**Route:** `GET /bundle/admin/get_edit_page_info?bundle_post_id={id}`
+**Route:** `GET /bundle/admin/get_edit_page_info?bundle_group_uuid={uuid}`
 
-Delegates to `Bundle_Admin_Controller::get_group_edit_page_info()`. Returns all data for the group edit form: group meta, org, owner, config, dates, and allowed status transitions. The `owner` object includes `switch_to_url` — the impersonation URL generated by `Helper::get_user_switch_to_url()` — which is empty when the User Switching plugin is inactive or the current admin cannot switch to the target user.
+Accepts `bundle_group_uuid` (required string — the series UUID, not a post ID). Delegates to `Membership_Bundle_Admin_Controller::get_bundle_edit_page_info()`. Returns all data for the bundle edit form: bundle meta, org, owner, config, dates, and allowed status transitions. The `owner` object includes `switch_to_url` — the impersonation URL generated by `Helper::get_user_switch_to_url()` — which is empty when the User Switching plugin is inactive or the current admin cannot switch to the target user.
 
-### `get_group_members_by_tier( \WP_REST_Request $request )`
+### `get_bundle_members_by_tier( \WP_REST_Request $request )`
 
 **Route:** `GET /bundle/{bundle_post_id}/members_by_tier`
 
-Delegates to `Bundle_Admin_Controller::get_group_members_by_tier()`. Returns:
+Delegates to `Membership_Bundle_Admin_Controller::get_bundle_members_by_tier()`. Returns:
 
 ```json
 {
   "total_members": 124,
   "tiers": [
-    { "tier_name": "Indv. Tier 1", "member_count": 50 },
-    { "tier_name": "Indv. Tier 2", "member_count": 50 },
-    { "tier_name": "Indv. Tier 3", "member_count": 10 },
-    { "tier_name": "Indv. Tier 4", "member_count": 14 }
+    { "tier_uuid": "abc-123", "member_count": 50 }
   ]
 }
 ```
 
-### `update_group_change_ownership( \WP_REST_Request $request )`
+### `update_bundle_change_ownership( \WP_REST_Request $request )`
 
 **Route:** `POST /bundle/{bundle_post_id}/change_owner`
 
-Body: `new_owner_uuid`. Delegates to `Bundle_Admin_Controller::update_group_change_ownership()`. Updates the canonical single-owner group fields and reassigns linked WC order/subscription customers.
+Body: `new_owner_uuid`. Delegates to `Membership_Bundle_Admin_Controller::update_bundle_change_ownership()`. Updates the canonical single-owner bundle fields and reassigns linked WC order/subscription customers.
 
-### `add_member_to_group( \WP_REST_Request $request )`
+### `add_member_to_bundle( \WP_REST_Request $request )`
 
 **Route:** `POST /bundle/{bundle_post_id}/add_member`
 
@@ -117,9 +120,9 @@ Body params:
 | `existing_membership_post_id` | conditional | integer | Existing `wicket_membership` post ID to cancel — required when `mode = "existing"` |
 | `product_id` | no | integer | WC product ID — auto-resolved from tier when omitted |
 
-Validates `mode` and conditional required params, then delegates to `Bundle_Admin_Controller::add_member()`. Returns `200` with `{ success, membership_post_id }` on success; `400` with `{ error }` on any validation or model failure.
+Validates `mode` and conditional required params, then delegates to `Membership_Bundle_Admin_Controller::add_member()`. Returns `200` with `{ success, membership_post_id }` on success; `400` with `{ error }` on any validation or model failure.
 
-### `remove_member_from_group( \WP_REST_Request $request )`
+### `remove_member_from_bundle( \WP_REST_Request $request ): \WP_REST_Response`
 
 **Route:** `POST /bundle/{bundle_post_id}/remove_member`
 
@@ -130,7 +133,7 @@ Body params:
 | `membership_post_id` | yes | integer | Post ID of the individual membership to remove |
 | `mode` | yes | string | `"cancel"` or `"keep_as_individual"` |
 
-Validates `mode`, then delegates to `Bundle_Admin_Controller::remove_member()`. Returns `200` with `{ success, membership_post_id }` on success; `400` with `{ error }` on failure.
+Validates `mode`, then delegates to `Membership_Bundle_Admin_Controller::remove_member()`. Returns `200` with `{ success, membership_post_id }` on success; `400` with `{ error }` on failure.
 
 - `cancel`: returned `membership_post_id` is the cancelled membership.
 - `keep_as_individual`: returned `membership_post_id` is the newly created standalone membership.
@@ -139,16 +142,16 @@ Validates `mode`, then delegates to `Bundle_Admin_Controller::remove_member()`. 
 
 **Route:** `POST /bundle/{bundle_post_id}/move_individual_membership`
 
-`bundle_post_id` in the URL is the source group. Body params:
+`bundle_post_id` in the URL is the source bundle. Body params:
 
 | Param | Required | Type | Description |
 |---|---|---|---|
 | `membership_post_id` | yes | integer | Post ID of the individual membership to move |
 | `target_bundle_post_id` | yes | integer | Post ID of the destination group |
 
-Delegates to `Bundle_Admin_Controller::move_individual_membership()`. Returns `200` with `{ success, membership_post_id }` (new membership) on success; `400` with `{ error }` on failure. If the source is cancelled but the new membership cannot be created, returns `400` with an explicit message — no rollback.
+Delegates to `Membership_Bundle_Admin_Controller::move_individual_membership()`. Returns `200` with `{ success, membership_post_id }` (new membership) on success; `400` with `{ error }` on failure. If the source is cancelled but the new membership cannot be created, returns `400` with an explicit message — no rollback.
 
-### `cancel_group( \WP_REST_Request $request ): \WP_REST_Response`
+### `cancel_bundle( \WP_REST_Request $request ): \WP_REST_Response`
 
 **Route:** `POST /bundle/{bundle_post_id}/cancel`
 
@@ -158,15 +161,15 @@ Delegates to `Bundle_Admin_Controller::move_individual_membership()`. Returns `2
 | `member_handling` | yes | string | `"cancel_all"` or `"keep_as_individual"` |
 | `timing` | conditional | string | `"immediately"` or `"at_end_date"` — required when `member_handling` is `"cancel_all"` |
 
-Validates `member_handling` and (when applicable) `timing`, then delegates to `Bundle_Admin_Controller::cancel_group()`. Returns its `WP_REST_Response` directly. See `Bundle_Admin_Controller::cancel_group()` for full path descriptions (A/B/C).
+Validates `member_handling` and (when applicable) `timing`, then delegates to `Membership_Bundle_Admin_Controller::cancel_bundle()`. Returns its `WP_REST_Response` directly. See `Membership_Bundle_Admin_Controller::cancel_bundle()` for full path descriptions (A/B/C).
 
 ---
 
-### `create_group_renewal_order( \WP_REST_Request $request )`
+### `create_bundle_renewal_order( \WP_REST_Request $request ): \WP_REST_Response`
 
 **Route:** `POST /bundle/{bundle_post_id}/create_renewal_order`
 
-Body: `product_id`, optional `variation_id`. Delegates to `Bundle_Admin_Controller::create_group_renewal_order()`. This is currently a `501` stub; the remaining blocker is the group subscription line item structure.
+Body: `bundle_post_id` (integer, required). Delegates to `Membership_Bundle_Admin_Controller::create_bundle_renewal_order()`. Returns `200` with the renewal order URL and ID on success.
 
 ### `permissions_check_read( $request ): bool|\WP_REST_Response`
 
@@ -179,17 +182,6 @@ Same logic as `permissions_check_read`. Applied to all `CREATABLE` routes.
 ### `authorization_status_code(): int`
 
 Returns `401` if not logged in, `403` if logged in but unauthorized.
-
----
-
-## TODO — Unimplemented Routes
-
-These routes have no backing business logic yet. They are tracked in `TODO.md`.
-
-| Method | Route | Feature |
-|---|---|---|
-| `GET` | `/bundle/{id}/members` | List full individual membership records in a group |
-| `POST` | `/bundle/{id}/import_members` | Bulk CSV import of members into a group |
 
 ---
 

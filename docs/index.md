@@ -3,21 +3,12 @@ title: "Wicket Memberships Documentation Index"
 audience: [implementer, support, developer, end-user]
 ---
 
----
-title: "Wicket Memberships Documentation Index"
-audience: [implementer, support, developer, end-user]
----
-
 # Wicket Memberships Documentation
-
 
 ## Product Docs (Operators & Support)
 - [Overview](product/overview.md) — What the plugin does, CPTs, lifecycle, feature flags, requirements
-- [Overview](product/overview.md) — What the plugin does, CPTs, lifecycle, feature flags, requirements
 
 ## Engineering Docs (Developers & Agents)
-
-### Data Structures
 
 ### Data Structures
 - [Membership_Config Data Structure](engineering/membership_config_data_structure.md) — Renewal windows, late fees, calendar/anniversary cycles
@@ -25,7 +16,6 @@ audience: [implementer, support, developer, end-user]
 
 ### Feature Plans
 - [Create Membership Bundle Page](engineering/create-membership-bundle-page.md) — Implementation plan and progress tracker for the new membership bundle creation flow
-- [Membership Bundle Renewal](engineering/membership-bundle-renewal.md) — Implementation plan for bundle subscription renewal: new bundle creation, individual membership renewal, activation
 
 ### Class Reference
 - [Admin_Controller](engineering/Class-Admin_Controller.md) — Admin menu pages, status transition validation, React app mounting
@@ -40,9 +30,13 @@ audience: [implementer, support, developer, end-user]
 - [Membership_Tier](engineering/Class-Membership_Tier.md) — Model for tier posts: product linkage, renewal type, MDP UUID lookup
 - [Membership_Tier_CPT_Hooks](engineering/Class-Membership_Tier_CPT_Hooks.md) — Admin UI for tiers: list columns, trash protection, React edit page
 - [Membership_WP_REST_Controller](engineering/Class-Membership_WP_REST_Controller.md) — REST API (wicket_member/v1): search, CRUD, status management, merge webhook
-- [Bundle_Admin_Controller](engineering/Bundle_Admin_Controller.md) — Admin business logic for membership bundle posts (status, dates, ownership, renewal orders)
-- [Membership_Bundle_Cron_Controller](engineering/Membership_Bundle_Cron_Controller.md) — Daily Action Scheduler handlers for group grace-period, expiry, and activation transitions
-- [Membership_Bundle_WP_REST_Controller](engineering/Membership_Bundle_WP_REST_Controller.md) — REST endpoints for membership bundle operations
+- [Membership_Bundle](engineering/Membership_Bundle.md) — Core model for bundle posts: member management, status transitions, date cascade, WC subscription
+- [Membership_Bundle_Admin_Controller](engineering/Membership_Bundle_Admin_Controller.md) — Orchestration layer for bundle admin operations: status, dates, ownership, member CRUD, renewal orders
+- [Membership_Bundle_Config](engineering/Membership_Bundle_Config.md) — Model for bundle config posts: date/cycle calculations, renewal windows, approval settings
+- [Membership_Bundle_Config_CPT_Hooks](engineering/Membership_Bundle_Config_CPT_Hooks.md) — Admin UI hooks for bundle configs: React edit page, list columns, trash protection
+- [Membership_Bundle_Config_WP_REST_Controller](engineering/Membership_Bundle_Config_WP_REST_Controller.md) — REST endpoint for bundle config date calculation
+- [Membership_Bundle_Cron_Controller](engineering/Membership_Bundle_Cron_Controller.md) — Daily Action Scheduler handlers for bundle grace-period, expiry, activation, and renewal batch processing
+- [Membership_Bundle_WP_REST_Controller](engineering/Membership_Bundle_WP_REST_Controller.md) — REST endpoints for all membership bundle operations
 - [Settings](engineering/Class-Settings.md) — Plugin options page: feature flags, debug toggles, scheduled action status
 - [Utilities](engineering/Class-Utilities.md) — WooCommerce integration hooks: cart/checkout modifications, product protection, timezone date helpers
 

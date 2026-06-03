@@ -19,7 +19,7 @@ Individual and organization memberships are stored as `wicket_membership` CPT re
 
 ## Membership Bundles
 
-A Membership Bundle is a separate `wicket_mship_bundle` CPT record — not a `wicket_membership` post. It is managed by `Membership_Bundle` and `Bundle_Admin_Controller`.
+A Membership Bundle is a separate `wicket_mship_bundle` CPT record — not a `wicket_membership` post. It is managed by `Membership_Bundle` and `Membership_Bundle_Admin_Controller`.
 
 Membership Bundles use `Membership_Bundle_Config` (`wicket_mship_bcfg` CPT) directly. This class combines the date/cycle/renewal-window logic of `Membership_Config` with the renewal-type and approval logic of `Membership_Tier` into a single record. **Membership Bundles have no `Membership_Tier` — they do not need one.**
 

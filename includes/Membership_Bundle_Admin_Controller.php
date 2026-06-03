@@ -16,7 +16,7 @@ use Wicket_Memberships\Utilities;
  *
  * @package Wicket_Memberships
  */
-class Bundle_Admin_Controller {
+class Membership_Bundle_Admin_Controller {
 
   private string $bundle_cpt_slug;
 

@@ -9,7 +9,20 @@ source_files: ["includes/Membership_Bundle_Cron_Controller.php"]
 
 Daily cron handlers for `wicket_mship_bundle` status transitions. Registered in `wicket.php` alongside the equivalent individual membership handlers in `Membership_Controller`.
 
-Each handler uses Action Scheduler (`as_schedule_recurring_action`) to run once per day. On each run it queries group posts due for a status change and delegates to `Membership_Bundle::transition_to()`, which applies lifecycle guards, cascades the new status to child individual memberships, and triggers MDP sync.
+Each handler uses Action Scheduler (`as_schedule_recurring_action`) to run once per day. On each run it queries bundle posts due for a status change and delegates to `Membership_Bundle::transition_to()`, which applies lifecycle guards, cascades the new status to child individual memberships, and triggers MDP sync.
+
+**Architecture position:** Scheduled layer. This class owns no business logic — all transitions delegate to `Membership_Bundle`. Does not interact with `Membership_Bundle_Admin_Controller` or the REST layer.
+
+## `do_action` Hooks Fired (AutomateWoo triggers)
+
+| Hook | Fired by | Args | Trigger condition |
+|---|---|---|---|
+| `wicket_memberships_bundle_renewal_period_open` | `catch_bundle_early_renew_at()` | `int $bundle_post_id` | `early_renew_at` date reached |
+| `wicket_memberships_bundle_end_date_reached` | `catch_bundle_ends_at()` | `int $bundle_post_id` | `ends_at` date reached |
+| `wicket_memberships_bundle_grace_period_expired` | `catch_bundle_expires_at()` | `int $bundle_post_id` | `expires_at` date reached |
+| `wicket_memberships_bundle_renewal_complete` | `process_bundle_renewal_members()` | `int $new_bundle_post_id, int $old_bundle_post_id, int $renewal_order_id` | Final renewal batch completes |
+
+AS single-action hooks (`wicket_bundle_early_renew_at`, `wicket_bundle_ends_at`, `wicket_bundle_expires_at`) are scheduled by `Membership_Bundle::schedule_date_trigger_jobs()` — this class provides the handlers that catch them and re-fire the AutomateWoo-facing `do_action` names above.
 
 ## Registered Actions
 
@@ -19,6 +32,8 @@ Each handler uses Action Scheduler (`as_schedule_recurring_action`) to run once 
 | `schedule_daily_bundle_expiry_hook` | `daily_bundle_expiry_hook()` | `schedule_daily_bundle_expiry()` |
 | `schedule_daily_bundle_activation_hook` | `daily_bundle_activation_hook()` | `schedule_daily_bundle_activation()` |
 | `wicket_bundle_renewal_process_members` | `process_bundle_renewal_members()` | dispatched by `Membership_Controller::handle_bundle_renewal()` |
+| `wicket_memberships_bundle_renewal_complete` | `cancel_old_bundle_after_renewal()` | dispatched when `process_bundle_renewal_members()` final batch completes |
+| `wicket_memberships_bundle_cancel_old_on_starts_at` | `cancel_old_bundle_on_new_starts_at()` | scheduled AS single action |
 
 Daily handlers are registered as recurring daily actions starting tomorrow (midnight, site timezone). The renewal batch handler is a single-action job dispatched on each renewal order.
 
@@ -52,7 +67,7 @@ Queries `wicket_mship_bundle` posts where `membership_status IN (active, grace-p
 
 Queries `wicket_mship_bundle` posts where `membership_status = delayed` and `membership_starts_at < yesterday`. Calls `transition_to('active')` on each. Returns count of bundles processed.
 
-**Timestamp:** uses `wp_timezone()`, matching `daily_membership_activation_hook` in `Membership_Controller`.
+**Timestamp:** uses UTC (`gmdate()`), matching `daily_bundle_grace_period_hook` and `daily_bundle_expiry_hook`.
 
 ---
 
@@ -67,11 +82,29 @@ Batch handler for membership renewal provisioning. Dispatched by `Membership_Con
 3. For each item: resolves `user_id`, `tier_post_id`, and `product_id` from the old membership post meta, then calls `$new_bundle->add_member(..., is_renewal: true)`.
 4. `is_renewal: true` sets the `processing_renewal` flag on `Membership_Controller`, causing `create_membership_record()` to skip the MDP create call — MDP handles bundle members at the org level, not per-member.
 5. If more items remain beyond `$offset + $batch_size`, dispatches itself again with the next offset.
-6. On the final batch: stamps `completed_at` on `membership_renewal_processing` meta for both old and new bundle posts, adds an order note, and fires `wicket_memberships_bundle_renewal_complete`.
+6. On the final batch: stamps `completed_at` on `membership_renewal_processing` meta for both old and new bundle posts (meta is **not** deleted — presence of `completed_at` key indicates completion), adds an order note **and a subscription note**, and fires `wicket_memberships_bundle_renewal_complete`.
 
 **Error handling:** items with missing `user_id` or `tier_post_id` are skipped and logged. Failed `add_member()` calls are logged and recorded in the `errors` array in the completion meta.
 
 **MDP note:** No per-member MDP calls are made. `add_member(is_renewal: true)` bypasses the MDP create path. MDP is updated at the bundle/org level by the higher-level orchestration.
+
+---
+
+### `cancel_old_bundle_after_renewal( int $new_bundle_post_id, int $old_bundle_post_id, int $renewal_order_id ): void`
+
+Handler for `wicket_memberships_bundle_renewal_complete`. Fired by `process_bundle_renewal_members()` when the final batch completes. Calls `cancel_for_renewal()` on the old bundle — cancels the bundle post without cascading cancellation to child individual memberships (preserves member records in their current status while the new bundle's members finish provisioning).
+
+For early renewals (`is_early_renewal` flag set in `membership_renewal_processing` meta) this method skips cancellation — the old bundle must remain active until the new term starts. The `wicket_memberships_bundle_cancel_old_on_starts_at` AS job handles that transition instead.
+
+For same-day and grace-period renewals, cancels the old bundle and immediately activates the new bundle via `transition_to('active')`.
+
+---
+
+### `cancel_old_bundle_on_new_starts_at( int $old_bundle_post_id, int $new_bundle_post_id ): void`
+
+Registered as a scheduled AS single action (`wicket_bundle_cancel_old_on_new_starts_at`). Provides a fallback cancel path for the old bundle keyed to when the new bundle's `starts_at` date is reached. Uses `cancel_for_renewal()` — same no-cascade cancel as `cancel_old_bundle_after_renewal()`. Also activates the new bundle via `transition_to('active')`.
+
+For non-early renewals this is effectively a no-op since `cancel_old_bundle_after_renewal()` already cancelled the old bundle. For early renewals this is the primary cancellation path.
 
 ---
 

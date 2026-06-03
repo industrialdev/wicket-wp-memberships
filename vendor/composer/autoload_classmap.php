@@ -8,10 +8,10 @@ $baseDir = dirname($vendorDir);
 return array(
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',
     'Wicket_Memberships\\Admin_Controller' => $baseDir . '/includes/Admin_Controller.php',
-    'Wicket_Memberships\\Bundle_Admin_Controller' => $baseDir . '/includes/Bundle_Admin_Controller.php',
     'Wicket_Memberships\\Helper' => $baseDir . '/includes/Helper.php',
     'Wicket_Memberships\\Import_Controller' => $baseDir . '/includes/Import_Controller.php',
     'Wicket_Memberships\\Membership_Bundle' => $baseDir . '/includes/Membership_Bundle.php',
+    'Wicket_Memberships\\Membership_Bundle_Admin_Controller' => $baseDir . '/includes/Membership_Bundle_Admin_Controller.php',
     'Wicket_Memberships\\Membership_Bundle_Config' => $baseDir . '/includes/Membership_Bundle_Config.php',
     'Wicket_Memberships\\Membership_Bundle_Config_CPT_Hooks' => $baseDir . '/includes/Membership_Bundle_Config_CPT_Hooks.php',
     'Wicket_Memberships\\Membership_Bundle_Config_WP_REST_Controller' => $baseDir . '/includes/Membership_Bundle_Config_WP_REST_Controller.php',

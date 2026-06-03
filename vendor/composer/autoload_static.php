@@ -23,10 +23,10 @@ class ComposerStaticInit009063697460c8317c090b142e362e8b
     public static $classMap = array (
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
         'Wicket_Memberships\\Admin_Controller' => __DIR__ . '/../..' . '/includes/Admin_Controller.php',
-        'Wicket_Memberships\\Bundle_Admin_Controller' => __DIR__ . '/../..' . '/includes/Bundle_Admin_Controller.php',
         'Wicket_Memberships\\Helper' => __DIR__ . '/../..' . '/includes/Helper.php',
         'Wicket_Memberships\\Import_Controller' => __DIR__ . '/../..' . '/includes/Import_Controller.php',
         'Wicket_Memberships\\Membership_Bundle' => __DIR__ . '/../..' . '/includes/Membership_Bundle.php',
+        'Wicket_Memberships\\Membership_Bundle_Admin_Controller' => __DIR__ . '/../..' . '/includes/Membership_Bundle_Admin_Controller.php',
         'Wicket_Memberships\\Membership_Bundle_Config' => __DIR__ . '/../..' . '/includes/Membership_Bundle_Config.php',
         'Wicket_Memberships\\Membership_Bundle_Config_CPT_Hooks' => __DIR__ . '/../..' . '/includes/Membership_Bundle_Config_CPT_Hooks.php',
         'Wicket_Memberships\\Membership_Bundle_Config_WP_REST_Controller' => __DIR__ . '/../..' . '/includes/Membership_Bundle_Config_WP_REST_Controller.php',

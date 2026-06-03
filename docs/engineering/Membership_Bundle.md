@@ -1,9 +1,81 @@
+---
+title: "Membership_Bundle"
+audience: [developer]
+php_class: Membership_Bundle
+source_files: ["includes/Membership_Bundle.php"]
+---
+
 # Membership_Bundle
 
 **File:** `includes/Membership_Bundle.php`
 **Namespace:** `Wicket_Memberships`
 
-Represents a single Membership Bundle CPT record. Wraps post meta access and provides the canonical API for reading and writing group-level data.
+Represents a single Membership Bundle CPT record. Wraps post meta access and provides the canonical API for reading and writing bundle-level data.
+
+**CPT slug:** `wicket_mship_bundle` — via `Helper::get_membership_bundle_cpt_slug()`
+
+## Architecture position
+
+`Membership_Bundle` is the model layer. It owns all post meta reads/writes, WooCommerce subscription side effects, and child membership cascade logic. It does not handle HTTP or REST concerns.
+
+Call chain: `Membership_Bundle_WP_REST_Controller` → `Membership_Bundle_Admin_Controller` → `Membership_Bundle`
+
+---
+
+## Status Vocabulary
+
+| Constant | Meta value | Description |
+|---|---|---|
+| `Wicket_Memberships::STATUS_PENDING` | `pending` | Created, not yet activated by admin |
+| `Wicket_Memberships::STATUS_ACTIVE` | `active` | Active membership period |
+| `Wicket_Memberships::STATUS_DELAYED` | `delayed` | Start date in future |
+| `Wicket_Memberships::STATUS_GRACE` | `grace_period` | Past end date, within grace period |
+| `Wicket_Memberships::STATUS_EXPIRED` | `expired` | Past grace period, no longer active |
+| `Wicket_Memberships::STATUS_CANCELLED` | `cancelled` | Manually or programmatically cancelled — terminal |
+
+---
+
+## Error Code Reference
+
+All `WP_Error` codes that can be returned by this class's public methods:
+
+| Code | Source method(s) | Meaning |
+|---|---|---|
+| `invalid_bundle_status` | `add_member`, `remove_member`, `move_individual_membership` | Bundle not in a manageable status |
+| `missing_user_id` | `add_member` | No user ID supplied for new-member path |
+| `bundle_ended` | `add_member`, `move_individual_membership` | Today is past bundle end date |
+| `bundle_no_dates` | `add_member`, `move_individual_membership` | Bundle has no date meta |
+| `invalid_user` | `add_member`, `remove_member`, `move_individual_membership` | WP user cannot be resolved |
+| `invalid_tier` | `add_member` | Tier post not found or wrong CPT |
+| `ambiguous_product` | `add_member` | Tier has >1 product; `product_id` required |
+| `no_product` | `add_member` | No product found for tier |
+| `product_tier_mismatch` | `add_member` | Product does not belong to tier |
+| `invalid_membership` | `add_member` (existing path), `remove_member`, `move_individual_membership` | Membership post not found or wrong CPT |
+| `membership_not_in_bundle` | `remove_member`, `move_individual_membership` | Membership does not belong to this bundle |
+| `create_failed` | `add_member`, `move_individual_membership` | Downstream membership creation failed |
+| `mdp_create_failed` | `provision_individual_membership_record` | MDP returned an error on member create |
+| `mdp_error` | `provision_individual_membership_record` | MDP API error (non-create) |
+| `wcs_unavailable` | `remove_member`, `provision_standalone_individual_membership` | WooCommerce Subscriptions not active |
+| `order_create_failed` | `provision_standalone_individual_membership` | WC order creation failed |
+| `subscription_create_failed` | `provision_standalone_individual_membership` | WCS subscription creation failed |
+| `membership_post_not_found` | `provision_standalone_individual_membership` | Cannot resolve membership post ID after creation |
+| `no_subscription` | `add_subscription_line_item`, `remove_subscription_line_item` | No subscription linked to bundle |
+| `subscription_not_found` | `add_subscription_line_item`, `remove_subscription_line_item` | Subscription post not found |
+| `add_product_failed` | `add_subscription_line_item` | WCS line item add failed |
+| `product_not_found` | `add_subscription_line_item` | WC product not found |
+
+---
+
+## Filters & Actions
+
+| Hook | Type | Fired by | Args | Purpose |
+|---|---|---|---|---|
+| `wicket_memberships_individual_membership_created_for_bundle` | filter | `add_member()` | `array $result` | Allows modification of created membership result; must return array with `membership_post_id` |
+| `wicket_bundle_early_renew_at` | AS action | `schedule_date_trigger_jobs()` | `[ 'bundle_post_id' => int ]` | Fires when `early_renew_at` date reached |
+| `wicket_bundle_ends_at` | AS action | `schedule_date_trigger_jobs()` | `[ 'bundle_post_id' => int ]` | Fires when `ends_at` date reached |
+| `wicket_bundle_expires_at` | AS action | `schedule_date_trigger_jobs()` | `[ 'bundle_post_id' => int ]` | Fires when `expires_at` date reached |
+
+AS date-trigger jobs are consumed by `Membership_Bundle_Cron_Controller`, which re-fires them as `do_action` hooks for AutomateWoo. See `Membership_Bundle_Cron_Controller` for the downstream `do_action` names.
 
 ---
 
@@ -19,7 +91,9 @@ Loads the group by post ID. Sets `$post_id = 0` and `$meta_data = []` if the pos
 
 ### `create( string $name, int $membership_bundle_config_id, string $org_uuid, string $owner_uuid, string $start_date ): static|null`
 
-Creates a new membership bundle post and populates all required meta in a single call. All parameters are required. Returns a new `Membership_Bundle` instance on success, `null` on any failure (the partially-created post is deleted before returning). Errors are logged via `Wicket()->log()`.
+Creates a new membership bundle post and populates all required meta in a single call. All parameters are required. Errors are logged via `Wicket()->log()`.
+
+**Error handling:** Validation failures (empty `$name`, invalid config post ID, invalid UUID for `$org_uuid` or `$owner_uuid`, empty `$start_date`) throw `\RuntimeException` before any database writes. Post-creation failures (failed meta writes, failed date writes) return `null` after rolling back the partially-created post via `wp_delete_post()`. Callers must catch `\RuntimeException` in addition to checking for a `null` return.
 
 **Parameters:**
 
@@ -52,7 +126,7 @@ Key differences from `create()`:
 | `$subscription` | `\WC_Subscription` | The existing WC subscription to reuse |
 | `$new_dates` | `array` | Output of `Membership_Bundle_Config::get_membership_dates()` for the new term |
 
-Returns `null` and logs on failure (post is rolled back). On success the new bundle post is in `pending` or `delayed` status depending on whether the new term starts now or in the future.
+Returns `null` and logs on failure (post is rolled back). On success the new bundle post is always in `delayed` status — `renew_bundle()` unconditionally sets `STATUS_DELAYED` regardless of start date.
 
 **Fields accessible on the returned object:**
 
@@ -60,7 +134,7 @@ Returns `null` and logs on failure (post is rolled back). On success the new bun
 |---|---|
 | Post ID | `$group->post_id` |
 | Post status | `get_post( $group->post_id )->post_status` |
-| Membership status | `$group->get_membership_status()` → `'pending'` (start date today or past) or `'delayed'` (start date in future) |
+| Membership status | `$group->get_membership_status()` → always `'delayed'` |
 | Start date | `$group->get_dates()['starts_at']` |
 | End date | `$group->get_dates()['ends_at']` |
 | Expiration date | `$group->get_dates()['expires_at']` _(empty string if config has no grace period)_ |
@@ -69,44 +143,16 @@ Returns `null` and logs on failure (post is rolled back). On success the new bun
 | Subscription ID | `$group->get_subscription_id()` |
 | Renewal type | `$group->get_config()->get_renewal_type()` _(not a direct field — via config)_ |
 
-### `get_owner_callouts( int $user_id ): array`
+### `create_bundle_subscription(): int|false` _(private)_
 
-Builds renewal/grace/pending callout arrays for all membership bundles owned by `$user_id`. Entry point for `GET /get_membership_group_callouts`. Also merged into `Membership_Controller::get_membership_callouts()` for group-owner memberships.
-
-Queries all `wicket_mship_bundle` posts where `user_id` meta = `$user_id` and `membership_status` IN `[active, delayed, grace-period, pending]`.
-
-Per group, loads `Membership_Bundle_Config` via `get_config()` and dates via `get_dates()`. Three callout checks in priority order:
-
-| Check | Condition | Output key |
-|---|---|---|
-| Pending approval | `status === 'pending'` | `pending_approval` — skips remaining checks via `continue` |
-| Early renewal | `early_renew_at` non-empty AND `now >= early_renew_at && now < ends_at` | `early_renewal` |
-| Grace period | `expires_at` non-empty AND `now > ends_at && now <= expires_at` | `grace_period` |
-
-Return shape mirrors `Membership_Controller::get_membership_callouts()`:
-
-```php
-[
-  'early_renewal'    => [ [ 'group' => [...], 'callout' => [...] ], ... ],
-  'grace_period'     => [ [ 'group' => [...], 'callout' => [...], 'late_fee_product_id' => int ], ... ],
-  'pending_approval' => [ [ 'group' => [...], 'callout' => [...] ], ... ],
-  'group_owner'      => [],  // reserved
-  'debug'            => [],
-]
-```
-
-> **Note:** `late_fee_product_id` in grace period entries is sourced from `Membership_Bundle_Config::get_late_fee_window_product_id()`, which has a known temporary implementation. See `TODO.md`.
-
-### `create_group_subscription(): int|false` _(private)_
-
-Creates a pending WooCommerce subscription for a freshly-created group and writes two post meta keys onto it:
+Creates a pending WooCommerce subscription for a freshly-created bundle and writes two post meta keys onto it:
 
 | Meta key | Value |
 |---|---|
-| `membership_group_id` | Group post ID |
-| `_org_uuid` | Org UUID from the group |
+| `membership_bundle_id` | Bundle post ID |
+| `_org_uuid` | Org UUID from the bundle |
 
-`billing_period` and `billing_interval` are sourced from `$config->get_period_data()` so the values match the group config cycle (anniversary configs use their configured period; calendar configs fall back to `year` / `1`). `end` is set to `expires_at` (grace-period end), falling back to `ends_at` when no grace period is configured, mirroring `Membership_Subscription_Controller::create_subscriptions()`. `next_payment` is only set when `$config->is_renewal_subscription()` returns `true`; it maps to `ends_at` so WCS triggers renewal at the membership period end.
+`billing_period` and `billing_interval` are sourced from `$config->get_period_data()` so the values match the bundle config cycle (anniversary configs use their configured period; calendar configs fall back to `year` / `1`). `end` is set to `expires_at` (grace-period end), falling back to `ends_at` when no grace period is configured, mirroring `Membership_Subscription_Controller::create_subscriptions()`. `next_payment` is only set when `$config->is_renewal_subscription()` returns `true`; it maps to `ends_at` so WCS triggers renewal at the membership period end.
 
 No product line items are added at creation — those are attached per member when `add_member()` is called. Called only from `create()` after `set_dates()` succeeds. Returns the subscription post ID on success, `false` on any failure.
 
@@ -133,20 +179,20 @@ Called from `remove_member()` (both modes) and from the source-group side of `mo
 
 Fail states (all non-fatal at call site): `wcs_unavailable`, `no_subscription`, `subscription_not_found`.
 
-### `provision_individual_membership_record( int $user_id, int $tier_post_id, ?int $product_id, ?int $variation_id, string $start_date, int $link_to_group_id ): int|WP_Error` _(private)_
+### `provision_individual_membership_record( int $user_id, int $tier_post_id, ?int $product_id, ?int $variation_id, string $start_date, int $link_to_bundle_id, bool $is_renewal = false ): int|WP_Error` _(private)_
 
-Creates an individual membership record linked to a group. Used by `add_member()` and `move_individual_membership()`. Creates only:
+Creates an individual membership record linked to a bundle. Used by `add_member()` and `move_individual_membership()`. Creates only:
 - MDP record (via `Membership_Controller::create_membership_record()`)
 - WP membership post with all meta (via `create_local_membership_record()`)
-- Line item on the group subscription (via `add_subscription_line_item()`)
+- Line item on the bundle subscription (via `add_subscription_line_item()`)
 
-No personal WC order or subscription is created — the group's subscription covers billing for group-linked members.
+No personal WC order or subscription is created — the bundle's subscription covers billing for bundle-linked members.
 
-`$link_to_group_id` is required (non-nullable). `membership_group_id` is written to the membership post after creation. Line item failure is non-fatal.
+`$link_to_bundle_id` is required (non-nullable). `membership_bundle_id` is written to the membership post after creation. Line item failure is non-fatal. When `$is_renewal` is `true`, the subscription line item add is skipped — the renewal batch handler updates the existing line item in-place.
 
-Renamed from `create_individual_membership_for_group()`. Fail states: `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `create_failed`.
+Renamed from `create_individual_membership_for_group()`. Fail states: `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `mdp_create_failed`, `create_failed`.
 
-### `provision_standalone_individual_membership( int $user_id, int $tier_post_id, ?int $product_id, string $start_date, array $group_dates ): int|WP_Error` _(private)_
+### `provision_standalone_individual_membership( int $user_id, int $tier_post_id, ?int $product_id, string $start_date, array $bundle_dates, string $admin_note = '' ): int|WP_Error` _(private)_
 
 Creates a fully-backed standalone individual membership for a member released from the group via the `keep_as_individual` mode of `remove_member()`. Replicates the checkout-driven membership creation flow in code. The resulting membership is identical to what a checkout purchase produces.
 
@@ -178,26 +224,24 @@ Fail states: `wcs_unavailable`, `invalid_user`, `order_create_failed`, `subscrip
 
 ## Instance Methods
 
-### `add_member( ?int $user_id, int $tier_post_id, ?int $product_id = null, ?int $variation_id = null, ?int $existing_membership_post_id = null ): int|WP_Error`
+### `add_member( ?int $user_id, int $tier_post_id, ?int $product_id = null, ?int $variation_id = null, ?int $existing_membership_post_id = null, bool $is_renewal = false, ?string $start_date_override = null ): int|WP_Error`
 
-Single entry point for adding an individual membership to a group. Covers two flows:
+Single entry point for adding an individual membership to a bundle. Covers two flows:
 
-- **New member** (`$existing_membership_post_id = null`): `$user_id` must be provided. Creates a fresh membership and links it to the group.
-- **Existing member** (`$existing_membership_post_id` provided): cancels the existing membership (sets its status to `cancelled`), resolves the user ID from it, then creates a new membership with group dates and links it. `$user_id` is ignored.
+- **New member** (`$existing_membership_post_id = null`): `$user_id` must be provided. Creates a fresh membership and links it to the bundle.
+- **Existing member** (`$existing_membership_post_id` provided): cancels the existing membership (sets its status to `cancelled`), resolves the user ID from it, then creates a new membership with bundle dates and links it. `$user_id` is ignored.
 
-Both paths share start-date logic via `resolve_member_start_date()`: if today is within the group date window, start = today; if today is before the group start, start = group start; if today is after the group end, returns `WP_Error('group_ended')`.
+Both paths share start-date logic via `resolve_member_start_date()` unless `$start_date_override` is provided: if today is within the bundle date window, start = today; if today is before the bundle start, start = bundle start; if today is after the bundle end, returns `WP_Error('bundle_ended')`. When `$start_date_override` is provided it is used directly, bypassing `resolve_member_start_date()` — used by the renewal batch handler to anchor new memberships to the bundle's `starts_at`.
 
-The new membership inherits the group's current `membership_status` as its initial status. `create_local_membership_record()` may override this: if the tier requires approval the status becomes `pending`; if the start date is in the future the status becomes `delayed`. These overrides take precedence.
+The new membership inherits the bundle's current `membership_status` as its initial status. `create_local_membership_record()` may override this: if the tier requires approval the status becomes `pending`; if the start date is in the future the status becomes `delayed`. These overrides take precedence.
 
-Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_group_status')` otherwise.
+Bundle must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_bundle_status')` otherwise.
 
 `product_id` is auto-resolved from the tier when omitted; fails with `WP_Error('ambiguous_product')` if the tier has more than one product. When `variation_id` is supplied, it is stored as `membership_product_id` instead of the parent `product_id` — matching the subscription-driven membership flow where variation ID takes precedence. Returns the new membership post ID on success.
 
-Fires filter `wicket_memberships_individual_membership_created_for_group` after the membership record is created. Returning an array without `membership_post_id` from this filter will cause a `create_failed` error.
+Fires filter `wicket_memberships_individual_membership_created_for_bundle` after the membership record is created. Returning an array without `membership_post_id` from this filter will cause a `create_failed` error.
 
-Fail states: `invalid_group_status`, `missing_user_id`, `group_ended`, `group_no_dates`, `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `invalid_membership` (existing path), `missing_user_id` (existing record has no user_id meta), `create_failed`.
-
-> **TODO:** Link `membership_subscription_id` and `membership_parent_order_id` to the group's WooCommerce subscription once group subscription management exists.
+Fail states: `invalid_bundle_status`, `missing_user_id`, `bundle_ended`, `bundle_no_dates`, `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `invalid_membership` (existing path), `missing_user_id` (existing record has no user_id meta), `create_failed`.
 
 ---
 
@@ -208,23 +252,23 @@ Removes an individual membership from this group. Two modes:
 - **`cancel`**: cancels the group-linked membership immediately (sets status to `cancelled`). Returns the cancelled membership post ID.
 - **`keep_as_individual`**: captures all group and membership meta **before** any state mutations, cancels the group-linked membership, removes its subscription line item, then calls `provision_standalone_individual_membership()` to create a fully-backed standalone membership. Start date is always today (UTC) — `resolve_member_start_date()` is intentionally not used because it returns `WP_Error` when today > `ends_at`, which would block releases from grace-period groups. Dates inherited from group: `ends_at`, `expires_at`, `early_renew_at`. Returns the new membership post ID.
 
-In both modes, after cancellation, calls `remove_subscription_line_item()` to remove the matching line item from the group subscription. Failure to remove the line item is non-fatal — it is logged and the method continues.
+In both modes, after cancellation, calls `remove_subscription_line_item()` to remove the matching line item from the bundle subscription. Failure to remove the line item is non-fatal — it is logged and the method continues.
 
-Group must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_group_status')` otherwise. An expired or cancelled group is blocked by the status gate before any date checks run.
+Bundle must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_bundle_status')` otherwise. An expired or cancelled bundle is blocked by the status gate before any date checks run.
 
-Fail states: `invalid_group_status`, `invalid_membership`, `membership_not_in_group`, `invalid_user`, `wcs_unavailable`, `order_create_failed`, `subscription_create_failed`, `membership_post_not_found`.
+Fail states: `invalid_bundle_status`, `invalid_membership`, `membership_not_in_bundle`, `invalid_user`, `wcs_unavailable`, `order_create_failed`, `subscription_create_failed`, `membership_post_not_found`.
 
 ---
 
-### `move_individual_membership( int $membership_post_id, Membership_Bundle $target_group ): int|WP_Error`
+### `move_individual_membership( int $membership_post_id, Membership_Bundle $target_bundle ): int|WP_Error`
 
-Moves an individual membership from this group to a target group. Cancels the source membership, removes its line item from the source group subscription, then creates a new membership linked to the target group. The new membership inherits the same user, tier, and product; start date is resolved against the target group's date window via `resolve_member_start_date()`. The target group's `add_member()` path adds a new line item to the target group subscription.
+Moves an individual membership from this bundle to a target bundle. Cancels the source membership, removes its line item from the source bundle subscription, then creates a new membership linked to the target bundle. The new membership inherits the same user, tier, and product; start date is resolved against the target bundle's date window via `resolve_member_start_date()`. The target bundle's `add_member()` path adds a new line item to the target bundle subscription.
 
-Both the source and target groups must be in `pending`, `active`, or `delayed` status. The membership must belong to the source group.
+Both the source and target bundles must be in `pending`, `active`, or `delayed` status. The membership must belong to the source bundle.
 
-If creation of the new membership fails after cancellation, a `WP_Error` is returned with an explicit message noting that the source was cancelled and the member must be manually re-added. No rollback is attempted. Line item removal failure on the source group is non-fatal — logged and continues.
+If creation of the new membership fails after cancellation, a `WP_Error` is returned with an explicit message noting that the source was cancelled and the member must be manually re-added. No rollback is attempted. Line item removal failure on the source bundle is non-fatal — logged and continues.
 
-Fail states: `invalid_group_status` (source or target), `invalid_membership`, `membership_not_in_group`, `group_no_dates` (target), `group_ended` (target), `invalid_user`, `create_failed`.
+Fail states: `invalid_bundle_status` (source or target), `invalid_membership`, `membership_not_in_bundle`, `bundle_no_dates` (target), `bundle_ended` (target), `invalid_user`, `create_failed`.
 
 ---
 
@@ -279,11 +323,11 @@ Returns the full organization data array from `Helper::get_org_data()` for the s
 
 ### `get_config(): Membership_Bundle_Config|false`
 
-Returns the linked `Membership_Bundle_Config` object from `membership_group_config_id`, or `false` if not set.
+Returns the linked `Membership_Bundle_Config` object from `membership_bundle_config_id`, or `false` if not set.
 
 ### `set_config( int $config_post_id ): bool`
 
-Validates that `$config_post_id` resolves to a valid `Membership_Bundle_Config`, writes `membership_group_config_id` meta, and reloads `$this->meta_data`. Returns `true` on success, logs and returns `false` on failure.
+Validates that `$config_post_id` resolves to a valid `Membership_Bundle_Config`, writes `membership_bundle_config_id` meta, and reloads `$this->meta_data`. Returns `true` on success, logs and returns `false` on failure.
 
 ### `set_dates( array $dates ): bool`
 
@@ -382,13 +426,13 @@ What it does:
 - Calls `apply_status_transition('cancelled', ...)` with `ends_at` preserved and `expires_at` collapsed to `ends_at` (removes grace period).
 - Updates `membership_expires_at` on each individual membership to match `ends_at`. **Does not change their status** — members keep active access until that date, and `daily_membership_expiry_hook` handles expiry naturally.
 
-Subscription handling (pending-cancel + deferred hard-cancel AS job) is the caller's responsibility — see `Bundle_Admin_Controller::cancel_group()` path B.
+Subscription handling (pending-cancel + deferred hard-cancel AS job) is the caller's responsibility — see `Membership_Bundle_Admin_Controller::cancel_bundle()` path B.
 
 ### `cancel_keep_as_individual(): array{success_message: string, warnings?: string[]}|false`
 
 Cancels the group and converts every individual group membership to a standalone individual membership, preserving the remaining group term.
 
-This is Path C of the group cancellation flow (see `Bundle_Admin_Controller::cancel_group()`). It encapsulates the full conversion loop so the controller stays a thin delegator.
+This is Path C of the bundle cancellation flow (see `Membership_Bundle_Admin_Controller::cancel_bundle()`). It encapsulates the full conversion loop so the controller stays a thin delegator.
 
 **Phase 1 — Read before cancel.** `assert_group_is_manageable()` rejects calls on a cancelled group, so all member meta (user ID, tier, product ID, variation resolution) is collected from `get_individual_memberships()` before the group status changes.
 
@@ -416,15 +460,20 @@ Called by `transition_to()` after the group status write succeeds. Iterates all 
 
 ---
 
-### `cascade_dates_to_members( array $normalized_fields ): void`
+### `cascade_dates_to_members( array $normalized_fields, array $pre_edit_dates ): void`
 
-Currently a TODO placeholder. It intentionally performs no updates until group/member edit propagation rules are finalized.
+Iterates all child individual memberships and propagates date field changes from `$normalized_fields` to each member, applying per-field exception logic. Takes two parameters: `array $normalized_fields` (the edited fields) and `array $pre_edit_dates` (the dates before the edit). Skips members in `cancelled` or `expired` status.
+
+Per-field exception rules:
+- `starts_at`: skip if the member's current `starts_at` is after the bundle's pre-edit `starts_at` (member has a later custom start).
+- `ends_at`: skip if the member's current `ends_at` is before the bundle's pre-edit `ends_at` (member has an earlier custom end). When `ends_at` is written, `early_renew_at` is recalculated using the config renewal window to stay consistent.
+- `expires_at`: same rule as `ends_at`.
 
 ---
 
 ### `get_individual_memberships( bool $active_only = true ): array`
 
-Returns individual membership CPT posts that have `membership_group_id` set to this group's post ID.
+Returns individual membership CPT posts that have `membership_bundle_id` set to this bundle's post ID.
 
 When `$active_only` is `true` (default), memberships with `membership_status` of `cancelled` or `expired` are excluded. Pass `false` to retrieve all memberships regardless of status — required for internal operations that must act on every member (status cascades, date cascades, bulk cancel).
 
@@ -434,14 +483,31 @@ When `$active_only` is `true` (default), memberships with `membership_status` of
 
 | Key | Type | Description |
 |---|---|---|
-| `user_id` | `int` | WP user ID of the group owner — the only owner field stored; derive email/name/UUID from the WP user at runtime |
+| `user_id` | `int` | WP user ID of the bundle owner — the only owner field stored; derive email/name/UUID from the WP user at runtime |
 | `org_uuid` | `string` | MDP organisation UUID |
 | `org_name` | `string` | MDP organisation legal name (cached) |
-| `membership_status` | `string` | Membership group status (see vocabulary above) |
-| `membership_group_config_id` | `int` | Linked membership bundle config post ID |
+| `membership_status` | `string` | Membership bundle status (see vocabulary above) |
+| `membership_bundle_config_id` | `int` | Linked membership bundle config post ID |
 | `membership_parent_order_id` | `int` | Linked WooCommerce order ID |
 | `membership_subscription_id` | `int` | Linked WooCommerce subscription ID |
-| `membership_group_id` | `int` | Set on individual membership posts to link them to this group |
+| `membership_bundle_id` | `int` | Set on individual membership posts to link them to this bundle |
+| `membership_bundle_group_uuid` | `string` | Unique series UUID shared across all renewal-term posts for this bundle |
+
+---
+
+## Additional Methods
+
+### `get_bundle_group_uuid(): string|false`
+
+Returns the `membership_bundle_group_uuid` meta value for this bundle, or `false` if not set. This UUID is shared across all renewal-term posts in the same series.
+
+### `set_bundle_group_uuid( string $uuid ): bool`
+
+Writes `membership_bundle_group_uuid` post meta. Returns `true` on success, `false` on failure. Used by `create()` (new UUID) and `renew_bundle()` (carries the existing UUID forward).
+
+### `cancel_for_renewal( bool $preserve_end_date = false ): bool`
+
+Cancels the bundle post as part of a renewal without cascading the cancellation status to child individual memberships. Child memberships are historical records of the old term and must remain accessible for per-bundle member count queries; the new term's members already exist on the new bundle post. When `$preserve_end_date` is `true` (early renewal path), the existing `ends_at` is preserved so the bundle record reflects the full paid term. When `false` (same-day renewal), `ends_at` is collapsed to now. Returns `true` on success, `false` if the status write failed.
 
 ---
 
@@ -449,9 +515,9 @@ When `$active_only` is `true` (default), memberships with `membership_status` of
 
 ### `schedule_date_trigger_jobs(): void`
 
-Schedules (or reschedules) three one-time Action Scheduler jobs for this group — one each for `early_renew_at`, `ends_at`, and `expires_at`. Jobs fire `do_action` hooks consumed by AutomateWoo triggers. No status transitions are performed.
+Schedules (or reschedules) three one-time Action Scheduler jobs for this bundle — one each for `early_renew_at`, `ends_at`, and `expires_at`. Jobs fire `do_action` hooks consumed by AutomateWoo triggers. No status transitions are performed.
 
-Called from `create()` after dates are set, and from `Bundle_Admin_Controller::update_group_entity_record()` after dates are edited. Existing jobs are cancelled via `as_unschedule_action` before scheduling new ones, so date edits never leave stale jobs.
+Called from `create()` after dates are set, and from `Membership_Bundle_Admin_Controller::update_bundle_entity_record()` after dates are edited. Existing jobs are cancelled via `as_unschedule_action` before scheduling new ones, so date edits never leave stale jobs.
 
 Skips scheduling for any date that is empty. Args passed to AS: `[ 'bundle_post_id' => $this->post_id ]` — used by the handlers in `Membership_Bundle_Cron_Controller` to fire the correct `do_action`.
 

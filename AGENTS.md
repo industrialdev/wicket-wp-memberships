@@ -27,7 +27,6 @@ This file applies to work inside `src/web/app/plugins/wicket-wp-memberships`.
 - `docs/class-index/`: markdown reference docs for the classes in `includes/`. Every PHP class file in `includes/` must have a corresponding `.md` file here — 1:1 mapping is required.
 - `docs/membership_config_data_structure.md`: membership config data shape reference.
 - `docs/membership_tier_data_structure.md`: membership tier data shape reference.
-- `CURRENT_SCOPE.md`: active product-scope document for features in development. Read this before working on membership group features.
 - `frontend/src/`: React/admin UI source.
 - `frontend/build/`: built frontend assets (committed, do not edit manually).
 - `assets/`: plugin CSS/JS assets loaded by WordPress.
@@ -43,13 +42,12 @@ This file applies to work inside `src/web/app/plugins/wicket-wp-memberships`.
 - Key test areas: membership creation, merge webhook, admin status transitions, factory functionality, helper utilities.
 - When adding tests, prefer using the centralized QA suite at `./qa` per the stack AGENTS.md.
 
-`CURRENT_SCOPE.md` describes the **Membership Groups** feature currently in development. Key concepts:
-- A **Membership Group** is a container (WP custom post) that holds individual membership records and is linked to an MDP organisation.
-- A **Membership Group Config** defines date calculation, renewal windows, grace periods, and renewal type for groups.
-- Membership Groups have their own WooCommerce subscription; individual memberships within a group are represented as line items on that subscription.
-- Admin flows covered: Create Group, Add/Remove/Move members, Bulk CSV import, Cancel Group, and detail/list views.
+Membership bundle functionality is complete. Key concepts:
+- A **Membership Bundle** (`wicket_mship_bundle`) is a container post that holds individual membership records and is linked to an MDP organisation.
+- A **Membership Bundle Config** (`wicket_mship_bcfg`) defines date calculation, renewal windows, grace periods, and renewal type.
+- Bundles have their own WooCommerce subscription; individual memberships are line items on that subscription.
 
-Read `CURRENT_SCOPE.md` in full before modifying anything related to membership groups or the group subscription model.
+For full implementation details refer to `docs/engineering/Membership_Bundle.md` and related `docs/engineering/Membership_Bundle_*.md` docs.
 
 ## Membership Status Vocabulary
 
@@ -57,13 +55,13 @@ Use these exact status strings consistently — they appear in meta, REST respon
 
 `pending` | `active` | `delayed` | `grace-period` | `expired` | `cancelled`
 
-When CURRENT_SCOPE.md refers to statuses, it uses the same terms. Do not invent synonyms.
+Do not invent synonyms.
 
 ## Terminology Convention
 
-- Use `membership group` as the preferred term everywhere going forward.
+- Use `membership bundle` as the preferred term everywhere going forward.
 - Do not introduce the previous terminology in new code, docs, UI copy, comments, or implementation notes.
-- When older context or comments use outdated wording, rewrite that to `membership group`.
+- When older context or comments use outdated wording, rewrite that to `membership bundle`.
 - If a rename touches identifiers, keep the implementation internally consistent across PHP, JS, docs, and QA.
 
 ## Plugin Environment Flags
@@ -78,7 +76,7 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 | `bypass_status_change_lockout` | `BYPASS_STATUS_CHANGE_LOCKOUT` | Disables status-transition guards |
 | `wicket_show_order_debug_data` | `WICKET_SHOW_ORDER_DEBUG_DATA` | Renders order debug info in admin |
 | `allow_local_imports` | `ALLOW_LOCAL_IMPORTS` | Enables local CSV import path and memberships-sync.php |
-| `wicket_mship_enable_groups` | `WICKET_MSHIP_ENABLE_GROUPS` | Shows Membership Groups and Group Configs admin pages; off by default |
+| `wicket_mship_enable_bundles` | `WICKET_MSHIP_ENABLE_BUNDLES` | Shows Membership Bundles and Bundle Configs admin pages; off by default |
 
 ## TODO Tracking
 
@@ -109,7 +107,7 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 
 ## Working Conventions
 
-- **Inline comments on non-trivial methods:** For methods that involve multiple logical phases (validation, DB writes, rollback, derived calculations, etc.), add a short inline comment before each phase explaining *why* it exists — not what the code does. This applies especially to static factory methods like `Membership_Group::create()` where the sequence of operations and their failure modes are not obvious from reading the code alone. Comments should explain constraints, invariants, and rollback guarantees; they should not restate what the method call already says.
+- **Inline comments on non-trivial methods:** For methods that involve multiple logical phases (validation, DB writes, rollback, derived calculations, etc.), add a short inline comment before each phase explaining *why* it exists — not what the code does. This applies especially to static factory methods like `Membership_Bundle::create()` where the sequence of operations and their failure modes are not obvious from reading the code alone. Comments should explain constraints, invariants, and rollback guarantees; they should not restate what the method call already says.
 
 - Check existing docs in `docs/` before changing class behavior so implementation and documentation stay aligned.
 - Prefer extending existing classes/files over adding new abstractions unless the current structure is clearly insufficient.
@@ -135,10 +133,8 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 - If a new class was added to `includes/`, was `composer dump-autoload` run?
 - Did the work reference `wicket-wp-base-plugin` without modifying it?
 - If tests were added or updated, were they placed in `qa/` and run from there when possible?
-- If the change touches membership group logic, was `CURRENT_SCOPE.md` consulted first?
+- If the change touches membership bundle logic, were the relevant `docs/engineering/Membership_Bundle*.md` docs consulted?
 
 ## Current Branch Scope
 
 `AGENTS.md` is defined on the parent branch and describes stable conventions that apply across all work in this plugin.
-
-`CURRENT_SCOPE.md` is the scope-of-work document for the **current branch**. It defines what is being built right now — features, acceptance criteria, and implementation notes specific to this development cycle. Always read `CURRENT_SCOPE.md` before beginning any task on this branch to understand the current goals and constraints.
