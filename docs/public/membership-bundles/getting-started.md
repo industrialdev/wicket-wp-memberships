@@ -10,6 +10,7 @@ This guide walks you through the minimum steps to create a membership bundle, ad
 
 - WordPress with the Wicket Memberships plugin active
 - WooCommerce and WooCommerce Subscriptions installed and active
+- **Membership Bundles enabled** — go to **Settings → Wicket Memberships** and enable the **Membership Bundles** option. Without this, the Membership Bundles and Bundle Configs admin pages are hidden.
 - At least one `wicket_mship_bcfg` (Bundle Config) post exists
 - At least one `Membership_Tier` CPT post exists (for the individual seat)
 - The acting user has the `wicket_memberships_admin` capability
