@@ -83,10 +83,35 @@ For complete documentation, see **[docs/index.md](docs/index.md)**.
 | Operators & Support | [docs/product/](docs/product/) |
 | Developers & Agents | [docs/engineering/](docs/engineering/) |
 | End Users | [docs/guides/](docs/guides/) |
-| External Developers | [docs/public/](docs/public/) |
+| External Developers | **[industrialdev.github.io/wicket-wp-memberships](https://industrialdev.github.io/wicket-wp-memberships/)** |
 
 ### Membership Bundles
 
 Public API reference for the Membership Bundles feature — class APIs, REST endpoints, and conceptual guides for external developers and new team members.
 
-**[docs/public/membership-bundles/](docs/public/membership-bundles/index.md)**
+**[industrialdev.github.io/wicket-wp-memberships/membership-bundles/](https://industrialdev.github.io/wicket-wp-memberships/membership-bundles/)**
+
+### Running the docs site locally
+
+The public docs use [VitePress](https://vitepress.dev). Node 18+ required.
+
+```bash
+cd docs/public
+npm install
+npm run docs:dev
+```
+
+Open `http://localhost:5173`. Changes to any `.md` file under `docs/public/` hot-reload automatically.
+
+To preview a production build:
+
+```bash
+npm run docs:build
+npm run docs:preview
+```
+
+The built output lands in `docs/public/.vitepress/dist/` and is not committed. It is built and deployed automatically via GitHub Actions on push to `main` when any file under `docs/public/` changes — see [`.github/workflows/docs.yml`](.github/workflows/docs.yml).
+
+### Updating the sidebar
+
+The sidebar is defined in [`docs/public/.vitepress/config.mts`](docs/public/.vitepress/config.mts). When adding a new page under `docs/public/`, add a matching entry to the `sidebar` array in that file. VitePress does not auto-discover pages — every new file needs a manual entry.

@@ -1,8 +1,12 @@
+---
+title: Member Handling
+---
+
 # Member Handling
 
 Understanding how bundle seats relate to individual membership records — and how the add, remove, and move operations work — will help you avoid common mistakes and handle edge cases correctly.
 
-## [The relationship between a bundle and its members](#the-relationship-between-a-bundle-and-its-members)
+## The relationship between a bundle and its members
 
 A membership bundle (`wicket_mship_bundle`) is a container. Each seat in the bundle is a standard `wicket_membership` CPT post — the same type used for memberships that exist outside of any bundle. The term **standalone** refers to a `wicket_membership` that has no `membership_bundle_id` — it is not part of any bundle. The term **individual membership** refers to the CPT type itself, regardless of whether it is a bundle seat or standalone. What distinguishes a bundle seat is the `membership_bundle_id` post meta on the individual membership, which points back to the bundle post.
 
@@ -12,7 +16,7 @@ This means:
 - When you query bundle members, you are querying `wicket_membership` posts filtered by `membership_bundle_id`.
 - Bundle seats share the bundle's WooCommerce subscription as a billing vehicle. Each seat is a line item on that subscription, not a separate subscription.
 
-## [Adding a member](#adding-a-member)
+## Adding a member
 
 There are two modes for adding a member to a bundle.
 
@@ -69,7 +73,7 @@ Adding a member creates:
 
 The line item carries `_membership_post_id` and `_member_name` meta so it can be traced back to the individual membership.
 
-## [Removing a member](#removing-a-member)
+## Removing a member
 
 There are two modes for removing a member.
 
@@ -103,11 +107,13 @@ $result = Membership_Bundle_Admin_Controller::remove_member([
 // On success, $result['membership_post_id'] is the new standalone membership post ID
 ```
 
-> **Important:** `keep_as_individual` works even when the bundle is in `grace-period` status — this is intentional so that members can be released from an expired-but-still-accessible bundle. This is why it does not use the same start-date guard as `add_member`.
+::: warning
+`keep_as_individual` works even when the bundle is in `grace-period` status — this is intentional so that members can be released from an expired-but-still-accessible bundle. This is why it does not use the same start-date guard as `add_member`.
+:::
 
 Both modes require the bundle to be in `pending`, `active`, or `delayed` status. Attempting to remove from an `expired` or `cancelled` bundle returns `invalid_bundle_status`.
 
-## [Moving a member between bundles](#moving-a-member-between-bundles)
+## Moving a member between bundles
 
 Moving cancels the seat in the source bundle and creates a new seat in the target bundle. The member retains the same tier and product; the start date is resolved against the target bundle's date window.
 
@@ -123,9 +129,11 @@ $result = Membership_Bundle_Admin_Controller::move_individual_membership([
 
 Both source and target bundles must be in `pending`, `active`, or `delayed` status.
 
-**Important — no rollback on partial failure:** If the source membership is successfully cancelled but the new membership cannot be created in the target bundle, the method returns an error and the member ends up with no active seat. There is no automatic rollback. The error message will explicitly note that the source was cancelled. In this case, re-add the member manually using `add_member` in `new` mode.
+::: danger No rollback on partial failure
+If the source membership is successfully cancelled but the new membership cannot be created in the target bundle, the method returns an error and the member ends up with no active seat. There is no automatic rollback. The error message will explicitly note that the source was cancelled. In this case, re-add the member manually using `add_member` in `new` mode.
+:::
 
-## [Retrieving a bundle's members](#retrieving-a-bundles-members)
+## Retrieving a bundle's members
 
 ```php
 $bundle = new \Wicket_Memberships\Membership_Bundle( $bundle_post_id );
@@ -158,7 +166,7 @@ $breakdown = Membership_Bundle_Admin_Controller::get_bundle_members_by_tier( $bu
 // ]
 ```
 
-## [Status cascade](#status-cascade)
+## Status cascade
 
 When a bundle transitions to a new status, all non-cancelled child memberships receive the same status automatically. You do not need to update individual membership statuses separately. The only exception is `cancelled` child memberships — they are in a terminal state and are skipped during any cascade.
 

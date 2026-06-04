@@ -1,3 +1,7 @@
+---
+title: Bundle Status
+---
+
 # Bundle Status Endpoints
 
 These endpoints manage bundle status transitions, cancellation, and renewal orders.
@@ -6,19 +10,19 @@ For a full explanation of the status model and what each transition does, see [B
 
 ---
 
-## [Get available status transitions](#get-available-status-transitions)
+## Get available status transitions
 
 **`GET /wp-json/wicket_member/v1/bundle/admin/status_options`**
 
 Returns status options. When `bundle_post_id` is provided, returns only the transitions valid from the bundle's current status. When omitted, returns all status names.
 
-### [Query parameters](#query-parameters)
+### Query parameters
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `bundle_post_id` | `integer` | No | Post ID of the bundle. When provided, filters to valid transitions only. |
 
-### [Response](#response)
+### Response
 
 `200 OK` — all statuses:
 
@@ -46,20 +50,20 @@ An empty object is returned when the bundle is in a terminal status (`expired` o
 
 ---
 
-## [Transition a bundle to a new status](#transition-a-bundle-to-a-new-status)
+## Transition a bundle to a new status
 
 **`POST /wp-json/wicket_member/v1/bundle/admin/manage_status`**
 
 Executes a status transition on a bundle. Applies lifecycle rules, recalculates dates where applicable, activates the WooCommerce subscription on `pending → active`, and cascades the new status to all child individual memberships.
 
-### [Request body](#request-body)
+### Request body
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `bundle_post_id` | `integer` | Yes | Post ID of the bundle to transition. |
 | `status` | `string` | Yes | Target status slug (e.g. `"active"`, `"cancelled"`). |
 
-### [Response](#response)
+### Response
 
 `200 OK`
 
@@ -72,17 +76,18 @@ Executes a status transition on a bundle. Applies lifecycle rules, recalculates 
 
 `bypassed` is `true` only when the `BYPASS_STATUS_CHANGE_LOCKOUT` environment flag is set (development/testing only).
 
-### [Errors](#errors)
+### Errors
 
 | Status | Cause |
 |---|---|
 | `400` | Transition is not valid from the current status |
 | `404` | Bundle post not found |
 
-### [Example](#example)
+### Example
 
 Activate a pending bundle:
 
+:::details Example
 ```bash
 curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/admin/manage_status" \
   -H "Content-Type: application/json" \
@@ -92,29 +97,30 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/admin/manage_s
     "status": "active"
   }'
 ```
+:::
 
 ---
 
-## [Cancel a bundle](#cancel-a-bundle)
+## Cancel a bundle
 
 **`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/cancel`**
 
 Cancels a bundle with configurable member handling and timing. Three distinct paths are available.
 
-### [URL parameters](#url-parameters)
+### URL parameters
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `bundle_post_id` | `integer` | Yes | Post ID of the bundle to cancel. |
 
-### [Request body](#request-body)
+### Request body
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `member_handling` | `string` | Yes | `"cancel_all"` — cancel all member seats. `"keep_as_individual"` — convert all seats to standalone memberships. |
 | `timing` | `string` | Conditional | Required when `member_handling` is `"cancel_all"`. `"immediately"` — hard cancel now. `"at_end_date"` — preserve member access until `ends_at`. |
 
-### [Cancellation paths](#cancellation-paths)
+### Cancellation paths
 
 **Path A — `cancel_all` + `immediately`**
 
@@ -128,7 +134,7 @@ Bundle status becomes `cancelled` but existing `ends_at` is preserved. Child mem
 
 Each active bundle member is converted to a standalone individual membership. The released membership inherits the bundle's remaining `ends_at`, `expires_at`, and `early_renew_at`. Each member receives their own WooCommerce order and subscription. The bundle is then cancelled.
 
-### [Response](#response)
+### Response
 
 `200 OK` — Path A or B:
 
@@ -149,7 +155,7 @@ Each active bundle member is converted to a standalone individual membership. Th
 }
 ```
 
-### [Errors](#errors)
+### Errors
 
 | Status | Cause |
 |---|---|
@@ -158,10 +164,11 @@ Each active bundle member is converted to a standalone individual membership. Th
 | `400` | Transition not valid from current status |
 | `404` | Bundle post not found |
 
-### [Examples](#examples)
+### Examples
 
 **Cancel immediately:**
 
+:::details Example
 ```bash
 curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/cancel" \
   -H "Content-Type: application/json" \
@@ -171,9 +178,11 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/cancel" \
     "timing": "immediately"
   }'
 ```
+:::
 
 **Cancel at end of term:**
 
+:::details Example
 ```bash
 curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/cancel" \
   -H "Content-Type: application/json" \
@@ -183,9 +192,11 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/cancel" \
     "timing": "at_end_date"
   }'
 ```
+:::
 
 **Convert members to standalone and cancel:**
 
+:::details Example
 ```bash
 curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/cancel" \
   -H "Content-Type: application/json" \
@@ -194,29 +205,30 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/cancel" \
     "member_handling": "keep_as_individual"
   }'
 ```
+:::
 
 ---
 
-## [Create a renewal order](#create-a-renewal-order)
+## Create a renewal order
 
 **`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/create_renewal_order`**
 
 Creates a WooCommerce renewal order for the bundle's linked subscription. Use this to manually trigger a renewal payment when automatic subscription renewal is not configured or when a manual renewal order is needed.
 
-### [URL parameters](#url-parameters)
+### URL parameters
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `bundle_post_id` | `integer` | Yes | Post ID of the bundle. |
 
-### [Request body](#request-body)
+### Request body
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `product_id` | `integer` | Yes | WC product ID to include in the renewal order. |
 | `variation_id` | `integer` | No | WC variation ID. Overrides `product_id` when provided. |
 
-### [Response](#response)
+### Response
 
 `200 OK`
 
@@ -227,15 +239,16 @@ Creates a WooCommerce renewal order for the bundle's linked subscription. Use th
 }
 ```
 
-### [Errors](#errors)
+### Errors
 
 | Status | Cause |
 |---|---|
 | `404` | Bundle post not found or no subscription linked |
 | `400` | Renewal order creation failed |
 
-### [Example](#example)
+### Example
 
+:::details Example
 ```bash
 curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/create_renewal_order" \
   -H "Content-Type: application/json" \
@@ -244,3 +257,4 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/create_ren
     "product_id": 200
   }'
 ```
+:::

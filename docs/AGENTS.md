@@ -62,6 +62,24 @@ docs/
 
 Do not leave `docs/public/` stale after a code change. It is read by external developers and must reflect current behaviour.
 
+`docs/public/react/` must stay in sync with the React frontend source in `frontend/src/`. Update the relevant file whenever any of the following change:
+
+| Changed | Update |
+|---|---|
+| `shared/services/api.js` — function added, removed, or signature changed | `public/react/shared/api.md` |
+| `shared/constants.js`, `shared/cycleUtils.js`, `shared/utils/pagination.js` | `public/react/shared/constants.md` |
+| `shared/styled_elements.js` | `public/react/shared/styled-elements.md` |
+| Any shared component in `shared/components/` | `public/react/modern/shared-components.md` |
+| `membership_bundles/` components or hooks | `public/react/modern/membership-bundles.md` |
+| `membership_bundle_configs/` components, hooks, or utils | `public/react/modern/bundle-configs.md` |
+| `create_membership_bundle/` components | `public/react/modern/membership-bundles.md` |
+| `members/` files (index.js, edit.js, bundle_list.js, modals) | `public/react/legacy/members.md` |
+| `membership_configs/` files | `public/react/legacy/membership-configs.md` |
+| `membership_tiers/` files | `public/react/legacy/membership-tiers.md` |
+| Entry points change in `webpack.config.js` | `public/react/index.md` |
+| New component-based feature added | Create new file under `public/react/modern/`, add sidebar entry in `config.mts` |
+| Legacy file refactored to component-based | Move/update doc from `public/react/legacy/` to `public/react/modern/` |
+
 ---
 
 ## Frontmatter Schema

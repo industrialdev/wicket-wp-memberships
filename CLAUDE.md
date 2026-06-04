@@ -102,6 +102,18 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
   - Bundle status constants, lifecycle transitions, or cron behaviour → `docs/public/membership-bundles/concepts/bundle-lifecycle.md`
   - Renewal type, grace period, or cycle logic → `docs/public/membership-bundles/concepts/renewal-types.md`
   - Member add/remove/move semantics → `docs/public/membership-bundles/concepts/member-handling.md`
+- **React frontend public docs** live in `docs/public/react/`. When changing any of the following, update the corresponding public doc in the same task:
+  - `shared/services/api.js` → `docs/public/react/shared/api.md`
+  - `shared/constants.js`, `shared/cycleUtils.js`, `shared/utils/pagination.js` → `docs/public/react/shared/constants.md`
+  - `shared/styled_elements.js` → `docs/public/react/shared/styled-elements.md`
+  - Any component in `shared/components/` → `docs/public/react/modern/shared-components.md`
+  - `membership_bundles/` components or hooks → `docs/public/react/modern/membership-bundles.md`
+  - `membership_bundle_configs/` components, hooks, or utils → `docs/public/react/modern/bundle-configs.md`
+  - `members/` files → `docs/public/react/legacy/members.md`
+  - `membership_configs/` files → `docs/public/react/legacy/membership-configs.md`
+  - `membership_tiers/` files → `docs/public/react/legacy/membership-tiers.md`
+  - `webpack.config.js` entry points → `docs/public/react/index.md`
+- **VitePress sidebar must be kept in sync.** The sidebar is defined in `docs/public/.vitepress/config.mts` — VitePress does not auto-discover pages. When adding a new `.md` file anywhere under `docs/public/`, add a matching entry to the `sidebar` array in `config.mts` in the same task. Never add a page without a sidebar entry, and never leave a sidebar entry pointing to a file that does not exist.
 
 ## External References
 

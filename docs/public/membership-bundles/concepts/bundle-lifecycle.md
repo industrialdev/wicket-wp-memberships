@@ -1,8 +1,12 @@
+---
+title: Bundle Lifecycle
+---
+
 # Bundle Lifecycle
 
 A membership bundle moves through a defined set of statuses from creation to expiry or cancellation. Understanding this lifecycle is essential for working with status transitions, cancellation options, and the renewal flow.
 
-## [Status reference](#status-reference)
+## Status reference
 
 | Status | Slug | Meaning |
 |---|---|---|
@@ -24,27 +28,32 @@ Wicket_Memberships::STATUS_EXPIRED    // 'expired'
 Wicket_Memberships::STATUS_CANCELLED  // 'cancelled'
 ```
 
-## [Status transition map](#status-transition-map)
+## Status transition map
 
-```
-              ┌─────────────────────────────────────────────────────┐
-              │                   cancelled (terminal)              │
-              └──────────▲──────────────▲───────────────▲──────────┘
-                         │              │               │
-[created]            [manual]        [manual]        [manual]
-    │                    │              │               │
-    ▼                    │              │               │
-pending ──[admin activates]──► active ──[ends_at passed]──► grace-period
-    │                              │                             │
-    │                     [expires_at passed]           [expires_at passed]
-    │                              │                             │
-    └──[start_date future]──► delayed ──[starts_at passed]──► active
-                                                         (cron)
-                                                               │
-                                                    [expires_at passed]
-                                                               │
-                                                               ▼
-                                                           expired (terminal)
+```mermaid
+flowchart TD
+    created([created]) --> pending
+
+    pending -->|admin activates| active
+    pending -->|start_date future| delayed
+    pending -->|admin cancels| cancelled
+
+    delayed -->|starts_at passed — cron| active
+    delayed -->|admin cancels| cancelled
+
+    active -->|ends_at passed — cron| grace-period
+    active -->|expires_at passed — cron| expired
+    active -->|admin cancels| cancelled
+
+    grace-period -->|expires_at passed — cron| expired
+    grace-period -->|admin cancels| cancelled
+
+    expired([expired — terminal])
+    cancelled([cancelled — terminal])
+
+    style expired fill:#fca5a5,stroke:#ef4444,color:#000
+    style cancelled fill:#fca5a5,stroke:#ef4444,color:#000
+    style created fill:#e2e8f0,stroke:#94a3b8,color:#000
 ```
 
 ### Which transitions are manual vs. automatic
@@ -61,9 +70,11 @@ pending ──[admin activates]──► active ──[ends_at passed]──► 
 | `grace-period → cancelled` | Admin action |
 | `expired`, `cancelled` | Terminal — no further transitions |
 
-> `expired` is never offered in the admin UI status selector. It is set exclusively by the daily expiry cron. `delayed → active` and `active → grace-period` are similarly cron-only.
+::: tip
+`expired` is never offered in the admin UI status selector. It is set exclusively by the daily expiry cron. `delayed → active` and `active → grace-period` are similarly cron-only.
+:::
 
-## [WooCommerce subscription states](#woocommerce-subscription-states)
+## WooCommerce subscription states
 
 Each bundle has exactly one WooCommerce subscription. Its state changes in step with the bundle status:
 
@@ -77,19 +88,19 @@ Each bundle has exactly one WooCommerce subscription. Its state changes in step 
 | `cancelled` (immediately) | `cancelled` | Hard-cancelled at cancellation time |
 | `cancelled` (at end date) | `pending-cancel` → `cancelled` | Set to `pending-cancel` immediately; a scheduled Action Scheduler job hard-cancels at `ends_at` |
 
-## [Cron-driven transitions](#cron-driven-transitions)
+## Cron-driven transitions
 
 Three Action Scheduler recurring jobs run once per day and drive automatic transitions.
 
-### [`daily_bundle_grace_period_hook`](#daily_bundle_grace_period_hook)
+### `daily_bundle_grace_period_hook`
 
 Finds all `active` bundles whose `membership_ends_at` is before yesterday (UTC) and transitions each to `grace-period`. Cascades the new status to all non-cancelled child individual memberships.
 
-### [`daily_bundle_expiry_hook`](#daily_bundle_expiry_hook)
+### `daily_bundle_expiry_hook`
 
 Finds all `active` or `grace-period` bundles whose `membership_expires_at` is before yesterday (UTC) and transitions each to `expired`. If a bundle has no grace period configured, `membership_expires_at` equals `membership_ends_at`, so it expires immediately after the end date passes.
 
-### [`daily_bundle_activation_hook`](#daily_bundle_activation_hook)
+### `daily_bundle_activation_hook`
 
 Finds all `delayed` bundles whose `membership_starts_at` is before yesterday (UTC) and transitions each to `active`. This is a status-only change — no dates are rewritten.
 
@@ -105,7 +116,7 @@ Beyond status transitions, three one-time Action Scheduler jobs fire `do_action`
 
 These jobs are scheduled when a bundle is created and rescheduled whenever its dates are edited. Editing dates will cancel any pending jobs and replace them.
 
-## [Status transitions in code](#status-transitions-in-code)
+## Status transitions in code
 
 Call `transition_to()` on a `Membership_Bundle` instance to perform a status change. This method applies lifecycle guards, recalculates dates where applicable, activates the WooCommerce subscription on `pending → active`, and cascades the new status to all child individual memberships.
 
@@ -129,7 +140,7 @@ $transitions = $bundle->get_allowed_status_transitions();
 // Returns [] when the bundle is in a terminal status
 ```
 
-## [Cancellation paths](#cancellation-paths)
+## Cancellation paths
 
 Cancellation supports three distinct behaviours, controlled by the `member_handling` and `timing` parameters on the cancel endpoint (or `cancel_bundle()` in the admin controller).
 
@@ -171,9 +182,9 @@ Membership_Bundle_Admin_Controller::cancel_bundle(
 
 Non-fatal per-member errors (e.g. a user account cannot be resolved) are collected in the response `warnings` array without blocking the rest of the conversion.
 
-## [Renewal flow](#renewal-flow)
+## Renewal flow
 
-### [Renewal timing types](#renewal-timing-types)
+### Renewal timing types
 
 The renewal flow behaves differently depending on *when* the renewal payment is processed relative to the current bundle term:
 
@@ -185,7 +196,7 @@ The renewal flow behaves differently depending on *when* the renewal payment is 
 
 The key difference: for **early renewals**, the old bundle must stay active until the new term starts. The new bundle is created in `delayed` status and only activates when its `starts_at` date is reached. For **same-day and grace-period renewals**, the old bundle is cancelled and the new one is activated immediately once member provisioning completes.
 
-### [Renewal steps](#renewal-steps)
+### Renewal steps
 
 When a bundle renews via a WooCommerce subscription payment, `Membership_Controller::handle_bundle_renewal()` orchestrates the following:
 
@@ -209,7 +220,7 @@ $posts = get_posts([
 ]);
 ```
 
-## [Status cascade to child memberships](#status-cascade-to-child-memberships)
+## Status cascade to child memberships
 
 Every status transition on a bundle — whether manual or cron-driven — cascades the new status to all child individual memberships via `cascade_status_to_members()`. Members already in `cancelled` status are skipped; they are in a terminal state and should not be touched.
 

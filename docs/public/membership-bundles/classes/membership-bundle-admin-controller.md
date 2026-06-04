@@ -1,3 +1,7 @@
+---
+title: Membership_Bundle_Admin_Controller
+---
+
 # Membership_Bundle_Admin_Controller
 
 `Membership_Bundle_Admin_Controller` is the orchestration layer between the REST API and the `Membership_Bundle` model. It validates inputs, normalizes payloads, and delegates all mutations to the model. If you are building a custom integration that needs to operate on bundles outside the REST layer, this is the right class to call.
@@ -13,7 +17,7 @@ Membership_Bundle_WP_REST_Controller
         → Membership_Bundle
 ```
 
-## [Method summary](#method-summary)
+## Method summary
 
 - **[Retrieving bundles](#retrieving-bundles)**
   - [`get_membership_bundles_list()`](#get_membership_bundles_list) — Search or browse bundles by status, org, or name — use this to power a list view or lookup UI
@@ -41,7 +45,7 @@ Membership_Bundle_WP_REST_Controller
 - **[Renewal](#renewal)**
   - [`create_bundle_renewal_order()`](#create_bundle_renewal_order) — Manually trigger a renewal payment when automatic subscription renewal is not handling it
 
-## [Basic usage](#basic-usage)
+## Basic usage
 
 All methods are static — no instantiation needed:
 
@@ -51,9 +55,9 @@ use Wicket_Memberships\Membership_Bundle_Admin_Controller;
 $result = Membership_Bundle_Admin_Controller::get_bundle_members_by_tier( $bundle_post_id );
 ```
 
-## [Retrieving bundles](#retrieving-bundles)
+## Retrieving bundles
 
-### [`get_membership_bundles_list()`](#get_membership_bundles_list)
+### `get_membership_bundles_list()`
 
 ```php
 public static function get_membership_bundles_list(
@@ -71,18 +75,17 @@ Returns a paginated list of membership bundles with their post meta formatted fo
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$page` | `int` | Page number. Default `1`. |
-| `$posts_per_page` | `int` | Results per page. Default `25`. |
-| `$status` | `string` | Filter by status slug, or `'all'` for all statuses. |
-| `$search` | `string` | Search term matched against post title. |
-| `$filter` | `array` | Additional filter key-value pairs. |
-| `$order_col` | `string\|null` | Column to sort by. |
-| `$order_dir` | `string\|null` | Sort direction: `'ASC'` or `'DESC'`. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$page` | `int` | No | Page number. Default `1`. |
+| `$posts_per_page` | `int` | No | Results per page. Default `25`. |
+| `$status` | `string` | No | Filter by status slug, or `'all'` for all statuses. |
+| `$search` | `string` | No | Search term matched against post title. |
+| `$filter` | `array` | No | Additional filter key-value pairs. |
+| `$order_col` | `string\|null` | No | Column to sort by. |
+| `$order_dir` | `string\|null` | No | Sort direction: `'ASC'` or `'DESC'`. |
 
-**Returns:**
-
+:::details Returns
 ```php
 [
     'results'        => [
@@ -104,7 +107,9 @@ Returns a paginated list of membership bundles with their post meta formatted fo
     'count'          => int,   // total matching bundles across all pages
 ]
 ```
+:::
 
+:::details Example
 ```php
 $list = Membership_Bundle_Admin_Controller::get_membership_bundles_list(
     page:           1,
@@ -117,8 +122,9 @@ foreach ( $list['results'] as $row ) {
     echo $row['bundle_name'];
 }
 ```
+:::
 
-### [`get_bundle_entity_records()`](#get_bundle_entity_records)
+### `get_bundle_entity_records()`
 
 ```php
 public static function get_bundle_entity_records( int $bundle_post_id ): array|\WP_REST_Response
@@ -128,9 +134,9 @@ Returns the display data for a single bundle entity view: post meta, formatted d
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$bundle_post_id` | `int` | Post ID of the `wicket_mship_bundle`. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$bundle_post_id` | `int` | Yes | Post ID of the `wicket_mship_bundle`. |
 
 **Returns:** data array on success, `WP_REST_Response` 404 if the post is not found or wrong CPT.
 
@@ -153,7 +159,7 @@ Returns the display data for a single bundle entity view: post meta, formatted d
 ]
 ```
 
-### [`get_bundle_edit_page_info()`](#get_bundle_edit_page_info)
+### `get_bundle_edit_page_info()`
 
 ```php
 public static function get_bundle_edit_page_info( string $bundle_group_uuid ): array|\WP_REST_Response
@@ -163,14 +169,13 @@ Returns all data needed to populate the bundle edit form. Accepts the bundle's s
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$bundle_group_uuid` | `string` | The `membership_bundle_group_uuid` shared by all renewal-term posts in a series. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$bundle_group_uuid` | `string` | Yes | The `membership_bundle_group_uuid` shared by all renewal-term posts in a series. |
 
 **Returns:** data array on success (see structure below), `WP_REST_Response` 404 if no posts found.
 
-**Returns:**
-
+:::details Returns
 ```php
 [
     'ID'                  => int,
@@ -241,10 +246,11 @@ Returns all data needed to populate the bundle edit form. Accepts the bundle's s
     ],
 ]
 ```
+:::
 
 `membership_records` lists one entry per bundle post in the series — not per individual member seat. `owner.switch_to_url` is empty when the User Switching plugin is inactive.
 
-### [`get_membership_bundle_filters()`](#get_membership_bundle_filters)
+### `get_membership_bundle_filters()`
 
 ```php
 public static function get_membership_bundle_filters(): array
@@ -252,8 +258,7 @@ public static function get_membership_bundle_filters(): array
 
 Returns available filter options for the bundle list. Used to populate filter dropdowns in the admin UI.
 
-**Returns:**
-
+:::details Returns
 ```php
 [
     'membership_status' => [
@@ -264,8 +269,9 @@ Returns available filter options for the bundle list. Used to populate filter dr
     ],
 ]
 ```
+:::
 
-### [`get_bundle_members_by_tier()`](#get_bundle_members_by_tier)
+### `get_bundle_members_by_tier()`
 
 ```php
 public static function get_bundle_members_by_tier( int $bundle_post_id ): array|\WP_REST_Response
@@ -275,12 +281,11 @@ Returns the total active member count and a per-tier breakdown for a bundle.
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$bundle_post_id` | `int` | Post ID of the `wicket_mship_bundle`. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$bundle_post_id` | `int` | Yes | Post ID of the `wicket_mship_bundle`. |
 
-**Returns:**
-
+:::details Returns
 ```php
 [
     'total_members' => int,
@@ -294,10 +299,11 @@ Returns the total active member count and a per-tier breakdown for a bundle.
     ],
 ]
 ```
+:::
 
-## [Status management](#status-management)
+## Status management
 
-### [`get_admin_status_options()`](#get_admin_status_options)
+### `get_admin_status_options()`
 
 ```php
 public static function get_admin_status_options( ?int $bundle_post_id = null ): array
@@ -307,12 +313,13 @@ Returns available status options.
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$bundle_post_id` | `int\|null` | When provided, returns only valid transitions from the bundle's current status. When omitted, returns all status names. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$bundle_post_id` | `int\|null` | No | When provided, returns only valid transitions from the bundle's current status. When omitted, returns all status names. |
 
 **Returns:** when `$bundle_post_id` is omitted — `[ 'slug' => [ 'name' => string, 'slug' => string ], ... ]` for all statuses. When provided — same shape but filtered to valid transitions from the current status; empty array when the bundle is in a terminal status.
 
+:::details Example
 ```php
 // All statuses
 $all = Membership_Bundle_Admin_Controller::get_admin_status_options();
@@ -320,8 +327,9 @@ $all = Membership_Bundle_Admin_Controller::get_admin_status_options();
 // Only valid next statuses for a specific bundle
 $transitions = Membership_Bundle_Admin_Controller::get_admin_status_options( $bundle_post_id );
 ```
+:::
 
-### [`bundle_admin_manage_status()`](#bundle_admin_manage_status)
+### `bundle_admin_manage_status()`
 
 ```php
 public static function bundle_admin_manage_status(
@@ -334,21 +342,23 @@ Transitions a bundle to a new status. Delegates lifecycle logic — date recalcu
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$bundle_post_id` | `int` | Post ID of the bundle to transition. |
-| `$new_status` | `string` | Target status slug. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$bundle_post_id` | `int` | Yes | Post ID of the bundle to transition. |
+| `$new_status` | `string` | Yes | Target status slug. |
 
 **Returns:** `WP_REST_Response` 200 on success, 400 for invalid transitions, 404 if the post is not found.
 
+:::details Example
 ```php
 $response = Membership_Bundle_Admin_Controller::bundle_admin_manage_status(
     bundle_post_id: $bundle_post_id,
     new_status:     'active',
 );
 ```
+:::
 
-### [`cancel_bundle()`](#cancel_bundle)
+### `cancel_bundle()`
 
 ```php
 public static function cancel_bundle(
@@ -362,14 +372,15 @@ Cancels a bundle with three configurable behaviours.
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$bundle_post_id` | `int` | Post ID of the bundle to cancel. |
-| `$member_handling` | `string` | `"cancel_all"` — cancels all members. `"keep_as_individual"` — converts all members to standalone memberships. |
-| `$timing` | `string` | Required when `member_handling` is `"cancel_all"`. `"immediately"` — hard cancel now. `"at_end_date"` — preserve access until `ends_at`. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$bundle_post_id` | `int` | Yes | Post ID of the bundle to cancel. |
+| `$member_handling` | `string` | Yes | `"cancel_all"` — cancels all members. `"keep_as_individual"` — converts all members to standalone memberships. |
+| `$timing` | `string` | Conditional | Required when `$member_handling` is `"cancel_all"`. `"immediately"` — hard cancel now. `"at_end_date"` — preserve access until `ends_at`. |
 
 **Returns:** `WP_REST_Response` 200 on success. Body is `{ success: string }` for paths A and B; `{ success: string, warnings?: string[] }` for path C where per-member conversion errors are non-fatal. Returns 400 for invalid parameters or transition failures, 404 if the bundle is not found.
 
+:::details Example
 ```php
 // Cancel immediately
 Membership_Bundle_Admin_Controller::cancel_bundle( $id, 'cancel_all', 'immediately' );
@@ -380,12 +391,13 @@ Membership_Bundle_Admin_Controller::cancel_bundle( $id, 'cancel_all', 'at_end_da
 // Convert all members to standalone and cancel bundle
 Membership_Bundle_Admin_Controller::cancel_bundle( $id, 'keep_as_individual' );
 ```
+:::
 
 See [Bundle Lifecycle — Cancellation paths](../concepts/bundle-lifecycle.md#cancellation-paths) for full detail on each path.
 
-## [Updating a bundle](#updating-a-bundle)
+## Updating a bundle
 
-### [`update_bundle_entity_record()`](#update_bundle_entity_record)
+### `update_bundle_entity_record()`
 
 ```php
 public static function update_bundle_entity_record( array $data ): \WP_REST_Response
@@ -403,6 +415,7 @@ Updates editable fields on a bundle post. Validates date ordering before writing
 | `membership_expires_at` | No | ISO 8601. |
 | `membership_renewal_type` | No | `'subscription'` or `'form_page'`. Changing this updates the WC subscription's `next_payment` date accordingly. |
 
+:::details Example
 ```php
 $response = Membership_Bundle_Admin_Controller::update_bundle_entity_record([
     'bundle_post_id'        => 123,
@@ -410,12 +423,13 @@ $response = Membership_Bundle_Admin_Controller::update_bundle_entity_record([
     'membership_expires_at' => '2027-01-30',
 ]);
 ```
+:::
 
 After a successful date edit, Action Scheduler date-trigger jobs are rescheduled automatically.
 
-## [Ownership](#ownership)
+## Ownership
 
-### [`update_bundle_change_ownership()`](#update_bundle_change_ownership)
+### `update_bundle_change_ownership()`
 
 ```php
 public static function update_bundle_change_ownership( array $params ): \WP_REST_Response
@@ -432,16 +446,18 @@ Changes the owner of a bundle.
 
 **Returns:** 204 if the new owner is the same as the current owner (no-op), 200 on success, 500 if the user cannot be resolved.
 
+:::details Example
 ```php
 $response = Membership_Bundle_Admin_Controller::update_bundle_change_ownership([
     'bundle_post_id' => 123,
     'new_owner_uuid' => 'new-person-uuid',
 ]);
 ```
+:::
 
-## [Member operations](#member-operations)
+## Member operations
 
-### [`add_member()`](#add_member)
+### `add_member()`
 
 ```php
 public static function add_member( array $params ): array
@@ -462,6 +478,7 @@ Adds a member to a bundle. Resolves the WP user from the MDP person UUID, then d
 
 **Returns:** `['success' => string, 'membership_post_id' => int]` on success; `['error' => string, 'code' => string]` on failure.
 
+:::details Example
 ```php
 $result = Membership_Bundle_Admin_Controller::add_member([
     'bundle_post_id' => 123,
@@ -472,8 +489,9 @@ $result = Membership_Bundle_Admin_Controller::add_member([
 
 $membership_post_id = $result['membership_post_id'];
 ```
+:::
 
-### [`remove_member()`](#remove_member)
+### `remove_member()`
 
 ```php
 public static function remove_member( array $params ): array
@@ -491,7 +509,7 @@ Removes a member from a bundle.
 
 **Returns:** `['success' => string, 'membership_post_id' => int]` on success; `['error' => string, 'code' => string]` on failure.
 
-### [`move_individual_membership()`](#move_individual_membership)
+### `move_individual_membership()`
 
 ```php
 public static function move_individual_membership( array $params ): array
@@ -509,11 +527,13 @@ Moves a member from one bundle to another.
 
 **Returns:** `['success' => string, 'membership_post_id' => int]` (new membership ID) on success; `['error' => string, 'code' => string]` on failure.
 
-> If the source membership is cancelled but the target creation fails, the error message will explicitly note that the source was cancelled with no rollback. Re-add the member manually using `add_member` in `"new"` mode.
+::: danger No rollback on partial failure
+If the source membership is cancelled but the target creation fails, the error message will explicitly note that the source was cancelled with no rollback. Re-add the member manually using `add_member` in `"new"` mode.
+:::
 
-## [Renewal](#renewal)
+## Renewal
 
-### [`create_bundle_renewal_order()`](#create_bundle_renewal_order)
+### `create_bundle_renewal_order()`
 
 ```php
 public static function create_bundle_renewal_order( array $params ): \WP_REST_Response

@@ -1,3 +1,7 @@
+---
+title: Membership_Bundle
+---
+
 # Membership_Bundle
 
 `Membership_Bundle` is the core model class for the `wicket_mship_bundle` custom post type. Every bundle-level operation — reading and writing post meta, managing member seats, executing lifecycle transitions, and coordinating WooCommerce subscriptions — goes through this class.
@@ -14,7 +18,7 @@ Membership_Bundle_WP_REST_Controller
         → Membership_Bundle   ← you are here
 ```
 
-## [Method summary](#method-summary)
+## Method summary
 
 - **[Creating a bundle](#creating-a-bundle)**
   - [`create()`](#create) — Create a new bundle post with all required meta, a WooCommerce subscription, and scheduled date jobs
@@ -57,7 +61,7 @@ Membership_Bundle_WP_REST_Controller
   - [`get_name()`](#get_name) — Get the bundle's display name (post title)
   - [`get_bundle_group_uuid()`](#get_bundle_group_uuid) — Get the series UUID shared across all renewal-term posts
 
-## [Basic usage](#basic-usage)
+## Basic usage
 
 Instantiate the class with a post ID to load an existing bundle:
 
@@ -71,9 +75,9 @@ if ( $bundle->get_post_id() === 0 ) {
 }
 ```
 
-## [Creating a bundle](#creating-a-bundle)
+## Creating a bundle
 
-### [`create()`](#create)
+### `create()`
 
 ```php
 public static function create(
@@ -89,18 +93,19 @@ Creates a new bundle post, populates all required meta, creates a linked WooComm
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$name` | `string` | Post title for the bundle. Must be non-empty. |
-| `$membership_bundle_config_id` | `int` | Post ID of a `wicket_mship_bcfg` record that defines cycle, dates, and renewal settings. |
-| `$org_uuid` | `string` | MDP organisation UUID to associate with this bundle. |
-| `$owner_uuid` | `string` | MDP person UUID of the bundle owner. The corresponding WP user is resolved or created. |
-| `$start_date` | `string` | ISO 8601 start date (e.g. `2025-01-01`). Dates are derived from the config anchored to this value. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$name` | `string` | Yes | Post title for the bundle. Must be non-empty. |
+| `$membership_bundle_config_id` | `int` | Yes | Post ID of a `wicket_mship_bcfg` record that defines cycle, dates, and renewal settings. |
+| `$org_uuid` | `string` | Yes | MDP organisation UUID to associate with this bundle. |
+| `$owner_uuid` | `string` | Yes | MDP person UUID of the bundle owner. The corresponding WP user is resolved or created. |
+| `$start_date` | `string` | Yes | ISO 8601 start date (e.g. `2025-01-01`). Dates are derived from the config anchored to this value. |
 
 **Returns:** `static` on success, `null` if a post-creation meta write fails (the partial post is rolled back). Throws `\RuntimeException` if parameter validation fails before any database writes.
 
 **Initial status:** `delayed` when `$start_date` is in the future; `pending` otherwise. A bundle always requires explicit admin activation before becoming `active`.
 
+:::details Example
 ```php
 $bundle = Membership_Bundle::create(
     name:                         'Acme Corp 2025',
@@ -110,8 +115,9 @@ $bundle = Membership_Bundle::create(
     start_date:                   '2025-01-01',
 );
 ```
+:::
 
-### [`renew_bundle()`](#renew_bundle)
+### `renew_bundle()`
 
 ```php
 public function renew_bundle(
@@ -124,13 +130,14 @@ Creates a new bundle post for a renewal term. Use this instead of `create()` for
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$subscription` | `\WC_Subscription` | The existing bundle subscription to reuse. |
-| `$new_dates` | `array` | Output of `Membership_Bundle_Config::get_membership_dates()` for the new term. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$subscription` | `\WC_Subscription` | Yes | The existing bundle subscription to reuse. |
+| `$new_dates` | `array` | Yes | Output of `Membership_Bundle_Config::get_membership_dates()` for the new term. |
 
 **Returns:** `static` on success, `null` on failure. The new bundle always starts in `delayed` status, regardless of the start date.
 
+:::details Example
 ```php
 $config    = $bundle->get_config();
 $new_dates = $config->get_membership_dates([
@@ -140,10 +147,11 @@ $new_dates = $config->get_membership_dates([
 $subscription  = wcs_get_subscription( $bundle->get_subscription_id() );
 $renewed_bundle = $bundle->renew_bundle( $subscription, $new_dates );
 ```
+:::
 
-## [Member management](#member-management)
+## Member management
 
-### [`add_member()`](#add_member)
+### `add_member()`
 
 ```php
 public function add_member(
@@ -176,6 +184,7 @@ Adds an individual membership seat to this bundle. The `$existing_membership_pos
 
 **Returns:** new membership post ID on success, `\WP_Error` on failure.
 
+:::details Error codes
 | Error code | Cause |
 |---|---|
 | `invalid_bundle_status` | Bundle is not in `pending`, `active`, or `delayed` status |
@@ -189,17 +198,20 @@ Adds an individual membership seat to this bundle. The `$existing_membership_pos
 | `product_tier_mismatch` | Supplied product does not belong to the tier |
 | `invalid_membership` | Existing membership post not found or wrong CPT |
 | `create_failed` | Downstream membership creation failed |
+:::
 
+:::details Example
 ```php
 $membership_post_id = $bundle->add_member(
     user_id:      get_current_user_id(),
     tier_post_id: 88,
 );
 ```
+:::
 
 See [Member Handling](../concepts/member-handling.md) for an explanation of new vs. existing member modes, start-date resolution, and what gets created.
 
-### [`remove_member()`](#remove_member)
+### `remove_member()`
 
 ```php
 public function remove_member(
@@ -212,13 +224,14 @@ Removes an individual membership from this bundle.
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$membership_post_id` | `int` | Post ID of the `wicket_membership` to remove. |
-| `$mode` | `string` | `"cancel"` — cancels the membership immediately. `"keep_as_individual"` — converts it to a standalone membership with its own order and subscription. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$membership_post_id` | `int` | Yes | Post ID of the `wicket_membership` to remove. |
+| `$mode` | `string` | Yes | `"cancel"` — cancels the membership immediately. `"keep_as_individual"` — converts it to a standalone membership with its own order and subscription. |
 
 **Returns:** post ID of the affected membership. For `cancel` mode, this is the cancelled post. For `keep_as_individual`, this is the newly created standalone post.
 
+:::details Example
 ```php
 // Cancel the seat
 $result = $bundle->remove_member( $membership_post_id, 'cancel' );
@@ -226,10 +239,11 @@ $result = $bundle->remove_member( $membership_post_id, 'cancel' );
 // Convert to standalone
 $new_membership_id = $bundle->remove_member( $membership_post_id, 'keep_as_individual' );
 ```
+:::
 
 See [Member Handling](../concepts/member-handling.md) for a detailed explanation of the `keep_as_individual` flow.
 
-### [`move_individual_membership()`](#move_individual_membership)
+### `move_individual_membership()`
 
 ```php
 public function move_individual_membership(
@@ -242,16 +256,18 @@ Moves a member from this bundle to another. Cancels the seat in the source bundl
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$membership_post_id` | `int` | Post ID of the membership to move. Must belong to this bundle. |
-| `$target_bundle` | `Membership_Bundle` | Destination bundle. Must be in `pending`, `active`, or `delayed` status. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$membership_post_id` | `int` | Yes | Post ID of the membership to move. Must belong to this bundle. |
+| `$target_bundle` | `Membership_Bundle` | Yes | Destination bundle. Must be in `pending`, `active`, or `delayed` status. |
 
 **Returns:** post ID of the new membership in the target bundle, or `\WP_Error` on failure.
 
-> There is no rollback if the source is cancelled but the target creation fails. The error message will note this explicitly.
+::: danger No rollback on partial failure
+There is no rollback if the source is cancelled but the target creation fails. The error message will note this explicitly.
+:::
 
-### [`get_individual_memberships()`](#get_individual_memberships)
+### `get_individual_memberships()`
 
 ```php
 public function get_individual_memberships(
@@ -263,12 +279,13 @@ Returns the child `wicket_membership` WP_Post objects for this bundle.
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$active_only` | `bool` | When `true` (default), excludes `cancelled` and `expired` memberships. Pass `false` to retrieve all. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$active_only` | `bool` | No | When `true` (default), excludes `cancelled` and `expired` memberships. Pass `false` to retrieve all. |
 
 **Returns:** array of `\WP_Post` objects.
 
+:::details Example
 ```php
 // Count active seats
 $active_count = count( $bundle->get_individual_memberships() );
@@ -276,10 +293,11 @@ $active_count = count( $bundle->get_individual_memberships() );
 // Audit all seats including past members
 $all_seats = $bundle->get_individual_memberships( active_only: false );
 ```
+:::
 
-## [Lifecycle transitions](#lifecycle-transitions)
+## Lifecycle transitions
 
-### [`transition_to()`](#transition_to)
+### `transition_to()`
 
 ```php
 public function transition_to( string $new_status ): array|false
@@ -289,12 +307,13 @@ The main entry point for all status changes. Applies lifecycle guards, recalcula
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$new_status` | `string` | Target status slug (e.g. `'active'`, `'cancelled'`). |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$new_status` | `string` | Yes | Target status slug (e.g. `'active'`, `'cancelled'`). |
 
 **Returns:** `['success_message' => string, 'bypassed' => bool]` on success, `false` when the transition is not allowed from the current status.
 
+:::details Example
 ```php
 $result = $bundle->transition_to( 'active' );
 
@@ -302,8 +321,9 @@ if ( $result === false ) {
     // Not a valid transition from current status
 }
 ```
+:::
 
-### [`get_allowed_status_transitions()`](#get_allowed_status_transitions)
+### `get_allowed_status_transitions()`
 
 ```php
 public function get_allowed_status_transitions(): array
@@ -313,6 +333,7 @@ Returns the admin-selectable transitions from the current status. Does not inclu
 
 **Returns:** associative array keyed by status slug, e.g. `['active' => ['name' => 'Active', 'slug' => 'active']]`. Empty array when the bundle is in a terminal status.
 
+:::details Example
 ```php
 $transitions = $bundle->get_allowed_status_transitions();
 
@@ -320,8 +341,9 @@ foreach ( $transitions as $slug => $label ) {
     echo $label['name']; // 'Active', 'Cancelled', etc.
 }
 ```
+:::
 
-### [`get_membership_status()`](#get_membership_status)
+### `get_membership_status()`
 
 ```php
 public function get_membership_status(): string|false
@@ -329,7 +351,7 @@ public function get_membership_status(): string|false
 
 Returns the current `membership_status` meta value, or `false` if not set.
 
-### [`set_membership_status()`](#set_membership_status)
+### `set_membership_status()`
 
 ```php
 public function set_membership_status( string $status ): bool
@@ -337,7 +359,7 @@ public function set_membership_status( string $status ): bool
 
 Writes `membership_status` directly. Use `transition_to()` in normal flows — this method bypasses lifecycle guards and side effects. It exists as a low-level escape hatch.
 
-### [`transition_to_cancelled_at_end_date()`](#transition_to_cancelled_at_end_date)
+### `transition_to_cancelled_at_end_date()`
 
 ```php
 public function transition_to_cancelled_at_end_date(): array|false
@@ -349,9 +371,9 @@ Use this when an admin cancels a bundle but wants existing members to finish out
 
 **Returns:** `['success_message' => string]` on success, `false` if the bundle has no end date or is already in a terminal status.
 
-## [Dates](#dates)
+## Dates
 
-### [`get_dates()`](#get_dates)
+### `get_dates()`
 
 ```php
 public function get_dates(): array
@@ -359,8 +381,7 @@ public function get_dates(): array
 
 Returns the bundle's stored date fields.
 
-**Returns:**
-
+:::details Returns
 ```php
 [
     'starts_at'      => string,  // ISO 8601 UTC
@@ -369,10 +390,11 @@ Returns the bundle's stored date fields.
     'early_renew_at' => string,  // ISO 8601 UTC (empty if no renewal window)
 ]
 ```
+:::
 
 All boundaries are stored in UTC, snapped to the MDP timezone day start/end. Do not compare dates to UTC midnight directly.
 
-### [`set_dates()`](#set_dates)
+### `set_dates()`
 
 ```php
 public function set_dates( array $dates ): bool
@@ -391,9 +413,9 @@ Writes date meta. Optional keys are skipped when `null`.
 
 **Returns:** `true` on success, `false` on failure.
 
-## [Owner](#owner)
+## Owner
 
-### [`set_owner()`](#set_owner)
+### `set_owner()`
 
 ```php
 public function set_owner( string $uuid ): int|false
@@ -403,13 +425,13 @@ Sets the bundle owner by MDP person UUID. Resolves or creates the corresponding 
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `$uuid` | `string` | MDP person UUID. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$uuid` | `string` | Yes | MDP person UUID. |
 
 **Returns:** saved WP user ID on success, `false` on failure.
 
-### [`get_owner()`](#get_owner)
+### `get_owner()`
 
 ```php
 public function get_owner(): array|false
@@ -417,8 +439,7 @@ public function get_owner(): array|false
 
 Returns a snapshot of the bundle owner. Prefer this over calling `get_owner_id()` + `get_user_by()` separately.
 
-**Returns:**
-
+:::details Returns
 ```php
 [
     'user_id' => int,
@@ -427,10 +448,11 @@ Returns a snapshot of the bundle owner. Prefer this over calling `get_owner_id()
     'email'   => string,
 ]
 ```
+:::
 
 Returns `false` if no owner is set.
 
-### [`get_owner_id()`](#get_owner_id)
+### `get_owner_id()`
 
 ```php
 public function get_owner_id(): int|false
@@ -438,7 +460,7 @@ public function get_owner_id(): int|false
 
 Returns the WP user ID of the owner from post meta, or `false` if not set.
 
-### [`get_owner_uuid()`](#get_owner_uuid)
+### `get_owner_uuid()`
 
 ```php
 public function get_owner_uuid(): string|false
@@ -446,7 +468,7 @@ public function get_owner_uuid(): string|false
 
 Returns the MDP UUID for the owner (derived from `user_login`), or `false` if unresolvable.
 
-### [`is_owner()`](#is_owner)
+### `is_owner()`
 
 ```php
 public function is_owner( string $uuid ): bool
@@ -454,9 +476,9 @@ public function is_owner( string $uuid ): bool
 
 Returns `true` if the given MDP person UUID matches the bundle owner.
 
-## [Organization](#organization)
+## Organization
 
-### [`set_organization()`](#set_organization)
+### `set_organization()`
 
 ```php
 public function set_organization( string $org_uuid ): array|false
@@ -466,7 +488,7 @@ Associates an MDP organization with this bundle. Fetches and caches the org name
 
 **Returns:** org data array on success, `false` on failure.
 
-### [`get_org_uuid()`](#get_org_uuid)
+### `get_org_uuid()`
 
 ```php
 public function get_org_uuid(): string|false
@@ -474,7 +496,7 @@ public function get_org_uuid(): string|false
 
 Returns the stored `org_uuid` meta value, or `false` if not set.
 
-### [`get_organization()`](#get_organization)
+### `get_organization()`
 
 ```php
 public function get_organization(): array|false
@@ -482,9 +504,9 @@ public function get_organization(): array|false
 
 Returns the full organization data array from MDP for the stored UUID, or `false`.
 
-## [Config and subscription](#config-and-subscription)
+## Config and subscription
 
-### [`get_config()`](#get_config)
+### `get_config()`
 
 ```php
 public function get_config(): Membership_Bundle_Config|false
@@ -492,6 +514,7 @@ public function get_config(): Membership_Bundle_Config|false
 
 Returns the linked `Membership_Bundle_Config` object, or `false` if not set.
 
+:::details Example
 ```php
 $config = $bundle->get_config();
 
@@ -499,8 +522,9 @@ if ( $config ) {
     $renewal_type = $config->get_renewal_type(); // 'subscription' or 'form_page'
 }
 ```
+:::
 
-### [`set_config()`](#set_config)
+### `set_config()`
 
 ```php
 public function set_config( int $config_post_id ): bool
@@ -508,7 +532,7 @@ public function set_config( int $config_post_id ): bool
 
 Validates and writes `membership_bundle_config_id` post meta. Returns `true` on success.
 
-### [`get_subscription_id()`](#get_subscription_id)
+### `get_subscription_id()`
 
 ```php
 public function get_subscription_id(): int|false
@@ -516,7 +540,7 @@ public function get_subscription_id(): int|false
 
 Returns the linked WooCommerce subscription post ID from post meta, or `false` if not set.
 
-### [`get_post_id()`](#get_post_id)
+### `get_post_id()`
 
 ```php
 public function get_post_id(): int
@@ -524,7 +548,7 @@ public function get_post_id(): int
 
 Returns the WordPress post ID for this bundle. Returns `0` if the bundle failed to load.
 
-### [`get_name()`](#get_name)
+### `get_name()`
 
 ```php
 public function get_name(): string
@@ -532,7 +556,7 @@ public function get_name(): string
 
 Returns the post title. Returns an empty string if the bundle post is not loaded.
 
-### [`get_bundle_group_uuid()`](#get_bundle_group_uuid)
+### `get_bundle_group_uuid()`
 
 ```php
 public function get_bundle_group_uuid(): string|false
@@ -540,7 +564,7 @@ public function get_bundle_group_uuid(): string|false
 
 Returns the `membership_bundle_group_uuid` meta value. This UUID is shared across all renewal-term posts in the same series. Use it to retrieve the full renewal history of a bundle.
 
-## [Post meta reference](#post-meta-reference)
+## Post meta reference
 
 | Key | Type | Description |
 |---|---|---|
@@ -557,7 +581,7 @@ Returns the `membership_bundle_group_uuid` meta value. This UUID is shared acros
 | `membership_early_renew_at` | `string` | ISO 8601 UTC early renewal open date |
 | `membership_bundle_group_uuid` | `string` | Shared UUID across all renewal-term posts for this bundle |
 
-## [Hooks](#hooks)
+## Hooks
 
 | Hook | Type | When fired | Args |
 |---|---|---|---|

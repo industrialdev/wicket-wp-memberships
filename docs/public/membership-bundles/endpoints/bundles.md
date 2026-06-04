@@ -1,18 +1,22 @@
+---
+title: Bundles
+---
+
 # Bundles Endpoints
 
 These endpoints handle creating bundles, retrieving bundle records, updating bundle fields, and fetching filter and breakdown data.
 
 ---
 
-## [Create a bundle](#create-a-bundle)
+## Create a bundle
 
 **`POST /wp-json/wicket_member/v1/bundle`**
 
 Creates a new membership bundle post, calculates dates from the linked config, creates a WooCommerce subscription, and schedules date-trigger jobs.
 
-### [Request body](#request-body)
+### Request body
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `name` | `string` | Yes | Display name for the bundle (post title). |
 | `membership_bundle_config_id` | `integer` | Yes | Post ID of the `wicket_mship_bcfg` config record. |
@@ -20,7 +24,7 @@ Creates a new membership bundle post, calculates dates from the linked config, c
 | `owner_uuid` | `string` | Yes | MDP person UUID of the bundle owner. |
 | `start_date` | `string` | Yes | ISO 8601 start date (e.g. `2025-01-01`). |
 
-### [Response](#response)
+### Response
 
 `200 OK`
 
@@ -31,15 +35,18 @@ Creates a new membership bundle post, calculates dates from the linked config, c
 }
 ```
 
-### [Errors](#errors)
+### Errors
 
+:::details Error codes
 | Status | Code | Cause |
 |---|---|---|
 | `400` | — | Validation error (missing/invalid parameters) |
 | `500` | — | Post creation or meta write failed |
+:::
 
-### [Example](#example)
+### Example
 
+:::details Example
 ```bash
 curl -X POST https://example.com/wp-json/wicket_member/v1/bundle \
   -H "Content-Type: application/json" \
@@ -52,22 +59,23 @@ curl -X POST https://example.com/wp-json/wicket_member/v1/bundle \
     "start_date": "2025-01-01"
   }'
 ```
+:::
 
 ---
 
-## [Get a bundle record](#get-a-bundle-record)
+## Get a bundle record
 
 **`GET /wp-json/wicket_member/v1/membership_bundle_entity`**
 
 Returns post meta and child membership post IDs for a single bundle.
 
-### [Query parameters](#query-parameters)
+### Query parameters
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `bundle_post_id` | `integer` | Yes | Post ID of the `wicket_mship_bundle`. |
 
-### [Response](#response)
+### Response
 
 `200 OK`
 
@@ -92,37 +100,39 @@ Returns post meta and child membership post IDs for a single bundle.
 
 `individual_members` is an array of `wicket_membership` post IDs belonging to this bundle.
 
-### [Example](#example)
+### Example
 
+:::details Example
 ```bash
 curl "https://example.com/wp-json/wicket_member/v1/membership_bundle_entity?bundle_post_id=123" \
   -H "X-WP-Nonce: {nonce}"
 ```
+:::
 
 ---
 
-## [Update a bundle record](#update-a-bundle-record)
+## Update a bundle record
 
 **`POST /wp-json/wicket_member/v1/membership_bundle_entity/{bundle_post_id}/update`**
 
 Updates editable fields on a bundle. Validates date ordering before writing. After a successful date update, Action Scheduler date-trigger jobs are rescheduled automatically.
 
-### [URL parameters](#url-parameters)
+### URL parameters
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `bundle_post_id` | `integer` | Yes | Post ID of the bundle to update. |
 
-### [Request body](#request-body)
+### Request body
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `membership_starts_at` | `string` | No | ISO 8601. Must be before `membership_ends_at`. |
 | `membership_ends_at` | `string` | No | ISO 8601. Must not be after `membership_expires_at`. |
 | `membership_expires_at` | `string` | No | ISO 8601. |
 | `membership_renewal_type` | `string` | No | `"subscription"` or `"form_page"`. Changing this updates the WC subscription's `next_payment` date accordingly. |
 
-### [Response](#response)
+### Response
 
 `200 OK`
 
@@ -132,7 +142,7 @@ Updates editable fields on a bundle. Validates date ordering before writing. Aft
 }
 ```
 
-### [Errors](#errors)
+### Errors
 
 | Status | Cause |
 |---|---|
@@ -141,19 +151,19 @@ Updates editable fields on a bundle. Validates date ordering before writing. Aft
 
 ---
 
-## [Get the bundle edit page data](#get-the-bundle-edit-page-data)
+## Get the bundle edit page data
 
 **`GET /wp-json/wicket_member/v1/bundle/admin/get_edit_page_info`**
 
 Returns the full data set for the bundle edit form: org, owner, config, subscription, order history, dates, and renewal series history.
 
-### [Query parameters](#query-parameters)
+### Query parameters
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `bundle_group_uuid` | `string` | Yes | The `membership_bundle_group_uuid` shared by all renewal-term posts in a series. This is not the bundle post ID. |
 
-### [Response](#response)
+### Response
 
 `200 OK`
 
@@ -219,39 +229,41 @@ Returns the full data set for the bundle edit form: org, owner, config, subscrip
 
 `membership_records` lists one entry per bundle post in the renewal series (newest first). It does not list individual member seats. `owner.switch_to_url` is empty when the User Switching plugin is inactive.
 
-### [Errors](#errors)
+### Errors
 
 | Status | Cause |
 |---|---|
 | `404` | No bundle posts found for the given group UUID |
 
-### [Example](#example)
+### Example
 
+:::details Example
 ```bash
 curl "https://example.com/wp-json/wicket_member/v1/bundle/admin/get_edit_page_info?bundle_group_uuid=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" \
   -H "X-WP-Nonce: {nonce}"
 ```
+:::
 
 ---
 
-## [List bundles](#list-bundles)
+## List bundles
 
 **`GET /wp-json/wicket_member/v1/membership_bundles`**
 
 Returns a paginated, filterable list of membership bundles.
 
-### [Query parameters](#query-parameters)
+### Query parameters
 
-| Parameter | Type | Description |
-|---|---|---|
-| `page` | `integer` | Page number. Default `1`. |
-| `per_page` | `integer` | Results per page. Default `25`. |
-| `status` | `string` | Filter by status slug, or `all`. |
-| `search` | `string` | Search term matched against bundle title. |
-| `order_col` | `string` | Column to sort by. |
-| `order_dir` | `string` | `ASC` or `DESC`. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `page` | `integer` | No | Page number. Default `1`. |
+| `per_page` | `integer` | No | Results per page. Default `25`. |
+| `status` | `string` | No | Filter by status slug, or `all`. |
+| `search` | `string` | No | Search term matched against bundle title. |
+| `order_col` | `string` | No | Column to sort by. |
+| `order_dir` | `string` | No | `ASC` or `DESC`. |
 
-### [Response](#response)
+### Response
 
 `200 OK`
 
@@ -273,22 +285,24 @@ Returns a paginated, filterable list of membership bundles.
 }
 ```
 
-### [Example](#example)
+### Example
 
+:::details Example
 ```bash
 curl "https://example.com/wp-json/wicket_member/v1/membership_bundles?status=active&search=Acme&page=1" \
   -H "X-WP-Nonce: {nonce}"
 ```
+:::
 
 ---
 
-## [Get bundle filter options](#get-bundle-filter-options)
+## Get bundle filter options
 
 **`GET /wp-json/wicket_member/v1/membership_bundle_filters`**
 
 Returns available filter options for the bundle list view (e.g. status values, sortable columns). Used to populate filter dropdowns in the admin UI.
 
-### [Response](#response)
+### Response
 
 `200 OK`
 
@@ -305,19 +319,19 @@ Returns available filter options for the bundle list view (e.g. status values, s
 
 ---
 
-## [Get member count by tier](#get-member-count-by-tier)
+## Get member count by tier
 
 **`GET /wp-json/wicket_member/v1/bundle/{bundle_post_id}/members_by_tier`**
 
 Returns the total active member count for a bundle, broken down by tier.
 
-### [URL parameters](#url-parameters)
+### URL parameters
 
-| Parameter | Type | Required | Description |
+| Name | Type | Required | Description |
 |---|---|---|---|
 | `bundle_post_id` | `integer` | Yes | Post ID of the bundle. |
 
-### [Response](#response)
+### Response
 
 `200 OK`
 
@@ -341,7 +355,7 @@ Returns the total active member count for a bundle, broken down by tier.
 
 Tiers are sorted alphabetically by `tier_name`. Members without a `tier_uuid` are excluded from the breakdown and do not count toward `total_members`.
 
-### [Errors](#errors)
+### Errors
 
 | Status | Cause |
 |---|---|

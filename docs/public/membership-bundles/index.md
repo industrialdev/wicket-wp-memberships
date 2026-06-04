@@ -1,3 +1,7 @@
+---
+title: Membership Bundles
+---
+
 # Membership Bundles
 
 Membership Bundles let an organization purchase a block of membership seats that are managed as a single unit. The bundle itself belongs to an organization and has one designated owner (typically an association contact). Individual members are added to, removed from, or moved between bundles without requiring separate purchases.
@@ -45,6 +49,7 @@ For programmatic or environment-based control, the underlying option is `wicket_
 
 These terms appear throughout the documentation. If you're new to the Wicket stack, read this first.
 
+:::details Expand glossary
 | Term | What it is |
 |---|---|
 | **MDP** | Wicket Master Data Platform — the external data service that is the system of record for people, organizations, and memberships. WordPress is a client of MDP. Every bundle owner and org is identified by an MDP UUID. |
@@ -55,6 +60,7 @@ These terms appear throughout the documentation. If you're new to the Wicket sta
 | **`BYPASS_WICKET`** | A setting that skips all MDP API calls. Enable it in the WordPress admin under **Settings → Wicket Memberships** — same page as the Membership Bundles toggle. Use during local development when MDP is unavailable. |
 | **Bundle group UUID** | A UUID stored as `membership_bundle_group_uuid` on every bundle post. All renewal-term posts for the same bundle share this UUID, linking them into a series. Use it to query the full renewal history of a bundle. |
 | **Seat / member seat** | A single `wicket_membership` post linked to a bundle via `membership_bundle_id`. Seats are the individual membership records within a bundle. |
+:::
 
 ## Documentation map
 

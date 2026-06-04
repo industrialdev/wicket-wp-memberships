@@ -1,8 +1,12 @@
+---
+title: Renewal Types
+---
+
 # Renewal Types
 
 A bundle config defines how the bundle is renewed when its membership period ends. There are two renewal types, plus two time windows that govern when renewal activity is permitted or promoted.
 
-## [Renewal type: `subscription`](#renewal-type-subscription)
+## Renewal type: `subscription`
 
 The bundle renews automatically via WooCommerce Subscriptions. When the subscription's `next_payment` date is reached, WooCommerce processes the renewal payment and `Membership_Controller::handle_bundle_renewal()` is triggered to create a new bundle term and re-provision all member seats.
 
@@ -20,7 +24,7 @@ When a bundle config's renewal type is `subscription`, the bundle's WooCommerce 
 
 If the renewal type is later changed to something other than `subscription` on an active bundle (via the edit endpoint), the `next_payment` date is removed from the subscription so WooCommerce does not trigger an unwanted renewal payment.
 
-## [Renewal type: `form_page`](#renewal-type-formpage)
+## Renewal type: `form_page`
 
 Renewal is handled manually through a WordPress page containing a renewal form (typically a Gravity Forms integration). No automatic WooCommerce renewal payment occurs. The bundle's WooCommerce subscription will have no `next_payment` date.
 
@@ -46,7 +50,7 @@ add_action( 'wicket_memberships_bundle_renewal_period_open', function( int $bund
 } );
 ```
 
-## [Renewal window](#renewal-window)
+## Renewal window
 
 The renewal window is the period before `ends_at` during which renewal is permitted. It is defined in days on the bundle config. The `early_renew_at` date is calculated as `ends_at - renewal_window_days`, snapped to the end of that day in the MDP timezone.
 
@@ -77,7 +81,7 @@ $is_valid = $config->is_valid_renewal_date(
 );
 ```
 
-## [Grace period (late fee window)](#grace-period-late-fee-window)
+## Grace period (late fee window)
 
 The grace period is the window after `ends_at` during which a bundle is still considered accessible, though the membership period has technically ended. The bundle moves to `grace-period` status when `ends_at` passes, and to `expired` when `expires_at` passes.
 
@@ -98,9 +102,11 @@ $content = $config->get_late_fee_window_callout_content( 'en' );
 $button  = $config->get_late_fee_window_callout_button_label( 'en' );
 ```
 
-> **Note:** The late fee product field (`get_late_fee_window_product_id()`) exists in the data structure and is readable, but the late fee product UI is currently not surfaced in the admin. The field will return `false` unless it was populated directly.
+::: tip
+The late fee product field (`get_late_fee_window_product_id()`) exists in the data structure and is readable, but the late fee product UI is currently not surfaced in the admin. The field will return `false` unless it was populated directly.
+:::
 
-## [Calendar vs. anniversary cycles](#calendar-vs-anniversary-cycles)
+## Calendar vs. anniversary cycles
 
 The `cycle_type` on the config determines how membership dates are calculated.
 
@@ -118,7 +124,7 @@ if ( $cycle_type === 'calendar' ) {
 }
 ```
 
-## [Calculating membership dates from a config](#calculating-membership-dates-from-a-config)
+## Calculating membership dates from a config
 
 To preview what dates a bundle will receive before creating it, call `get_membership_dates()` on the config:
 

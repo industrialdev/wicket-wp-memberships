@@ -1,8 +1,12 @@
+---
+title: Getting Started
+---
+
 # Getting Started
 
 This guide walks you through the minimum steps to create a membership bundle, add a member, and verify the result — using either the PHP API or the REST endpoints.
 
-## [Prerequisites](#prerequisites)
+## Prerequisites
 
 - WordPress with the Wicket Memberships plugin active
 - WooCommerce and WooCommerce Subscriptions installed and active
@@ -12,7 +16,7 @@ This guide walks you through the minimum steps to create a membership bundle, ad
 
 If you are working locally without the Wicket MDP API, enable **Bypass Wicket** in the WordPress admin under **Settings → Wicket Memberships** to skip all MDP calls.
 
-## [Step 1 — Create a bundle](#step-1-create-a-bundle)
+## Step 1 — Create a bundle
 
 Use `Membership_Bundle::create()` to create a new bundle. All five parameters are required.
 
@@ -31,9 +35,11 @@ $bundle_post_id = $bundle->get_post_id();
 // Initial status: 'pending' (or 'delayed' if start_date is in the future)
 ```
 
-> **What happens under the hood:** `create()` derives `ends_at`, `expires_at`, and `early_renew_at` from the linked config, creates a `pending` WooCommerce subscription, and schedules Action Scheduler date-trigger jobs.
+::: details What happens under the hood
+`create()` derives `ends_at`, `expires_at`, and `early_renew_at` from the linked config, creates a `pending` WooCommerce subscription, and schedules Action Scheduler date-trigger jobs.
+:::
 
-## [Step 2 — Activate the bundle](#step-2-activate-the-bundle)
+## Step 2 — Activate the bundle
 
 A newly created bundle starts in `pending` status. An admin must explicitly activate it. Use `transition_to()` on the bundle object, or call the REST endpoint (see [Bundle Status](endpoints/bundle-status.md)).
 
@@ -46,7 +52,7 @@ $result = $bundle->transition_to( 'active' );
 
 Activating a `pending` bundle recalculates dates anchored to today and activates the linked WooCommerce subscription.
 
-## [Step 3 — Add a member](#step-3-add-a-member)
+## Step 3 — Add a member
 
 With the bundle active, add an individual member by providing their MDP person UUID and the post ID of the `Membership_Tier` they should be enrolled under.
 
@@ -63,9 +69,11 @@ $result = Membership_Bundle_Admin_Controller::add_member([
 $membership_post_id = $result['membership_post_id'];
 ```
 
-> The controller resolves (or creates) the WP user from the MDP person UUID, creates an individual `wicket_membership` post linked to the bundle, and adds a line item to the bundle's WooCommerce subscription.
+::: tip
+The controller resolves (or creates) the WP user from the MDP person UUID, creates an individual `wicket_membership` post linked to the bundle, and adds a line item to the bundle's WooCommerce subscription.
+:::
 
-## [Step 4 — Verify the bundle](#step-4-verify-the-bundle)
+## Step 4 — Verify the bundle
 
 Retrieve the bundle's member breakdown to confirm the seat was added:
 
@@ -76,10 +84,11 @@ $breakdown = Membership_Bundle_Admin_Controller::get_bundle_members_by_tier( $bu
 // $breakdown['tiers']         => [ [ 'tier_uuid' => '...', 'tier_name' => '...', 'member_count' => 1 ] ]
 ```
 
-## [Using the REST API](#using-the-rest-api)
+## Using the REST API
 
 If you prefer HTTP, the same flow maps directly to REST endpoints:
 
+:::details REST API equivalent
 ```bash
 # Create a bundle
 POST /wp-json/wicket_member/v1/bundle
@@ -106,10 +115,11 @@ POST /wp-json/wicket_member/v1/bundle/123/add_member
   "person_uuid": "member-person-uuid"
 }
 ```
+:::
 
 All endpoints require authentication. See [Endpoints Overview](endpoints/overview.md) for details.
 
-## [What's next](#whats-next)
+## What's next
 
 - Read [Bundle Lifecycle](concepts/bundle-lifecycle.md) to understand how status transitions work and when they happen automatically
 - See [Member Handling](concepts/member-handling.md) for the remove and move flows

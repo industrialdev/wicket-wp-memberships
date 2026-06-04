@@ -93,6 +93,16 @@ These options (stored in `wicket_membership_plugin_options`) are read at bootstr
 - The class docs map 1:1 to the PHP files in `includes/`. Preserve that convention — never leave a class undocumented.
 - When changing membership config or tier data structures, also update the related markdown file in `docs/`.
 - Do not leave doc updates for later. Code and docs must change together whenever behavior, signatures, properties, fields, hooks, or responsibilities change.
+- **Membership Bundles public docs** live in `docs/public/membership-bundles/`. When changing any of the following, update the corresponding public doc in the same task:
+  - `Membership_Bundle` → `docs/public/membership-bundles/classes/membership-bundle.md`
+  - `Membership_Bundle_Config` → `docs/public/membership-bundles/classes/membership-bundle-config.md`
+  - `Membership_Bundle_Admin_Controller` → `docs/public/membership-bundles/classes/membership-bundle-admin-controller.md`
+  - `Membership_Bundle_WP_REST_Controller` → `docs/public/membership-bundles/endpoints/` (relevant file)
+  - `Membership_Bundle_Config_WP_REST_Controller` → `docs/public/membership-bundles/endpoints/bundle-config-dates.md`
+  - Bundle status constants, lifecycle transitions, or cron behaviour → `docs/public/membership-bundles/concepts/bundle-lifecycle.md`
+  - Renewal type, grace period, or cycle logic → `docs/public/membership-bundles/concepts/renewal-types.md`
+  - Member add/remove/move semantics → `docs/public/membership-bundles/concepts/member-handling.md`
+- **VitePress sidebar must be kept in sync.** The sidebar is defined in `docs/public/.vitepress/config.mts` — VitePress does not auto-discover pages. When adding a new `.md` file anywhere under `docs/public/`, add a matching entry to the `sidebar` array in `config.mts` in the same task. Never add a page without a sidebar entry, and never leave a sidebar entry pointing to a file that does not exist.
 
 ## External References
 

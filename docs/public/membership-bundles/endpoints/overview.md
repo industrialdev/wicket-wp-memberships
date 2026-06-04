@@ -1,25 +1,29 @@
+---
+title: REST API Overview
+---
+
 # REST API Overview
 
 The Membership Bundles REST API is registered under the `wicket_member/v1` namespace on the WordPress REST API.
 
-## [Base URL](#base-url)
+## Base URL
 
 ```
 /wp-json/wicket_member/v1/
 ```
 
-## [Authentication](#authentication)
+## Authentication
 
 All endpoints require the requesting user to have the `wicket_memberships_admin` capability. Unauthenticated requests receive a `401` response. Authenticated requests from users without the capability receive a `403`.
 
 The `ALLOW_LOCAL_IMPORTS` environment flag bypasses the permission check entirely. This is for internal automation only — do not rely on it in production integrations.
 
-## [Request format](#request-format)
+## Request format
 
 `GET` endpoints accept parameters as query string arguments.  
 `POST` endpoints accept parameters as a JSON body with `Content-Type: application/json`, or as form-encoded data.
 
-## [Response format](#response-format)
+## Response format
 
 Successful responses return JSON. All mutation endpoints return a `WP_REST_Response` object. The HTTP status code is the primary indicator of success or failure.
 
@@ -42,7 +46,7 @@ Error responses include a JSON body with an `error` key and a human-readable mes
 }
 ```
 
-## [Error codes](#error-codes)
+## Error codes
 
 These error codes appear across multiple endpoints:
 
@@ -56,7 +60,7 @@ These error codes appear across multiple endpoints:
 | `bundle_no_dates` | The bundle has no date meta |
 | `missing_user_id` | A user ID is required but was not provided |
 
-## [Endpoint groups](#endpoint-groups)
+## Endpoint groups
 
 | Group | Prefix | What it covers |
 |---|---|---|
