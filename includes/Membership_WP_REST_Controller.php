@@ -651,7 +651,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
       return true;
     }
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
-      return new \WP_REST_Response(array('error' => 'Authentication required.'), 401);
+      return new \WP_Error('Membership API read permission denied', 'You do not have permission to perform this action.', array( 'status' => $this->authorization_status_code() ) );
     }
     return true;
   }
@@ -664,7 +664,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
       return true;
     }
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
-      return new \WP_REST_Response(array('error' => 'Authentication required.'), 401);
+      return new \WP_Error('Membership API write permission denied', 'You do not have permission to perform this action.', array( 'status' => $this->authorization_status_code() ) );
     }
     return true;
   }
