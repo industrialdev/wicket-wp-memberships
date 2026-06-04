@@ -493,13 +493,12 @@ class Membership_Bundle_Cron_Controller {
     $old_bundle = new Membership_Bundle( $old_bundle_post_id );
     $new_bundle = new Membership_Bundle( $new_bundle_post_id );
 
-    // cancel_for_renewal() marks the bundle cancelled without cascading to child memberships.
-    // Child members are historical records of the old term — they must stay in their current
-    // status so the per-bundle member count remains accurate after renewal.
+    // cancel_for_renewal() marks the bundle cancelled and cascades cancelled to all child
+    // memberships so past-term seats are unambiguously terminal after renewal.
     $old_bundle->cancel_for_renewal();
 
     // Activate the new bundle — cascades active status to its child memberships.
-    // For same-day/grace renewals the new bundle starts as pending; this is the activation step.
+    // For same-day/grace renewals the new bundle starts as delayed; this is the activation step.
     // (Early renewals are activated by cancel_old_bundle_on_new_starts_at() instead.)
     $new_bundle->transition_to( Wicket_Memberships::STATUS_ACTIVE );
 
@@ -537,8 +536,8 @@ class Membership_Bundle_Cron_Controller {
     $old_bundle = new Membership_Bundle( $old_bundle_post_id );
     $new_bundle = new Membership_Bundle( $new_bundle_post_id );
 
-    // cancel_for_renewal(true) marks the bundle cancelled without cascading to child memberships,
-    // and preserves ends_at so the record reflects the full term that was paid for.
+    // cancel_for_renewal(true) marks the bundle cancelled, cascades cancelled to all child
+    // memberships, and preserves ends_at so the record reflects the full term that was paid for.
     // This fires at new term start — old bundle's paid period has only just ended.
     $old_result = $old_bundle->cancel_for_renewal( true );
 

@@ -1893,13 +1893,12 @@ class Membership_Bundle {
   }
 
   /**
-   * Cancel this bundle post as part of a renewal — marks it cancelled WITHOUT cascading
-   * the cancellation to child individual memberships.
+   * Cancel this bundle post as part of a renewal — marks it cancelled and cascades
+   * cancelled status to all child individual memberships.
    *
    * Used exclusively by cancel_old_bundle_after_renewal() and cancel_old_bundle_on_new_starts_at().
-   * Child memberships are historical records of the old term; they must NOT be cancelled
-   * because the UI shows per-bundle member counts and cancelled members are excluded from
-   * those counts. The new term's members already exist on the new bundle post.
+   * Cascading cancelled to child memberships ensures past-term seats are unambiguously
+   * terminal and do not appear in active-membership queries alongside the new term's seats.
    *
    * @param bool $preserve_end_date When true (early renewal path), keeps the current ends_at
    *                                 so the bundle record reflects the full term that was paid for.
@@ -1926,8 +1925,10 @@ class Membership_Bundle {
       return false;
     }
 
-    // No cascade — child memberships stay in their current status so get_individual_memberships()
-    // continues to return the historical member list for this term.
+    // Cascade cancelled to all child memberships so past-term seats are unambiguously
+    // terminal and do not pollute active-membership queries after renewal.
+    $this->cascade_status_to_members( Wicket_Memberships::STATUS_CANCELLED );
+
     $this->sync_mdp_update();
 
     return true;
