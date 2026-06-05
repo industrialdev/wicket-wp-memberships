@@ -9,3 +9,5 @@
 .yarn/releases/
 .yarn/install-state.gz
 .yarn/unplugged/
+
+/docs/local

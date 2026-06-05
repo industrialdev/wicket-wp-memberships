@@ -742,7 +742,7 @@ class Membership_Post_Types {
       'has_archive'        => true,
       'hierarchical'       => false,
       'menu_position'      => null,
-      'show_in_rest'       => true,
+      'show_in_rest'       => false,
     );
 
     register_post_type($this->membership_cpt_slug, $args);
