@@ -116,7 +116,8 @@ const SwitchMembership = ({ membership }) => {
         <SelectWpStyled
           options={[
             { label: __('Create Membership', 'wicket-memberships'), value: 'create_membership' },
-            { label: __('Create Order', 'wicket-memberships'), value: 'create_order' }
+            /* Create Order intentionally hidden — tier-only switch. Do not remove; see SWITCH_INTEGRATION_MIGRATE_IMPLEMENTATION.md */
+            /* { label: __('Create Order', 'wicket-memberships'), value: 'create_order' } */
           ]}
           value={switchOption}
           onChange={selected => {
