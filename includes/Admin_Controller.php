@@ -1163,7 +1163,9 @@ class Admin_Controller {
       return new \WP_REST_Response(['success' => false, 'error' => 'Original membership not found.'], 404);
     }
     if(empty($switch_date)) {
-      $switch_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+      // Immediate switch: "now" in the MDP timezone, so the new membership starts now
+      // and the cancelled membership ends now (not midnight).
+      $switch_iso_date = Utilities::get_mdp_now()->format('c');
     } else {
       $switch_iso_date = (new \DateTime( date("Y-m-d", strtotime($switch_date)), wp_timezone() ))->format('c');
     }
@@ -1243,9 +1245,34 @@ class Admin_Controller {
     update_post_meta( $new_post_id, 'membership_starts_at', $switch_iso_date );
     update_post_meta( $new_post_id, 'membership_grace_period_days', $membership_grace_period_days );
 
-    //update the old membership post with the new status and end date
+    // Capture the OLD membership's MDP identity/start before mutating its meta.
+    $old_membership_wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
+    $old_membership_starts_at   = get_post_meta( $membership_post_id, 'membership_starts_at', true );
+
+    //update the old membership post: cancel, end now, expire now, zero grace
     update_post_meta( $membership_post_id, 'membership_status', Wicket_Memberships::STATUS_CANCELLED );
     update_post_meta( $membership_post_id, 'membership_ends_at', $switch_iso_date );
+    update_post_meta( $membership_post_id, 'membership_expires_at', $switch_iso_date );
+    update_post_meta( $membership_post_id, 'membership_grace_period_days', 0 );
+
+    // Sync the cancelled membership to the MDP: end it now (mdp tz), zero the grace period.
+    // Log-and-continue on failure — never block the switch flow.
+    if ( ! empty( $old_membership_wicket_uuid ) ) {
+      $mdp_update = wicket_update_individual_membership_dates(
+        $old_membership_wicket_uuid,
+        $old_membership_starts_at, // preserve original start; helper defaults to "now" if empty
+        $switch_iso_date,          // ends_at -> now (mdp timezone)
+        0                          // grace_period_days -> 0
+      );
+      if ( is_wp_error( $mdp_update ) ) {
+        Utilities::wc_log_mship_error([
+          'Switch: failed to update old membership in MDP (continuing)',
+          'membership_post_id' => $membership_post_id,
+          'old_uuid'           => $old_membership_wicket_uuid,
+          'error'              => $mdp_update->get_error_message( 'wicket_api_error' ),
+        ]);
+      }
+    }
 
     return new \WP_REST_Response([
       'success' => true,
