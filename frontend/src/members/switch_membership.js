@@ -76,15 +76,24 @@ const SwitchMembership = ({ membership }) => {
 
   const loadTiers = (inputValue = '') => {
     setLoadingTiers(true);
+    // Only show tiers that match the current membership's type so an individual
+    // membership cannot be switched to an organization tier (and vice versa).
+    const membershipType = membership && membership.data && membership.data.membership_type;
     fetchTiers({ search: inputValue, per_page: -1 })
       .then((response) => {
-        const options = (Array.isArray(response) ? response : []).map((tier) => {
-          let rawLabel = tier.mdp_tier_name || (tier.title && tier.title.rendered) || __('(No Name)', 'wicket-memberships');
-          return {
-            label: decodeHtml(rawLabel),
-            value: tier.id
-          };
-        });
+        const options = (Array.isArray(response) ? response : [])
+          .filter((tier) => {
+            if (!membershipType) { return true; }
+            const tierType = tier.tier_data && tier.tier_data.type;
+            return tierType === membershipType;
+          })
+          .map((tier) => {
+            let rawLabel = tier.mdp_tier_name || (tier.title && tier.title.rendered) || __('(No Name)', 'wicket-memberships');
+            return {
+              label: decodeHtml(rawLabel),
+              value: tier.id
+            };
+          });
         setTierOptions(options);
       })
       .finally(() => {
