@@ -1180,26 +1180,82 @@ class Admin_Controller {
     $membership_tier = new Membership_Tier( $new_tier_post_id );
     $membership_tier_uuid = $membership_tier->tier_data['mdp_tier_uuid'];
     $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
+    $membership_type = $membership_tier->tier_data['type'];
 
     $membership_starts_at = $switch_iso_date;
     $membership_ends_at = get_post_meta( $membership_post_id, 'membership_ends_at', true);
     $membership_ends_at = (new \DateTime( date("Y-m-d", strtotime($membership_ends_at)), wp_timezone() ))->format('c');
     $membership_grace_period_days = $config->get_late_fee_window_days();
 
-    //Create a new membership in the MDP for the new tier using the original membership data
-    $response = wicket_assign_individual_membership( 
-            $owner_uuid,
-            $membership_tier_uuid,
-            $membership_starts_at,
-            $membership_ends_at,
-            $membership_grace_period_days
-          );
+    // Capture the OLD membership's MDP identity/start before mutating its meta.
+    $old_membership_wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
+    $old_membership_starts_at   = get_post_meta( $membership_post_id, 'membership_starts_at', true );
+
+    //Create a new membership in the MDP for the new tier using the original membership data.
+    //Organization tiers must use the organization_memberships endpoint, not the individual one.
+    if ( $membership_type === 'organization' ) {
+      $organization_uuid = get_post_meta( $membership_post_id, 'org_uuid', true );
+      $membership_seats = get_post_meta( $membership_post_id, 'org_seats', true );
+      if ( $membership_seats < 1 ) {
+        $membership_seats = null;
+      }
+      $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
+      // Link the old org membership as the predecessor so the base plugin copies its existing
+      // seat assignments forward (we are recreating the membership with the same seat count).
+      // grant_owner_assignment, however, follows the NEW tier's configured value.
+      if ( $base_version_supports_grant_owner_assignment ) {
+        $response = wicket_assign_organization_membership(
+              $owner_uuid,
+              $organization_uuid,
+              $membership_tier_uuid,
+              $membership_starts_at,
+              $membership_ends_at,
+              $membership_seats,
+              $membership_grace_period_days,
+              $old_membership_wicket_uuid, // previous_membership_uuid: triggers copy_previous_assignments
+              $membership_tier->is_grant_owner_assignment()
+            );
+      } else {
+        $response = wicket_assign_organization_membership(
+              $owner_uuid,
+              $organization_uuid,
+              $membership_tier_uuid,
+              $membership_starts_at,
+              $membership_ends_at,
+              $membership_seats,
+              $membership_grace_period_days,
+              $old_membership_wicket_uuid // previous_membership_uuid: triggers copy_previous_assignments
+            );
+      }
+    } else {
+      // Link the old person membership as the predecessor for MDP record continuity,
+      // mirroring the org path above and Membership_Controller::create_mdp_record().
+      $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
+      if ( $base_version_supports_previous_membership_assignment ) {
+        $response = wicket_assign_individual_membership(
+              $owner_uuid,
+              $membership_tier_uuid,
+              $membership_starts_at,
+              $membership_ends_at,
+              $membership_grace_period_days,
+              $old_membership_wicket_uuid // previous_membership_uuid: links predecessor record
+            );
+      } else {
+        $response = wicket_assign_individual_membership(
+              $owner_uuid,
+              $membership_tier_uuid,
+              $membership_starts_at,
+              $membership_ends_at,
+              $membership_grace_period_days
+            );
+      }
+    }
 
     if ( is_wp_error( $response ) ) {
       return new \WP_REST_Response([
-        'success' => false, 
-        'error' => 'Failed to create new wicket membership.', 
-        'wicket_api_error' => $response->get_error_message( 'wicket_api_error' ), 
+        'success' => false,
+        'error' => 'Failed to create new wicket membership.',
+        'wicket_api_error' => $response->get_error_message( 'wicket_api_error' ),
         'payload' => [
             $new_tier_post_id,
             $owner_uuid,
@@ -1245,9 +1301,8 @@ class Admin_Controller {
     update_post_meta( $new_post_id, 'membership_starts_at', $switch_iso_date );
     update_post_meta( $new_post_id, 'membership_grace_period_days', $membership_grace_period_days );
 
-    // Capture the OLD membership's MDP identity/start before mutating its meta.
-    $old_membership_wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
-    $old_membership_starts_at   = get_post_meta( $membership_post_id, 'membership_starts_at', true );
+    // ($old_membership_wicket_uuid / $old_membership_starts_at were captured before the new
+    //  membership was assigned, so they reflect the pre-switch MDP identity.)
 
     //update the old membership post: cancel, end now, expire now, zero grace
     update_post_meta( $membership_post_id, 'membership_status', Wicket_Memberships::STATUS_CANCELLED );
@@ -1256,14 +1311,25 @@ class Admin_Controller {
     update_post_meta( $membership_post_id, 'membership_grace_period_days', 0 );
 
     // Sync the cancelled membership to the MDP: end it now (mdp tz), zero the grace period.
+    // Organization memberships must be patched via the organization_memberships endpoint.
     // Log-and-continue on failure — never block the switch flow.
     if ( ! empty( $old_membership_wicket_uuid ) ) {
-      $mdp_update = wicket_update_individual_membership_dates(
-        $old_membership_wicket_uuid,
-        $old_membership_starts_at, // preserve original start; helper defaults to "now" if empty
-        $switch_iso_date,          // ends_at -> now (mdp timezone)
-        0                          // grace_period_days -> 0
-      );
+      if ( $membership_type === 'organization' ) {
+        $mdp_update = wicket_update_organization_membership_dates(
+          $old_membership_wicket_uuid,
+          $old_membership_starts_at, // preserve original start; helper defaults to "now" if empty
+          $switch_iso_date,          // ends_at -> now (mdp timezone)
+          false,                     // max_seats -> leave unchanged
+          0                          // grace_period_days -> 0
+        );
+      } else {
+        $mdp_update = wicket_update_individual_membership_dates(
+          $old_membership_wicket_uuid,
+          $old_membership_starts_at, // preserve original start; helper defaults to "now" if empty
+          $switch_iso_date,          // ends_at -> now (mdp timezone)
+          0                          // grace_period_days -> 0
+        );
+      }
       if ( is_wp_error( $mdp_update ) ) {
         Utilities::wc_log_mship_error([
           'Switch: failed to update old membership in MDP (continuing)',
@@ -1274,10 +1340,18 @@ class Admin_Controller {
       }
     }
 
+    // Redirect to the appropriate edit screen for the membership type.
+    if ( $membership_type === 'organization' ) {
+      $organization_uuid = isset( $organization_uuid ) ? $organization_uuid : get_post_meta( $membership_post_id, 'org_uuid', true );
+      $redirect_url = admin_url("admin.php?page=wicket_org_member_edit&id={$organization_uuid}&membership_uuid={$membership_wicket_uuid}");
+    } else {
+      $redirect_url = admin_url("admin.php?page=wicket_individual_member_edit&id={$owner_uuid}&membership_uuid={$membership_wicket_uuid}");
+    }
+
     return new \WP_REST_Response([
       'success' => true,
       'membership_wicket_uuid' => $membership_wicket_uuid,
-      'redirect_url' => admin_url("admin.php?page=wicket_individual_member_edit&id={$owner_uuid}&membership_uuid={$membership_wicket_uuid}")
+      'redirect_url' => $redirect_url
     ], 200);
   }
 
