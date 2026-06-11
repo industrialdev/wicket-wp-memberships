@@ -301,6 +301,15 @@ class Admin_Controller {
       return new \WP_REST_Response($response_array, 200);
     }
 
+    // A pending membership does not yet exist in the MDP, so a pending -> cancelled
+    // transition must never call the MDP update. Apply the local status change only.
+    if( !empty( $updated ) && $current_post_status == Wicket_Memberships::STATUS_PENDING && $new_post_status == Wicket_Memberships::STATUS_CANCELLED ) {
+      $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status );
+      $response_array['success'] = 'Status was updated successfully.';
+      $response_array['response'] = Helper::get_post_meta( $membership_post_id );
+      return new \WP_REST_Response($response_array, 200);
+    }
+
     //update membership dates in MDP
     if( !empty( $updated ) && ! $Membership_Controller->bypass_wicket ) {
       $response = $Membership_Controller->update_mdp_record( $membership_new, $meta_data );
