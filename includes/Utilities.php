@@ -54,6 +54,10 @@ class Utilities {
       add_action('woocommerce_process_shop_subscription_meta', [$this, 'wicket_assign_subscription_to_membership'], 10, 1);
     }
     add_action('woocommerce_admin_order_data_after_order_details', [$this, 'display_autopay_status_row_admin'], 15, 1);
+
+    //renewal coupon issues identified on GF form redirects in Onboarding and Renewal
+    add_action( 'woocommerce_add_to_cart', [$this, 'apply_renewal_coupon_on_add'], 10, 2 );
+    add_filter( 'woocommerce_add_to_cart_redirect', [$this, 'prevent_renewal_checkout_redirect'], 11 );
   }
 
    /**
@@ -1241,5 +1245,62 @@ function wicket_sub_org_select_callback( $subscription ) {
 
     // Convert to UTC and return
     return $mdp_date->setTimezone(new \DateTimeZone('UTC'));
+  }
+
+
+  /**
+   * Apply URL coupons immediately after the membership renewal product is added to cart.
+   *
+   * Hooking into `woocommerce_add_to_cart` (fired by WC_Form_Handler at wp_loaded:20,
+   * right after the product lands in the cart) ensures the cart has items before coupon
+   * validation runs. The applied coupon is stored in the WC session and survives the
+   * subsequent redirect to /cart/.
+   *
+   * Supports both `?coupon-code=` and `?wt_coupon=` (Smart Coupons), comma-separated.
+   *
+   * @param string $cart_item_key
+   * @param int    $product_id
+   * @return void
+   */
+  public function apply_renewal_coupon_on_add( $cart_item_key, $product_id ) {
+    if ( empty( $_GET['coupon-code'] ) && empty( $_GET['wt_coupon'] ) ) {
+      return;
+    }
+
+    $query_keys = ['coupon-code', 'wt_coupon'];
+    $applied    = WC()->cart->get_applied_coupons();
+
+    foreach ( $query_keys as $key ) {
+      if ( empty( $_GET[ $key ] ) ) {
+        continue;
+      }
+      $coupons = explode( ',', sanitize_text_field( $_GET[ $key ] ) );
+      foreach ( $coupons as $code ) {
+        $code = trim( $code );
+        if ( ! $code || in_array( $code, $applied ) ) {
+          continue;
+        }
+        WC()->cart->apply_coupon( $code );
+      }
+    }
+  }
+
+  /**
+   * Prevent WooCommerce Subscriptions from skipping the cart page on membership renewals.
+   *
+   * WCS hooks `woocommerce_add_to_cart_redirect` at priority 10 and returns
+   * `wc_get_checkout_url()`, bypassing the cart entirely. When `membership_post_id_renew`
+   * is present in the URL the user must land on the cart page so they can review the
+   * discounted price before proceeding. Returning false cancels the WCS redirect.
+   *
+   * @param string|false $url The redirect URL proposed by WCS.
+   * @return string|false Original URL unchanged, or false to cancel the redirect.
+   */
+  public function prevent_renewal_checkout_redirect( $url ) {
+    if ( empty( $_GET['membership_post_id_renew'] ) ) {
+      return $url;
+    }
+
+    return false;
   }
 }
