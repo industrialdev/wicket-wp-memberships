@@ -912,6 +912,9 @@ class Admin_Controller {
     $order_items = $order->get_items();
     foreach($order_items as $item) {
       wc_update_order_item_meta( $item->get_id(), '_membership_post_id_renew', $membership_post_id );
+      if ( ! empty( $membership['org_uuid'] ) ) {
+        wc_update_order_item_meta( $item->get_id(), '_org_uuid', $membership['org_uuid'] );
+      }
     }
 
     $subscription = wcs_create_subscription( array(
@@ -928,6 +931,9 @@ class Admin_Controller {
     $subscription_items = $subscription->get_items();
     foreach($subscription_items as $item) {
       wc_update_order_item_meta( $item->get_id(), '_membership_post_id_renew', $membership_post_id );
+      if ( ! empty( $membership['org_uuid'] ) ) {
+        wc_update_order_item_meta( $item->get_id(), '_org_uuid', $membership['org_uuid'] );
+      }
     }
 
     // Add the subscription to the order
