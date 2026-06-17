@@ -1151,39 +1151,46 @@ function get_item_data ( $other_data, $cart_item ) {
 
   public function update_local_membership_record( $membership_post_id, $meta_data ) {
 
-    // Determine membership status based on today's date vs. start/end/expiry dates.
-    $today             = current_time( 'timestamp' );
-    $starts_at         = ! empty( $meta_data['membership_starts_at'] )
-      ? strtotime( $meta_data['membership_starts_at'] )
-      : strtotime( (string) get_post_meta( $membership_post_id, 'membership_starts_at', true ) );
-    $ends_at           = ! empty( $meta_data['membership_ends_at'] )
-      ? strtotime( $meta_data['membership_ends_at'] )
-      : strtotime( (string) get_post_meta( $membership_post_id, 'membership_ends_at', true ) );
-    // Prefer the explicit expiry date if provided; otherwise calculate from grace period days.
-    if ( ! empty( $meta_data['membership_expires_at'] ) ) {
-      $expiry_at = strtotime( $meta_data['membership_expires_at'] );
-    } else {
-      $stored_expiry = get_post_meta( $membership_post_id, 'membership_expires_at', true );
-      if ( ! empty( $stored_expiry ) ) {
-        $expiry_at = strtotime( $stored_expiry );
-      } else {
-        $grace_period_days = isset( $meta_data['membership_grace_period_days'] )
-          ? (int) $meta_data['membership_grace_period_days']
-          : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
-        $expiry_at = strtotime( "+{$grace_period_days} days", $ends_at );
-      }
-    }
-    $grace_period_days = isset( $grace_period_days ) ? $grace_period_days : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
+    // If the incoming status is already cancelled, do not recalculate the status
+    // or dates — pass the incoming meta through to the post as-is.
+    $is_cancelled = isset( $meta_data['membership_status'] )
+      && $meta_data['membership_status'] === Wicket_Memberships::STATUS_CANCELLED;
 
-    if ( $starts_at && $ends_at ) {
-      if ( $today < $starts_at ) {
-        $meta_data['membership_status'] = Wicket_Memberships::STATUS_DELAYED;
-      } elseif ( $today <= $ends_at ) {
-        $meta_data['membership_status'] = Wicket_Memberships::STATUS_ACTIVE;
-      } elseif ( $grace_period_days > 0 && $today <= $expiry_at ) {
-        $meta_data['membership_status'] = Wicket_Memberships::STATUS_GRACE;
+    if ( ! $is_cancelled ) {
+      // Determine membership status based on today's date vs. start/end/expiry dates.
+      $today             = current_time( 'timestamp' );
+      $starts_at         = ! empty( $meta_data['membership_starts_at'] )
+        ? strtotime( $meta_data['membership_starts_at'] )
+        : strtotime( (string) get_post_meta( $membership_post_id, 'membership_starts_at', true ) );
+      $ends_at           = ! empty( $meta_data['membership_ends_at'] )
+        ? strtotime( $meta_data['membership_ends_at'] )
+        : strtotime( (string) get_post_meta( $membership_post_id, 'membership_ends_at', true ) );
+      // Prefer the explicit expiry date if provided; otherwise calculate from grace period days.
+      if ( ! empty( $meta_data['membership_expires_at'] ) ) {
+        $expiry_at = strtotime( $meta_data['membership_expires_at'] );
       } else {
-        $meta_data['membership_status'] = Wicket_Memberships::STATUS_EXPIRED;
+        $stored_expiry = get_post_meta( $membership_post_id, 'membership_expires_at', true );
+        if ( ! empty( $stored_expiry ) ) {
+          $expiry_at = strtotime( $stored_expiry );
+        } else {
+          $grace_period_days = isset( $meta_data['membership_grace_period_days'] )
+            ? (int) $meta_data['membership_grace_period_days']
+            : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
+          $expiry_at = strtotime( "+{$grace_period_days} days", $ends_at );
+        }
+      }
+      $grace_period_days = isset( $grace_period_days ) ? $grace_period_days : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
+
+      if ( $starts_at && $ends_at ) {
+        if ( $today < $starts_at ) {
+          $meta_data['membership_status'] = Wicket_Memberships::STATUS_DELAYED;
+        } elseif ( $today <= $ends_at ) {
+          $meta_data['membership_status'] = Wicket_Memberships::STATUS_ACTIVE;
+        } elseif ( $grace_period_days > 0 && $today <= $expiry_at ) {
+          $meta_data['membership_status'] = Wicket_Memberships::STATUS_GRACE;
+        } else {
+          $meta_data['membership_status'] = Wicket_Memberships::STATUS_EXPIRED;
+        }
       }
     }
 
