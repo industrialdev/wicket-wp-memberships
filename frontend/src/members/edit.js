@@ -803,7 +803,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                 </Flex>
                               </BorderedBox>
 
-                              <CreateRenewalOrder membership={membership} />
+                              <CreateRenewalOrder membership={membership} memberType={memberType} />
                             </Flex>
 
                             <BorderedBox>

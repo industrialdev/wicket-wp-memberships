@@ -21,6 +21,7 @@ import styled from "styled-components";
 import {
   fetchWcProducts,
   fetchProductVariations,
+  fetchMembershipProductCategories,
   createRenewalOrder,
 } from "../services/api";
 
@@ -28,7 +29,7 @@ const MarginedFlex = styled(Flex)`
   margin-top: 15px;
 `;
 
-const CreateRenewalOrder = ({ membership }) => {
+const CreateRenewalOrder = ({ membership, memberType }) => {
   const [isCreateRenewalOrderModalOpen, setIsCreateRenewalOrderModalOpen] =
     useState(false);
 
@@ -46,13 +47,36 @@ const CreateRenewalOrder = ({ membership }) => {
 
   const [productVariations, setProductVariations] = useState([]); // { product_id: [] }
 
+  // Cached category term IDs from the plugin REST endpoint. null = not yet fetched.
+  const [membershipCategories, setMembershipCategories] = useState(null);
+
   /**
-   * Open the Create Renewal Order Modal
+   * Open the Create Renewal Order Modal.
+   * Fetches category term IDs then fetches products filtered by the membership type.
+   * Falls back to unfiltered products on network failure so the modal always opens.
    */
-  const openCreateRenewalOrderModal = () => {
-    // If there are no WooCommerce products, fetch them
+  const openCreateRenewalOrderModal = async () => {
     if (wcProductOptions.length === 0) {
-      getAllWcProducts();
+      let categories = membershipCategories;
+
+      if (!categories) {
+        try {
+          categories = await fetchMembershipProductCategories();
+          setMembershipCategories(categories);
+        } catch (error) {
+          console.error("Error fetching membership categories:", error);
+          categories = null;
+        }
+      }
+
+      const categoryId =
+        memberType === "individual"
+          ? categories?.individual
+          : memberType === "organization"
+            ? categories?.organization
+            : null;
+
+      getAllWcProducts(categoryId);
     }
     setIsCreateRenewalOrderModalOpen(true);
   };
@@ -70,15 +94,17 @@ const CreateRenewalOrder = ({ membership }) => {
   };
 
   /**
-   * Fetch all WooCommerce products
+   * Fetch WooCommerce products, optionally filtered by a product_cat term ID.
+   * categoryId null means no filter — returns all membership subscription products.
    */
-  const getAllWcProducts = async () => {
+  const getAllWcProducts = async (categoryId = null) => {
+    const queryBase = { status: "publish", per_page: 100 };
+    if (categoryId) {
+      queryBase.category = categoryId;
+    }
+
     const promises = WC_PRODUCT_TYPES.map((type) =>
-      fetchWcProducts({
-        status: "publish",
-        per_page: 100,
-        type: type,
-      }),
+      fetchWcProducts({ ...queryBase, type }),
     );
 
     try {

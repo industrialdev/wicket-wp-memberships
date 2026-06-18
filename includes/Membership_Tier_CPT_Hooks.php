@@ -15,6 +15,17 @@ class Membership_Tier_CPT_Hooks {
   private $membership_tier_cpt_slug = '';
   private $membership_config_cpt_slug = '';
 
+  /**
+   * Holds product IDs from before a tier save, keyed by post ID.
+   *
+   * Populated by snapshot_product_ids() via rest_pre_insert, consumed and diffed
+   * in rest_save_post_page() via rest_after_insert. Keyed by post ID to be safe
+   * if multiple saves ever occur in a single request.
+   *
+   * @var array<int, int[]>
+   */
+  private static array $pre_save_product_ids = [];
+
   public function __construct() {
     $this->membership_tier_cpt_slug = Helper::get_membership_tier_cpt_slug();
     $this->membership_config_cpt_slug = Helper::get_membership_config_cpt_slug();
@@ -25,6 +36,9 @@ class Membership_Tier_CPT_Hooks {
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_list_page_scripts' ] );
     add_action('manage_'.$this->membership_tier_cpt_slug.'_posts_columns', [ $this, 'table_head'] );
     add_action('manage_'.$this->membership_tier_cpt_slug.'_posts_custom_column', [ $this, 'table_content'], 10, 2 );
+
+    // Snapshot product IDs before tier_data meta is overwritten, so we can diff in rest_after_insert.
+    add_filter( 'rest_pre_insert_' . $this->membership_tier_cpt_slug, [ $this, 'snapshot_product_ids' ], 10, 2 );
 
     // Manipulate post data after saving if needed
     add_action( 'rest_after_insert_' . $this->membership_tier_cpt_slug, [ $this, 'rest_save_post_page' ], 10, 1);
@@ -70,7 +84,47 @@ class Membership_Tier_CPT_Hooks {
     }
   }
 
-  function rest_save_post_page($post){
+  /**
+   * Snapshot the current product IDs on the tier before tier_data post meta is
+   * overwritten by the REST save.
+   *
+   * Fires via rest_pre_insert_{cpt} — before wp_update_post() and before
+   * update_additional_fields_for_object() writes the new tier_data meta.
+   * Keyed by post ID so multiple saves in one request don't clobber each other.
+   *
+   * On tier CREATE, $post_id is null (the post doesn't exist yet), so the snapshot
+   * is skipped and $pre_save_product_ids[$post_id] defaults to [] in rest_after_insert.
+   * This means all products on a new tier are treated as "added" — correct behaviour.
+   *
+   * @param \stdClass        $prepared_post The prepared post object (must be returned).
+   * @param \WP_REST_Request $request       The current REST request.
+   *
+   * @return \stdClass The prepared post, unchanged.
+   */
+  public function snapshot_product_ids( \stdClass $prepared_post, \WP_REST_Request $request ): \stdClass {
+    $post_id = $request->get_param( 'id' );
+
+    if ( $post_id ) {
+      $tier = new Membership_Tier( (int) $post_id );
+      self::$pre_save_product_ids[ (int) $post_id ] = $tier->get_product_ids();
+    }
+
+    return $prepared_post;
+  }
+
+  /**
+   * Post-save hook — runs after tier_data meta has been written.
+   *
+   * Handles two concerns:
+   * 1. Ensures next_tier_id defaults to self when no renewal tier is configured.
+   * 2. Diffs product IDs against the pre-save snapshot and runs incremental
+   *    category sync so WC products get the correct membership type category.
+   *
+   * @param \WP_Post $post The saved tier post.
+   *
+   * @return void
+   */
+  function rest_save_post_page( \WP_Post $post ): void {
     if ( get_post_type( $post->ID ) !== $this->membership_tier_cpt_slug ) {
       return;
     }
@@ -87,6 +141,15 @@ class Membership_Tier_CPT_Hooks {
       $tier_data['next_tier_id'] = $post->ID;
       $tier->update_tier_data( $tier_data );
     }
+
+    // Diff product IDs against the pre-save snapshot and sync categories.
+    $new_product_ids = $tier->get_product_ids();
+    $old_product_ids = self::$pre_save_product_ids[ $post->ID ] ?? [];
+
+    $added   = array_diff( $new_product_ids, $old_product_ids );
+    $removed = array_diff( $old_product_ids, $new_product_ids );
+
+    Membership_Tier::sync_tier_product_categories( $tier, array_values( $added ), array_values( $removed ) );
   }
 
   function add_edit_page() {

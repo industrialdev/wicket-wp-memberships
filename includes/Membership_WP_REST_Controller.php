@@ -328,6 +328,22 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       ),
       //'schema' => array( $this, '' ),
     ) );
+
+    /**
+     * Get Membership Product Category Term IDs
+     *
+     * Returns the WC product_cat term IDs for 'individual-membership' and
+     * 'organization-membership'. If neither term exists yet, triggers a one-time
+     * full sync to create them and assign products — handles existing sites that
+     * were active before this feature was introduced.
+     */
+    register_rest_route( $this->namespace, '/membership_product_categories', array(
+      array(
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => array( $this, 'get_membership_product_categories' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+    ) );
   }
 
   public function memberships_merge_webhook_consumer( \WP_REST_Request $request ) {
@@ -559,6 +575,42 @@ public function get_membership_dates( \WP_REST_Request $request ) {
 		}
 		return  $memberships;
 	}
+
+  /**
+   * Return the WC product_cat term IDs for the two membership type categories.
+   *
+   * If neither term exists, triggers Membership_Tier::sync_product_categories() once
+   * to create the terms and assign existing tier products. This handles sites that were
+   * already active before this feature was introduced. A site option flag
+   * 'wicket_mship_categories_synced' is set after the first successful sync so this
+   * backfill never runs again, even if terms are manually deleted later.
+   *
+   * Returns null for either key when the corresponding term doesn't exist after sync
+   * (e.g. no products in any tier yet). The frontend treats null as "no filter".
+   *
+   * @param \WP_REST_Request $request The current REST request (unused).
+   *
+   * @return \WP_REST_Response Response containing individual and organization term IDs.
+   */
+  public function get_membership_product_categories( \WP_REST_Request $request ): \WP_REST_Response {
+    $individual_term = get_term_by( 'slug', 'individual-membership', 'product_cat' );
+    $org_term        = get_term_by( 'slug', 'organization-membership', 'product_cat' );
+
+    // Run one-time backfill if terms are missing and the sync flag isn't set.
+    // The flag prevents repeated heavy queries if terms are manually deleted later.
+    if ( ( ! $individual_term || ! $org_term ) && ! get_option( 'wicket_mship_categories_synced' ) ) {
+      Membership_Tier::sync_product_categories();
+
+      // Re-fetch after sync.
+      $individual_term = get_term_by( 'slug', 'individual-membership', 'product_cat' );
+      $org_term        = get_term_by( 'slug', 'organization-membership', 'product_cat' );
+    }
+
+    return rest_ensure_response( [
+      'individual'   => $individual_term ? $individual_term->term_id : null,
+      'organization' => $org_term ? $org_term->term_id : null,
+    ] );
+  }
 
   /**
    * Check permissions to read

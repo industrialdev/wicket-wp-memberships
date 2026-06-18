@@ -152,6 +152,17 @@ export const fetchMembershipFilters = (memberType = null) => {
 };
 
 /**
+ * Fetch membership product category term IDs for filtering the renewal order modal.
+ * Returns { individual: int|null, organization: int|null }.
+ * Triggers a one-time backfill on existing sites if the terms don't exist yet.
+ */
+export const fetchMembershipProductCategories = () => {
+  return apiFetch({
+    path: `${PLUGIN_API_URL}/membership_product_categories`,
+  });
+};
+
+/**
  * Fetch WooCommerce Products
  */
 export const fetchWcProducts = (queryParams = {}) => {

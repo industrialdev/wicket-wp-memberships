@@ -673,4 +673,158 @@ class Membership_Tier {
   public function get_tier_post_id() {
     return $this->post_id;
   }
+
+  /**
+   * Get all WC product IDs across all published tiers of a given membership type.
+   *
+   * Only queries published tiers — draft/trashed tiers must not influence category
+   * assignment or the "still belongs to a tier" removal check.
+   *
+   * @param string $type Tier type: 'individual' or 'organization'.
+   *
+   * @return array Unique WC product post IDs (parent products only, not variations).
+   */
+  public static function get_all_product_ids_by_type( string $type ): array {
+    $tiers = get_posts( [
+      'post_type'      => Helper::get_membership_tier_cpt_slug(),
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+    ] );
+
+    $product_ids = [];
+
+    foreach ( $tiers as $tier_post ) {
+      $tier_obj = new Membership_Tier( $tier_post->ID );
+
+      // Skip tiers that don't match the requested type.
+      if ( $tier_obj->get_tier_type() !== $type ) {
+        continue;
+      }
+
+      $products_data = $tier_obj->get_products_data();
+
+      if ( $products_data ) {
+        foreach ( $products_data as $product_data ) {
+          $product_ids[] = $product_data['product_id'];
+        }
+      }
+    }
+
+    return array_unique( $product_ids );
+  }
+
+  /**
+   * Full reconciliation sync — assigns membership type categories to all products
+   * across all published tiers.
+   *
+   * Only assigns, never removes. Called once on existing sites when the REST endpoint
+   * detects the category terms don't exist yet. After running, sets the
+   * 'wicket_mship_categories_synced' option so this never re-runs automatically.
+   *
+   * Uses wp_insert_term() return value directly to avoid an extra DB query after
+   * term creation. Skips a type silently on WP_Error (e.g. term already exists race).
+   *
+   * @return void
+   */
+  public static function sync_product_categories(): void {
+    $types = [ 'individual', 'organization' ];
+
+    foreach ( $types as $type ) {
+      $slug = $type . '-membership';
+      $name = ucfirst( $type ) . ' Membership';
+
+      $term = get_term_by( 'slug', $slug, 'product_cat' );
+
+      if ( ! $term ) {
+        $result = wp_insert_term( $name, 'product_cat', [ 'slug' => $slug ] );
+
+        if ( is_wp_error( $result ) ) {
+          // Term may have been created by a concurrent request; try fetching it.
+          $term = get_term_by( 'slug', $slug, 'product_cat' );
+          if ( ! $term ) {
+            continue;
+          }
+          $term_id = $term->term_id;
+        } else {
+          $term_id = $result['term_id'];
+        }
+      } else {
+        $term_id = $term->term_id;
+      }
+
+      $product_ids = self::get_all_product_ids_by_type( $type );
+
+      foreach ( $product_ids as $product_id ) {
+        wp_set_object_terms( $product_id, $term_id, 'product_cat', true );
+      }
+    }
+
+    // Mark as synced so the endpoint never triggers this full scan again.
+    update_option( 'wicket_mship_categories_synced', true );
+  }
+
+  /**
+   * Incremental sync — assigns or removes the membership type category on only the
+   * products that changed in the current tier save.
+   *
+   * Called from rest_after_insert with a pre/post diff of product IDs. Bails early
+   * if the tier has no valid type set (prevents building slug 'false-membership').
+   * Hoists the get_all_product_ids_by_type() call above the removed loop so the
+   * query runs once regardless of how many products were removed.
+   *
+   * @param Membership_Tier $tier    The tier that was just saved.
+   * @param array           $added   Product IDs added in this save.
+   * @param array           $removed Product IDs removed in this save.
+   *
+   * @return void
+   */
+  public static function sync_tier_product_categories( Membership_Tier $tier, array $added, array $removed ): void {
+    $tier_type = $tier->get_tier_type();
+
+    // Bail if type is not set — avoids creating a 'false-membership' category.
+    if ( ! $tier_type ) {
+      return;
+    }
+
+    $slug = $tier_type . '-membership';
+    $name = ucfirst( $tier_type ) . ' Membership';
+
+    $term = get_term_by( 'slug', $slug, 'product_cat' );
+
+    if ( ! $term ) {
+      $result = wp_insert_term( $name, 'product_cat', [ 'slug' => $slug ] );
+
+      if ( is_wp_error( $result ) ) {
+        // Term may have been created by a concurrent request; try fetching it.
+        $term = get_term_by( 'slug', $slug, 'product_cat' );
+        if ( ! $term ) {
+          return;
+        }
+        $term_id = $term->term_id;
+      } else {
+        $term_id = $result['term_id'];
+      }
+    } else {
+      $term_id = $term->term_id;
+    }
+
+    // Assign category to newly added products.
+    foreach ( $added as $product_id ) {
+      wp_set_object_terms( $product_id, $term_id, 'product_cat', true );
+    }
+
+    if ( empty( $removed ) ) {
+      return;
+    }
+
+    // Fetch once — all products still in any published tier of this type.
+    // A removed product keeps its category if it still belongs to another tier.
+    $remaining_in_type = self::get_all_product_ids_by_type( $tier_type );
+
+    foreach ( $removed as $product_id ) {
+      if ( ! in_array( $product_id, $remaining_in_type, true ) ) {
+        wp_remove_object_terms( $product_id, $term_id, 'product_cat' );
+      }
+    }
+  }
 }
