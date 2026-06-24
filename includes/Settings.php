@@ -78,6 +78,7 @@ class Settings {
     add_settings_field( 'wicket_mship_assign_subscription', '<p>Membership Subscription Assignment</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_assign_subscription'], 'wicket_membership_plugin', 'functional_settings' );
     //add_settings_field( 'wicket_mship_subscription_renew', '<p>Use Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_subscription_renew'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_autorenew_toggle', '<p>Enable User Autorenew Subscription Toggle</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_toggle'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_autorenew_override', '<p>Enable Auto-Renew Override on Order Processing</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_override'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field('wicket_mship_mdp_timezone', '<p>MDP Timezone</p>', [__NAMESPACE__ . '\\Settings', 'wicket_mship_mdp_timezone'], 'wicket_membership_plugin', 'functional_settings');
     
     //debug
@@ -160,6 +161,23 @@ class Settings {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_mship_autorenew_toggle' name='wicket_membership_plugin_options[wicket_mship_autorenew_toggle]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_autorenew_toggle']), false). " />"
       .'Enable the use of the Wicket Autorenew Checkbox Toggle anywhere on the front-end and in Gravity Forms with the shortcode <code>[wicket_autorenew_toggle_shortcode]</code><br><span style="color:red;">Note:</span> When toggled will set persistent user meta that causes all a user\'s membership subscription purchases to auto-renew when payment method allows.';
+  }
+
+  /**
+   * Renders the auto-renew override setting checkbox.
+   *
+   * When enabled, order processing reads the subscription_autopay_enabled user meta
+   * and overwrites _requires_manual_renewal on the subscription accordingly.
+   * Defaults to enabled (value 1) to preserve pre-existing behaviour when not yet saved.
+   *
+   * @return void
+   */
+  public static function wicket_mship_autorenew_override() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    // Default to enabled when the option has never been saved, preserving legacy behaviour.
+    $value = isset( $options['wicket_mship_autorenew_override'] ) ? $options['wicket_mship_autorenew_override'] : 1;
+    echo "<input id='wicket_mship_autorenew_override' name='wicket_membership_plugin_options[wicket_mship_autorenew_override]' type='checkbox' value='1' " . checked( 1, $value, false ) . " />"
+      . 'When enabled, order processing reads the <code>subscription_autopay_enabled</code> user meta and sets <code>_requires_manual_renewal</code> on the subscription. Disable to stop auto-renew from being overridden on every order, including renewal orders.';
   }
 
   public static function wicket_mship_mdp_timezone()
@@ -270,6 +288,7 @@ class Settings {
     $newinput['wicket_mship_multi_tier_renewal'] = trim($input['wicket_mship_multi_tier_renewal']);
     $newinput['wicket_mship_assign_subscription'] = trim($input['wicket_mship_assign_subscription']);
     $newinput['wicket_mship_autorenew_toggle'] = trim($input['wicket_mship_autorenew_toggle']);
+    $newinput['wicket_mship_autorenew_override'] = trim($input['wicket_mship_autorenew_override']);
     $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
     $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
     $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);

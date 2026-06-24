@@ -156,6 +156,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_AUTORENEW_TOGGLE']=true;
             }
           }
+          // Default true: preserves pre-existing behaviour on installs that have never saved this setting.
+          $_ENV['WICKET_MSHIP_AUTORENEW_OVERRIDE'] = isset($options['wicket_mship_autorenew_override']) ? (bool)$options['wicket_mship_autorenew_override'] : true;
           if (isset($options['wicket_mship_mdp_timezone'])) {
             if ($options['wicket_mship_mdp_timezone']) {
               $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] = $options['wicket_mship_mdp_timezone'];

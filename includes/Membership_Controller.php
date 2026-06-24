@@ -245,7 +245,9 @@ function get_item_data ( $other_data, $cart_item ) {
           }
           $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id );
           if( !empty( $membership_tier->tier_data )) {
-              if($membership_tier->tier_data['renewal_type'] != 'subscription') {
+              // Only override _requires_manual_renewal when the setting is enabled (default on).
+              // Disabled to prevent this from stomping auto-renew on WCS renewal orders.
+              if($membership_tier->tier_data['renewal_type'] != 'subscription' && $_ENV['WICKET_MSHIP_AUTORENEW_OVERRIDE']) {
                 $autorenew_user_meta = get_user_meta($order->get_user_id(), 'subscription_autopay_enabled', true);
                 if($autorenew_user_meta == 'yes') {
                   $subscription->update_meta_data('_requires_manual_renewal', 'false');
