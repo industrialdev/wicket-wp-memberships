@@ -29,11 +29,11 @@ class Admin_Controller {
   public function admin_footer_scripts() {
     ?>
     <script type="text/javascript">
-      var wicketMembershipsSettings = {
-        'WICKET_MSHIP_MERGE_TOOLS': '<?php echo $_ENV['WICKET_MSHIP_MERGE_TOOLS']; ?>',
-        'WICKET_MSHIP_MULTI_TIER_RENEWALS': '<?php echo $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS']; ?>',
-        'WICKET_MSHIP_MDP_TIMEZONE': '<?php echo $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC'; ?>',
-      };
+      var wicketMembershipsSettings = <?php echo wp_json_encode( [
+        'WICKET_MSHIP_MERGE_TOOLS'          => $_ENV['WICKET_MSHIP_MERGE_TOOLS'] ?? '',
+        'WICKET_MSHIP_MULTI_TIER_RENEWALS'  => $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] ?? '',
+        'WICKET_MSHIP_MDP_TIMEZONE'         => $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC',
+      ] ); ?>;
     </script>
     <?php
   }
