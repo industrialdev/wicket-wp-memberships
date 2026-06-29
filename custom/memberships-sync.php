@@ -18,9 +18,15 @@
 #ini_set('error_reporting', 0);
 ini_set('max_execution_time', '0');
 
-//to make sure and run the sync on the init hook
-add_action( 'init', 'wicket_action_woocommerce_loaded', 10, 1 );
+// Run on template_redirect (not init): the current user, capability checks, and the admin
+// bar are all available here, and exiting now cleanly replaces the theme output with our page.
+add_action( 'template_redirect', 'wicket_action_woocommerce_loaded', 10, 1 );
 
+/**
+ * Launches the subscription sync tool when its trigger query var is present.
+ *
+ * @return void
+ */
 function wicket_action_woocommerce_loaded() {
   if(!empty($_REQUEST['mship_subscription_sync'])) {
     wicket_sync_subscriptions();
@@ -39,9 +45,18 @@ function wicket_action_woocommerce_loaded() {
  * Runs as a dry-run by default; add `no_debug=1` to write changes. Supported request args:
  * `count_only`, `subscription_to_update`, `page_number`, `page_length`, `created_after`.
  *
- * @return void Output is echoed directly; the request is terminated with die().
+ * Renders as a standalone admin-styled page: only the WordPress admin bar and admin UI styles
+ * are loaded (not the active theme), with the current user's admin colour scheme. Admin-only.
+ *
+ * @return void Output is echoed directly; the request is terminated via wicket_sync_page_footer().
  */
 function wicket_sync_subscriptions() {
+  // Admin-only: this tool reads and (in LIVE mode) writes membership data and renders the
+  // logged-in admin bar, so require the same capability as the plugin's other admin tools.
+  if ( ! current_user_can( 'manage_options' ) ) {
+    wp_die( 'You do not have permission to access the membership subscription sync tool.' );
+  }
+
   // Sanitise the request parameters — they arrive raw from the URL/control bar.
   // A single subscription id is treated as an int; 0/invalid means "batch mode".
   $subscription_to_update = isset($_REQUEST['subscription_to_update']) ? (int) $_REQUEST['subscription_to_update'] : 0;
@@ -88,6 +103,9 @@ function wicket_sync_subscriptions() {
     }
   }
 
+  // Open the standalone admin-styled page (title + admin bar + WordPress admin colours).
+  wicket_sync_page_header();
+
   // Render the interactive control bar (plain HTML) above the streamed <pre> log.
   wicket_sync_render_control_bar([
     'subscription_to_update' => $subscription_to_update,
@@ -101,10 +119,11 @@ function wicket_sync_subscriptions() {
 
   // Bare page load: show the form to get started and run nothing else.
   if (!$action_requested) {
-    die();
+    wicket_sync_page_footer();
   }
 
-  echo "<pre>";
+  // Style the log like an admin "card" so it sits naturally on the admin-grey page.
+  echo '<pre style="background:#fff;border:1px solid #c3c4c7;border-radius:4px;padding:14px 16px;max-width:900px;margin:0;overflow:auto;">';
 
   $log = [];
 
@@ -156,7 +175,8 @@ function wicket_sync_subscriptions() {
 
     echo "Total active/on-hold subscriptions: " . count($subscription_ids) . "\n";
     echo "Subscriptions containing membership products: " . count($membership_subscriptions) . "\n";
-    die();
+    echo "</pre>";
+    wicket_sync_page_footer();
   }
   if(!empty($subscription_to_update)) {
     $subscription = wcs_get_subscription($subscription_to_update);
@@ -327,7 +347,105 @@ function wicket_sync_subscriptions() {
           #}
     } // end foreach item
   } //end foreach subscription
-  die();
+  echo "</pre>";
+  wicket_sync_page_footer();
+}
+
+/**
+ * Opens the standalone, admin-styled HTML page for the sync tool.
+ *
+ * The tool replaces the normal theme output (it exits before the template renders), so this
+ * prints a minimal document that loads ONLY the WordPress admin bar and core admin UI styles
+ * — not the active theme — and adopts the current user's admin colour scheme. Pair every call
+ * with wicket_sync_page_footer() to render the admin bar and close the document.
+ *
+ * @global \WP_Admin_Bar $wp_admin_bar  The admin bar instance, force-initialised if needed.
+ * @return void
+ */
+function wicket_sync_page_header() {
+  global $wp_admin_bar;
+
+  // Guarantee the admin bar shows even if the user's profile hides it on the front end, and
+  // initialise it directly when the normal (priority 0) template_redirect init was skipped.
+  add_filter( 'show_admin_bar', '__return_true' );
+  if ( empty( $wp_admin_bar ) && function_exists( '_wp_admin_bar_init' ) ) {
+    _wp_admin_bar_init();
+  }
+
+  // Queue only the admin-bar + core admin UI styles, plus the user's colour scheme. The
+  // theme's wp_enqueue_scripts never fires here, so no theme CSS reaches the page.
+  wp_enqueue_style( 'admin-bar' );
+  wp_enqueue_style( 'common' );
+  wp_enqueue_style( 'buttons' );
+  wp_enqueue_style( 'forms' );
+  wp_enqueue_style( 'dashicons' );
+  wicket_sync_enqueue_admin_color_scheme();
+
+  if ( ! headers_sent() ) {
+    header( 'Content-Type: text/html; charset=' . get_bloginfo( 'charset' ) );
+  }
+  ?>
+<!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+<meta charset="<?php bloginfo( 'charset' ); ?>" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wicket Membership Subscription Sync</title>
+<?php wp_print_styles(); ?>
+</head>
+<?php // admin-bar.css reserves the bar's height via html margin-top; the extra top padding adds breathing room below it. ?>
+<body class="wp-core-ui" style="background:#f0f0f1;color:#3c434a;margin:0;padding:40px 20px 20px;">
+<?php
+}
+
+/**
+ * Renders the admin bar, prints its script, closes the page, and terminates the request.
+ *
+ * @return void  Ends the request via exit.
+ */
+function wicket_sync_page_footer() {
+  if ( function_exists( 'wp_admin_bar_render' ) ) {
+    wp_admin_bar_render();
+  }
+  // Only the admin-bar script is needed (its submenu/keyboard behaviour); deps load with it.
+  wp_print_scripts( array( 'admin-bar' ) );
+  echo "\n</body>\n</html>";
+  exit;
+}
+
+/**
+ * Enqueues the current user's WordPress admin colour scheme stylesheet, when one applies.
+ *
+ * Colour schemes are normally registered only inside wp-admin; this loads and registers them
+ * so this front-end tool page can match the admin appearance. The default "fresh" scheme has
+ * no separate stylesheet (its colours are baked into the base styles), so nothing is added.
+ *
+ * @global array $_wp_admin_css_colors  Registered admin colour schemes, keyed by slug.
+ * @return void
+ */
+function wicket_sync_enqueue_admin_color_scheme() {
+  global $_wp_admin_css_colors;
+
+  // Register the schemes on the front end where wp-admin would normally have done it.
+  if ( empty( $_wp_admin_css_colors ) ) {
+    if ( ! function_exists( 'register_admin_color_schemes' ) && file_exists( ABSPATH . 'wp-admin/includes/misc.php' ) ) {
+      require_once ABSPATH . 'wp-admin/includes/misc.php';
+    }
+    if ( function_exists( 'register_admin_color_schemes' ) ) {
+      register_admin_color_schemes();
+    }
+  }
+
+  $scheme = get_user_option( 'admin_color' );
+  if ( empty( $scheme ) ) {
+    $scheme = 'fresh';
+  }
+
+  // Only non-default schemes ship a dedicated stylesheet URL; "fresh" relies on the base CSS.
+  if ( ! empty( $_wp_admin_css_colors[ $scheme ]->url ) ) {
+    wp_register_style( 'wicket-sync-admin-colors', $_wp_admin_css_colors[ $scheme ]->url, array( 'admin-bar', 'common' ), null );
+    wp_enqueue_style( 'wicket-sync-admin-colors' );
+  }
 }
 
 /**
