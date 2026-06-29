@@ -22,7 +22,11 @@ class Import_Controller {
 
   public function create_individual_memberships( $record ) {
           $options = get_option( 'wicket_membership_plugin_options' );
+          // "Every membership" option: create a subscription for all imported memberships.
           $create_subscription_on_import = !empty( $options['wicket_mship_import_create_subscriptions'] ) ? true : false;
+          // "Tier subscription only" option: create a subscription only when the tier renews via subscription.
+          // Defaults to enabled (opt-out) when never saved, preserving the legacy subscription-tier import behaviour.
+          $create_subscription_tier_only = isset( $options['wicket_mship_import_create_subscriptions_tier_only'] ) ? !empty( $options['wicket_mship_import_create_subscriptions_tier_only'] ) : true;
 
           if(empty($record)) {
             return 'File line read error.';
@@ -121,7 +125,8 @@ class Import_Controller {
           } 
 
           //if this is a subscription renewal tier import we need to create the placeholder subscription for reference when renewing
-          if( $is_active_membership && ($create_subscription_on_import || $membership_tier_array['renewal_type'] == 'subscription' )) {
+          // Three-state behaviour: "every membership" wins outright; otherwise "tier only" requires a subscription-renewal tier; both off creates nothing.
+          if( $is_active_membership && ($create_subscription_on_import || ( $create_subscription_tier_only && $membership_tier_array['renewal_type'] == 'subscription' ) )) {
             $subscription_id = $this->createSubscriptionForRenewal( $membership_post_mapping, $membership_id );
             $response .= ' Subscription created ID# '.$subscription_id;
           }
@@ -131,7 +136,11 @@ class Import_Controller {
 
         public function create_organization_memberships( $record ) {
           $options = get_option( 'wicket_membership_plugin_options' );
+          // "Every membership" option: create a subscription for all imported memberships.
           $create_subscription_on_import = !empty( $options['wicket_mship_import_create_subscriptions'] ) ? true : false;
+          // "Tier subscription only" option: create a subscription only when the tier renews via subscription.
+          // Defaults to enabled (opt-out) when never saved, preserving the legacy subscription-tier import behaviour.
+          $create_subscription_tier_only = isset( $options['wicket_mship_import_create_subscriptions_tier_only'] ) ? !empty( $options['wicket_mship_import_create_subscriptions_tier_only'] ) : true;
 
           if(empty($record)) {
             return 'File line read error.';
@@ -230,7 +239,8 @@ class Import_Controller {
           } 
           
           //if this is a subscription renewal tier import we need to create the placeholder subscription for reference when renewing
-          if( $is_active_membership && ($create_subscription_on_import || $membership_tier_array['renewal_type'] == 'subscription' )) {
+          // Three-state behaviour: "every membership" wins outright; otherwise "tier only" requires a subscription-renewal tier; both off creates nothing.
+          if( $is_active_membership && ($create_subscription_on_import || ( $create_subscription_tier_only && $membership_tier_array['renewal_type'] == 'subscription' ) )) {
             $subscription_id = $this->createSubscriptionForRenewal( $membership_post_mapping, $membership_id );
             $response .= ' Subscription created ID# '.$subscription_id;
           }
