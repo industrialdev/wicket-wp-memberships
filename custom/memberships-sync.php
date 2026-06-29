@@ -615,14 +615,27 @@ function wicket_sync_render_control_bar( array $state ) {
   <?php
 }
 
+/**
+ * Pushes an organization membership's seat limit (max_assignments) to the MDP.
+ *
+ * @param  object      $client                 The Wicket API client.
+ * @param  string      $wicket_membership_uuid The MDP organization membership UUID.
+ * @param  int         $seat_count             Desired seat count; values < 1 mean "unlimited".
+ *
+ * @return mixed|\WP_Error  The API response, or a WP_Error if the request throws.
+ */
 function memberships_update_seat_count( $client, $wicket_membership_uuid, $seat_count) {
+
+    // Mirror Membership_Controller: a seat count below 1 means "no limit", which the MDP
+    // represents as a null max_assignments rather than 0. Keeps both sync paths consistent.
+    $max_assignments = ( (int) $seat_count < 1 ) ? null : (int) $seat_count;
 
     // build membership payload
     $payload = [
       'data' => [
         'type' => 'organization_memberships',
         'attributes' => [
-          'max_assignments' => $seat_count
+          'max_assignments' => $max_assignments
         ],
       ]
     ];
