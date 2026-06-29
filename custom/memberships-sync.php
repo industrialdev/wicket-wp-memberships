@@ -27,13 +27,25 @@ function wicket_action_woocommerce_loaded() {
   }
 }
 
+/**
+ * Reconciles WooCommerce membership subscriptions with their plugin membership records.
+ *
+ * Triggered by the `?mship_subscription_sync=1` browser request. Walks active/on-hold
+ * subscriptions, maps each line-item product to a Membership Tier, finds the matching
+ * membership for the subscriber, and links the subscription/order/product meta back to it
+ * (and syncs MDP seat counts for per-seat organization tiers). All output is streamed to
+ * the screen inside a <pre> block as a human-readable, grouped-per-record log.
+ *
+ * Runs as a dry-run by default; add `no_debug=1` to write changes. Supported request args:
+ * `count_only`, `subscription_to_update`, `page_number`, `page_length`, `created_after`.
+ *
+ * @return void Output is echoed directly; the request is terminated with die().
+ */
 function wicket_sync_subscriptions() {
   echo "<pre>";
-  //for product mapping
-  if (defined('WP_ENVIRONMENT_TYPE')) {
-    $wp_env_type = WP_ENVIRONMENT_TYPE;
-    echo $wp_env_type."\n<BR>";
-  }
+
+  // Read and normalise the run parameters before emitting the summary so the operator
+  // can confirm scope/mode at the top of the output before scanning per-record results.
   $subscription_to_update = !empty($_REQUEST['subscription_to_update']) ? $_REQUEST['subscription_to_update'] : '';
   $page_number = !empty($_REQUEST['page_number']) ? $_REQUEST['page_number'] : 1;
   $page_length = !empty($_REQUEST['page_length']) ? $_REQUEST['page_length'] : 100;
@@ -42,6 +54,19 @@ function wicket_sync_subscriptions() {
   $count_only = !empty($_REQUEST['count_only']) ? true : false;
 
   $log = [];
+
+  // Run summary header — describes what this invocation is going to do.
+  echo "<strong>Wicket Membership Subscription Sync</strong>\n";
+  if (defined('WP_ENVIRONMENT_TYPE')) {
+    echo "Environment: " . WP_ENVIRONMENT_TYPE . "\n";
+  }
+  echo "Mode: " . ($count_only ? "Count only (no changes)" : ($debug ? "DEBUG dry run — no changes will be written (add no_debug=1 to apply)" : "LIVE — changes will be written")) . "\n";
+  if (!empty($subscription_to_update)) {
+    echo "Scope: single subscription #{$subscription_to_update}\n";
+  } else {
+    echo "Scope: page {$page_number} ({$page_length} per page)" . (!empty($created_after) ? ", created on/after {$created_after}" : "") . "\n";
+  }
+  echo str_repeat("=", 60) . "\n";
 
   //get all subscriptions for page_number by page_length
 
@@ -73,8 +98,8 @@ function wicket_sync_subscriptions() {
       }
     }
 
-    echo 'Total Active Subscriptions: '.count($subscription_ids)."\n<BR>";
-    echo 'Subscriptions with Membership Products: '.count($membership_subscriptions)."\n<BR>";
+    echo "Total active/on-hold subscriptions: " . count($subscription_ids) . "\n";
+    echo "Subscriptions containing membership products: " . count($membership_subscriptions) . "\n";
     die();
   }
   if(!empty($subscription_to_update)) {
@@ -93,34 +118,39 @@ function wicket_sync_subscriptions() {
   }
 
   if($debug) {
-    echo 'DEBUG'."\n<BR>";;
     //var_dump($argv,$subscription_to_update);
   } else {
+    // Only initialise the live MDP API client when we intend to write changes.
     $wicket_api_client = wicket_api_client();
   }
 
-  $cnt=0;
+  $cnt = 0;
+  // Total drives the "Record X of Y" header so the operator can gauge progress through the batch.
+  $total = count($subscriptions);
   foreach ($subscriptions as $sub_post) {
     $sub = wcs_get_subscription( $sub_post->ID );
-      $cnt++;
-      echo " $cnt: <br>";
+    $cnt++;
+
+    // Begin a visually distinct block for this subscription record.
+    echo "\n" . str_repeat("-", 60) . "\n";
+    echo "Record {$cnt} of {$total} — Subscription #{$sub->ID}\n";
 
     //get user and email from subscription
     $user_id = $sub->get_user_id();
     if(empty($user_id)) {
       $log[] = 'Failed Sub ID:' . $sub->ID . ' | User Missing';
-      echo 'Failed Sub ID:' . $sub->ID . ' | User Missing' . "\n<br>";
+      echo "  Skipped — no user is associated with this subscription.\n";
       continue;
     }
     $user = get_user_by('id', $user_id);
     if (empty($user)) {
       $log[] = 'Failed Sub ID:' . $sub->ID . ' | User Missing';
-      echo 'Failed Sub ID:' . $sub->ID . ' | User Missing' . "\n<br>";
+      echo "  Skipped — user #{$user_id} no longer exists.\n";
       continue;
     }
 
     $log[] = 'New Sub ID:' . $sub->ID . ' | User ID: ' . $user->ID . ' | User Email: ' . $user->user_email;
-    echo 'New Sub ID:' . $sub->ID . ' | User ID: ' . $user->ID . ' | User Email: ' . $user->user_email . "\n<br>";
+    echo "  User #{$user->ID} ({$user->user_email})\n";
 
     $subscription_items = $sub->get_items();
     foreach($subscription_items as $item_id => $item) {
@@ -134,17 +164,23 @@ function wicket_sync_subscriptions() {
         //the subscriptions will have the old products attached and the Tiers have the new ones required for lookup
         $mapped_product_id = wicket_get_mapped_product_id_for_tier( $product_id);
 
+        // Item-level header groups all output for this line item under the subscription record.
+        // Show the product remap explicitly when the stored product differs from the tier's product.
+        $product_label = "“{$product_name}” (product #{$product_id}";
+        $product_label .= ($mapped_product_id != $product_id) ? " → mapped to #{$mapped_product_id})" : ")";
+        echo "  Item: {$product_label}\n";
+
         $Tier = \Wicket_Memberships\Membership_Tier::get_tier_by_product_id($mapped_product_id);
         if(empty($Tier)) {
           $product_name = $item->get_name();
           $log[] = 'No mapped tier for new product ('.$product_name.') ID: ' . $mapped_product_id ;
-          echo '<span style="color:red">No mapped tier ID for new product ('.$product_name.') ID:</span> ' . $mapped_product_id."\n<br>";
+          echo "    <span style=\"color:red\">No Tier maps to product #{$mapped_product_id} — skipping item.</span>\n";
           continue;
         }
         $tier_id = $Tier->get_membership_tier_post_id();
         if(empty($tier_id)) {
           $log[] = 'No tier postID found for new product ID: ' . $mapped_product_id;
-          echo 'No tier postID found for new product ID: ' . $mapped_product_id . "\n<br>";
+          echo "    <span style=\"color:red\">Tier for product #{$mapped_product_id} has no post ID — skipping item.</span>\n";
           continue; //entry not mapped to a tier
         }
 
@@ -171,20 +207,22 @@ function wicket_sync_subscriptions() {
         //update meta on membership if found
         if (empty($user_memberships)) {
           $log[] = 'No Membership found for User ID ' . $user_id . ' on Tier ID ' . $tier_id . ' for productID: ' . $mapped_product_id;
-          echo '<span style="color:red">No Membership found for User ID ' . $user_id . ' on Tier ID ' . $tier_id  . ' for productID: ' . $mapped_product_id . " with Product Name: <u>" . $product_name . "</u>" .  "</span>\n<br>";
+          echo "    <span style=\"color:red\">No membership found for user #{$user_id} on Tier #{$tier_id} — skipping item.</span>\n";
           continue;
         }
           $log[] = 'Found Membership ( ID: '.$user_memberships[0]->ID.' ) for User ID ' . $user_id . ' on Tier ID ' . $tier_id;
-          echo 'Found '.count($user_memberships). 'Membership <a target="_blank" href="/wp/wp-admin/post.php?action=edit&post='.$user_memberships[0]->ID.'"> '.$user_memberships[0]->ID.'</a>for User ID ' . $user_id . ' on Tier ID ' . $tier_id . "with Product Name: <u>" . $product_name . "</u> (ID: " . $mapped_product_id . ")\n";
+          // Note when more than one membership matches; only the first is linked.
+          $match_note = count($user_memberships) > 1 ? " (" . count($user_memberships) . " matched, using first)" : "";
+          echo "    Matched membership <a target=\"_blank\" href=\"/wp/wp-admin/post.php?action=edit&post={$user_memberships[0]->ID}\">#{$user_memberships[0]->ID}</a> on Tier #{$tier_id}.{$match_note}\n";
 
           $meta_check = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true);
           if(!empty($meta_check)) {
             $log[] = 'ITEM Meta _membership_post_id_renew ALREADY SET to '.$meta_check;
-            echo '<span style="color:blue">ITEM Meta _membership_post_id_renew ALREADY SET to '.$meta_check."</span>\n<br>";
+            echo "    <span style=\"color:blue\">Renewal link already set (_membership_post_id_renew = {$meta_check}) — skipping item.</span>\n";
             continue;
           } else {
             $log[] = 'ITEM Meta _membership_post_id_renew NOT SET or NOT EQUAL to membership ID '.$user_memberships[0]->ID;
-            echo '<span style="color:green;font-weight:bold;">ITEM Meta _membership_post_id_renew NOT SET or NOT EQUAL to membership ID '.$user_memberships[0]->ID."</span>\n<br>";
+            echo "    <span style=\"color:green;font-weight:bold;\">Renewal link not set — will link to membership #{$user_memberships[0]->ID}.</span>\n";
           }
           //var_dump($user_memberships);
           //var_dump(get_post_meta($user_memberships[0]->ID));exit;
@@ -195,14 +233,15 @@ function wicket_sync_subscriptions() {
             update_post_meta($user_memberships[0]->ID, 'membership_product_id', $mapped_product_id);
             update_post_meta($user_memberships[0]->ID, 'membership_subscription_id', $sub->ID);
             update_post_meta($user_memberships[0]->ID, 'membership_parent_order_id', $sub->get_parent_id());
+            echo "    <span style=\"color:green\">Updated membership #{$user_memberships[0]->ID} meta — product #{$mapped_product_id}, subscription #{$sub->ID}, order #{$sub->get_parent_id()}.</span>\n";
             //add the membership post_id to support subscription renewaitem_idl flow (only) in subscription item meta
             if(empty(wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)) && !empty($user_memberships[0]->ID)) {
               wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $user_memberships[0]->ID, true );
               $log[] = 'ITEM Meta _membership_post_id_renew Set to '.$user_memberships[0]->ID;
-              echo 'ITEM Meta _membership_post_id_renew Set to '.$user_memberships[0]->ID."\n<br>";
+              echo "    <span style=\"color:green\">Linked subscription item to membership #{$user_memberships[0]->ID} (_membership_post_id_renew).</span>\n";
             } else {
               $log[] = 'ITEM Meta _membership_post_id_renew ALREADY SET to '.wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true);
-              echo 'ITEM Meta _membership_post_id_renew ALREADY SET to '.wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)."\n<br>";
+              echo "    <span style=\"color:blue\">Renewal link already set to " . wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true ) . ".</span>\n";
             }
           }
           //update membership json from post data
@@ -212,17 +251,17 @@ function wicket_sync_subscriptions() {
           if($Tier->is_organization_tier() && $Tier->is_per_seat() && (!empty($wicket_api_client) || !empty($debug))) {
             $quantity = $item->get_quantity();
             $log[] = 'Organization Tier - Syncing MDP Seats to Subscription Item with Product: ' . $product_name . ' and Quantity: '.$quantity;
-            echo 'Organization Tier - Syncing MDP Seats to Subscription Item with Product: ' . $product_name . ' and Quantity: '.$quantity."\n<br>";
+            echo "    Organization tier — syncing {$quantity} seat(s) to MDP from item quantity.\n";
             if(empty($debug)) {
               $wicket_membership_uuid = get_post_meta($user_memberships[0]->ID, 'membership_wicket_uuid', true);
               update_post_meta($user_memberships[0]->ID, 'org_seats', $quantity);
               $updated = memberships_update_seat_count( $wicket_api_client, $wicket_membership_uuid, $quantity);
               if(is_wp_error($updated)) {
                 $log[] = 'Error updating MDP Seats via API: ' . $updated->get_error_message();
-                echo '<span style="color:red">Error updating MDP Seats via API: ' . $updated->get_error_message() . '</span>'."\n<br>";
+                echo "      <span style=\"color:red\">Error updating MDP seats via API: " . $updated->get_error_message() . "</span>\n";
               } else {
                 $log[] = 'MDP Seats updated to '.$quantity;
-                echo 'MDP Seats updated to '.$quantity."\n<br>";
+                echo "      <span style=\"color:green\">MDP seats updated to {$quantity}.</span>\n";
               }
             }
           }
@@ -266,6 +305,20 @@ function wicket_get_mapped_product_id_for_tier( $product_id ) {
     return $product_id;
 }
 
+/**
+ * Rebuilds and stores the membership JSON blob across order, subscription, and user meta.
+ *
+ * Flattens the membership post meta into a single record, overlays the incoming IDs
+ * (product/subscription/order), regenerates the membership JSON, and writes it to the
+ * parent order meta, the subscription meta, and the subscriber's user meta. In debug mode
+ * it instead dumps the would-be JSON to the screen and writes nothing.
+ *
+ * @param  int    $post_id             Membership CPT post ID to rebuild the JSON for.
+ * @param  bool|int $debug             When truthy, preview only — no meta is written.
+ * @param  array  $membership_incoming Incoming overrides (product/subscription/order IDs).
+ *
+ * @return string|void  The encoded user-meta JSON on a live write; nothing on debug preview.
+ */
 function wicket_update_membership_json_data( $post_id, $debug = 0, $membership_incoming = []) {
 
   $membership_meta = get_post_meta( $post_id );
@@ -287,9 +340,21 @@ function wicket_update_membership_json_data( $post_id, $debug = 0, $membership_i
   $membership_json = \Wicket_Memberships\Helper::get_membership_json_from_membership_post_data( $membership );
 
   if($debug) {
-    echo 'JSON Updated:<br><pre>';
+    // Dry-run: capture (don't echo) the JSON that would be written so it can be shown on
+    // demand instead of flooding the log; var_dump writes to output, so buffer it.
+    ob_start();
     var_dump($membership_json);
-    echo '</pre><br>';
+    $json_preview = ob_get_clean();
+
+    // Unique id per preview so multiple records on one page toggle independently.
+    static $preview_seq = 0;
+    $preview_id = 'wmsync-json-' . (++$preview_seq);
+
+    // Render a small clickable icon that toggles the hidden JSON block; collapsed by default
+    // to keep the per-record log readable. Inline onclick avoids a separate script per block.
+    echo "    Membership JSON preview (not written in debug mode) ";
+    echo "<a href=\"#\" title=\"Show/hide JSON\" style=\"text-decoration:none;\" onclick=\"var e=document.getElementById('{$preview_id}');e.style.display=(e.style.display==='none'?'block':'none');return false;\">&#128269;</a>\n";
+    echo "<span id=\"{$preview_id}\" style=\"display:none;margin-left:2em;\">" . htmlspecialchars($json_preview) . "</span>";
     return;
   }
 
