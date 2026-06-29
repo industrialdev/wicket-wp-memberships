@@ -42,109 +42,110 @@ This file applies to work inside `src/web/app/plugins/wicket-wp-memberships`.
 - Key test areas: membership creation, merge webhook, admin status transitions, factory functionality, helper utilities.
 - When adding tests, prefer using the centralized QA suite at `./qa` per the stack AGENTS.md.
 
-Membership bundle functionality is complete. Key concepts:
-- A **Membership Bundle** (`wicket_mship_bundle`) is a container post that holds individual membership records and is linked to an MDP organisation.
-- A **Membership Bundle Config** (`wicket_mship_bcfg`) defines date calculation, renewal windows, grace periods, and renewal type.
-- Bundles have their own WooCommerce subscription; individual memberships are line items on that subscription.
+## Membership Lifecycle
+Understanding the lifecycle is essential for working on this plugin:
 
-For full implementation details refer to `docs/engineering/Membership_Bundle.md` and related `docs/engineering/Membership_Bundle_*.md` docs.
+1. **Order completed** -> `Membership_Controller::catch_order_completed()` creates membership record + MDP sync.
+2. **Action Scheduler** runs daily hooks at 3:00/3:30/4:00 AM for activation, grace period, and expiry.
+3. **Early renewal window** opens at `membership_early_renew_at` -> AutomateWoo trigger fires.
+4. **End date reached** at `membership_ends_at` -> enters grace period if configured, AutomateWoo trigger fires.
+5. **Grace period expires** at `membership_expires_at` -> membership expires, AutomateWoo trigger fires.
+6. **Status transitions** are validated — see `Helper::get_allowed_transition_status()` for the state machine.
 
-## Membership Status Vocabulary
+Valid statuses: `pending`, `active`, `grace_period`, `delayed`, `expired`, `cancelled`.
 
-Use these exact status strings consistently — they appear in meta, REST responses, UI labels, and MDP sync logic:
+## Feature Flags (Environment / Settings)
+Key flags that alter behavior:
+- `WICKET_MSHIP_MULTI_TIER_RENEWALS`: Enables multi-tier renewal workflows and Gravity Forms integration.
+- `WICKET_MSHIP_SUBSCRIPTION_RENEW`: Enables subscription-based renewal.
+- `WICKET_MSHIP_ASSIGN_SUBSCRIPTION`: Enables linking subscriptions to memberships.
+- `WICKET_MSHIP_AUTORENEW_TOGGLE`: Shows autorenew checkbox on subscriptions.
+- `BYPASS_WICKET`: Skips MDP sync (useful for local dev).
+- `ALLOW_LOCAL_IMPORTS`: Enables CSV import REST endpoints.
+- `WICKET_MSHIP_MDP_TIMEZONE`: Timezone for date calculations (default: UTC).
 
-`pending` | `active` | `delayed` | `grace-period` | `expired` | `cancelled`
+## Security & WordPress-Specific Requirements
+- REST endpoints require `manage_options` capability (`WICKET_MEMBERSHIPS_CAPABILITY`).
+- Merge webhook validates HMAC-SHA256 signatures against stored API key.
+- Sanitize and validate all input; escape output.
+- Use WordPress APIs for data access and capability checks.
 
-Do not invent synonyms.
+## PHP Documentation Standards
 
-## Terminology Convention
+These rules exist to ensure developer clarity and understanding — so any engineer reading the code can quickly grasp intent, constraints, and non-obvious decisions without needing to trace through git history or ask the original author.
 
-- Use `membership bundle` as the preferred term everywhere going forward.
-- Do not introduce the previous terminology in new code, docs, UI copy, comments, or implementation notes.
-- When older context or comments use outdated wording, rewrite that to `membership bundle`.
-- If a rename touches identifiers, keep the implementation internally consistent across PHP, JS, docs, and QA.
+These rules apply to **every PHP file touched** — no exceptions, including single-line or trivial changes. No change is too small to be exempt. Skip only when explicitly told not to document in the current task.
 
-## Plugin Environment Flags
+### Before editing any PHP file — checklist
+1. PHPDoc on every touched method (add if missing, update if signature changed).
+2. Inline comments **must** be added to non-obvious logic within touched functions — prioritize clarifying *why* the code does what it does, not *what* it does.
+3. These apply even to single-line variable renames or small tweaks.
+4. When adding documentation only (PHPDoc, inline comments), never alter existing logic — formatting changes are allowed but no functional code changes.
+### PHPDoc Blocks
 
-These options (stored in `wicket_membership_plugin_options`) are read at bootstrap and set `$_ENV` flags. Know them before adding conditional behaviour:
+Every function or method you **create or modify** must have a complete PHPDoc block. Existing functions that lack one must have one added when touched.
 
-| Option key | `$_ENV` flag | Effect |
-|---|---|---|
-| `wicket_mship_subscription_renew` | `WICKET_MSHIP_SUBSCRIPTION_RENEW` | Enables subscription-based renewal path |
-| `bypass_wicket` | `BYPASS_WICKET` | Skips MDP API calls (local dev / testing) |
-| `wicket_membership_debug_mode` | `WICKET_MEMBERSHIPS_DEBUG_MODE` | Enables verbose debug output |
-| `bypass_status_change_lockout` | `BYPASS_STATUS_CHANGE_LOCKOUT` | Disables status-transition guards |
-| `wicket_show_order_debug_data` | `WICKET_SHOW_ORDER_DEBUG_DATA` | Renders order debug info in admin |
-| `allow_local_imports` | `ALLOW_LOCAL_IMPORTS` | Enables local CSV import path and memberships-sync.php |
-| `wicket_mship_enable_bundles` | `WICKET_MSHIP_ENABLE_BUNDLES` | Shows Membership Bundles and Bundle Configs admin pages; off by default |
+```php
+/**
+ * Brief one-line description ending with a period.
+ *
+ * Longer explanation when behaviour is non-obvious. Include side-effects,
+ * WP hooks fired, external API calls made, or caveats a caller needs to know.
+ *
+ * @param  string   $membership_id  The Wicket membership UUID.
+ * @param  int      $user_id        WP user ID; defaults to current user when 0.
+ * @param  bool     $force_refresh  Bypass transient cache and re-query MDP.
+ *
+ * @return WP_Error|array  Membership data array on success, WP_Error on failure.
+ */
+```
 
-## TODO Tracking
+**Required tags** (include every one that applies):
 
-- `TODO.md` in the plugin root is the authoritative list of outstanding work items.
-- Whenever a `// TODO` comment is added to any file in this plugin, add a matching row to `TODO.md` in the same task. Include the file, method, a short note, and an Asana link if one exists.
-- When a TODO is resolved, remove it from `TODO.md` and the code comment in the same change.
-- Do not leave TODO comments in code without a corresponding `TODO.md` entry.
+| Tag | When required |
+|-----|--------------|
+| `@param` | Every parameter, with type and description |
+| `@return` | Always, even `void` functions — write `@return void` |
+| `@throws` | When an exception can be thrown |
+| `@since` | When adding a new public function |
+| `@see` | When behaviour depends on another function or WP hook |
+| `@global` | When accessing a WP global (`$wpdb`, `$post`, etc.) |
 
-## Documentation Rules
+**Type syntax**: Use union types for nullable (`string|null`). Use `array<int, Membership>` or `string[]` when array shape is known. Use `WP_Error|TypeName` for WP error returns.
 
-- The `docs/` folder is part of the maintained source of truth for this plugin.
-- When changing a class in `includes/`, update the matching file in `docs/class-index/`.
-- When adding a new class to `includes/`, create a matching `.md` file in `docs/class-index/` in the same task.
-- The class docs map 1:1 to the PHP files in `includes/`. Preserve that convention — never leave a class undocumented.
-- When changing membership config or tier data structures, also update the related markdown file in `docs/`.
-- Do not leave doc updates for later. Code and docs must change together whenever behavior, signatures, properties, fields, hooks, or responsibilities change.
-- **Membership Bundles public docs** live in `docs/public/membership-bundles/`. When changing any of the following, update the corresponding public doc in the same task:
-  - `Membership_Bundle` → `docs/public/membership-bundles/classes/membership-bundle.md`
-  - `Membership_Bundle_Config` → `docs/public/membership-bundles/classes/membership-bundle-config.md`
-  - `Membership_Bundle_Admin_Controller` → `docs/public/membership-bundles/classes/membership-bundle-admin-controller.md`
-  - `Membership_Bundle_WP_REST_Controller` → `docs/public/membership-bundles/endpoints/` (relevant file)
-  - `Membership_Bundle_Config_WP_REST_Controller` → `docs/public/membership-bundles/endpoints/bundle-config-dates.md`
-  - Bundle status constants, lifecycle transitions, or cron behaviour → `docs/public/membership-bundles/concepts/bundle-lifecycle.md`
-  - Renewal type, grace period, or cycle logic → `docs/public/membership-bundles/concepts/renewal-types.md`
-  - Member add/remove/move semantics → `docs/public/membership-bundles/concepts/member-handling.md`
-- **VitePress sidebar must be kept in sync.** The sidebar is defined in `docs/public/.vitepress/config.mts` — VitePress does not auto-discover pages. When adding a new `.md` file anywhere under `docs/public/`, add a matching entry to the `sidebar` array in `config.mts` in the same task. Never add a page without a sidebar entry, and never leave a sidebar entry pointing to a file that does not exist.
+Descriptions must add information beyond the parameter name. `@param int $id The id.` is not acceptable.
 
-## External References
+### Inline Comments
 
-- `../wicket-wp-base-plugin` is an allowed reference dependency.
-- You may inspect and rely on helper functions, autoloaded classes, and integration behavior from `wicket-wp-base-plugin`.
-- Under no circumstances should you modify `wicket-wp-base-plugin` as part of memberships work unless the user explicitly changes that rule.
-- If a memberships change appears to require a base-plugin fix, stop at the boundary, document the dependency, and ask before editing outside this plugin.
+Add a short inline comment wherever a reader would need to pause to reason through the code. Target the **goal** of the logic, not a restatement of what the code does.
 
-## Frontend UI Conventions
+**Correct** — states the objective of a multi-condition check:
+```php
+// Confirm the user holds an active, non-expired membership before granting access.
+if ( $membership && 'active' === $membership['status'] && ! $membership['expired'] ) {
+```
 
-- **All dates displayed in the admin UI must use `formatDateWithTooltip(isoString)` from `frontend/src/shared/constants.js`.** This renders the date in the MDP timezone with the full ISO 8601 string (including UTC offset) as a hover tooltip. Never render a raw date string directly. Pass the raw ISO string from PHP — do not pre-format dates to `Y-m-d` before sending them to the frontend, as that discards timezone information needed by the tooltip.
+**Incorrect** — restates the code:
+```php
+// Check if membership exists, status equals active, and expired is false.
+if ( $membership && 'active' === $membership['status'] && ! $membership['expired'] ) {
+```
 
-## Working Conventions
+**Other situations that require an inline comment:**
+- Non-obvious fallback or default value and the reason it exists.
+- A WP quirk or third-party API limitation being worked around.
+- Why a specific meta key or field is used instead of an obvious alternative.
+- Branches that mirror a real-world business rule (grace-period logic, bundle vs. individual membership paths, calendar vs. anniversary cycle handling).
+- Code written in a surprising way to avoid a known bug.
 
-- **Inline comments on non-trivial methods:** For methods that involve multiple logical phases (validation, DB writes, rollback, derived calculations, etc.), add a short inline comment before each phase explaining *why* it exists — not what the code does. This applies especially to static factory methods like `Membership_Bundle::create()` where the sequence of operations and their failure modes are not obvious from reading the code alone. Comments should explain constraints, invariants, and rollback guarantees; they should not restate what the method call already says.
+One short line is almost always enough. No paragraph-length comment blocks inside function bodies.
 
-- Check existing docs in `docs/` before changing class behavior so implementation and documentation stay aligned.
-- Prefer extending existing classes/files over adding new abstractions unless the current structure is clearly insufficient.
-- Keep public hooks, meta keys, option names, and status transitions backward-compatible unless the user asks for a breaking change.
-- **After adding a new PHP class** in `includes/`, run `composer dump-autoload` to regenerate the PSR-4 autoload map. For production builds use `composer dump-autoload -o`.
-- **Frontend changes**: edit source in `frontend/src/`. Use `npm run start` (from `frontend/`) for development builds and `npm run build` for production. Only commit built assets when the task explicitly requires it.
-- Do not edit `vendor/` or `frontend/build/` manually.
+**Do not comment:**
+- Code that already reads clearly from well-named identifiers.
+- Standard WP boilerplate any WP developer recognises.
+- The current task, PR number, or issue reference (those belong in the commit message).
 
-## Tests
+---
 
-- Repository-wide rule: add new automated tests in `/srv/wicket-wp-stack/qa`, not in this plugin.
-- Begin any testing task by reading `/srv/wicket-wp-stack/qa/README.md` and `/srv/wicket-wp-stack/qa/AGENTS.md`.
-- Use the cheapest suite that proves the behavior, but prefer the QA repo as the home for all new coverage.
-- The local `tests/` directory in this plugin is legacy/reference material unless the user explicitly instructs otherwise.
-
-## Practical Review Checklist
-
-- Were any `// TODO` comments added? If yes, was a matching row added to `TODO.md`?
-- Were any TODOs resolved? If yes, was the row removed from `TODO.md`?
-- Did the PHP implementation change in `includes/`, `custom/`, `frontend/src/`, or bootstrap code?
-- If yes, were the corresponding docs in `docs/class-index/` updated (or created) in the same change?
-- If a new class was added to `includes/`, was a matching `.md` created in `docs/class-index/`?
-- If a new class was added to `includes/`, was `composer dump-autoload` run?
-- Did the work reference `wicket-wp-base-plugin` without modifying it?
-- If tests were added or updated, were they placed in `qa/` and run from there when possible?
-- If the change touches membership bundle logic, were the relevant `docs/engineering/Membership_Bundle*.md` docs consulted?
-
-## Current Branch Scope
-
-`AGENTS.md` is defined on the parent branch and describes stable conventions that apply across all work in this plugin.
+## Commit & Pull Request Guidelines
+Keep commits focused with short, imperative messages. PRs should include purpose, test evidence, and screenshots for UI changes. Link related issues and note breaking changes.

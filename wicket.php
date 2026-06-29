@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.120
+ * Version: 1.0.121
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
@@ -159,6 +159,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_AUTORENEW_TOGGLE']=true;
             }
           }
+          // Default true: preserves pre-existing behaviour on installs that have never saved this setting.
+          $_ENV['WICKET_MSHIP_AUTORENEW_OVERRIDE'] = isset($options['wicket_mship_autorenew_override']) ? (bool)$options['wicket_mship_autorenew_override'] : true;
           if (isset($options['wicket_mship_mdp_timezone'])) {
             if ($options['wicket_mship_mdp_timezone']) {
               $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] = $options['wicket_mship_mdp_timezone'];

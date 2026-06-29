@@ -29,12 +29,12 @@ class Admin_Controller {
   public function admin_footer_scripts() {
     ?>
     <script type="text/javascript">
-      var wicketMembershipsSettings = {
-        'WICKET_MSHIP_MERGE_TOOLS': '<?php echo $_ENV['WICKET_MSHIP_MERGE_TOOLS']; ?>',
-        'WICKET_MSHIP_MULTI_TIER_RENEWALS': '<?php echo $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS']; ?>',
-        'adminUrl': '<?php echo esc_url( admin_url() ); ?>',
-        'WICKET_MSHIP_MDP_TIMEZONE': '<?php echo $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC'; ?>',
-      };
+      var wicketMembershipsSettings = <?php echo wp_json_encode( [
+        'WICKET_MSHIP_MERGE_TOOLS'          => $_ENV['WICKET_MSHIP_MERGE_TOOLS'] ?? '',
+        'WICKET_MSHIP_MULTI_TIER_RENEWALS'  => $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] ?? '',
+        'adminUrl'                          => esc_url( admin_url() ),
+        'WICKET_MSHIP_MDP_TIMEZONE'         => $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC',
+      ] ); ?>;
     </script>
     <?php
   }
@@ -299,6 +299,15 @@ class Admin_Controller {
         $response_array['success'] = 'BYPASSED STATUS LOCKOUT --- DEBUG ENABLED --- SET AS '. $new_post_status;
       }
       Utilities::wc_log_mship_error($response_array);
+      return new \WP_REST_Response($response_array, 200);
+    }
+
+    // A pending membership does not yet exist in the MDP, so a pending -> cancelled
+    // transition must never call the MDP update. Apply the local status change only.
+    if( !empty( $updated ) && $current_post_status == Wicket_Memberships::STATUS_PENDING && $new_post_status == Wicket_Memberships::STATUS_CANCELLED ) {
+      $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status );
+      $response_array['success'] = 'Status was updated successfully.';
+      $response_array['response'] = Helper::get_post_meta( $membership_post_id );
       return new \WP_REST_Response($response_array, 200);
     }
 
@@ -929,6 +938,9 @@ class Admin_Controller {
     $order_items = $order->get_items();
     foreach($order_items as $item) {
       wc_update_order_item_meta( $item->get_id(), '_membership_post_id_renew', $membership_post_id );
+      if ( ! empty( $membership['org_uuid'] ) ) {
+        wc_update_order_item_meta( $item->get_id(), '_org_uuid', $membership['org_uuid'] );
+      }
     }
 
     $subscription = wcs_create_subscription( array(
@@ -945,6 +957,9 @@ class Admin_Controller {
     $subscription_items = $subscription->get_items();
     foreach($subscription_items as $item) {
       wc_update_order_item_meta( $item->get_id(), '_membership_post_id_renew', $membership_post_id );
+      if ( ! empty( $membership['org_uuid'] ) ) {
+        wc_update_order_item_meta( $item->get_id(), '_org_uuid', $membership['org_uuid'] );
+      }
     }
 
     // Add the subscription to the order
