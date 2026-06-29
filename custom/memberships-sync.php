@@ -42,16 +42,69 @@ function wicket_action_woocommerce_loaded() {
  * @return void Output is echoed directly; the request is terminated with die().
  */
 function wicket_sync_subscriptions() {
-  echo "<pre>";
-
-  // Read and normalise the run parameters before emitting the summary so the operator
-  // can confirm scope/mode at the top of the output before scanning per-record results.
-  $subscription_to_update = !empty($_REQUEST['subscription_to_update']) ? $_REQUEST['subscription_to_update'] : '';
-  $page_number = !empty($_REQUEST['page_number']) ? $_REQUEST['page_number'] : 1;
-  $page_length = !empty($_REQUEST['page_length']) ? $_REQUEST['page_length'] : 100;
-  $created_after = !empty($_REQUEST['created_after']) ? $_REQUEST['created_after'] : ''; //format YYYY-MM-DD
+  // Sanitise the request parameters — they arrive raw from the URL/control bar.
+  // A single subscription id is treated as an int; 0/invalid means "batch mode".
+  $subscription_to_update = isset($_REQUEST['subscription_to_update']) ? (int) $_REQUEST['subscription_to_update'] : 0;
+  $subscription_to_update = $subscription_to_update > 0 ? (string) $subscription_to_update : '';
+  $page_number = isset($_REQUEST['page_number']) ? max(1, (int) $_REQUEST['page_number']) : 1;
+  $page_length = isset($_REQUEST['page_length']) ? (int) $_REQUEST['page_length'] : 100;
+  // Constrain page length to the values offered in the control bar to avoid runaway queries.
+  if (!in_array($page_length, [25, 50, 100, 200], true)) {
+    $page_length = 100;
+  }
+  // Accept a created-after floor only when it is a valid YYYY-MM-DD date; otherwise ignore it.
+  $created_after = '';
+  if (!empty($_REQUEST['created_after']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_REQUEST['created_after'])) {
+    $created_after = $_REQUEST['created_after'];
+  }
+  // LIVE mode is opt-in only: debug stays true unless the control bar explicitly sends no_debug.
   $debug = empty($_REQUEST['no_debug']) ? true : false;
   $count_only = !empty($_REQUEST['count_only']) ? true : false;
+
+  // Only the control bar's buttons set this marker; a bare page load lacks it. We use it to
+  // distinguish "operator clicked Run/Count/Prev/Next" from "just landed on the page", so a
+  // plain load shows the form and runs nothing.
+  $action_requested = !empty($_REQUEST['wmsync_run']);
+
+  // Lightweight count so the control bar can show position within the total — but only once an
+  // action has been requested (the bare landing must run nothing). Uses IDs only (no per-
+  // subscription loading); the heavier membership-product breakdown stays behind "Count Only".
+  $pagination_total = 0;
+  $total_pages = 1;
+  if ($action_requested && $subscription_to_update === '' && !$count_only) {
+    $count_args = [
+      'status' => ['active', 'on-hold'],
+      'return' => 'ids',
+      'subscriptions_per_page' => -1,
+    ];
+    if (!empty($created_after)) {
+      $count_args['date_created'] = '>=' . $created_after;
+    }
+    $pagination_total = count(wcs_get_subscriptions($count_args));
+    $total_pages = max(1, (int) ceil($pagination_total / $page_length));
+    // Clamp a page request that overshoots the available pages back to the last valid page.
+    if ($page_number > $total_pages) {
+      $page_number = $total_pages;
+    }
+  }
+
+  // Render the interactive control bar (plain HTML) above the streamed <pre> log.
+  wicket_sync_render_control_bar([
+    'subscription_to_update' => $subscription_to_update,
+    'page_number'            => $page_number,
+    'page_length'            => $page_length,
+    'created_after'          => $created_after,
+    'pagination_total'       => $pagination_total,
+    'total_pages'            => $total_pages,
+    'action_requested'       => $action_requested,
+  ]);
+
+  // Bare page load: show the form to get started and run nothing else.
+  if (!$action_requested) {
+    die();
+  }
+
+  echo "<pre>";
 
   $log = [];
 
@@ -60,11 +113,14 @@ function wicket_sync_subscriptions() {
   if (defined('WP_ENVIRONMENT_TYPE')) {
     echo "Environment: " . WP_ENVIRONMENT_TYPE . "\n";
   }
-  echo "Mode: " . ($count_only ? "Count only (no changes)" : ($debug ? "DEBUG dry run — no changes will be written (add no_debug=1 to apply)" : "LIVE — changes will be written")) . "\n";
+  echo "Mode: " . ($count_only ? "Count only (no changes)" : ($debug ? "DEBUG dry run — no changes will be written (switch to LIVE in the control bar to apply)" : "LIVE — changes will be written")) . "\n";
   if (!empty($subscription_to_update)) {
     echo "Scope: single subscription #{$subscription_to_update}\n";
   } else {
-    echo "Scope: page {$page_number} ({$page_length} per page)" . (!empty($created_after) ? ", created on/after {$created_after}" : "") . "\n";
+    // Show position within the total so the operator knows where they are in the batch.
+    $range_start = $pagination_total > 0 ? (($page_number - 1) * $page_length) + 1 : 0;
+    $range_end = min($page_number * $page_length, $pagination_total);
+    echo "Scope: page {$page_number} of {$total_pages} — records {$range_start}–{$range_end} of {$pagination_total} ({$page_length} per page)" . (!empty($created_after) ? ", created on/after {$created_after}" : "") . "\n";
   }
   echo str_repeat("=", 60) . "\n";
 
@@ -272,6 +328,173 @@ function wicket_sync_subscriptions() {
     } // end foreach item
   } //end foreach subscription
   die();
+}
+
+/**
+ * Renders the sync tool's interactive control bar above the streamed <pre> log.
+ *
+ * Emits a GET form that re-submits to the current URL with pagination, date, scope, and
+ * run-mode controls, pre-filled from the current request. Safety model:
+ *  - The dry/live radio always defaults to "dry" on every load (LIVE is never persisted),
+ *    so writes are an explicit, per-run decision.
+ *  - Submitting LIVE requires both selecting the LIVE radio AND ticking the confirm box;
+ *    this is enforced client-side before the form is allowed to submit no_debug=1.
+ *  - Prev, Next, and Count Only always submit as a dry run regardless of the radio, so
+ *    navigation and counting can never write data.
+ *
+ * @param array $state {
+ *   Normalised request state and computed pagination figures.
+ *
+ *   @type string $subscription_to_update  Single subscription id, or '' for batch mode.
+ *   @type int    $page_number             Current (clamped) page number.
+ *   @type int    $page_length             Records per page.
+ *   @type string $created_after           YYYY-MM-DD floor, or '' when unset.
+ *   @type int    $pagination_total        Total subscriptions in the paginated set.
+ *   @type int    $total_pages             Total pages for the current page length.
+ * }
+ *
+ * @global void   No globals; reads $_SERVER['REQUEST_URI'] for the form action.
+ * @return void   Outputs HTML directly.
+ */
+function wicket_sync_render_control_bar( array $state ) {
+  // Re-submit to the same path (query string is rebuilt from the form fields).
+  $action = esc_url( strtok( $_SERVER['REQUEST_URI'], '?' ) );
+
+  $single  = $state['subscription_to_update'];
+  $page    = (int) $state['page_number'];
+  $len     = (int) $state['page_length'];
+  $created = $state['created_after'];
+  $total   = (int) $state['pagination_total'];
+  $pages   = (int) $state['total_pages'];
+  // False on a bare landing — totals haven't been queried yet, so show a hint not "0 of 0".
+  $action_requested = !empty( $state['action_requested'] );
+
+  // 1-based record range shown beside the pager, clamped to the total.
+  $range_start = $total > 0 ? ( ( $page - 1 ) * $len ) + 1 : 0;
+  $range_end   = min( $page * $len, $total );
+
+  // In single-subscription scope the pager and date are ignored, so dim that section.
+  $is_batch       = ( $single === '' );
+  $prev_disabled  = ( $page <= 1 )     ? 'disabled' : '';
+  $next_disabled  = ( $page >= $pages ) ? 'disabled' : '';
+  $batch_opacity  = $is_batch ? '1' : '0.4';
+
+  // Page-length dropdown options, current value pre-selected.
+  $len_options = '';
+  foreach ( [ 25, 50, 100, 200 ] as $opt ) {
+    $len_options .= '<option value="' . $opt . '" ' . selected( $opt, $len, false ) . '>' . $opt . '</option>';
+  }
+
+  $env = defined( 'WP_ENVIRONMENT_TYPE' ) ? esc_html( WP_ENVIRONMENT_TYPE ) : '';
+  $created_attr = esc_attr( $created );
+  $single_attr  = esc_attr( $single );
+
+  ?>
+  <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;border:1px solid #ccd0d4;background:#fff;padding:14px 16px;margin:0 0 12px;max-width:900px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <strong style="font-size:14px;">Wicket Membership Subscription Sync</strong>
+      <?php if ( $env ) : ?><span style="color:#666;font-size:12px;">env: <?php echo $env; ?></span><?php endif; ?>
+    </div>
+
+    <form id="wmsync-form" method="get" action="<?php echo $action; ?>">
+      <?php // Persist the trigger and the run-mode flags (set by the buttons via JS). ?>
+      <input type="hidden" name="mship_subscription_sync" value="1" />
+      <input type="hidden" id="wmsync-no_debug" name="no_debug" value="" />
+      <input type="hidden" id="wmsync-count_only" name="count_only" value="" />
+      <input type="hidden" id="wmsync-page" name="page_number" value="<?php echo $page; ?>" />
+      <?php // Set to 1 by every action button; absent on a bare load so the server runs nothing. ?>
+      <input type="hidden" id="wmsync-run" name="wmsync_run" value="" />
+
+      <div style="opacity:<?php echo $batch_opacity; ?>;margin-bottom:8px;">
+        <label>Created after
+          <input type="date" id="wmsync-created" name="created_after" value="<?php echo $created_attr; ?>" />
+        </label>
+        <a href="#" title="Clear date" style="text-decoration:none;margin-right:14px;"
+           onclick="document.getElementById('wmsync-created').value='';return false;">&#10005;</a>
+        <label style="margin-left:6px;">Per page
+          <?php // Changing page length resets to page 1 so the offset stays meaningful. ?>
+          <select name="page_length" onchange="document.getElementById('wmsync-page').value=1;">
+            <?php echo $len_options; ?>
+          </select>
+        </label>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <label>Single subscription ID
+          <input type="text" name="subscription_to_update" value="<?php echo $single_attr; ?>" size="10" />
+        </label>
+        <span style="color:#666;font-size:12px;">&larr; overrides pagination &amp; date</span>
+      </div>
+
+      <div style="opacity:<?php echo $batch_opacity; ?>;margin:10px 0;display:flex;align-items:center;gap:10px;">
+        <button type="button" onclick="wmsyncSubmit('count');">&#128290; Count Only</button>
+        <span style="border-left:1px solid #ddd;height:18px;"></span>
+        <button type="button" <?php echo $prev_disabled; ?> onclick="wmsyncPage(-1);">&#9664; Prev</button>
+        <span style="font-size:13px;"><?php
+          // Totals are only known after a run/count; before that, prompt the operator.
+          if ( $action_requested ) {
+            echo 'Page ' . $page . ' of ' . $pages . ' &middot; records ' . $range_start . '&ndash;' . $range_end . ' of ' . $total;
+          } else {
+            echo '<em style="color:#666;">Run or Count to load totals</em>';
+          }
+        ?></span>
+        <button type="button" <?php echo $next_disabled; ?> onclick="wmsyncPage(1);">Next &#9654;</button>
+      </div>
+
+      <div style="border-top:1px solid #eee;padding-top:10px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <span>Mode:</span>
+        <?php // Radio ALWAYS defaults to dry on load — LIVE is never pre-selected from the request. ?>
+        <label><input type="radio" name="wmsync_mode" value="dry" checked onchange="wmsyncModeChange();" /> Dry run</label>
+        <label><input type="radio" name="wmsync_mode" value="live" onchange="wmsyncModeChange();" /> <span style="color:#b32d2e;font-weight:bold;">LIVE</span></label>
+        <label style="color:#b32d2e;"><input type="checkbox" id="wmsync-confirm" disabled /> I understand LIVE writes data</label>
+        <button type="button" style="margin-left:auto;font-weight:bold;" onclick="wmsyncSubmit('run');">&#9654; Run</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+  // Set the hidden run-mode flags, then submit. Navigation/counting force a safe dry run;
+  // only an explicit "run" honours the dry/live radio, and live additionally requires the
+  // confirmation box to be ticked.
+  function wmsyncSubmit(mode){
+    var f=document.getElementById('wmsync-form');
+    var nd=document.getElementById('wmsync-no_debug');
+    var co=document.getElementById('wmsync-count_only');
+    // Mark this submission as an explicit action so the server processes it (vs. a bare load).
+    document.getElementById('wmsync-run').value='1';
+    if(mode==='count'){ co.value='1'; nd.value=''; f.submit(); return; }
+    co.value='';
+    if(mode==='prev'||mode==='next'){ nd.value=''; f.submit(); return; }
+    // mode === 'run'
+    var live=document.querySelector('input[name=wmsync_mode]:checked').value==='live';
+    if(live){
+      if(!document.getElementById('wmsync-confirm').checked){
+        alert('To run LIVE you must tick “I understand LIVE writes data”.');
+        return;
+      }
+      nd.value='1';
+    } else {
+      nd.value='';
+    }
+    f.submit();
+  }
+  // Adjust the hidden page field then submit as a dry-run navigation.
+  function wmsyncPage(delta){
+    var p=document.getElementById('wmsync-page');
+    var v=(parseInt(p.value,10)||1)+delta;
+    if(v<1){ v=1; }
+    p.value=v;
+    wmsyncSubmit(delta<0?'prev':'next');
+  }
+  // The confirm box only matters in LIVE mode; disable+clear it otherwise.
+  function wmsyncModeChange(){
+    var live=document.querySelector('input[name=wmsync_mode]:checked').value==='live';
+    var c=document.getElementById('wmsync-confirm');
+    c.disabled=!live;
+    if(!live){ c.checked=false; }
+  }
+  </script>
+  <?php
 }
 
 function memberships_update_seat_count( $client, $wicket_membership_uuid, $seat_count) {

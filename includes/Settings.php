@@ -329,6 +329,16 @@ class Settings {
         <p style="color:black;font-style:italic">4. Follow guidance to add the correct args. Import is batched, wait until complete or run as a background task!</p>
         <p style="color:black;font-style:italic">5. Can be run locally to populate a remote server by pointing the <code>api_domain</code> to the remote site with plugin installed!</p>
         <p style="color:black;font-style:italic"><code>php ./csv_import_threads.php { individual|organization } { file_path from /uploads/ } { api_domain - optional str } { skip_approval - optional bool }</code></p>
+        <?php
+          // The subscription sync tool is loaded from wicket.php only while MDP Import
+          // (this setting) is enabled, so its link is surfaced here alongside the import steps.
+          $sync_tool_url = esc_url( home_url( '/?mship_subscription_sync=1' ) );
+        ?>
+        <p style="color:#b32d2e;font-style:italic;margin-top:10px;border-top:1px solid #eee;padding-top:10px;">
+            <strong>Note — reusing existing subscriptions:</strong> When importing memberships <em>without</em> creating new subscriptions, and you want imported memberships to attach to subscriptions that already exist, use the Subscription Sync tool to link them. It walks active/on-hold subscriptions and links each to its matching membership record. For each subscription it looks for a current membership belonging to the same user (matched by email) on the same tier (resolved from the product assigned to the subscription).
+            <br>This tool is only available while <strong>MDP Import</strong> (this setting) is enabled.
+            <br><a target="_blank" rel="noopener" href="<?php echo $sync_tool_url; ?>">Open the Subscription Sync tool in a new tab &#8599;</a>
+        </p>
     </div>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
