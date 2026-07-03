@@ -423,5 +423,11 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
 	} // end Class Wicket_Memberships.
 	new Wicket_Memberships();
+
+	// Register WP-CLI commands. Guarded so this never runs during a normal web request;
+	// the class autoloads via the composer PSR-4 map (Wicket_Memberships\ => includes/).
+	if ( defined( 'WP_CLI' ) && WP_CLI ) {
+		\WP_CLI::add_command( 'wicket-mship tier', \Wicket_Memberships\CLI\Tier_Sync_Command::class );
+	}
 }
 
