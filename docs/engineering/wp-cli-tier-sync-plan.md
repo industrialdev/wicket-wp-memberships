@@ -145,7 +145,8 @@ this sets the pattern).
 
 ```
 wp wicket-mship tier sync   [--dry-run] [--type=<individual|organization|all>]
-                            [--config-id=<post_id>] [--yes] [--format=<table|json|csv>]
+                            [--config-id=<post_id>] [--create-products]
+                            [--backfill-products] [--yes] [--format=<table|json|csv>]
 
 wp wicket-mship tier list   [--source=<mdp|local>] [--format=<table|json|csv>]
 ```
@@ -168,6 +169,8 @@ operator can preview before syncing and diff after. Cheap to build, high diagnos
 |---|---|
 | `--dry-run` | Fetch + compute the plan, write **nothing**. Default-recommended first run. |
 | `--config-id` | Config post to attach to newly created tiers (see §6). |
+| `--create-products` | Auto-create a matching simple subscription product per created tier and link it in `product_data` (opt-in — see §13). |
+| `--backfill-products` | Also create + link a product for **existing** product-less tiers, not just newly created ones (opt-in — see §13). |
 | `--type` | Filter which MDP tiers to sync (if individual/org is distinguishable — §6). |
 | `--yes` | Skip the interactive confirmation before a live write. |
 | `--format` | Standard WP-CLI output format for list/summary. |
@@ -303,7 +306,10 @@ operator can preview before syncing and diff after. Cheap to build, high diagnos
 
 ## 10. Out of scope / future work
 
-- Linking WooCommerce products/variations to created tiers (`product_data`).
+- Linking WooCommerce products/variations to created tiers (`product_data`) — **partially
+  addressed** by the optional `--create-products` extension (§13), which creates one simple
+  subscription product per tier. Multi-product, variable-subscription, and range-bucket
+  linkage remain manual.
 - Setting renewal type, seat type, approval, and callout content.
 - Creating or reconciling `wicket_mship_config` posts.
 - Pushing WordPress → MDP (this tool is read-from-MDP only).
@@ -424,3 +430,210 @@ wp wicket-mship tier sync --config-id=1704
 # 4. Finish each tier in the admin UI: attach the WooCommerce subscription product(s)
 #    and confirm renewal settings.
 ```
+
+> With `--create-products` (§13), step 4's product attachment is done for you for the common
+> one-product-per-tier case; you only confirm/adjust pricing and renewal settings.
+
+---
+
+## 13. Extension — auto-create subscription products per tier (`--create-products`, `--backfill-products`)
+
+> **Status: implemented.** Extends the shipped `tier sync` command (§12) in
+> `includes/CLI/Tier_Sync_Command.php`. Opt-in; the default behavior (empty `product_data`)
+> is unchanged when neither flag is present.
+
+### 13.1 Goal
+
+Optionally have `tier sync` create one **WooCommerce simple subscription** product per tier,
+named after the tier, and link it into that tier's `product_data`. This removes the manual
+"attach a subscription product" admin step for the common one-product-per-tier case, so a
+synced tier is immediately valid, orderable, and safe for the "create subscriptions for all
+records" import path (§13.10).
+
+Two independent, composable flags control the scope:
+
+- **`--create-products`** — attach a product to tiers **created this run**.
+- **`--backfill-products`** — attach a product to **existing** local tiers that currently
+  have empty `product_data` (the `skip`/`update` rows), remediating tiers synced before this
+  feature existed. Runnable on its own against an already-synced site.
+
+Both share the same product-creation machinery (§13.3–13.4) and both are off by default.
+
+### 13.2 The flags
+
+| Flag | Required | Default | Applies to | Purpose |
+|---|---|---|---|---|
+| `--create-products` | No | off | rows with `action = create` | Create + link a product for each newly created tier. |
+| `--backfill-products` | No | off | `skip`/`update` rows whose `product_data` is empty | Create + link a product for existing product-less tiers. |
+
+Pass either, both, or neither. Both together = every tier ends the run with a product,
+whether it was just created or already existed empty.
+
+**Precondition (fail closed).** Either flag requires WooCommerce Subscriptions active
+(`class_exists( 'WC_Product_Subscription' )`). If a product flag is passed and WCS is
+unavailable, the command aborts before any write — same posture as the existing
+config-validity and MDP-client checks in §5.
+
+### 13.3 Product spec
+
+Each auto-created product:
+
+- **Type:** `subscription` (`WC_Product_Subscription`) — a *simple* subscription. This
+  satisfies the tier product rule (`is_type( 'subscription' )`, `Membership_Post_Types.php:591`)
+  and, crucially, renders safely in the tier admin: `Membership_Tier_CPT_Hooks::render_page()`
+  (`:114-115`) calls `wc_get_product( $id )->is_type( … )` **unguarded**, so a real product
+  avoids the fatal that a bogus/placeholder id would cause. This extension is therefore
+  *safer* than hand-inserting a fake product id.
+- **Name / title:** the tier's `name_en` (identical to `mdp_tier_name` and the tier post title).
+- **SKU (idempotency key):** deterministic, derived from the tier UUID —
+  `wicket-tier-<mdp_tier_uuid>`. Before creating, look up `wc_get_product_id_by_sku()` and
+  **reuse** the existing product if found rather than duplicating. WooCommerce enforces SKU
+  uniqueness, keeping both the create and backfill paths idempotent across re-runs — and it
+  means a backfill will re-link an orphaned product a prior create had already made for that
+  UUID rather than making a second one.
+- **Billing defaults (placeholders):** price `0`, period `year`, interval `1`, length `0`
+  (never auto-expires), no sign-up fee, no trial. These are safe placeholders the admin
+  adjusts afterward — the tool's job is *linkage*, not pricing.
+- **Status:** `publish`.
+
+### 13.4 `product_data` written
+
+A single entry linking the new product:
+
+```php
+[ 'product_id' => <new_product_id>, 'variation_id' => 0, 'max_seats' => <-1 | 1> ]
+```
+
+- `variation_id` is `0` — simple (non-variable) subscriptions have no variation. Validation
+  only demands a variation for `variable-subscription` (`Membership_Post_Types.php:616`), and
+  order→tier matching falls back to `product_id` (`Membership_Tier::get_tier_by_product_id`),
+  so a `0`/empty variation matches correctly at checkout.
+- `max_seats` per the seat-type table in §13.5.
+
+### 13.5 Seat-type handling
+
+A product is created for **every** synced tier regardless of type — including
+`per_range_of_seats`. Organization products start at **qty 1**, which the admin can adjust
+afterward for `per_seat`.
+
+| Tier | Behavior with `--create-products` |
+|---|---|
+| individual | Create one product, `product_data` `max_seats = -1` (required by validation, `:638`). |
+| organization, `per_seat` | Create one product, `max_seats = 1` (starting qty; the created membership's seat count later **tracks the purchased quantity**, so this is just a default the admin can raise). |
+| organization, `per_range_of_seats` | Create one product, `max_seats = 1` (starting qty). The created membership's `max_seats` is `-1`/`null` at runtime (open-ended range) regardless, so qty 1 is a fine starting point. Multi-bucket range products remain a manual admin refinement (§10). |
+
+> **Seat semantics (why the two org rows differ at runtime, not at creation):** `per_seat`
+> memberships take their `max_seats` from the purchased order quantity (finite); range
+> memberships get `-1`/`null`. The CLI does not encode that distinction into the product — it
+> just seeds a qty-1 product for both. See §2.1 for the `unlimited_assignments` → `seat_type`
+> mapping.
+
+### 13.6 Idempotency & safety
+
+- **Scoped by flag.** `--create-products` touches only `action = create` rows;
+  `--backfill-products` touches only `skip`/`update` rows whose `product_data` is **empty**. A
+  tier that already has products is never modified by either flag — backfill only fills a gap,
+  it never clobbers or replaces an existing linkage.
+- **Backfill is the one sanctioned exception to the name-only update policy.** Normally an
+  existing tier's `tier_data` is only name-refreshed (§6.5); `--backfill-products` additionally
+  writes `product_data` on an otherwise-empty tier. It is gated behind the explicit flag and
+  the write confirmation, and it leaves every other `tier_data` field untouched.
+- **SKU keyed on UUID** → re-running never creates a duplicate product, even after a
+  half-completed prior run; a create and a later backfill for the same UUID resolve to the
+  same product.
+- **Ordering & cleanup.**
+  - *Create path:* build (or find by SKU) the product first, then `wp_insert_post()` the tier
+    with the product already in `product_data`. If the tier insert fails, **trash the
+    just-created product** so no orphan is left; count the row as an error.
+  - *Backfill path:* the tier already exists, so build (or find by SKU) the product, then
+    `update_tier_data()` with the single-entry `product_data`. If the meta update fails, trash
+    a product this run created (leave a reused one alone); count the row as an error.
+- **`--dry-run` creates no products.** The plan gains a `product` column
+  (`create` / `backfill` / `exists` / `—`) so the operator sees exactly what would be made and
+  against which tiers. The column only appears when a product flag is set.
+
+### 13.7 Code changes
+
+- `sync()`: read `--create-products` and `--backfill-products`; when either is set, assert WCS
+  availability alongside the existing config/MDP preconditions.
+- **New** `product_for_tier( string $uuid, string $name, string $type, string $seat_type ): int|\WP_Error`
+  — resolve SKU (`wicket-tier-<uuid>`), reuse via `wc_get_product_id_by_sku()` or build a
+  `WC_Product_Subscription`, set name/SKU/billing meta, save, return the id. Shared by both
+  paths (create passes MDP-derived values; backfill passes the existing tier's `tier_data`).
+- **New** `single_product_data( int $product_id, string $type, string $seat_type ): array`
+  — builds the one-entry `product_data` (`max_seats` per the §13.5 table). Used by both paths.
+- `create_tier()` / `build_tier_data()`: when `--create-products` is on, seed `product_data`
+  from `single_product_data()` instead of `[]`.
+- **New** `backfill_tier_product( int $post_id )` — for a `skip`/`update` row whose tier has
+  empty `product_data`: create/find the product, then `update_tier_data()` with the new
+  `product_data`; trash a freshly-created product on failure.
+- The plan builder: for `skip`/`update` rows, also detect "empty `product_data`" so the
+  `product` column can show `backfill "<name>"`; fold the backfill count into the confirm
+  prompt and final summary.
+- `print_results()` / the plan rows: add a `product` column for dry-run visibility.
+
+### 13.8 Decisions / open questions
+
+- **Backfill existing product-less tiers.** ✅ **Adopted** as `--backfill-products` (§13.2).
+  It is the sanctioned exception to the name-only update policy (§13.6) and the remediation
+  path for tiers synced empty before this feature — directly the failure surfaced in §13.10.
+  Kept as a *separate* opt-in flag (not folded into `--create-products`) so an operator can
+  remediate an existing site without also re-running a create pass.
+- **Configurable billing?** v1 hardcodes yearly / price `0` placeholders. `--product-price`
+  / `--product-period` could follow; not required for linkage.
+- **`per_range_of_seats`** gets a single qty-1 product like every other tier; multi-bucket
+  range refinement stays manual (§10).
+
+### 13.9 Usage
+
+```console
+# Create missing tiers AND a matching product for each (preview, then apply).
+wp wicket-mship tier sync --config-id=1704 --create-products --dry-run
+wp wicket-mship tier sync --config-id=1704 --create-products
+
+# Remediate an already-synced site: add products to existing product-less tiers only.
+wp wicket-mship tier sync --config-id=1704 --backfill-products --dry-run
+wp wicket-mship tier sync --config-id=1704 --backfill-products
+
+# Belt and braces: new tiers get products AND existing empty ones are backfilled.
+wp wicket-mship tier sync --config-id=1704 --create-products --backfill-products
+```
+
+Dry-run plan with the extra `product` column (both flags on):
+
+```console
+action   type          name              uuid                                   post_id  product
+create   individual    Student Member    3fd27d2f-e47d-4a1d-9839-31097f9d8c7d            create
+create   organization  Vet Clinic 6+     4caf0d73-48e6-47e2-86a0-b642ea975e1d            create
+skip     individual    Full Member       6edcfa3a-d859-4f41-a19d-9cfe77ea85ff   1679     backfill
+skip     individual    WooSimplePlan 1   22f3984d-c6be-482b-8397-08ad1fb754e0   1230     exists
+```
+
+- `create` — a new tier and its product would both be made.
+- `backfill` — an existing tier has empty `product_data`; a product would be made and linked.
+- `exists` — the existing tier already has products; left untouched.
+- `—` — no product action for this row (flag not set for this action, or `--type` filtered it).
+
+### 13.10 Interaction with the membership import ("create subscriptions for all records")
+
+This extension directly fixes a latent failure in the import path. When
+`wicket_mship_import_create_subscriptions` is enabled, every active imported membership calls
+`Import_Controller::createSubscriptionForRenewal()` (`includes/Import_Controller.php:129`,
+`:243`, `:308`), which does:
+
+```php
+$products   = $Membership_Tier->get_products_data();
+$product_id = !empty( $products[0]['variation_id'] ) ? $products[0]['variation_id'] : $products[0]['product_id'];
+$wc_product = wc_get_product( $product_id );   // false when product_data is empty
+$subscription->add_product( $wc_product );      // fatal on false (:338)
+```
+
+- **Product-less tier (today):** `$products[0]` is undefined → `$product_id` is `null` →
+  `wc_get_product( null )` returns `false` → `add_product( false )` **fatals** the record.
+- **After `--create-products` / `--backfill-products`:** `product_data[0]` resolves to a real
+  simple subscription product (`variation_id` is `0`, so it falls through to `product_id`),
+  `wc_get_product()` returns a valid product, and the import succeeds. Price `0` is correct —
+  the method creates no order and takes no payment.
+
+**Operator sequencing:** run the product-creating sync **before** the import. For a site whose
+tiers were already synced empty, `--backfill-products` is the remediation to run first.
