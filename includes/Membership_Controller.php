@@ -245,7 +245,9 @@ function get_item_data ( $other_data, $cart_item ) {
           }
           $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id );
           if( !empty( $membership_tier->tier_data )) {
-              if($membership_tier->tier_data['renewal_type'] != 'subscription') {
+              // Only override _requires_manual_renewal when the setting is enabled (default on).
+              // Disabled to prevent this from stomping auto-renew on WCS renewal orders.
+              if($membership_tier->tier_data['renewal_type'] != 'subscription' && $_ENV['WICKET_MSHIP_AUTORENEW_OVERRIDE']) {
                 $autorenew_user_meta = get_user_meta($order->get_user_id(), 'subscription_autopay_enabled', true);
                 if($autorenew_user_meta == 'yes') {
                   $subscription->update_meta_data('_requires_manual_renewal', 'false');
@@ -1378,6 +1380,35 @@ function get_item_data ( $other_data, $cart_item ) {
         if(empty($product_id)) {
           $product_id = $item->get_product_id();
         }
+
+        /**
+         * Diagnostic logging for the "renewal meta not stamped on the subscription item" issue.
+         * Ref: https://app.asana.com/1/1138832104141584/project/1216279585352300/task/1216187541614014
+         *
+         * We log only in this branch — where $item->get_product() returned an empty/false product object —
+         * because it is the suspected failure path. The object can fail to hydrate in a webhook/cron request
+         * context, on a cold object cache, or when a product-load filter returns null. When that happens,
+         * $product_id is set from get_variation_id() above. product_cat terms are stored on the PARENT product
+         * only, never on a variation, so has_term() on a variation id is always false, this item is skipped by
+         * the continue below, and _membership_post_id_renew is never written to the subscription item. Later
+         * renewal orders then have no membership link and create a duplicate record.
+         *
+         * Verification only (no behaviour change): captures whether the category check passes for the id we
+         * resolved, so we can confirm the cause on a real order before changing any logic.
+         *
+         * Possible fix (not applied here): resolve $product_id from $item->get_product_id() (the parent),
+         * which is persisted on the line item and survives a failed product-object load, so the category check
+         * runs against the parent as intended.
+         */
+        Utilities::wc_log_mship_error( ['renewal-meta-stamp diagnostic: product object failed to load', [
+          'subscription_id'            => is_object( $sub ) ? $sub->get_id() : ( $membership['membership_subscription_id'] ?? null ),
+          'order_id'                   => is_object( $sub ) ? $sub->get_parent_id() : ( $membership['membership_parent_order_id'] ?? null ),
+          'membership_subscription_id' => $membership['membership_subscription_id'] ?? null,
+          'item_id'                    => $item_id,
+          'product_id_checked'         => $product_id,
+          'membership_product_id'      => $membership['membership_product_id'] ?? null,
+          'passes_membership_category' => has_term( 'Membership', 'product_cat', $product_id ),
+        ]] );
       } else {
         $product_id = $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
         $variation_id = $product->get_id();

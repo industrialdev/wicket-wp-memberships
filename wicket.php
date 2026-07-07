@@ -110,8 +110,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
           if(isset($options['allow_local_imports'])) {
             if($options['allow_local_imports']) {
               $_ENV['ALLOW_LOCAL_IMPORTS']=true;
+              require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/memberships-sync.php' );
             }
-            //require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/memberships-sync.php' );
           }
           if(isset($options['wicket_memberships_debug_cart_ids'])) {
             if($options['wicket_memberships_debug_cart_ids']) {
@@ -156,6 +156,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_AUTORENEW_TOGGLE']=true;
             }
           }
+          // Default true: preserves pre-existing behaviour on installs that have never saved this setting.
+          $_ENV['WICKET_MSHIP_AUTORENEW_OVERRIDE'] = isset($options['wicket_mship_autorenew_override']) ? (bool)$options['wicket_mship_autorenew_override'] : true;
           if (isset($options['wicket_mship_mdp_timezone'])) {
             if ($options['wicket_mship_mdp_timezone']) {
               $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] = $options['wicket_mship_mdp_timezone'];
@@ -421,5 +423,11 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
 	} // end Class Wicket_Memberships.
 	new Wicket_Memberships();
+
+	// Register WP-CLI commands. Guarded so this never runs during a normal web request;
+	// the class autoloads via the composer PSR-4 map (Wicket_Memberships\ => includes/).
+	if ( defined( 'WP_CLI' ) && WP_CLI ) {
+		\WP_CLI::add_command( 'wicket-mship tier', \Wicket_Memberships\CLI\Tier_Sync_Command::class );
+	}
 }
 
