@@ -1,16 +1,16 @@
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
 import apiFetch from '@wordpress/api-fetch';
 import { addQueryArgs } from '@wordpress/url';
-import { DEFAULT_DATE_FORMAT, API_URL } from '../constants';
+import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_SETTINGS } from '../constants';
 import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../styled_elements';
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
 import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo, fetchMdpPersons } from '../services/api';
 import he from 'he';
-import moment from 'moment';
+import moment from 'moment-timezone';
 import CreateRenewalOrder from './create_renewal_order';
 
 export const EditWrap = styled.div`
@@ -89,6 +89,16 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' }
 	];
 
+	// Helper: Format date as Y-m-d with ISO 8601 tooltip (in MDP timezone)
+	const formatDateWithTooltip = (isoString) => {
+		if (!isoString) return '';
+		const mdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+		const m = moment.tz(isoString, mdpTimezone);
+		const dateDisplay = m.format('YYYY-MM-DD'); // Y-m-d format in MDP timezone
+		const isoFull = m.format(); // ISO 8601 with MDP timezone: 2025-12-31T00:00:00-05:00
+		return <span title={isoFull}>{dateDisplay}</span>;
+	};
+
   const [isLoading, setIsLoading] = useState(true);
 
   const [wpPagesOptions, setWpPagesOptions] = useState([]); // { id, name }
@@ -98,6 +108,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const [membershipOwnerOptions, setMembershipOwnerOptions] = useState([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
   const [manageStatusErrors, setManageStatusErrors] = useState([]);
+  const [statusChangeConfirmed, setStatusChangeConfirmed] = useState(false);
   const [manageStatusFormData, setManageStatusFormData] = useState({
     postId: null,
     currentStatus: '',
@@ -131,6 +142,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       newStatus: '',
       availableStatuses: []
     });
+    setStatusChangeConfirmed(false);
     getMembershipStatuses(membershipIndex);
     setIsManageStatusModalOpen(true);
   }
@@ -140,6 +152,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
    * Close the Manage Status Modal
    */
   const closeManageStatusModalOpen = () => {
+    setStatusChangeConfirmed(false);
     setIsManageStatusModalOpen(false);
   }
 
@@ -160,8 +173,16 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     return statuses;
   }
 
+  const statusRequiresConfirmation = (status) => {
+    return ['cancelled', 'expired'].includes(status);
+  };
+
   const handleManageStatusModalSubmit = (event) => {
     event.preventDefault();
+
+    if (statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed) {
+      return;
+    }
 
     updateMembershipStatus(manageStatusFormData.postId, manageStatusFormData.newStatus)
       .then((response) => {
@@ -173,8 +194,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             memberships.map((m) => {
               if (m.ID == manageStatusFormData.postId) {
                 m.data.membership_status = manageStatusFormData.newStatus;
-                m.data.membership_ends_at = moment(response.response.membership_ends_at).format('YYYY-MM-DD');
-                m.data.membership_expires_at = moment(response.response.membership_expires_at).format('YYYY-MM-DD');
+                m.data.membership_ends_at = moment.utc(response.response.membership_ends_at).endOf('day').toISOString();
+                m.data.membership_expires_at = moment.utc(response.response.membership_expires_at).endOf('day').toISOString();
                 m.updatedNow = true;
               }
               return m;
@@ -331,15 +352,26 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     const formData = new FormData(form);
     const data = {};
     const membershipId = form.dataset.membershipId;
-    console.log(form);
 
     if ( memberships.find((m) => m.ID == membershipId).updatingNow ) {
       return;
     }
 
+    // Get the membership object to access React state values
+    const membership = memberships.find((m) => m.ID == membershipId);
+
     for (let [key, value] of formData.entries()) {
       data[key] = value;
     }
+
+    // DateTime fields: use values from React state to preserve time and timezone
+    // Form fields only capture YMD, but React state has full ISO 8601 datetime with time and TZ
+    const dateTimeFields = ['membership_starts_at', 'membership_ends_at', 'membership_expires_at'];
+    dateTimeFields.forEach((field) => {
+      if (membership.data[field]) {
+        data[field] = membership.data[field];
+      }
+    });
 
     // remove empty values
     Object.keys(data).forEach((key) => {
@@ -357,6 +389,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
         return m;
       })
     );
+
+    console.log("Updating with");
+    console.log(data);
 
     updateMembership(membershipId, data)
       .then((response) => {
@@ -385,14 +420,42 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       });
   }
 
+  // Helper: Convert ISO string to MDP timezone date for date picker display
+  const getDatePickerValue = (isoString) => {
+    if (!isoString) return null;
+    const mdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+    const mdpMoment = moment.tz(isoString, mdpTimezone);
+    return new Date(mdpMoment.year(), mdpMoment.month(), mdpMoment.date());
+  };
+
+  // Helper: Convert a date picker Date to UTC ISO string in the MDP timezone.
+  // Start date stays at start-of-day; end/expiry dates are stored at end-of-day.
+  const convertDateForField = (dateValue, field) => {
+    if (!dateValue) return dateValue;
+    const mdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+    const mdpDate = moment.tz([dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()], mdpTimezone);
+    if (['membership_ends_at', 'membership_expires_at'].includes(field)) {
+      mdpDate.endOf('day');
+    } else {
+      mdpDate.startOf('day');
+    }
+    // Convert to UTC and return ISO string
+    return mdpDate.utc().toISOString();
+  };
+
   // on membership field change
   const handleMembershipFieldChange = (membershipId, field, value) => {
     console.log('handleMembershipFieldChange');
     console.log(membershipId, field, value);
+    
+    // DateTime fields: convert Date object to UTC ISO string (field-specific day boundary)
+    const dateTimeFields = ['membership_starts_at', 'membership_ends_at', 'membership_expires_at'];
+    const processedValue = dateTimeFields.includes(field) ? convertDateForField(value, field) : value;
+    
     setMemberships(
       memberships.map((m) => {
         if (m.ID == membershipId) {
-          m.data[field] = value;
+          m.data[field] = processedValue;
         }
         return m;
       })
@@ -483,18 +546,33 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 </Heading>
               </FlexBlock>
               <FlexItem>
-                <CustomDisabled
-                  isDisabled={memberInfo === null}
-                >
-                  <Button
-                    variant='secondary'
-                    href={memberInfo === null ? '' : memberInfo.mdp_link}
-                    target='_blank'
+                <Flex gap={3}>
+                  {memberType === 'individual' && (
+                    <CustomDisabled
+                      isDisabled={memberInfo === null || !memberInfo.switch_to_url}
+                    >
+                      <Button
+                        variant='secondary'
+                        href={memberInfo === null || !memberInfo.switch_to_url ? '' : memberInfo.switch_to_url.replaceAll("&amp;", "&")}
+                      >
+                        <Icon icon='update' />&nbsp;
+                        {__('Switch to', 'wicket-memberships')}
+                      </Button>
+                    </CustomDisabled>
+                  )}
+                  <CustomDisabled
+                    isDisabled={memberInfo === null}
                   >
-                    <Icon icon='external' />&nbsp;
-                    {__('View in MDP', 'wicket-memberships')}
-                  </Button>
-                </CustomDisabled>
+                    <Button
+                      variant='secondary'
+                      href={memberInfo === null ? '' : memberInfo.mdp_link}
+                      target='_blank'
+                    >
+                      <Icon icon='external' />&nbsp;
+                      {__('View in MDP', 'wicket-memberships')}
+                    </Button>
+                  </CustomDisabled>
+                </Flex>
               </FlexItem>
             </Flex>
             <RecordTopInfo>
@@ -551,16 +629,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                     {__('Membership Records', 'wicket-memberships')}
                   </Heading>
                 </FlexBlock>
-                <FlexItem>
-                  <CustomDisabled>
-                    <Button
-                      variant='secondary'
-                    >
-                      <Icon icon='plus' />&nbsp;
-                      {__('Add New Membership', 'wicket-memberships')}
-                    </Button>
-                  </CustomDisabled>
-                </FlexItem>
               </Flex>
               {/* Membership List */}
               <MembershipTable>
@@ -604,13 +672,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                             {membership.data.membership_status}
                           </td>
                           <td className="column-columnname">
-                            { moment(membership.data.membership_starts_at).format('YYYY-MM-DD') }
+                            { formatDateWithTooltip(membership.data.membership_starts_at) }
                           </td>
                           <td className="column-columnname">
-                            { moment(membership.data.membership_ends_at).format('YYYY-MM-DD') }
+                            { formatDateWithTooltip(membership.data.membership_ends_at) }
                           </td>
                           <td className="column-columnname">
-                            { moment(membership.data.membership_expires_at).format('YYYY-MM-DD') }
+                            { formatDateWithTooltip(membership.data.membership_expires_at) }
                           </td>
                           <td>
                             <Button
@@ -693,7 +761,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                     </a>
                                   </td>
                                   <td className="column-columnname">
-                                    { moment(membership.order.date_created).format('YYYY-MM-DD') }
+                                    { formatDateWithTooltip(membership.order.date_created) }
                                   </td>
                                   <td className="column-columnname">
                                     {membership.order.total}
@@ -793,9 +861,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         showMonthDropdown
                                         showYearDropdown
                                         dropdownMode="select"
-                                        selected={ membership.data.membership_starts_at }
+                                        selected={ getDatePickerValue(membership.data.membership_starts_at) }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_starts_at', moment(value).format('YYYY-MM-DD'));
+                                          handleMembershipFieldChange(membership.ID, 'membership_starts_at', value);
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>
@@ -812,9 +880,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         showMonthDropdown
                                         showYearDropdown
                                         dropdownMode="select"
-                                        selected={ membership.data.membership_ends_at }
+                                        selected={ getDatePickerValue(membership.data.membership_ends_at) }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_ends_at', moment(value).format('YYYY-MM-DD'));
+                                          handleMembershipFieldChange(membership.ID, 'membership_ends_at', value);
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>
@@ -831,9 +899,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                         showMonthDropdown
                                         showYearDropdown
                                         dropdownMode="select"
-                                        selected={ membership.data.membership_expires_at }
+                                        selected={ getDatePickerValue(membership.data.membership_expires_at) }
                                         onChange={(value) => {
-                                          handleMembershipFieldChange(membership.ID, 'membership_expires_at', moment(value).format('YYYY-MM-DD'));
+                                          handleMembershipFieldChange(membership.ID, 'membership_expires_at', value);
                                         }}
                                       />
                                     </ReactDatePickerStyledWrap>
@@ -963,14 +1031,26 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                       </div>
                                     </FlexBlock>
                                     <FlexBlock>
-                                      <LabelWpStyled style={{ height: '20px' }} >
-                                        {__('Membership Owner', 'wicket-memberships')}&nbsp;
-                                        <Tooltip
-                                          text="Represents the Customer responsible for managing and Renewing the Organization Membership."
-                                        >
-                                          <div><Icon icon='info' /></div>
-                                        </Tooltip>
-                                      </LabelWpStyled>
+                                      <Flex>
+                                        <LabelWpStyled style={{ height: '20px' }} >
+                                          {__('Membership Owner', 'wicket-memberships')}&nbsp;
+                                          <Tooltip
+                                            text="Represents the Customer responsible for managing and Renewing the Organization Membership."
+                                          >
+                                            <div><Icon icon='info' /></div>
+                                          </Tooltip>
+                                        </LabelWpStyled>
+                                        <FlexItem>
+                                          <Button
+                                            href={(membership.switch_to_url || '').replaceAll("&amp;", "&")}
+                                            variant='link'
+                                            style={{ textTransform: 'initial', marginLeft: '20px' }}
+                                          >
+                                            {__('Switch to', 'wicket-memberships')}
+                                          </Button>
+                                          &nbsp;<Icon icon='update' style={{ color: 'var(--wp-admin-theme-color)' }} />
+                                        </FlexItem>
+                                      </Flex>
                                       <AsyncSelectWpStyled
                                         id="membership_owner_id"
                                         classNamePrefix="select"
@@ -1095,6 +1175,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                       ...manageStatusFormData,
                       newStatus: value
                     });
+                    setStatusChangeConfirmed(false);
                   }}
                   options={
                     getMembershipStatusOptions()
@@ -1103,6 +1184,27 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 />
               </FlexBlock>
 						</MarginedFlex>
+
+						{statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed && (
+							<MarginedFlex direction='column' gap={3}>
+								<Notice isDismissible={false} status="warning">
+									{sprintf(
+										/* translators: %s: status name (cancelled or expired) */
+										__("Once a membership status is changed to '%s' it cannot be undone. Are you certain you would like to proceed?", 'wicket-memberships'),
+										manageStatusFormData.newStatus
+									)}
+								</Notice>
+								<FlexItem>
+									<Button
+										variant="secondary"
+										isDestructive
+										onClick={() => setStatusChangeConfirmed(true)}
+									>
+										{__('Confirm Action', 'wicket-memberships')}
+									</Button>
+								</FlexItem>
+							</MarginedFlex>
+						)}
 
 						<ActionRow>
 							<Flex
@@ -1117,7 +1219,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 									<Button
                     variant="primary"
                     type='submit'
-                    disabled={manageStatusFormData.newStatus === ''}
+                    disabled={manageStatusFormData.newStatus === '' || (statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed)}
                   >
 										{__('Update Status', 'wicket-memberships')}
 									</Button>

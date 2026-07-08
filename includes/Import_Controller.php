@@ -21,6 +21,13 @@ class Import_Controller {
   }
 
   public function create_individual_memberships( $record ) {
+          $options = get_option( 'wicket_membership_plugin_options' );
+          // "Every membership" option: create a subscription for all imported memberships.
+          $create_subscription_on_import = !empty( $options['wicket_mship_import_create_subscriptions'] ) ? true : false;
+          // "Tier subscription only" option: create a subscription only when the tier renews via subscription.
+          // Defaults to enabled (opt-out) when never saved, preserving the legacy subscription-tier import behaviour.
+          $create_subscription_tier_only = isset( $options['wicket_mship_import_create_subscriptions_tier_only'] ) ? !empty( $options['wicket_mship_import_create_subscriptions_tier_only'] ) : true;
+
           if(empty($record)) {
             return 'File line read error.';
           }
@@ -64,17 +71,22 @@ class Import_Controller {
           $membership_post_mapping['membership_tier_cat'] = $record['Membership_Tier_Category'];
           $membership_post_mapping['membership_tier_post_id'] = $membership_tier_post_id;
           
-          $membership_post_mapping['membership_starts_at'] = $record['Starts_At'];
-          $membership_post_mapping['membership_ends_at'] = $record['Ends_At'];
-          $membership_post_mapping['membership_expires_at'] = $record['Expires_At'];
-          if(empty( $membership_post_mapping['membership_expires_at'] )) {
-            $membership_post_mapping['membership_expires_at'] =
-                  (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " + {$membership_tier_array['grace_period_days']} days")), wp_timezone() ))->format("c");
-            $membership_post_mapping['membership_expires_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_expires_at']).':00Z';
+          // Localize timestamps to MDP timezone with appropriate start/end of day
+          $membership_post_mapping['membership_starts_at'] = Utilities::get_mdp_day_start( $record['Starts_At'] )->format('c');
+          $membership_post_mapping['membership_ends_at'] = Utilities::get_mdp_day_end( $record['Ends_At'] )->format('c');
+          
+          if( empty( $record['Expires_At'] ) ) {
+            // Calculate expires_at from ends_at + grace period, set to end of day
+            $expires_date = date('Y-m-d', strtotime( $record['Ends_At'] . " + {$membership_tier_array['grace_period_days']} days" ));
+            $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $expires_date )->format('c');
+          } else {
+            $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $record['Expires_At'] )->format('c');
           }
-          $membership_post_mapping['membership_early_renew_at'] = 
-                (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " - {$membership_tier_array['early_renew_days']} days")), wp_timezone() ))->format("c");
-          $membership_post_mapping['membership_early_renew_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_early_renew_at']).':00Z';
+          
+          // Calculate early_renew_at from ends_at - early renew days, set to start of day
+          $early_renew_date = date('Y-m-d', strtotime( $record['Ends_At'] . " - {$membership_tier_array['early_renew_days']} days" ));
+          $membership_post_mapping['membership_early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date )->format('c');
+          
           $membership_post_mapping['membership_seats'] = 1;
           $membership_post_mapping['membership_wicket_uuid'] = $record['Person_Membership_UUID'];
           $membership_post_mapping['membership_tier_uuid'] = $membership_tier_array['tier_uuid'];
@@ -89,6 +101,8 @@ class Import_Controller {
                                                             $membership_post_mapping['membership_starts_at'], 
                                                             $membership_post_mapping['membership_ends_at'], 
                                                             $membership_post_mapping['membership_expires_at'] );
+          $is_active_membership = $membership_post_mapping['membership_status'] == Wicket_Memberships::STATUS_ACTIVE ? true : false; 
+
           if( !empty($record['Previous_External_ID'])) {
             $delta = true;
             $membership_post_mapping['previous_membership_post_id'] = $record['Previous_External_ID'];
@@ -109,9 +123,10 @@ class Import_Controller {
             (new Membership_Controller)->scheduler_dates_for_expiry( $membership_post_mapping );
             $response .= ' Delta Membership ID#'.$membership_post_mapping['previous_membership_post_id'];
           } 
-          
+
           //if this is a subscription renewal tier import we need to create the placeholder subscription for reference when renewing
-          if( $membership_tier_array['renewal_type'] == 'subscription' ) {
+          // Three-state behaviour: "every membership" wins outright; otherwise "tier only" requires a subscription-renewal tier; both off creates nothing.
+          if( $is_active_membership && ($create_subscription_on_import || ( $create_subscription_tier_only && $membership_tier_array['renewal_type'] == 'subscription' ) )) {
             $subscription_id = $this->createSubscriptionForRenewal( $membership_post_mapping, $membership_id );
             $response .= ' Subscription created ID# '.$subscription_id;
           }
@@ -120,6 +135,13 @@ class Import_Controller {
         }
 
         public function create_organization_memberships( $record ) {
+          $options = get_option( 'wicket_membership_plugin_options' );
+          // "Every membership" option: create a subscription for all imported memberships.
+          $create_subscription_on_import = !empty( $options['wicket_mship_import_create_subscriptions'] ) ? true : false;
+          // "Tier subscription only" option: create a subscription only when the tier renews via subscription.
+          // Defaults to enabled (opt-out) when never saved, preserving the legacy subscription-tier import behaviour.
+          $create_subscription_tier_only = isset( $options['wicket_mship_import_create_subscriptions_tier_only'] ) ? !empty( $options['wicket_mship_import_create_subscriptions_tier_only'] ) : true;
+
           if(empty($record)) {
             return 'File line read error.';
           }
@@ -161,17 +183,22 @@ class Import_Controller {
           $membership_post_mapping['membership_tier_cat'] = $record['Membership_Tier_Category'];
           $membership_post_mapping['membership_tier_post_id'] = $membership_tier_post_id;
 
-          $membership_post_mapping['membership_starts_at'] = $record['Starts_At'];
-          $membership_post_mapping['membership_ends_at'] = $record['Ends_At'];
-          $membership_post_mapping['membership_expires_at'] = $record['Expires_At'];
-          if(empty( $membership_post_mapping['membership_expires_at'] )) {
-            $membership_post_mapping['membership_expires_at'] =
-                  (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " + {$membership_tier_array['grace_period_days']} days")), wp_timezone() ))->format("c");
-            $membership_post_mapping['membership_expires_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_expires_at']).':00Z';
+          // Localize timestamps to MDP timezone with appropriate start/end of day
+          $membership_post_mapping['membership_starts_at'] = Utilities::get_mdp_day_start( $record['Starts_At'] )->format('c');
+          $membership_post_mapping['membership_ends_at'] = Utilities::get_mdp_day_end( $record['Ends_At'] )->format('c');
+          
+          if( empty( $record['Expires_At'] ) ) {
+            // Calculate expires_at from ends_at + grace period, set to end of day
+            $expires_date = date('Y-m-d', strtotime( $record['Ends_At'] . " + {$membership_tier_array['grace_period_days']} days" ));
+            $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $expires_date )->format('c');
+          } else {
+            $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $record['Expires_At'] )->format('c');
           }
-          $membership_post_mapping['membership_early_renew_at'] = 
-                (new \DateTime( date('Y-m-d', strtotime($membership_post_mapping['membership_ends_at']. " - {$membership_tier_array['early_renew_days']} days")), wp_timezone() ))->format("c");
-          $membership_post_mapping['membership_early_renew_at'] = str_replace( "00:00:00-", "", $membership_post_mapping['membership_early_renew_at']).':00Z';
+          
+          // Calculate early_renew_at from ends_at - early renew days, set to start of day
+          $early_renew_date = date('Y-m-d', strtotime( $record['Ends_At'] . " - {$membership_tier_array['early_renew_days']} days" ));
+          $membership_post_mapping['membership_early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date )->format('c');
+          
           $membership_post_mapping['org_name'] = $record['Organization'];
           $membership_post_mapping['organization_uuid'] = $record['Organization_UUID'];
           $membership_post_mapping['membership_seats'] = $record['Max_assignments'];
@@ -188,6 +215,7 @@ class Import_Controller {
                                                             $membership_post_mapping['membership_starts_at'], 
                                                             $membership_post_mapping['membership_ends_at'], 
                                                             $membership_post_mapping['membership_expires_at'] );
+          $is_active_membership = $membership_post_mapping['membership_status'] == Wicket_Memberships::STATUS_ACTIVE ? true : false; 
 
           if( !empty($record['Previous_External_ID'])) {
             $delta = true;
@@ -211,7 +239,8 @@ class Import_Controller {
           } 
           
           //if this is a subscription renewal tier import we need to create the placeholder subscription for reference when renewing
-          if( $membership_tier_array['renewal_type'] == 'subscription' ) {
+          // Three-state behaviour: "every membership" wins outright; otherwise "tier only" requires a subscription-renewal tier; both off creates nothing.
+          if( $is_active_membership && ($create_subscription_on_import || ( $create_subscription_tier_only && $membership_tier_array['renewal_type'] == 'subscription' ) )) {
             $subscription_id = $this->createSubscriptionForRenewal( $membership_post_mapping, $membership_id );
             $response .= ' Subscription created ID# '.$subscription_id;
           }
@@ -277,8 +306,7 @@ class Import_Controller {
    * @return int
    */
   private function createSubscriptionForRenewal( $membership, $membership_id ) {
-    $Membership_Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
-    if( $Membership_Tier->is_renewal_subscription() ) {
+      $Membership_Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
       $Membership_Config = $Membership_Tier->get_config();
       $products = $Membership_Tier->get_products_data();
       $product_id = !empty( $products[0]['variation_id'] ) ? $products[0]['variation_id'] : $products[0]['product_id'];
@@ -321,12 +349,11 @@ class Import_Controller {
 
       $subscription_id = $subscription->get_id();
       ( new Utilities() )->wicket_assign_subscription_to_membership( $subscription_id, $membership_id  );
-      $subscription->add_order_note('This subscription was created on import. No order was created as no payment was received. Will be used for subsequent renewals.');
+      $subscription->add_order_note('This subscription was created on import. No order was created as no payment was received. It may be used for renewal depending upon the Tier renewal option.');
       return $subscription_id;
-    }
   }
 
-    public function local_membership_exists($wicket_uuid) {
+  public function local_membership_exists($wicket_uuid) {
     $args = [
       'post_type' => $this->membership_cpt_slug,
       'meta_query' => [

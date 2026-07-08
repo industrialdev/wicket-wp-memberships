@@ -24,6 +24,60 @@ class Membership_Post_Types {
     // Register the fields to the REST API and validate the data
     add_action('rest_api_init', [ $this, 'register_membership_config_cpt_fields' ]);
     add_action('rest_api_init', [ $this, 'register_membership_tier_cpt_fields' ]);
+
+    // Gate the membership CPT REST endpoints to authenticated administrators
+    add_filter('rest_pre_dispatch', [ $this, 'restrict_membership_rest_access' ], 10, 3);
+  }
+
+  /**
+   * Restrict the auto-generated wp/v2 REST endpoints for the membership post
+   * types to authenticated administrators.
+   *
+   * Covers the membership config and tier post types (both registered with
+   * 'show_in_rest' => true). Authentication may be via cookie + nonce or via an
+   * Application Password (header auth, no nonce required); access additionally
+   * requires the 'manage_options' capability.
+   *
+   * @param mixed            $result  Response to replace the requested version with, or null.
+   * @param \WP_REST_Server  $server  Server instance.
+   * @param \WP_REST_Request $request Request used to generate the response.
+   * @return mixed
+   */
+  public function restrict_membership_rest_access( $result, $server, $request ) {
+    // An earlier hook already produced a response/error; leave it untouched.
+    if ( ! empty( $result ) ) {
+      return $result;
+    }
+
+    $route = $request->get_route();
+    $protected_bases = array(
+      '/wp/v2/' . $this->membership_cpt_slug,
+      '/wp/v2/' . $this->membership_config_cpt_slug,
+      '/wp/v2/' . $this->membership_tier_cpt_slug,
+    );
+
+    $is_protected = false;
+    foreach ( $protected_bases as $base ) {
+      // Match the collection route exactly or any sub-route (e.g. /<base>/123).
+      if ( $route === $base || 0 === strpos( $route, $base . '/' ) ) {
+        $is_protected = true;
+        break;
+      }
+    }
+
+    if ( ! $is_protected ) {
+      return $result;
+    }
+
+    if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
+      return new WP_Error(
+        'rest_forbidden',
+        __( 'You must be an authenticated administrator to access this endpoint.', 'wicket-memberships' ),
+        array( 'status' => rest_authorization_required_code() )
+      );
+    }
+
+    return $result;
   }
 
   /**
@@ -303,10 +357,10 @@ class Membership_Post_Types {
                   }
 
                   $next_season_start = strtotime( $seasons[ $i + 1 ]['start_date'] );
-                  $next_correct_season_start = strtotime( $season['end_date'] . ' +1 day' );
+                  $season_end = strtotime( $season['end_date'] );
 
-                  if ( $next_season_start !== $next_correct_season_start ) {
-                    $errors->add( 'rest_invalid_param_calendar_dates', __( 'The season dates must be consecutive.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  if ( $next_season_start < $season_end || $next_season_start > $season_end + DAY_IN_SECONDS ) {
+                    $errors->add( 'rest_invalid_param_calendar_dates', __( 'The season dates must be within one day of each other.', 'wicket-memberships' ), array( 'status' => 400 ) );
                   }
                 }
 
@@ -426,7 +480,7 @@ class Membership_Post_Types {
               }
 
               // if approval required, then approval email recipient must not be empty and must be a valid email
-              if ( $value['approval_required'] === true ) {
+              if ( $value['approval_required'] === true || $value['renew_approval_required'] === true ) {
                 if ( empty( $value['approval_email_recipient'] ) ) {
                   $errors->add( 'rest_invalid_param_approval_email_recipient', __( 'The approval email recipient must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
                 }
@@ -621,6 +675,10 @@ class Membership_Post_Types {
             'approval_required' => array(
               'type'        => 'boolean',
               'description' => 'Approval Required',
+            ),
+            'renew_approval_required' => array(
+              'type'        => 'boolean',
+              'description' => 'Renew Approval Required',
             ),
             'approval_email_recipient' => array(
               'type'        => 'strong',

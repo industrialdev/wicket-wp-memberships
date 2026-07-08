@@ -3,7 +3,7 @@
         'name' => 'industrialdev/wicket-wp-memberships',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '1042ea951e0c2a9933366302e5d5f9a210ba54eb',
+        'reference' => '82dd3ed6cde573a3a12fc9e860be7f5a9183e3c4',
         'type' => 'wordpress-plugin',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'industrialdev/wicket-wp-memberships' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '1042ea951e0c2a9933366302e5d5f9a210ba54eb',
+            'reference' => '82dd3ed6cde573a3a12fc9e860be7f5a9183e3c4',
             'type' => 'wordpress-plugin',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

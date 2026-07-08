@@ -1,5 +1,13 @@
 .DS_Store
 /frontend/node_modules
 .phpunit.result.cache
-/vendor/*
-/.phpunit.cache
+*.bak
+
+# Yarn PnP and cache artifacts
+.pnp.cjs
+.pnp.loader.mjs
+.yarn/releases/
+.yarn/install-state.gz
+.yarn/unplugged/
+
+/docs/local

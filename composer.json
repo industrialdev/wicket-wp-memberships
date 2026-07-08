@@ -1,10 +1,8 @@
 {
   "name": "industrialdev/wicket-wp-memberships",
   "description": "Wicket Memberships",
-  "keywords": [
-    "wordpress",
-    "plugin"
-  ],
+  "version": "1.0.121",
+  "keywords": ["wordpress", "plugin"],
   "homepage": "https://github.com/industrialdev/wicket-wp-memberships",
   "authors": [
     {
@@ -20,37 +18,5 @@
   },
   "require": {
     "php": ">=8.0"
-  },
-  "require-dev": {
-    "brain/monkey": "^2",
-    "friendsofphp/php-cs-fixer": "^3",
-    "pestphp/pest": "^4",
-    "pestphp/pest-plugin-browser": "^4",
-    "phpunit/phpunit": "^12"
-  },
-  "autoload-dev": {
-    "psr-4": {
-      "Wicket_Memberships\\Tests\\": "tests/"
-    }
-  },
-  "scripts": {
-    "production": "rm -rf vendor && composer install --no-dev --optimize-autoloader",
-    "setup-hooks": "mkdir -p .git/hooks && cp .ci/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push && echo 'Git hooks installed to .git/hooks/pre-push'",
-    "test": "[ -x vendor/bin/pest ] || composer install && ./vendor/bin/pest",
-    "test:unit": "pest --testsuite unit",
-    "test:coverage": "pest --coverage-html coverage",
-    "test:browser": "WICKET_BROWSER_BASE_URL=https://localhost ./vendor/bin/pest tests/Browser",
-    "lint": "php-cs-fixer fix --dry-run --diff",
-    "format": "php-cs-fixer fix",
-    "check": [
-      "@lint",
-      "@test"
-    ],
-    "cs:fix": "php-cs-fixer fix"
-  },
-  "config": {
-    "allow-plugins": {
-      "pestphp/pest-plugin": true
-    }
   }
 }

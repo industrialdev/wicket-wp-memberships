@@ -271,6 +271,8 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
+
+  if( ! empty( $_ENV['ALLOW_LOCAL_IMPORTS'] )) {
     //DEBUG
     register_rest_route( $this->namespace, '/import/person_memberships', array(
       array(
@@ -291,7 +293,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
-
+  }
     //lookahead person name search
     register_rest_route( $this->namespace, '/mdp_person/search', array(
       array(
@@ -314,6 +316,70 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       ),
       //'schema' => array( $this, '' ),
     ) );    
+
+    /**
+     * Bulk Merge webhook consumer from MDP
+     */
+    register_rest_route( $this->namespace, '/membership/merge', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'memberships_merge_webhook_consumer'),
+        'permission_callback' => '__return_true',
+      ),
+      //'schema' => array( $this, '' ),
+    ) );
+  }
+
+  public function memberships_merge_webhook_consumer( \WP_REST_Request $request ) {
+    $header = 'X-WicketEvents-Signature';
+    $signature = $request->get_header( $header );
+    $response = new WP_REST_Response(['error' => 'Authentication error.'], 401);
+    if(!empty($signature)) { 
+      $mship_options = get_option( 'wicket_membership_plugin_options' );
+      $key = $mship_options['wicket_mship_membership_merge_key'];
+      $payload = file_get_contents('php://input');
+      $error = 'Authentication error: '.$signature;
+      if(wicket_get_option('wicket_admin_settings_environment') != 'prod') {
+        $debug = true;
+        $error .= ' | '. hash_hmac('sha256', $payload, $key).' | '.$payload;
+      }
+      $response = new WP_REST_Response( ['error' => $error], 401);
+      $test_request = json_decode($payload);
+      if(!empty($test_request->test)) {
+        $response = new WP_REST_Response(['success' => 'Caught a test request'], 200);
+      } else if( !empty($payload) && $signature == hash_hmac('sha256', $payload, $key) ) {
+        $merge_data = json_decode($payload, true);
+        $merge_data = $merge_data['events'][0];
+        $merge_from = $merge_data['relationships']['source_person']['data']['id'];
+        if(empty($merge_from)) {
+          $merge_from = $merge_data['relationships']['other_person']['data']['id'];
+        }
+        $merge_to = $merge_data['attributes']['uuid'];
+        $user = get_user_by('login', $merge_from);
+        if(empty($user)) {
+          $response = new WP_REST_Response(['error' => 'Merge from user not found with uuid'], 400);
+        } else {
+          $response = Admin_Controller::update_memberships_owner( $user->ID, $merge_to);
+        }  
+      }  
+    }
+    if(!empty($debug)) {
+      Utilities::wc_log_mship_error( ['Merge Webhook Run' => [
+        'signature' => $signature, 
+        'payload' => $payload, 
+        'merge_data' => $merge_data, 
+        'merge_from' => $merge_from,
+        'merge_to' => $merge_to,
+        'response' => $response->get_data()]
+      ] );
+    } else {
+      Utilities::wc_log_mship_error( ['Merge Webhook Run' => [
+        'merge_from' => $merge_from,
+        'merge_to' => $merge_to,
+        'response' => $response->get_data()]
+      ] );
+    }
+    return rest_ensure_response( $response );      
   }
 
   public function delete_all_person_memberships( \WP_REST_Request $request ) {
@@ -502,7 +568,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
       return true;
     }
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
-      return new \WP_REST_Response(array('error' => 'Authentication required.'), 401);
+      return new \WP_Error('Membership API read permission denied', 'You do not have permission to perform this action.', array( 'status' => $this->authorization_status_code() ) );
     }
     return true;
   }
@@ -515,7 +581,7 @@ public function get_membership_dates( \WP_REST_Request $request ) {
       return true;
     }
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
-      return new \WP_REST_Response(array('error' => 'Authentication required.'), 401);
+      return new \WP_Error('Membership API write permission denied', 'You do not have permission to perform this action.', array( 'status' => $this->authorization_status_code() ) );
     }
     return true;
   }

@@ -27,10 +27,28 @@ class Helper {
       } );
       add_action('save_post_wicket_mship_tier', [$this, 'add_slug_on_mship_tier_create'], 10, 3);
     }
-    add_action( 'woocommerce_subscription_renewal_payment_complete', [$this, 'adjust_next_payment_date_after_renewal'], 10, 2 );
+    //add_action( 'woocommerce_subscription_renewal_payment_complete', [$this, 'adjust_next_payment_date_after_renewal'], 10, 2 );
+    add_filter('wcs_calculate_next_payment_from_last_payment', [$this, 'preserve_billing_schedule_for_monthly'], 10, 2);
+    add_action('woocommerce_admin_order_data_after_order_details', [$this, 'display_membership_edit_link_on_order'], 20, 1);
   }
 
   /**
+   * Summary of preserve_billing_schedule_for_monthly
+   * We want to prevent next_payment drift for monthly subscriptions so that if a subscription is renewed early or late 
+   * the billing schedule is preserved and next_payment_time is always based on the original billing date and not the last 
+   * payment date which is woocommerce's default behavior
+   * @param mixed $use_last_payment
+   * @param mixed $subscription
+   */
+  function preserve_billing_schedule_for_monthly($use_last_payment, $subscription) {
+    if ($subscription->get_billing_period() === 'month' && $subscription->get_billing_interval() == 1) {
+        return false; // Use next_payment_time as from_timestamp (preserves billing schedule)
+    }
+    return $use_last_payment;
+  }
+
+  /**
+   * DEPRECATED - See preserve_billing_schedule_for_monthly
    * Subscription Next Payment Date Adjustment
    * When the subscription is renewed manually we want the next payment date change to follow the membership cycle
    * This overrides woocommerce default behavior to set the next payment date to the current date + 1 billing cycle
@@ -443,6 +461,94 @@ class Helper {
   }
 
   /**
+   * Summary of change_order_address_match_customer
+   * Used for merge membership / owner change flow
+   * @param mixed $order
+   * @return void
+   */
+  public static function change_order_address_match_customer($order) {
+    $user_id = $order->get_user_id();
+
+    if (!$user_id) {
+        return;
+    }
+
+    $customer = new \WC_Customer($user_id);
+
+    $order->set_billing_first_name($customer->get_billing_first_name());
+    $order->set_billing_last_name($customer->get_billing_last_name());
+    $order->set_billing_company($customer->get_billing_company());
+    $order->set_billing_address_1($customer->get_billing_address_1());
+    $order->set_billing_address_2($customer->get_billing_address_2());
+    $order->set_billing_city($customer->get_billing_city());
+    $order->set_billing_postcode($customer->get_billing_postcode());
+    $order->set_billing_country($customer->get_billing_country());
+    $order->set_billing_state($customer->get_billing_state());
+    $order->set_billing_phone($customer->get_billing_phone());
+    $order->set_billing_email($customer->get_billing_email());
+
+    $order->set_shipping_first_name($customer->get_shipping_first_name());
+    $order->set_shipping_last_name($customer->get_shipping_last_name());
+    $order->set_shipping_company($customer->get_shipping_company());
+    $order->set_shipping_address_1($customer->get_shipping_address_1());
+    $order->set_shipping_address_2($customer->get_shipping_address_2());
+    $order->set_shipping_city($customer->get_shipping_city());
+    $order->set_shipping_postcode($customer->get_shipping_postcode());
+    $order->set_shipping_country($customer->get_shipping_country());
+    $order->set_shipping_state($customer->get_shipping_state());
+
+    $order->save();
+  }
+
+  /**
+   * Summary of assign_preferred_payment_method_to_order
+   * Used for merge membership / owner change flow
+   * @param mixed $order
+   * @return void
+   */
+  public static function assign_preferred_payment_method_to_order($order) {
+    $order_id = $order->get_id();
+    $user_id = $order->get_user_id();
+
+    if (!$user_id || !$order_id) return;
+
+    $tokens = \WC_Payment_Tokens::get_customer_tokens($user_id);
+
+    if (!empty($tokens)) {
+        $token = array_values($tokens)[0];
+        $order->set_payment_method($token->get_gateway_id());
+        $order->set_payment_method_title('Stored Token Based Payment');
+        $order->set_payment_token($token->get_id());
+
+        $order->save();
+        return;
+    }
+
+    $customer_orders = wc_get_orders([
+        'customer_id' => $user_id,
+        'limit'       => 1,
+        'orderby'     => 'date',
+        'order'       => 'DESC',
+        'exclude'     => [$order_id],
+    ]);
+
+    if (!empty($customer_orders)) {
+        $last_order = $customer_orders[0];
+        $method_id = $last_order->get_payment_method();
+        $method_title = $last_order->get_payment_method_title();
+
+        $order->set_payment_method($method_id ?: 'cheque');
+        $order->set_payment_method_title($method_title ?: 'Manual Payment');
+        $order->save();
+        return;
+    }
+
+    $order->set_payment_method('cheque');
+    $order->set_payment_method_title('Manual Payment');
+    $order->save();
+  }
+
+  /**
    * Do we be updating next payment date on this membership
    * @param mixed $membership
    * @param bool $processing_renewal
@@ -508,5 +614,86 @@ class Helper {
            */
     }    
     return $has_next_payment_date;
+  }
+
+  /**
+   * Display a membership edit link in the WooCommerce admin order details panel.
+   *
+   * @param \WC_Order $order
+   * @return void
+   */
+  public function display_membership_edit_link_on_order( $order ) {
+    $membership_post_id = self::get_membership_post_id_by_order_id( $order->get_id() );
+    if ( ! $membership_post_id ) {
+      return;
+    }
+
+    // Now check if it's org or individual membership and get the generate correct edit page link.
+    $membership_type = get_post_meta( $membership_post_id, 'membership_type', true ); // 'individual' or 'organization'
+    $membership_wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
+
+    if ( $membership_type === 'organization' ) {
+      $org_uuid = get_post_meta( $membership_post_id, 'org_uuid', true );
+      $edit_url = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_ORG_MEMBER_PAGE_SLUG . '&id=' . $org_uuid . '&membership_uuid=' . $membership_wicket_uuid );
+    } else {
+      $user_uuid = get_post_meta( $membership_post_id, 'membership_user_uuid', true );
+      $edit_url = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG . '&id=' . $user_uuid . '&membership_uuid=' . $membership_wicket_uuid );
+    }
+
+    echo '<div class="order_data_column">
+      <h4>' . esc_html__( 'Wicket Membership', 'wicket-memberships' ) . '</h4>
+      <p><a style="white-space: nowrap;" href="' . esc_url( $edit_url ) . '">#' . esc_html( $membership_post_id ) . ' ' . esc_html__( 'View Membership', 'wicket-memberships' ) . '</a></p>
+    </div>';
+  }
+
+  /**
+   * Get membership post ID by order ID
+   *
+   * @param int $order_id WooCommerce order ID
+   * @return int|null Membership post ID, or null if not found
+   */
+  public static function get_membership_post_id_by_order_id( $order_id ) {
+    $posts = get_posts( [
+      'post_type'      => self::get_membership_cpt_slug(),
+      'post_status'    => 'any',
+      'posts_per_page' => 1,
+      'fields'         => 'ids',
+      'meta_query'     => [
+        [
+          'key'   => 'membership_parent_order_id',
+          'value' => $order_id,
+        ],
+      ],
+    ] );
+
+    return ! empty( $posts ) ? (int) $posts[0] : null;
+  }
+
+  public static function get_user_switch_to_url($user_id) {
+    if ( method_exists( 'user_switching', 'maybe_switch_url' ) ) {
+      $target_user = get_user_by( 'id', $user_id );
+
+      if ( ! $target_user ) {
+        return '';
+      }
+
+      $url = \user_switching::maybe_switch_url( $target_user );
+
+      $redirect_to_url = home_url();
+
+      if ( function_exists( 'WACC' ) ) {
+        $redirect_to_url = WACC()->get_account_page_url();
+      }
+
+      if ( $url ) {
+        return esc_url_raw( add_query_arg(
+              'redirect_to',
+              rawurlencode( $redirect_to_url ),
+              $url
+            ) );
+      }
+    }
+
+    return '';
   }
 }
