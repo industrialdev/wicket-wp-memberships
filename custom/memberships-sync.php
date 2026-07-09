@@ -64,7 +64,7 @@ function wicket_sync_subscriptions() {
   $page_number = isset($_REQUEST['page_number']) ? max(1, (int) $_REQUEST['page_number']) : 1;
   $page_length = isset($_REQUEST['page_length']) ? (int) $_REQUEST['page_length'] : 100;
   // Constrain page length to the values offered in the control bar to avoid runaway queries.
-  if (!in_array($page_length, [25, 50, 100, 200], true)) {
+  if (!in_array($page_length, [25, 50, 100, 200, 500, 1000], true)) {
     $page_length = 100;
   }
   // Accept a created-after floor only when it is a valid YYYY-MM-DD date; otherwise ignore it.
@@ -499,7 +499,7 @@ function wicket_sync_render_control_bar( array $state ) {
 
   // Page-length dropdown options, current value pre-selected.
   $len_options = '';
-  foreach ( [ 25, 50, 100, 200 ] as $opt ) {
+  foreach ( [ 25, 50, 100, 200, 500, 1000 ] as $opt ) {
     $len_options .= '<option value="' . $opt . '" ' . selected( $opt, $len, false ) . '>' . $opt . '</option>';
   }
 
