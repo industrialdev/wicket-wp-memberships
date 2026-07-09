@@ -60,6 +60,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	const [form, setForm] = useState({
 		grant_owner_assignment: false,
+		copy_active_assignments_on_renewal: true,
 		approval_required: false,
 		renew_approval_required: false,
 		approval_email_recipient: '',
@@ -342,6 +343,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 				setForm({
 					...post.tier_data,
+					copy_active_assignments_on_renewal: post.tier_data.copy_active_assignments_on_renewal ?? true,
 					product_data: productData,
 					renewal_type: initialRenewalType
 				});
@@ -674,6 +676,13 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
                             label={__('Automatically Grant Owner Seat', 'wicket-memberships')}
                             checked={form.grant_owner_assignment}
                             onChange={(value) => setForm({ ...form, grant_owner_assignment: value })}
+                            __nextHasNoMarginBottom={true}
+                          />
+                          <CheckboxControl
+                            label={__('Copy active assignments on renewal', 'wicket-memberships')}
+                            help={__('When off, renewing this tier will not copy people from the previous membership.', 'wicket-memberships')}
+                            checked={form.copy_active_assignments_on_renewal}
+                            onChange={(value) => setForm({ ...form, copy_active_assignments_on_renewal: value })}
                             __nextHasNoMarginBottom={true}
                           />
                         </FlexItem>

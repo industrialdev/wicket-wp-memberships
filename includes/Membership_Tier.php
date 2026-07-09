@@ -535,6 +535,20 @@ class Membership_Tier {
   }
 
   /**
+   * Whether active assignments are copied from the previous membership
+   * on renewal. Defaults to true when unset (preserves legacy behaviour
+   * for existing tiers, WWID-1906 AC4). NOTE: the default differs from
+   * is_grant_owner_assignment() intentionally.
+   */
+  public function copy_active_assignments_on_renewal() {
+    if ( isset( $this->tier_data['copy_active_assignments_on_renewal'] ) ) {
+      return (bool) $this->tier_data['copy_active_assignments_on_renewal'];
+    }
+
+    return true;
+  }
+
+  /**
    * Get the approval email
    *
    * @return string|bool String, false otherwise
