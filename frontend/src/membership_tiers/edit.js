@@ -684,13 +684,15 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
                             onChange={(value) => setForm({ ...form, grant_owner_assignment: value })}
                             __nextHasNoMarginBottom={true}
                           />
-                          <CheckboxControl
-                            label={__('Copy active assignments on renewal', 'wicket-memberships')}
-                            help={__('When off, renewing this tier will not copy people from the previous membership.', 'wicket-memberships')}
-                            checked={form.copy_active_assignments_on_renewal}
-                            onChange={(value) => setForm({ ...form, copy_active_assignments_on_renewal: value })}
-                            __nextHasNoMarginBottom={true}
-                          />
+                          <div style={{ marginTop: '8px' }}>
+                            <CheckboxControl
+                              label={__('Copy active assignments on renewal', 'wicket-memberships')}
+                              help={__('When off, renewing this tier will not copy people from the previous membership.', 'wicket-memberships')}
+                              checked={form.copy_active_assignments_on_renewal}
+                              onChange={(value) => setForm({ ...form, copy_active_assignments_on_renewal: value })}
+                              __nextHasNoMarginBottom={true}
+                            />
+                          </div>
                         </FlexItem>
                       </Flex>
 
