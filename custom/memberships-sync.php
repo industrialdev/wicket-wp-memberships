@@ -160,6 +160,11 @@ function wicket_sync_subscriptions() {
     $membership_subscriptions = [];
     foreach($subscription_ids as $sub_id) {
       $subscription = wcs_get_subscription($sub_id);
+      // Counting scans the entire active/on-hold set (page size does not apply here), so a stale ID
+      // must skip rather than fatal on get_items() against a non-object.
+      if(empty($subscription)) {
+        continue;
+      }
       $items = $subscription->get_items();
       foreach($items as $item) {
         $product_id = $item->get_variation_id();
@@ -171,6 +176,14 @@ function wicket_sync_subscriptions() {
           break; // Found a membership product, no need to check other items
         }
       }
+
+      // Free per-record memory: this branch hydrates every active/on-hold subscription, so without
+      // flushing the runtime object cache it grows unbounded and exhausts the limit on large sites.
+      // Runtime-only flush leaves any persistent backend (Redis/Memcached) intact.
+      unset($subscription, $items);
+      if(function_exists('wp_cache_flush_runtime')) {
+        wp_cache_flush_runtime();
+      }
     }
 
     echo "Total active/on-hold subscriptions: " . count($subscription_ids) . "\n";
@@ -179,18 +192,22 @@ function wicket_sync_subscriptions() {
     wicket_sync_page_footer();
   }
   if(!empty($subscription_to_update)) {
-    $subscription = wcs_get_subscription($subscription_to_update);
-    $subscriptions = [$subscription];
+    // Single-subscription mode: carry just the ID so the loop hydrates it exactly like batch mode.
+    $subscription_ids = [ (int) $subscription_to_update ];
   } else {
+    // Batch mode: request IDs only (not hydrated objects). A page of 500/1000 would otherwise load
+    // every subscription — plus its parent order and line items — into memory up front and exhaust
+    // the PHP memory limit. The loop below hydrates one subscription at a time and frees it after.
     $argv = [
       'status' => ['active', 'on-hold'],
       'subscriptions_per_page'  => $page_length,
       'offset' => ($page_number - 1) * $page_length,
+      'return' => 'ids',
     ];
     if(!empty($created_after)) {
       $argv['date_created'] = '>=' . $created_after;
     }
-    $subscriptions = wcs_get_subscriptions($argv);
+    $subscription_ids = wcs_get_subscriptions($argv);
   }
 
   if($debug) {
@@ -202,13 +219,24 @@ function wicket_sync_subscriptions() {
 
   $cnt = 0;
   // Total drives the "Record X of Y" header so the operator can gauge progress through the batch.
-  $total = count($subscriptions);
-  foreach ($subscriptions as $sub_post) {
-    $sub = wcs_get_subscription( $sub_post->ID );
+  $total = count($subscription_ids);
+  foreach ($subscription_ids as $sub_id) {
+    // Hydrate a single subscription just-in-time; batch mode only holds IDs to bound memory.
+    $sub = wcs_get_subscription( $sub_id );
     $cnt++;
 
     // Begin a visually distinct block for this subscription record.
     echo "\n" . str_repeat("-", 60) . "\n";
+
+    // A stale/removed ID (or a bad single-subscription entry) hydrates to false — report and skip
+    // rather than fataling on a method call against a non-object.
+    if ( ! $sub ) {
+      $log[] = 'Failed Sub ID:' . $sub_id . ' | Subscription not found';
+      echo "Record {$cnt} of {$total} — Subscription #{$sub_id}\n";
+      echo "  Skipped — subscription #{$sub_id} could not be loaded.\n";
+      continue;
+    }
+
     echo "Record {$cnt} of {$total} — Subscription #{$sub->ID}\n";
 
     //get user and email from subscription
@@ -346,6 +374,15 @@ function wicket_sync_subscriptions() {
             //wicket_wc_log_mship_sync( $log, $page_number . '-' . $page_length );
           #}
     } // end foreach item
+
+    // Release per-record memory. WP/WC pile every loaded post, order, and meta row into the
+    // in-memory object cache, which otherwise grows for the whole page and exhausts the memory
+    // limit at large page sizes. Flush only the runtime cache so a persistent backend
+    // (Redis/Memcached) is left intact; fall back to nothing on WP < 6.0.
+    unset( $sub, $subscription_items );
+    if ( function_exists( 'wp_cache_flush_runtime' ) ) {
+      wp_cache_flush_runtime();
+    }
   } //end foreach subscription
   echo "</pre>";
   wicket_sync_page_footer();
