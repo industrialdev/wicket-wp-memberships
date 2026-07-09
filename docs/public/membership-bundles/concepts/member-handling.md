@@ -63,6 +63,10 @@ When adding a new member, the seat's start date is derived from the bundle's cur
 
 Pass `start_date_override` to bypass this logic (used internally by the renewal batch processor).
 
+::: info Import path
+The bundle CSV import (see [Bundle Import](./bundle-import.md)) calls `Membership_Bundle::add_member()` directly with `skip_status_guard: true`, bypassing the `pending`/`active`/`delayed` bundle-status requirement described below. This lets historical members be attached to bundles imported as `expired`, `cancelled`, or `grace-period`. This bypass is reserved for the import path — `Membership_Bundle_Admin_Controller::add_member()` does not expose it.
+:::
+
 ### What gets created
 
 Adding a member creates:

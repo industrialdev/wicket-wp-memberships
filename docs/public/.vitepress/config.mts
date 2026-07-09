@@ -57,6 +57,7 @@ export default withMermaid(defineConfig({
               { text: 'Renewal Types', link: '/membership-bundles/concepts/renewal-types' },
               { text: 'Renewal Process', link: '/membership-bundles/concepts/renewal-process' },
               { text: 'Member Handling', link: '/membership-bundles/concepts/member-handling' },
+              { text: 'Bundle Import', link: '/membership-bundles/concepts/bundle-import' },
             ],
           },
           {

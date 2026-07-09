@@ -89,9 +89,9 @@ Loads the group by post ID. Sets `$post_id = 0` and `$meta_data = []` if the pos
 
 ## Static Methods
 
-### `create( string $name, int $membership_bundle_config_id, string $org_uuid, string $owner_uuid, string $start_date ): static|null`
+### `create( string $name, int $membership_bundle_config_id, string $org_uuid, string $owner_uuid, string $start_date, bool $sync_to_mdp = true ): static|null`
 
-Creates a new membership bundle post and populates all required meta in a single call. All parameters are required. Errors are logged via `Wicket()->log()`.
+Creates a new membership bundle post and populates all required meta in a single call. All parameters except `$sync_to_mdp` are required. Errors are logged via `Wicket()->log()`.
 
 **Error handling:** Validation failures (empty `$name`, invalid config post ID, invalid UUID for `$org_uuid` or `$owner_uuid`, empty `$start_date`) throw `\RuntimeException` before any database writes. Post-creation failures (failed meta writes, failed date writes) return `null` after rolling back the partially-created post via `wp_delete_post()`. Callers must catch `\RuntimeException` in addition to checking for a `null` return.
 
@@ -104,6 +104,7 @@ Creates a new membership bundle post and populates all required meta in a single
 | `$org_uuid` | `string` | MDP organisation UUID |
 | `$owner_uuid` | `string` | MDP person UUID of the bundle owner |
 | `$start_date` | `string` | ISO 8601 start date for the membership period (must be non-empty) |
+| `$sync_to_mdp` | `bool` | Default `true`. Set `false` when importing a bundle that already exists in MDP, to skip `sync_mdp_create()` and avoid creating a duplicate record there. The caller is then responsible for seeding `membership_bundle_mdp_uuid` directly. |
 
 Initial membership status: if `start_date` is in the future → `delayed`; otherwise → `pending`. Bundle memberships always start `pending` so an admin must explicitly activate them. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. A pending WooCommerce subscription is created and linked via `membership_subscription_id` post meta; if subscription creation fails the bundle is still returned (non-fatal, logged). A fresh `membership_bundle_group_uuid` is generated — use `renew_bundle()` instead when creating a renewal term that must share the same series UUID.
 
@@ -224,7 +225,7 @@ Fail states: `wcs_unavailable`, `invalid_user`, `order_create_failed`, `subscrip
 
 ## Instance Methods
 
-### `add_member( ?int $user_id, int $tier_post_id, ?int $product_id = null, ?int $variation_id = null, ?int $existing_membership_post_id = null, bool $is_renewal = false, ?string $start_date_override = null ): int|WP_Error`
+### `add_member( ?int $user_id, int $tier_post_id, ?int $product_id = null, ?int $variation_id = null, ?int $existing_membership_post_id = null, bool $is_renewal = false, ?string $start_date_override = null, bool $skip_status_guard = false ): int|WP_Error`
 
 Single entry point for adding an individual membership to a bundle. Covers two flows:
 
@@ -235,7 +236,7 @@ Both paths share start-date logic via `resolve_member_start_date()` unless `$sta
 
 The new membership inherits the bundle's current `membership_status` as its initial status. `create_local_membership_record()` may override this: if the tier requires approval the status becomes `pending`; if the start date is in the future the status becomes `delayed`. These overrides take precedence.
 
-Bundle must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_bundle_status')` otherwise.
+Bundle must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_bundle_status')` otherwise — unless `$skip_status_guard` is `true`, which skips this check entirely. This bypass exists **only** for the bundle import path, so historical members can attach to bundles imported as `expired`/`cancelled`/`grace-period`. Do not use it from any other caller — it defeats `assert_bundle_is_manageable()` intentionally.
 
 `product_id` is auto-resolved from the tier when omitted; fails with `WP_Error('ambiguous_product')` if the tier has more than one product. When `variation_id` is supplied, it is stored as `membership_product_id` instead of the parent `product_id` — matching the subscription-driven membership flow where variation ID takes precedence. Returns the new membership post ID on success.
 
@@ -342,7 +343,7 @@ Writes membership date meta. Accepts the same keys returned by `get_dates()`. Op
 ]
 ```
 
-Reloads `$this->meta_data` on success. Returns `true` on success, logs and returns `false` on failure.
+Reloads `$this->meta_data` on success. Returns `true` on success, logs and returns `false` on failure. A field whose new value is identical to the currently stored one is treated as a no-op success, not a failure — `update_post_meta()` returns `false` in that case even though nothing is wrong, so the current value is checked first.
 
 ### `get_parent_order_id(): int|false`
 
@@ -399,7 +400,7 @@ Full programmatic lifecycle guard used by `transition_to()`. Wider than `get_all
 
 ### `set_membership_status( string $status ): bool`
 
-Sets the `membership_status` meta value directly. This remains public as a low-level developer escape hatch, but normal lifecycle flows should use `transition_to()` so transition rules, dates, and side effects are applied consistently. The value must be one of the slugs returned by `Helper::get_all_status_names()`. Returns `true` on success. Logs an error and returns `false` if the status is not in the allowed list or if the meta update fails.
+Sets the `membership_status` meta value directly. This remains public as a low-level developer escape hatch, but normal lifecycle flows should use `transition_to()` so transition rules, dates, and side effects are applied consistently. The value must be one of the slugs returned by `Helper::get_all_status_names()`. Returns `true` on success. Logs an error and returns `false` if the status is not in the allowed list or if the meta update genuinely fails — setting a status identical to the currently stored one is treated as a no-op success (see the `set_dates()` note above for why).
 
 ### `transition_to( string $new_status ): array{success_message: string, bypassed: bool}|false`
 

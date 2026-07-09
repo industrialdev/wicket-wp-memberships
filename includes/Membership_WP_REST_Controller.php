@@ -305,6 +305,14 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
+    register_rest_route( $this->namespace, '/import/membership_bundle', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'import_membership_bundle' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+      ),
+    )
+    );
   }
     //lookahead person name search
     register_rest_route( $this->namespace, '/mdp_person/search', array(
@@ -490,6 +498,12 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
   public function import_person_memberships( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $response = (new Import_Controller() )->create_individual_memberships( $params );
+    return rest_ensure_response( $response );
+  }
+
+  public function import_membership_bundle( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = (new Bundle_Import_Controller() )->create_bundle( $params );
     return rest_ensure_response( $response );
   }
 

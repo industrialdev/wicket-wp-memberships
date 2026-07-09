@@ -85,11 +85,12 @@ public static function create(
     int    $membership_bundle_config_id,
     string $org_uuid,
     string $owner_uuid,
-    string $start_date
+    string $start_date,
+    bool   $sync_to_mdp = true
 ): static|null
 ```
 
-Creates a new bundle post, populates all required meta, creates a linked WooCommerce subscription, and schedules Action Scheduler date-trigger jobs. All five parameters are required.
+Creates a new bundle post, populates all required meta, creates a linked WooCommerce subscription, and schedules Action Scheduler date-trigger jobs. The first five parameters are required.
 
 **Parameters**
 
@@ -100,6 +101,7 @@ Creates a new bundle post, populates all required meta, creates a linked WooComm
 | `$org_uuid` | `string` | Yes | MDP organisation UUID to associate with this bundle. |
 | `$owner_uuid` | `string` | Yes | MDP person UUID of the bundle owner. The corresponding WP user is resolved or created. |
 | `$start_date` | `string` | Yes | ISO 8601 start date (e.g. `2025-01-01`). Dates are derived from the config anchored to this value. |
+| `$sync_to_mdp` | `bool` | No | Default `true`. Pass `false` when the bundle already exists in MDP (e.g. a launch-time import) to skip creating a duplicate record there. The caller must then seed `membership_bundle_mdp_uuid` itself. |
 
 **Returns:** `static` on success, `null` if a post-creation meta write fails (the partial post is rolled back). Throws `\RuntimeException` if parameter validation fails before any database writes.
 
@@ -161,7 +163,8 @@ public function add_member(
     ?int    $variation_id           = null,
     ?int    $existing_membership_post_id = null,
     bool    $is_renewal             = false,
-    ?string $start_date_override    = null
+    ?string $start_date_override    = null,
+    bool    $skip_status_guard      = false
 ): int|\WP_Error
 ```
 
@@ -181,6 +184,7 @@ Adds an individual membership seat to this bundle. The `$existing_membership_pos
 | `$existing_membership_post_id` | `int\|null` | No | Post ID of an existing `wicket_membership` to cancel and replace. |
 | `$is_renewal` | `bool` | No | Pass `true` when called by the renewal batch processor. Skips the subscription line item add. |
 | `$start_date_override` | `string\|null` | No | ISO 8601 date. Bypasses normal start-date resolution. |
+| `$skip_status_guard` | `bool` | No | Default `false`. Pass `true` to skip the `invalid_bundle_status` check, so a member can attach to a bundle that is not `pending`/`active`/`delayed`. Reserved for the bundle import path (attaching historical members to `expired`/`cancelled`/`grace-period` bundles) — do not use elsewhere. |
 
 **Returns:** new membership post ID on success, `\WP_Error` on failure.
 

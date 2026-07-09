@@ -21,6 +21,7 @@ audience: [implementer, support, developer, end-user]
 - [Admin_Controller](engineering/Class-Admin_Controller.md) — Admin menu pages, status transition validation, React app mounting
 - [Helper](engineering/Class-Helper.md) — Static utilities: CPT slugs, status names, allowed transitions, logging
 - [Import_Controller](engineering/Class-Import_Controller.md) — CSV import for individual and organization memberships
+- [Bundle_Import_Controller](engineering/Class-Bundle_Import_Controller.md) — CSV import for membership bundles (launch-time migration)
 - [Membership_Config](engineering/Class-Membership_Config.md) — Model for config posts: renewal windows, grace periods, cycle calculations
 - [Membership_Config_CPT_Hooks](engineering/Class-Membership_Config_CPT_Hooks.md) — Admin UI for configs: React edit page, trash protection
 - [Membership_Controller](engineering/Class-Membership_Controller.md) — Core business logic: creates memberships, manages lifecycle, syncs to MDP

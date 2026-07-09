@@ -51,6 +51,9 @@ class Membership_Bundle {
    * @param string $org_uuid                   MDP organisation UUID.
    * @param string $owner_uuid                 MDP person UUID of the bundle owner.
    * @param string $start_date                 ISO 8601 start date for the membership period.
+   * @param bool   $sync_to_mdp                Whether to create the bundle in MDP. Set false when
+   *                                           importing a bundle that already exists in MDP, to avoid
+   *                                           creating a duplicate record there.
    * @return static|null New Membership_Bundle instance on success, null on failure.
    */
   public static function create(
@@ -58,7 +61,8 @@ class Membership_Bundle {
     int $membership_bundle_config_id,
     string $org_uuid,
     string $owner_uuid,
-    string $start_date
+    string $start_date,
+    bool $sync_to_mdp = true
   ): ?static {
     // Validate all inputs before touching the database.
     if ( empty( $name ) ) {
@@ -205,7 +209,11 @@ class Membership_Bundle {
     // Schedule one-time AS jobs so AutomateWoo triggers fire at exact dates.
     $bundle->schedule_date_trigger_jobs();
 
-    $bundle->sync_mdp_create();
+    // Skip MDP creation when importing a bundle that already exists there — the caller
+    // is responsible for seeding membership_bundle_mdp_uuid separately in that case.
+    if ( $sync_to_mdp ) {
+      $bundle->sync_mdp_create();
+    }
 
     return $bundle;
   }
@@ -388,9 +396,13 @@ class Membership_Bundle {
     ?int $variation_id = null,
     ?int $existing_membership_post_id = null,
     bool $is_renewal = false,
-    ?string $start_date_override = null
+    ?string $start_date_override = null,
+    bool $skip_status_guard = false
   ): int|\WP_Error {
-    if ( $err = $this->assert_bundle_is_manageable() ) {
+    // $skip_status_guard is for the import path only: it lets historical members attach
+    // to bundles imported as expired/cancelled/grace-period. Do not expose this bypass
+    // to any other caller — it defeats assert_bundle_is_manageable() intentionally.
+    if ( ! $skip_status_guard && ( $err = $this->assert_bundle_is_manageable() ) ) {
       return $err;
     }
 
@@ -1694,6 +1706,13 @@ class Membership_Bundle {
         continue;
       }
 
+      // update_post_meta() returns false both on a genuine write failure and when the
+      // new value is identical to the current one (WP core no-ops the write either way).
+      // Only treat it as a failure when the value actually differs.
+      if ( get_post_meta( $this->post_id, $meta_key, true ) === $dates[ $date_key ] ) {
+        continue;
+      }
+
       if ( update_post_meta( $this->post_id, $meta_key, $dates[ $date_key ] ) === false ) {
         Wicket()->log()->error( 'Membership_Bundle: Failed to persist date field', [
           'source'   => 'wicket-memberships',
@@ -2106,6 +2125,12 @@ class Membership_Bundle {
     if ( ! in_array( $status, array_keys( Helper::get_all_status_names() ), true ) ) {
       Wicket()->log()->error( 'Membership_Bundle: Invalid membership status', ['source' => 'wicket-memberships', 'post_id' => $this->post_id, 'status' => $status] );
       return false;
+    }
+
+    // update_post_meta() returns false both on a genuine write failure and when the new
+    // value is identical to the current one. Only treat it as a failure when it differs.
+    if ( get_post_meta( $this->post_id, 'membership_status', true ) === $status ) {
+      return true;
     }
 
     $result = update_post_meta( $this->post_id, 'membership_status', $status );
