@@ -34,6 +34,36 @@ function wicket_action_woocommerce_loaded() {
 }
 
 /**
+ * Emits a single memory-usage diagnostic line into the streamed log.
+ *
+ * Purely observational: reports the current and peak PHP memory alongside the delta since the
+ * previous checkpoint so an operator can see whether memory sits high at baseline (site/plugin
+ * load) or climbs per record (the loop). Touches no plugin state and changes no control flow.
+ *
+ * @param  string  $label  Human-readable name of the checkpoint being reported.
+ *
+ * @return void  The diagnostic line is echoed directly into the open <pre> log.
+ */
+function wicket_sync_mem_probe( $label ) {
+  // Retain the previous checkpoint's usage across calls so each line can show the delta — the
+  // rate of growth is what localises the leak, more so than any single absolute figure.
+  static $last = 0;
+
+  $limit_raw = ini_get( 'memory_limit' );
+  $cur       = memory_get_usage( true );        // real allocated memory (includes emalloc blocks)
+  $peak      = memory_get_peak_usage( true );    // high-water mark for the whole request
+  $delta     = $cur - $last;
+  $last      = $cur;
+
+  // Format bytes to MB with a sign on the delta so growth (+) vs release (-) reads at a glance.
+  $mb        = function( $bytes ) { return number_format( $bytes / 1048576, 1 ) . 'MB'; };
+  $delta_str = ( $delta >= 0 ? '+' : '-' ) . $mb( abs( $delta ) );
+
+  echo "  <span style=\"color:#666\">[mem] {$label}: " . $mb( $cur ) . " used, " . $mb( $peak )
+     . " peak, {$delta_str} since last (limit {$limit_raw})</span>\n";
+}
+
+/**
  * Reconciles WooCommerce membership subscriptions with their plugin membership records.
  *
  * Triggered by the `?mship_subscription_sync=1` browser request. Walks active/on-hold
@@ -57,6 +87,11 @@ function wicket_sync_subscriptions() {
     wp_die( 'You do not have permission to access the membership subscription sync tool.' );
   }
 
+  // [mem-probe] Baseline at tool entry. Captured now (nothing is open to echo into yet) and
+  // reported below once the <pre> log exists. A high value here means WP + the site's other
+  // plugins already consumed most of the limit before this tool did any work of its own.
+  $mem_at_entry = memory_get_usage( true );
+
   // Sanitise the request parameters — they arrive raw from the URL/control bar.
   // A single subscription id is treated as an int; 0/invalid means "batch mode".
   $subscription_to_update = isset($_REQUEST['subscription_to_update']) ? (int) $_REQUEST['subscription_to_update'] : 0;
@@ -64,7 +99,7 @@ function wicket_sync_subscriptions() {
   $page_number = isset($_REQUEST['page_number']) ? max(1, (int) $_REQUEST['page_number']) : 1;
   $page_length = isset($_REQUEST['page_length']) ? (int) $_REQUEST['page_length'] : 100;
   // Constrain page length to the values offered in the control bar to avoid runaway queries.
-  if (!in_array($page_length, [25, 50, 100, 200], true)) {
+  if (!in_array($page_length, [25, 50, 100, 200, 500, 1000], true)) {
     $page_length = 100;
   }
   // Accept a created-after floor only when it is a valid YYYY-MM-DD date; otherwise ignore it.
@@ -84,6 +119,9 @@ function wicket_sync_subscriptions() {
   // Lightweight count so the control bar can show position within the total — but only once an
   // action has been requested (the bare landing must run nothing). Uses IDs only (no per-
   // subscription loading); the heavier membership-product breakdown stays behind "Count Only".
+  // [mem-probe] Bracket the unbounded full-set count query below; it runs regardless of page
+  // size and is a prime suspect for a large one-time spike, so capture before/after.
+  $mem_before_count = memory_get_usage( true );
   $pagination_total = 0;
   $total_pages = 1;
   if ($action_requested && $subscription_to_update === '' && !$count_only) {
@@ -102,6 +140,9 @@ function wicket_sync_subscriptions() {
       $page_number = $total_pages;
     }
   }
+  // [mem-probe] Memory after the full-set count; the delta from $mem_before_count is the cost of
+  // counting every active/on-hold subscription, reported in the header block below.
+  $mem_after_count = memory_get_usage( true );
 
   // Open the standalone admin-styled page (title + admin bar + WordPress admin colours).
   wicket_sync_page_header();
@@ -143,6 +184,16 @@ function wicket_sync_subscriptions() {
   }
   echo str_repeat("=", 60) . "\n";
 
+  // [mem-probe] Pre-loop memory picture. Baseline shows how much the rest of the site consumed
+  // before this tool ran; the count-query delta isolates the one-time cost of the full-set count.
+  $mem_fmt = function( $b ) { return number_format( $b / 1048576, 1 ) . 'MB'; };
+  echo "  <span style=\"color:#666\">[mem] entry baseline: " . $mem_fmt( $mem_at_entry )
+     . " already used by WP + plugins before this tool ran (limit " . ini_get( 'memory_limit' ) . ")</span>\n";
+  echo "  <span style=\"color:#666\">[mem] full-set count query: " . $mem_fmt( $mem_before_count )
+     . " → " . $mem_fmt( $mem_after_count ) . " (" . $mem_fmt( $mem_after_count - $mem_before_count )
+     . " to count every active/on-hold subscription)</span>\n";
+  echo str_repeat("=", 60) . "\n";
+
   //get all subscriptions for page_number by page_length
 
   if(!empty($count_only)) {
@@ -160,6 +211,11 @@ function wicket_sync_subscriptions() {
     $membership_subscriptions = [];
     foreach($subscription_ids as $sub_id) {
       $subscription = wcs_get_subscription($sub_id);
+      // Counting scans the entire active/on-hold set (page size does not apply here), so a stale ID
+      // must skip rather than fatal on get_items() against a non-object.
+      if(empty($subscription)) {
+        continue;
+      }
       $items = $subscription->get_items();
       foreach($items as $item) {
         $product_id = $item->get_variation_id();
@@ -171,6 +227,14 @@ function wicket_sync_subscriptions() {
           break; // Found a membership product, no need to check other items
         }
       }
+
+      // Free per-record memory: this branch hydrates every active/on-hold subscription, so without
+      // flushing the runtime object cache it grows unbounded and exhausts the limit on large sites.
+      // Runtime-only flush leaves any persistent backend (Redis/Memcached) intact.
+      unset($subscription, $items);
+      if(function_exists('wp_cache_flush_runtime')) {
+        wp_cache_flush_runtime();
+      }
     }
 
     echo "Total active/on-hold subscriptions: " . count($subscription_ids) . "\n";
@@ -179,18 +243,22 @@ function wicket_sync_subscriptions() {
     wicket_sync_page_footer();
   }
   if(!empty($subscription_to_update)) {
-    $subscription = wcs_get_subscription($subscription_to_update);
-    $subscriptions = [$subscription];
+    // Single-subscription mode: carry just the ID so the loop hydrates it exactly like batch mode.
+    $subscription_ids = [ (int) $subscription_to_update ];
   } else {
+    // Batch mode: request IDs only (not hydrated objects). A page of 500/1000 would otherwise load
+    // every subscription — plus its parent order and line items — into memory up front and exhaust
+    // the PHP memory limit. The loop below hydrates one subscription at a time and frees it after.
     $argv = [
       'status' => ['active', 'on-hold'],
       'subscriptions_per_page'  => $page_length,
       'offset' => ($page_number - 1) * $page_length,
+      'return' => 'ids',
     ];
     if(!empty($created_after)) {
       $argv['date_created'] = '>=' . $created_after;
     }
-    $subscriptions = wcs_get_subscriptions($argv);
+    $subscription_ids = wcs_get_subscriptions($argv);
   }
 
   if($debug) {
@@ -202,14 +270,31 @@ function wicket_sync_subscriptions() {
 
   $cnt = 0;
   // Total drives the "Record X of Y" header so the operator can gauge progress through the batch.
-  $total = count($subscriptions);
-  foreach ($subscriptions as $sub_post) {
-    $sub = wcs_get_subscription( $sub_post->ID );
+  $total = count($subscription_ids);
+  // [mem-probe] Prime the probe's delta baseline so each per-record line below reports growth
+  // relative to loop start rather than to zero.
+  wicket_sync_mem_probe( 'loop start (before record 1)' );
+  foreach ($subscription_ids as $sub_id) {
+    // Hydrate a single subscription just-in-time; batch mode only holds IDs to bound memory.
+    $sub = wcs_get_subscription( $sub_id );
     $cnt++;
 
     // Begin a visually distinct block for this subscription record.
     echo "\n" . str_repeat("-", 60) . "\n";
+
+    // A stale/removed ID (or a bad single-subscription entry) hydrates to false — report and skip
+    // rather than fataling on a method call against a non-object.
+    if ( ! $sub ) {
+      $log[] = 'Failed Sub ID:' . $sub_id . ' | Subscription not found';
+      echo "Record {$cnt} of {$total} — Subscription #{$sub_id}\n";
+      echo "  Skipped — subscription #{$sub_id} could not be loaded.\n";
+      continue;
+    }
+
     echo "Record {$cnt} of {$total} — Subscription #{$sub->ID}\n";
+    // [mem-probe] Per-record memory. A steady per-record delta points at the loop/hydration;
+    // a flat delta with a high baseline points at the rest of the site.
+    wicket_sync_mem_probe( "after hydrating sub #{$sub->ID}" );
 
     //get user and email from subscription
     $user_id = $sub->get_user_id();
@@ -346,7 +431,18 @@ function wicket_sync_subscriptions() {
             //wicket_wc_log_mship_sync( $log, $page_number . '-' . $page_length );
           #}
     } // end foreach item
+
+    // Release per-record memory. WP/WC pile every loaded post, order, and meta row into the
+    // in-memory object cache, which otherwise grows for the whole page and exhausts the memory
+    // limit at large page sizes. Flush only the runtime cache so a persistent backend
+    // (Redis/Memcached) is left intact; fall back to nothing on WP < 6.0.
+    unset( $sub, $subscription_items );
+    if ( function_exists( 'wp_cache_flush_runtime' ) ) {
+      wp_cache_flush_runtime();
+    }
   } //end foreach subscription
+  // [mem-probe] End-of-run total so the whole-batch growth is visible at a glance.
+  wicket_sync_mem_probe( 'end of run (after all records)' );
   echo "</pre>";
   wicket_sync_page_footer();
 }
@@ -499,7 +595,7 @@ function wicket_sync_render_control_bar( array $state ) {
 
   // Page-length dropdown options, current value pre-selected.
   $len_options = '';
-  foreach ( [ 25, 50, 100, 200 ] as $opt ) {
+  foreach ( [ 25, 50, 100, 200, 500, 1000 ] as $opt ) {
     $len_options .= '<option value="' . $opt . '" ' . selected( $opt, $len, false ) . '>' . $opt . '</option>';
   }
 

@@ -197,6 +197,28 @@ class Membership_Tier_CPT_Hooks {
       $asset_file['version'],
       true
     );
+
+    // Dev-only Tier Data column (WICKET_MEMBERSHIPS_DEBUG_MODE): copy-to-
+    // clipboard for the pretty-printed payload. View is handled natively by
+    // the <details> element, so JS only needs the copy action.
+    // Inlined to avoid adding a build entry for a debug-only control.
+    if ( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_MODE'] ) ) {
+      wp_add_inline_script(
+        WICKET_MEMBERSHIP_PLUGIN_SLUG . '_tier_cell_info',
+        "document.addEventListener('click', function(e){
+          var btn = e.target.closest('.wicket-copy-tier-data');
+          if(!btn) return;
+          var details = btn.closest('details');
+          var pre = details ? details.querySelector('.wicket-tier-data-json') : null;
+          if(!pre) return;
+          navigator.clipboard.writeText(pre.textContent || '').then(function(){
+            var label = btn.textContent; btn.textContent = 'Copied!';
+            setTimeout(function(){ btn.textContent = label; }, 1200);
+          });
+        });",
+        'after'
+      );
+    }
   }
 
   function enqueue_scripts() {
@@ -305,11 +327,25 @@ class Membership_Tier_CPT_Hooks {
     if ( $column_name === 'tier_data' ) {
       $tier_data = get_post_meta( $post_id, 'tier_data', true );
       $tier_slug = get_post_meta( $post_id, 'membership_tier_slug', true );
-      echo '<pre>';
-      print_r($tier_data);
-      echo "MDP Tier Slug:";
-      print_r($tier_slug);
-      echo '</pre>';
+      $json = wp_json_encode( [ 'tier_data' => $tier_data, 'mdp_tier_slug' => $tier_slug ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+      $summary = sprintf(
+        /* translators: 1: tier type, 2: seat type, 3: product count */
+        __( '%1$s · %2$s · %3$d product(s)', 'wicket-memberships' ),
+        $tier_data['type'] ?? 'unknown',
+        $tier_data['seat_type'] ?? '-',
+        is_countable( $tier_data['product_data'] ?? [] ) ? count( $tier_data['product_data'] ?? [] ) : 0
+      );
+      ?>
+      <details style="max-width:320px;">
+        <summary style="cursor:pointer;white-space:nowrap;">
+          <strong><?php echo esc_html( $summary ); ?></strong>
+        </summary>
+        <button type="button" class="button-link wicket-copy-tier-data" data-tier-id="<?php echo esc_attr( $post_id ); ?>" style="margin:4px 0;cursor:pointer;">
+          <?php esc_html_e( 'Copy JSON', 'wicket-memberships' ); ?>
+        </button>
+        <pre class="wicket-tier-data-json" style="max-height:360px;overflow:auto;font-size:11px;line-height:1.4;background:#f6f7f7;padding:8px;border:1px solid #dcdcde;border-radius:2px;"><?php echo esc_html( $json ); ?></pre>
+      </details>
+      <?php
     }
   }
   
