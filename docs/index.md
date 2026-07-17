@@ -31,6 +31,7 @@ audience: [implementer, support, developer, end-user]
 - [Membership_Tier_CPT_Hooks](engineering/Class-Membership_Tier_CPT_Hooks.md) — Admin UI for tiers: list columns, trash protection, React edit page
 - [Membership_WP_REST_Controller](engineering/Class-Membership_WP_REST_Controller.md) — REST API (wicket_member/v1): search, CRUD, status management, merge webhook
 - [Settings](engineering/Class-Settings.md) — Plugin options page: feature flags, debug toggles, scheduled action status
+- [Subscription_Manager](engineering/Class-Subscription_Manager.md) — Intended eventual home for all WC_Subscription-touching logic; currently holds end-date/next-payment collision guards
 - [Utilities](engineering/Class-Utilities.md) — WooCommerce integration hooks: cart/checkout modifications, product protection, timezone date helpers
 
 ## Guides (End Users)

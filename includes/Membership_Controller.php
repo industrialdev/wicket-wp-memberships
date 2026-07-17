@@ -553,6 +553,8 @@ function get_item_data ( $other_data, $cart_item ) {
     }
     $sub = \wcs_get_subscription( $sub_id );
     if(! empty($sub) && !empty($next_payment_date)) {
+      $forced_dates = Subscription_Manager::prepare_dates( ['next_payment' => $next_payment_date], $sub );
+      $next_payment_date = $forced_dates['next_payment'];
       $sub->update_dates(['next_payment' => $next_payment_date]);
       $sub->add_order_note( 'Wicket forced next payment date to: ' . $next_payment_date );
     }
@@ -915,6 +917,7 @@ function get_item_data ( $other_data, $cart_item ) {
           //we need to add the hook after the status update to ensure the dates are set correctly
           //when the subscription status is set to active after this code runs it changes subscription dates
           if(!empty($dates_to_update)) {
+            $dates_to_update = Subscription_Manager::prepare_dates( $dates_to_update, $sub );
             $sub->update_dates($dates_to_update);
             Utilities::wicket_logger( 'SUBSCRIPTION DATES BEING UPDATED MANUALLY: dates_to_update', $dates_to_update);
             add_action('woocommerce_subscription_status_updated', function( $subscription_id ) use ( $dates_to_update ) {
