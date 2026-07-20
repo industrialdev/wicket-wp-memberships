@@ -1052,7 +1052,11 @@ function get_item_data ( $other_data, $cart_item ) {
   public function create_mdp_record( $membership ) {
     $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
     $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
-    $base_version_supports_copy_active_assignments = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.4.10', '>' );
+    // Capability gate (not version-gated): the base plugin ships a registry
+    // helper when it supports the copy_previous_assignments param. See atlas
+    // ADR 0004 / conventions/capability-detection.md.
+    $base_version_supports_copy_active_assignments = function_exists( 'wicket_supports' )
+      && wicket_supports( 'base-plugin.organization_membership.copy_previous_assignments' );
 
     $previous_membership_wicket_uuid = '';
     if(!empty($membership['previous_membership_post_id'])) {
@@ -1094,6 +1098,7 @@ function get_item_data ( $other_data, $cart_item ) {
         }
         if( $base_version_supports_copy_active_assignments ) {
           $Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
+          $carry = $Tier->copy_active_assignments_on_renewal();
           $response = wicket_assign_organization_membership(
             $membership['person_uuid'],
             $membership['organization_uuid'],
@@ -1104,8 +1109,31 @@ function get_item_data ( $other_data, $cart_item ) {
             $membership['membership_grace_period_days'],
             $previous_membership_wicket_uuid,
             $Tier->is_grant_owner_assignment(),
-            $Tier->copy_active_assignments_on_renewal()
+            $carry
           );
+          // Seat-count overflow safety net (WWID-1908): if the MDP rejected the
+          // create because carrying assignments over would exceed the new tier's
+          // max_assignments and we tried to copy, retry once without copying. The
+          // overflow flag is set by the base plugin in error_data under the
+          // existing 'wicket_api_error' code; ?? false self-gates on older base.
+          // Idempotent: the failed first attempt creates nothing in the MDP
+          // (validation precedes save), and copy=false means no assignments to
+          // count, so the retry cannot loop on the same error.
+          if ( is_wp_error( $response ) && $carry && ( $response->get_error_data( 'wicket_api_error' )['overflow'] ?? false ) ) {
+            Utilities::wc_log_mship_error( [ 'carry-over overflow; retrying without copy', $previous_membership_wicket_uuid, 'seats' => $membership['membership_seats'] ] );
+            $response = wicket_assign_organization_membership(
+              $membership['person_uuid'],
+              $membership['organization_uuid'],
+              $membership['membership_tier_uuid'],
+              $membership['membership_starts_at'],
+              $membership['membership_ends_at'],
+              $membership['membership_seats'],
+              $membership['membership_grace_period_days'],
+              $previous_membership_wicket_uuid,
+              $Tier->is_grant_owner_assignment(),
+              false
+            );
+          }
         } elseif( $base_version_supports_grant_owner_assignment ) {
           $Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
           $response = wicket_assign_organization_membership(
