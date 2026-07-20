@@ -1133,6 +1133,20 @@ function get_item_data ( $other_data, $cart_item ) {
               $Tier->is_grant_owner_assignment(),
               false
             );
+            // Defensive: log the retry outcome so QA can see whether the
+            // copy=false retry recovered or also failed. A failed retry still
+            // surfaces to the shared error handler below; this log names it.
+            if ( is_wp_error( $response ) ) {
+              Utilities::wc_log_mship_error( [ 'carry-over overflow: copy=false retry ALSO failed', $previous_membership_wicket_uuid, 'error' => $response->get_error_message( 'wicket_api_error' ) ] );
+            } else {
+              Utilities::wc_log_mship_error( [ 'carry-over overflow: copy=false retry succeeded, assignments not carried', $previous_membership_wicket_uuid ] );
+            }
+          } elseif ( is_wp_error( $response ) && $carry ) {
+            // Defensive: first attempt failed while we intended to copy, but it
+            // was NOT the max_assignments overflow. Surfaces the actual error so
+            // QA can distinguish a detection miss (overflow we didn't flag) from
+            // a genuinely different failure (auth, unrelated validation, etc.).
+            Utilities::wc_log_mship_error( [ 'carry-over first attempt failed (non-overflow, no retry)', $previous_membership_wicket_uuid, 'carry' => $carry, 'error' => $response->get_error_message( 'wicket_api_error' ) ] );
           }
         } elseif( $base_version_supports_grant_owner_assignment ) {
           $Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
