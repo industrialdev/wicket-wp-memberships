@@ -24,20 +24,43 @@ const SwitchMembership = ({ membership }) => {
 
   const getAllWcProducts = async () => {
     setIsLoadingProducts(true);
-    const promises = WC_PRODUCT_TYPES.map((type) =>
-      fetchWcProducts({
-        status: 'publish',
-        per_page: 100,
-        type: type,
-      })
-    );
+    const membershipType = membership && membership.data && membership.data.membership_type;
     try {
-      const results = await Promise.all(promises);
-      const options = results.flat().map((product) => ({
-        label: `${product.name} | ID: ${product.id}`,
-        value: product.id,
-        type: product.type
-      }));
+      // Fetch candidate WC subscription products and all tiers in parallel.
+      const [productResults, tiers] = await Promise.all([
+        Promise.all(
+          WC_PRODUCT_TYPES.map((type) =>
+            fetchWcProducts({ status: 'publish', per_page: 100, type })
+          )
+        ),
+        fetchTiers({ per_page: 100 }),
+      ]);
+
+      // Build the set of product + variation ids referenced by INDIVIDUAL tiers only (§8.4.1/§9.6).
+      const allowedIds = new Set();
+      (Array.isArray(tiers) ? tiers : [])
+        .filter((tier) => {
+          const tierType = tier.tier_data && tier.tier_data.type;
+          // Restrict to the edited membership's type; it is individual here.
+          return membershipType ? tierType === membershipType : tierType === 'individual';
+        })
+        .forEach((tier) => {
+          const productData = (tier.tier_data && tier.tier_data.product_data) || [];
+          productData.forEach((pd) => {
+            if (pd.product_id) { allowedIds.add(pd.product_id); }
+            if (pd.variation_id) { allowedIds.add(pd.variation_id); }
+          });
+        });
+
+      // Keep only products whose id (or a variation id, matched later) is tier-linked.
+      const options = productResults
+        .flat()
+        .filter((product) => allowedIds.has(product.id))
+        .map((product) => ({
+          label: `${product.name} | ID: ${product.id}`,
+          value: product.id,
+          type: product.type,
+        }));
       setWcProductOptions(options);
     } catch (error) {
       setWcProductOptions([]);
@@ -79,7 +102,7 @@ const SwitchMembership = ({ membership }) => {
     // Only show tiers that match the current membership's type so an individual
     // membership cannot be switched to an organization tier (and vice versa).
     const membershipType = membership && membership.data && membership.data.membership_type;
-    fetchTiers({ search: inputValue, per_page: -1 })
+    fetchTiers({ search: inputValue, per_page: 100 })
       .then((response) => {
         const options = (Array.isArray(response) ? response : [])
           .filter((tier) => {
@@ -125,8 +148,7 @@ const SwitchMembership = ({ membership }) => {
         <SelectWpStyled
           options={[
             { label: __('Create Membership', 'wicket-memberships'), value: 'create_membership' },
-            /* Create Order intentionally hidden — tier-only switch. Do not remove; see SWITCH_INTEGRATION_MIGRATE_IMPLEMENTATION.md */
-            /* { label: __('Create Order', 'wicket-memberships'), value: 'create_order' } */
+            { label: __('Create Order', 'wicket-memberships'), value: 'create_order' },
           ]}
           value={switchOption}
           onChange={selected => {

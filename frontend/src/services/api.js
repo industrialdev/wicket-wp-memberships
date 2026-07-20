@@ -8,13 +8,15 @@ import {
 } from "../constants";
 
 /**
- * Fetch Local Membership Tiers Posts
+ * Fetch Local Membership Tiers Posts.
+ * Accepts optional query params (merged over defaults) so callers can widen per_page or search.
  */
-export const fetchTiers = () => {
+export const fetchTiers = (queryParams = {}) => {
   return apiFetch({
     path: addQueryArgs(`${API_URL}/${TIER_CPT_SLUG}`, {
       status: "publish",
       per_page: 99,
+      ...queryParams,
     }),
   });
 };
