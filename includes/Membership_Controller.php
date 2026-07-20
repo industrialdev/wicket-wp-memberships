@@ -92,6 +92,37 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
+   * Decide whether an order line item should fire the order-based tier switch.
+   *
+   * Pure guard combining the §4/§9 conditions so the decision is unit-testable in isolation from the
+   * WooCommerce processing loop:
+   *  - the switch marker is present (this is a switch line, not a renewal/new purchase),
+   *  - the target tier is individual (organization switching is out of scope — §9.6),
+   *  - the membership being switched is still switchable (§9.8 status backstop; the primary re-entry
+   *    guard is the §9.9 meta hand-off performed inside the switch method).
+   *
+   * @param  mixed  $switch_meta        Value of _membership_post_id_switch on the line item.
+   * @param  string $target_tier_type   Resolved tier type ('individual' | 'organization').
+   * @param  string $membership_status  Current membership_status of the membership identified by $switch_meta.
+   * @return bool   True when the switch trigger should run for this line item.
+   */
+  public function should_trigger_order_switch( $switch_meta, $target_tier_type, $membership_status ) {
+    if ( empty( $switch_meta ) ) {
+      return false;
+    }
+    // Individual only — never switch organization memberships via this path (§9.6).
+    if ( 'individual' !== $target_tier_type ) {
+      return false;
+    }
+    // Backstop: a membership already switched is cancelled, so a re-cycle would fail this check.
+    return in_array(
+      $membership_status,
+      [ Wicket_Memberships::STATUS_ACTIVE, Wicket_Memberships::STATUS_GRACE, Wicket_Memberships::STATUS_DELAYED ],
+      true
+    );
+  }
+
+  /**
    * Resolve subscriptions for an order, with a direct child-post fallback for
    * disposable test environments where parent-order lookup can miss them.
    *
@@ -245,6 +276,38 @@ function get_item_data ( $other_data, $cart_item ) {
           }
           $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id );
           if( !empty( $membership_tier->tier_data )) {
+              // --- Order-based tier switch trigger (ORDER_BASED_SWITCH_DESIGN.md §5) ---
+              // A switch line carries _membership_post_id_switch = the membership to replace. The
+              // purchased product on this same line already resolved to $membership_tier (:246), so
+              // the target tier is in hand. A switch is NOT a renewal: fire the existing admin switch
+              // and skip the normal creation pipeline for this line (§9.7).
+              $membership_post_id_switch = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_switch', true );
+              if ( ! empty( $membership_post_id_switch ) ) {
+                $switch_membership_status = get_post_meta( $membership_post_id_switch, 'membership_status', true );
+                if ( $this->should_trigger_order_switch( $membership_post_id_switch, $membership_tier->get_tier_type(), $switch_membership_status ) ) {
+                  // Same method the admin REST switch calls; pass the paying order id for §9.5 linkage
+                  // + §9.9 meta hand-off. Instance call — the method is non-static (design delta D1).
+                  ( new Admin_Controller() )->create_switch_membership(
+                    $membership_post_id_switch,
+                    $membership_tier->get_membership_tier_post_id(),
+                    null,
+                    $order_id
+                  );
+                } else {
+                  // Guard failed (org target, non-switchable status, or already switched): log and skip,
+                  // never fall through to build a normal/renewal membership for a switch line.
+                  Utilities::wc_log_mship_error( [ 'Order-based switch skipped', [
+                    'order_id'       => $order_id,
+                    'switch_post_id' => $membership_post_id_switch,
+                    'tier_type'      => $membership_tier->get_tier_type(),
+                    'status'         => $switch_membership_status,
+                  ] ] );
+                }
+                // Whether fired or skipped, a switch line never enters the creation pipeline (§9.7).
+                continue;
+              }
+              // --- end switch trigger ---
+
               // Only override _requires_manual_renewal when the setting is enabled (default on).
               // Disabled to prevent this from stomping auto-renew on WCS renewal orders.
               if($membership_tier->tier_data['renewal_type'] != 'subscription' && $_ENV['WICKET_MSHIP_AUTORENEW_OVERRIDE']) {
