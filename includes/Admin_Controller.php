@@ -1158,16 +1158,24 @@ class Admin_Controller {
   }
 
   /**
-   * Admin membership edit page switch membership
-   * https://app.asana.com/1/1138832104141584/project/1209996062337717/task/1210003466118773
-   * 
-   * @param int $membership_post_id
-   * @param int $new_tier_post_id
-   * @param string $switch_date
+   * Admin membership edit page switch membership.
+   *
+   * Creates a new membership on the target tier, preserves the remaining term of the original
+   * membership, cancels the original (ends/expires now, grace 0) and patches its MDP record.
+   *
+   * @see    https://app.asana.com/1/1138832104141584/project/1209996062337717/task/1210003466118773
+   *
+   * @param  int         $membership_post_id  Post ID of the membership being switched (the one replaced).
+   * @param  int         $new_tier_post_id    Post ID of the tier to switch to.
+   * @param  string|null $switch_date         Optional future switch date; null = immediate.
+   * @param  int|null    $order_id            Optional paying order ID. When set (order-based trigger),
+   *                                          re-points the new membership's billing linkage at this
+   *                                          order (§9.5) and hands the switch subscription's line-item
+   *                                          meta off from switch to renewal (§9.9). Null (admin
+   *                                          immediate switch) leaves both behaviours off — unchanged.
    * @return \WP_REST_Response
    */
-
-  public function create_switch_membership( $membership_post_id, $new_tier_post_id, $switch_date = null ) {
+  public function create_switch_membership( $membership_post_id, $new_tier_post_id, $switch_date = null, $order_id = null ) {
     // Get the original membership post
     if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
       $response_array['error'] = 'Error: Membership not found. Request did not succeed.';
@@ -1316,6 +1324,30 @@ class Admin_Controller {
     update_post_meta( $new_post_id, 'membership_starts_at', $switch_iso_date );
     update_post_meta( $new_post_id, 'membership_grace_period_days', $membership_grace_period_days );
 
+    // Order-driven switch only: re-point billing linkage at the paying order and hand the
+    // subscription's meta off from switch to renewal. Null $order_id = admin immediate switch,
+    // which must stay unchanged (one switch definition, two triggers).
+    if ( ! empty( $order_id ) ) {
+      // §9.5 — overwrite the three linkage keys the meta copy (:1300-1305) inherited from the OLD
+      // membership so the new membership points at the order the customer actually paid.
+      $order_linkage = $this->get_order_switch_linkage( $order_id );
+      if ( ! empty( $order_linkage ) ) {
+        update_post_meta( $new_post_id, 'membership_parent_order_id', $order_linkage['membership_parent_order_id'] );
+        update_post_meta( $new_post_id, 'membership_subscription_id', $order_linkage['membership_subscription_id'] );
+        update_post_meta( $new_post_id, 'membership_product_id', $order_linkage['membership_product_id'] );
+      }
+
+      // §9.9 — after the switch, the subscription must renew the NEW membership, never re-switch.
+      // Rewriting subscription line-item meta closes both re-entry paths (status re-cycle + WCS
+      // renewal inheritance) because the processing loop reads SUBSCRIPTION item meta.
+      if ( ! empty( $order_linkage['membership_subscription_id'] ) && function_exists( 'wcs_get_subscription' ) ) {
+        $switch_subscription = \wcs_get_subscription( $order_linkage['membership_subscription_id'] );
+        if ( $switch_subscription ) {
+          $this->handoff_switch_meta_to_renewal( $switch_subscription, $new_post_id );
+        }
+      }
+    }
+
     // ($old_membership_wicket_uuid / $old_membership_starts_at were captured before the new
     //  membership was assigned, so they reflect the pre-switch MDP identity.)
 
@@ -1368,6 +1400,70 @@ class Admin_Controller {
       'membership_wicket_uuid' => $membership_wicket_uuid,
       'redirect_url' => $redirect_url
     ], 200);
+  }
+
+  /**
+   * Resolve the billing linkage a switched membership should adopt from its paying order.
+   *
+   * Order-driven switch only. The producer (create_switch_order) creates exactly one child
+   * subscription and one membership product line per switch order, so we take the first of each.
+   * Uses wcs_get_subscriptions_for_order() directly — Membership_Controller::get_order_subscriptions()
+   * is private to that class and unreachable here (see design delta D4).
+   *
+   * @param  int $order_id  The paying switch order's WC order ID.
+   * @return array{membership_parent_order_id:int,membership_subscription_id:int|string,membership_product_id:int}
+   *               Empty array when the order or its subscription cannot be resolved.
+   */
+  protected function get_order_switch_linkage( $order_id ) {
+    if ( empty( $order_id ) || ! function_exists( 'wcs_get_subscriptions_for_order' ) ) {
+      return [];
+    }
+    $order = wc_get_order( $order_id );
+    if ( ! $order ) {
+      return [];
+    }
+
+    // Single child subscription per switch order; may be absent in edge cases.
+    $subscriptions = \wcs_get_subscriptions_for_order( $order_id, [ 'order_type' => 'any' ] );
+    $subscription  = ! empty( $subscriptions ) ? reset( $subscriptions ) : null;
+
+    // Target product = the purchased membership line (new tier's product/variation). Prefer the
+    // variation id so variable subscriptions resolve to the correct tier (design delta D7/§8.4.4).
+    $product_id = 0;
+    foreach ( $order->get_items() as $item ) {
+      $product_id = $item->get_variation_id() ?: $item->get_product_id();
+      break;
+    }
+
+    return [
+      'membership_parent_order_id' => $order_id,
+      'membership_subscription_id' => $subscription ? $subscription->get_id() : '',
+      'membership_product_id'      => $product_id,
+    ];
+  }
+
+  /**
+   * Hand a switch subscription's line-item meta off from switch to renewal after a switch completes.
+   *
+   * Removes _membership_post_id_switch and writes _membership_post_id_renew = the new membership post
+   * ID on every subscription line item carrying the switch meta. WCS copies subscription line-item
+   * meta onto generated renewal orders, so this routes all future orders down the ordinary renewal
+   * path and neutralises both re-entry paths in §9.8. Order line-item meta is deliberately left
+   * intact as a permanent historical record — the processing loop reads subscription items, not order
+   * items, so the retained order meta never re-triggers a switch.
+   *
+   * @param  \WC_Subscription $subscription            The switch order's child subscription.
+   * @param  int              $new_membership_post_id  The membership post created by the switch.
+   * @return void
+   */
+  protected function handoff_switch_meta_to_renewal( $subscription, $new_membership_post_id ) {
+    foreach ( $subscription->get_items() as $item ) {
+      // Only rewrite lines that actually carry the switch marker.
+      if ( wc_get_order_item_meta( $item->get_id(), '_membership_post_id_switch', true ) ) {
+        wc_delete_order_item_meta( $item->get_id(), '_membership_post_id_switch' );
+        wc_update_order_item_meta( $item->get_id(), '_membership_post_id_renew', $new_membership_post_id );
+      }
+    }
   }
 
   /**
