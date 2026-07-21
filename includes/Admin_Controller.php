@@ -1193,10 +1193,13 @@ class Admin_Controller {
    *
    * Creates a new membership on the target tier, preserves the remaining term of the original
    * membership (the END date never changes), cancels the original (ends/expires now, grace 0) and
-   * patches its MDP record. The target tier may define a different grace period, so on the admin
-   * immediate switch the new membership's expiry is recomputed as end_date + new-tier grace; when that
-   * changes the expiry, the scheduled `add_membership_expires_at` Action Scheduler event is re-pointed
-   * to the new date. The end date and start/early-renew events are unchanged and left as-is.
+   * patches its MDP record. The target tier may define a different grace period, so on BOTH triggers
+   * the new membership's expiry is recomputed as end_date + new-tier grace; when that changes the
+   * expiry, the scheduled `add_membership_expires_at` Action Scheduler event is re-pointed to the new
+   * date. Only the expiry event is ever touched — the end date is preserved and early-renew is left
+   * inherited, so `add_membership_ends_at` / `add_membership_early_renew_at` are never rescheduled. The
+   * paths differ only in the event key: the admin switch re-points the single event on the inherited
+   * order+product key; the order-based switch retargets it from the old key to the paying-order key.
    *
    * @see    https://app.asana.com/1/1138832104141584/project/1209996062337717/task/1210003466118773
    * @see    \Wicket_Memberships\Membership_Controller::scheduler_dates_for_expiry() for how the event is keyed.
@@ -1372,9 +1375,18 @@ class Admin_Controller {
     update_post_meta( $new_post_id, 'membership_starts_at', $switch_iso_date );
     update_post_meta( $new_post_id, 'membership_grace_period_days', $membership_grace_period_days );
 
+    // The switched membership keeps the inherited END date, but the target tier can carry a different
+    // grace period, so recompute the expiry as end_date + new-tier grace on BOTH triggers. Only the
+    // expiry can move (the end date is preserved and early-renew is left inherited), which is what
+    // drives the single scheduled-event re-point below.
+    $new_membership_ends_at    = get_post_meta( $new_post_id, 'membership_ends_at', true );
+    $new_membership_expires_at = $this->derive_switch_expiry( $new_membership_ends_at, $membership_grace_period_days );
+    update_post_meta( $new_post_id, 'membership_expires_at', $new_membership_expires_at );
+
     // Order-driven switch (order_id set) vs admin immediate switch (order_id empty) — one method, two
-    // triggers. The order path re-points billing linkage, hands off subscription meta, and notes the
-    // order; the admin path instead recomputes expiry from the new tier's grace.
+    // triggers. Both re-point ONLY the expiry event, and only when the expiry actually moved; they
+    // differ solely in the event key. The order path additionally re-points billing linkage, hands off
+    // subscription meta, and notes the order.
     if ( ! empty( $order_id ) ) {
       // §9.5 — overwrite the three linkage keys the meta copy (:1300-1305) inherited from the OLD
       // membership so the new membership points at the order the customer actually paid.
@@ -1417,20 +1429,36 @@ class Admin_Controller {
           }
         }
       }
-    } else {
-      // Admin immediate switch: the target tier can carry a different grace period. The end date is
-      // preserved (inherited via the meta copy above) and the start/early-renew handling is irrelevant
-      // here, so recompute ONLY the expiry as end_date + new-tier grace and store it on the new post.
-      $new_membership_ends_at    = get_post_meta( $new_post_id, 'membership_ends_at', true );
-      $new_membership_expires_at = $this->derive_switch_expiry( $new_membership_ends_at, $membership_grace_period_days );
-      update_post_meta( $new_post_id, 'membership_expires_at', $new_membership_expires_at );
 
-      // Re-point the scheduled expiry event only when the expiry actually moved. The end date is
-      // unchanged (so `add_membership_ends_at` stays correct) and `early_renew_at` is left inherited
-      // (so its event stays correct) — only the expiry can shift with grace. The event is keyed by
-      // order + product (see Membership_Controller::scheduler_dates_for_expiry), which the admin-switch
-      // new membership inherits from the original, so unscheduling that key and re-adding it simply
-      // moves the same event to the new date.
+      // Re-point the scheduled expiry event only when the expiry actually moved. §9.5 re-keyed the new
+      // membership to the paying order, so its expiry event must live under the NEW order+product key
+      // while the cancelled membership's event lived under the OLD key — retarget it by dropping the old
+      // key and adding the new one. `add_membership_ends_at` / `add_membership_early_renew_at` are never
+      // rescheduled: the end date is preserved and early-renew is inherited, so only expiry can shift.
+      $new_membership_parent_order_id = get_post_meta( $new_post_id, 'membership_parent_order_id', true );
+      $new_membership_product_id      = get_post_meta( $new_post_id, 'membership_product_id', true );
+      if ( ! empty( $new_membership_parent_order_id ) && ! empty( $new_membership_product_id )
+           && strtotime( $new_membership_expires_at ) !== strtotime( (string) $old_membership_expires_at )
+           && function_exists( 'as_unschedule_action' ) && function_exists( 'as_schedule_single_action' ) ) {
+        // Drop the cancelled membership's expiry event under its original order+product key (if keyed).
+        if ( ! empty( $old_membership_parent_order_id ) && ! empty( $old_membership_product_id ) ) {
+          as_unschedule_action( 'add_membership_expires_at', [
+            'membership_parent_order_id' => $old_membership_parent_order_id,
+            'membership_product_id'      => $old_membership_product_id,
+          ], 'wicket-membership-plugin' );
+        }
+        // Schedule the new membership's expiry event under its paying-order key.
+        as_schedule_single_action( strtotime( $new_membership_expires_at ), 'add_membership_expires_at', [
+          'membership_parent_order_id' => $new_membership_parent_order_id,
+          'membership_product_id'      => $new_membership_product_id,
+        ], 'wicket-membership-plugin', false );
+      }
+    } else {
+      // Admin immediate switch: the new membership inherits the SAME order+product key as the original
+      // (no new payment), so re-point the single expiry event on that shared key — only when the expiry
+      // actually moved. `add_membership_ends_at` / `add_membership_early_renew_at` are left untouched:
+      // the end date is unchanged and early-renew is inherited, so only expiry can shift with grace.
+      // (Event keying: see Membership_Controller::scheduler_dates_for_expiry.)
       if ( ! empty( $old_membership_parent_order_id ) && ! empty( $old_membership_product_id )
            && strtotime( $new_membership_expires_at ) !== strtotime( (string) $old_membership_expires_at )
            && function_exists( 'as_unschedule_action' ) && function_exists( 'as_schedule_single_action' ) ) {
