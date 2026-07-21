@@ -1158,15 +1158,23 @@ class Admin_Controller {
   }
 
   /**
-   * Admin membership edit page switch membership
-   * https://app.asana.com/1/1138832104141584/project/1209996062337717/task/1210003466118773
-   * 
-   * @param int $membership_post_id
-   * @param int $new_tier_post_id
-   * @param string $switch_date
+   * Admin membership edit page switch membership.
+   *
+   * Creates a new membership on the target tier, preserves the original END date, cancels the original
+   * membership, and patches its MDP record. The target tier may define a different grace period, so the
+   * new membership's expiry is recomputed as end_date + new-tier grace; when that changes the expiry, the
+   * scheduled `add_membership_expires_at` Action Scheduler event is re-pointed to the new date (the end
+   * date and early-renew events are unchanged and left as-is).
+   *
+   * @see https://app.asana.com/1/1138832104141584/project/1209996062337717/task/1210003466118773
+   * @see \Wicket_Memberships\Membership_Controller::scheduler_dates_for_expiry() for how the event is keyed.
+   *
+   * @param  int         $membership_post_id  Post ID of the membership being switched (the one replaced).
+   * @param  int         $new_tier_post_id    Post ID of the tier to switch to.
+   * @param  string|null $switch_date         Optional future switch date; null = immediate.
+   *
    * @return \WP_REST_Response
    */
-
   public function create_switch_membership( $membership_post_id, $new_tier_post_id, $switch_date = null ) {
     // Get the original membership post
     if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
@@ -1205,6 +1213,13 @@ class Admin_Controller {
     // Capture the OLD membership's MDP identity/start before mutating its meta.
     $old_membership_wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
     $old_membership_starts_at   = get_post_meta( $membership_post_id, 'membership_starts_at', true );
+
+    // Capture the OLD membership's expiry and its scheduled-event key (order + product) before the
+    // meta is copied/overwritten. Used below to decide whether the expiry moved and to re-point the
+    // existing `add_membership_expires_at` action, which is keyed by order + product.
+    $old_membership_expires_at        = get_post_meta( $membership_post_id, 'membership_expires_at', true );
+    $old_membership_parent_order_id   = get_post_meta( $membership_post_id, 'membership_parent_order_id', true );
+    $old_membership_product_id        = get_post_meta( $membership_post_id, 'membership_product_id', true );
 
     //Create a new membership in the MDP for the new tier using the original membership data.
     //Organization tiers must use the organization_memberships endpoint, not the individual one.
@@ -1316,6 +1331,28 @@ class Admin_Controller {
     update_post_meta( $new_post_id, 'membership_starts_at', $switch_iso_date );
     update_post_meta( $new_post_id, 'membership_grace_period_days', $membership_grace_period_days );
 
+    // The target tier can carry a different grace period. The end date is preserved (inherited via the
+    // meta copy above), so recompute the expiry as end_date + new-tier grace and store it on the new post.
+    $new_membership_ends_at    = get_post_meta( $new_post_id, 'membership_ends_at', true );
+    $new_membership_expires_at = $this->derive_switch_expiry( $new_membership_ends_at, $membership_grace_period_days );
+    update_post_meta( $new_post_id, 'membership_expires_at', $new_membership_expires_at );
+
+    // Re-point the scheduled expiry event only when the expiry actually moved. The end date is unchanged
+    // (so `add_membership_ends_at` stays correct) and `early_renew_at` is left inherited (so its event
+    // stays correct) — only the expiry can shift with grace. The event is keyed by order + product (see
+    // Membership_Controller::scheduler_dates_for_expiry), which the new membership inherits from the
+    // original, so unscheduling that key and re-adding it simply moves the same event to the new date.
+    if ( ! empty( $old_membership_parent_order_id ) && ! empty( $old_membership_product_id )
+         && strtotime( $new_membership_expires_at ) !== strtotime( (string) $old_membership_expires_at )
+         && function_exists( 'as_unschedule_action' ) && function_exists( 'as_schedule_single_action' ) ) {
+      $expiry_event_args = [
+        'membership_parent_order_id' => $old_membership_parent_order_id,
+        'membership_product_id'      => $old_membership_product_id,
+      ];
+      as_unschedule_action( 'add_membership_expires_at', $expiry_event_args, 'wicket-membership-plugin' );
+      as_schedule_single_action( strtotime( $new_membership_expires_at ), 'add_membership_expires_at', $expiry_event_args, 'wicket-membership-plugin', false );
+    }
+
     // ($old_membership_wicket_uuid / $old_membership_starts_at were captured before the new
     //  membership was assigned, so they reflect the pre-switch MDP identity.)
 
@@ -1368,6 +1405,36 @@ class Admin_Controller {
       'membership_wicket_uuid' => $membership_wicket_uuid,
       'redirect_url' => $redirect_url
     ], 200);
+  }
+
+  /**
+   * Derive a membership expiry timestamp from an end date and a grace-period length.
+   *
+   * Mirrors Membership_Config::get_membership_dates(): expiry = end date + grace days, snapped to
+   * end-of-day in the MDP timezone. A zero/empty grace period yields an expiry equal to the end date
+   * (matching the create-flow fallback where get_membership_dates() leaves expires_at unset). Kept as a
+   * small pure method so the offset math is verifiable independently of the switch orchestration.
+   *
+   * @param  string     $end_date_iso  The membership end date (ISO 8601).
+   * @param  int|string  $grace_days   Grace-period length in days from the target tier's config.
+   *
+   * @return string  Expiry as an ISO 8601 string.
+   */
+  protected function derive_switch_expiry( $end_date_iso, $grace_days ) {
+    $grace_days = (int) $grace_days;
+
+    // Zero grace: the membership expires exactly at its end date (no grace window).
+    if ( $grace_days <= 0 ) {
+      return $end_date_iso;
+    }
+
+    // Add the grace days to the end date, then snap to end-of-day in the MDP timezone. Take the
+    // calendar date (Y-m-d) so the offset carried on $end_date_iso cannot shift the day.
+    $expires_date = ( new \DateTime( $end_date_iso, new \DateTimeZone( 'UTC' ) ) )
+      ->modify( '+' . $grace_days . ' days' )
+      ->format( 'Y-m-d' );
+
+    return Utilities::get_mdp_day_end( $expires_date )->format( 'c' );
   }
 
   /**
