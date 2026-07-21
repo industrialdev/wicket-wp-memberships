@@ -16,6 +16,11 @@ const SwitchMembership = ({ membership }) => {
   const [productVariations, setProductVariations] = useState({}); // { product_id: [] }
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [selectedVariationId, setSelectedVariationId] = useState(null);
+  // Variation ids linked to the CURRENT tier — hidden from the variation picker so a switch
+  // cannot land on the variation the member is already on, while other variations of the same
+  // parent product (which may belong to other tiers) stay selectable.
+  const [excludedVariationIds, setExcludedVariationIds] = useState(new Set());
+  const [selectedOrderStatus, setSelectedOrderStatus] = useState('checkout-draft');
   const didMountRef = useRef(false);
 
   useEffect(() => {
@@ -52,10 +57,35 @@ const SwitchMembership = ({ membership }) => {
           });
         });
 
-      // Keep only products whose id (or a variation id, matched later) is tier-linked.
+      // Products/variations belonging to the membership's CURRENT tier — a switch must move the
+      // member to a different product, so these must not be offered even though they are tier-linked.
+      // Exclusion is split by granularity so a variable parent shared across tiers is not lost:
+      //   - simple subscription  -> drop the parent product from the picker entirely
+      //   - variable subscription -> keep the parent (other variations may belong to other tiers)
+      //                              and hide only the current tier's variation in the variation picker
+      const currentTierPostId =
+        membership && membership.data && membership.data.membership_tier_post_id;
+      const excludedProductIds = new Set();
+      const currentTierVariationIds = new Set();
+      (Array.isArray(tiers) ? tiers : [])
+        // String() compare: membership_tier_post_id may be a string while the tier REST id is numeric.
+        .filter((tier) => currentTierPostId && String(tier.id) === String(currentTierPostId))
+        .forEach((tier) => {
+          const productData = (tier.tier_data && tier.tier_data.product_data) || [];
+          productData.forEach((pd) => {
+            if (pd.variation_id) {
+              currentTierVariationIds.add(pd.variation_id);
+            } else if (pd.product_id) {
+              excludedProductIds.add(pd.product_id);
+            }
+          });
+        });
+      setExcludedVariationIds(currentTierVariationIds);
+
+      // Keep only tier-linked products, minus any simple product that IS the current tier.
       const options = productResults
         .flat()
-        .filter((product) => allowedIds.has(product.id))
+        .filter((product) => allowedIds.has(product.id) && !excludedProductIds.has(product.id))
         .map((product) => ({
           label: `${product.name} | ID: ${product.id}`,
           value: product.id,
@@ -127,7 +157,7 @@ const SwitchMembership = ({ membership }) => {
  const handleSwitchMembership = async (switchType, postId) => {
     if (!membership || !membership.ID || !postId || !switchType) return;
     try {
-      const response = await switchMembershipApi(membership.ID, postId, switchType);
+      const response = await switchMembershipApi(membership.ID, postId, switchType, switchType === 'order' ? selectedOrderStatus : null);
       if (response && response.redirect_url) {
         window.location.href = response.redirect_url;
       }
@@ -234,7 +264,10 @@ const SwitchMembership = ({ membership }) => {
                       isLoading={productVariations[selectedProductId] === undefined}
                       menuPortalTarget={typeof window !== 'undefined' ? document.body : null}
                       styles={{ menuPortal: provided => ({ ...provided, zIndex: 100001 }) }}
-                      options={productVariations[selectedProductId] ? productVariations[selectedProductId].map((variation) => ({
+                      options={productVariations[selectedProductId] ? productVariations[selectedProductId]
+                        // Hide the current tier's variation; other variations of this parent stay selectable.
+                        .filter((variation) => !excludedVariationIds.has(variation.id))
+                        .map((variation) => ({
                         label: `${variation.name} (#${variation.id})`,
                         value: variation.id
                       })) : []}
@@ -250,6 +283,19 @@ const SwitchMembership = ({ membership }) => {
               }
               return null;
             })()}
+            <div style={{ marginTop: '20px' }}>
+              <LabelWpStyled>{__('Order Status', 'wicket-memberships')}</LabelWpStyled>
+              <SelectWpStyled
+                options={[
+                  { label: __('Draft', 'wicket-memberships'), value: 'checkout-draft' },
+                  { label: __('Pending payment', 'wicket-memberships'), value: 'pending' },
+                ]}
+                value={{ label: selectedOrderStatus === 'pending' ? __('Pending payment', 'wicket-memberships') : __('Draft', 'wicket-memberships'), value: selectedOrderStatus }}
+                isSearchable={false}
+                isClearable={false}
+                onChange={(opt) => setSelectedOrderStatus(opt ? opt.value : 'checkout-draft')}
+              />
+            </div>
           </div>
         )}
 

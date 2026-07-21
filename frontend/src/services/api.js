@@ -205,10 +205,12 @@ export const transferMembership = ({ new_owner_uuid, membership_post_id }) => {
 /**
  * Switch Membership Product
  */
-export const switchMembership = (membershipId, switchPostID, switchType) => {
+export const switchMembership = (membershipId, switchPostID, switchType, orderStatus = null) => {
   if (!membershipId || !switchPostID || !switchType) return Promise.reject('Missing membershipId, switchPostID, or switchType');
+  const args = { switch_post_id: switchPostID, switch_type: switchType };
+  if (orderStatus) { args.order_status = orderStatus; } // only meaningful for switch_type === 'order'
   return apiFetch({
-    path: addQueryArgs(`${PLUGIN_API_URL}/membership/${membershipId}/switch_membership`, { switch_post_id: switchPostID, switch_type: switchType }),
+    path: addQueryArgs(`${PLUGIN_API_URL}/membership/${membershipId}/switch_membership`, args),
     method: 'POST',
   });
 };

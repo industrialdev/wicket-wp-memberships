@@ -1074,7 +1074,9 @@ class Admin_Controller {
     if( $args['switch_type'] == 'tier') {
       return $self->create_switch_membership( $membership_post_id, $switch_post_id);
     } else if ($args['switch_type'] == 'order') {
-      return $self->create_switch_order( $membership_post_id, $switch_post_id);
+      // Operator-selected order status; normalised again inside create_switch_order (§8.4.2).
+      $order_status = ! empty( $args['order_status'] ) ? $args['order_status'] : 'checkout-draft';
+      return $self->create_switch_order( $membership_post_id, $switch_post_id, $order_status );
     } else {
       return new \WP_REST_Response([
         'success' => false,
@@ -1083,7 +1085,20 @@ class Admin_Controller {
     }
   }
 
-  public function create_switch_order( $membership_post_id, $switch_post_id ) {
+  /**
+   * Create a payable order + subscription that, once paid, fires the order-based tier switch.
+   *
+   * Admin producer for the switch. Creates a WC order for the managed member with the chosen
+   * membership product, stamps _membership_post_id_switch on the order and subscription line items,
+   * and returns the order's edit-screen URL. Payment (order -> processing) is what fires the switch
+   * (see Membership_Controller::get_memberships_data_from_subscription_products()).
+   *
+   * @param  int    $membership_post_id  The membership being switched (owner + status source).
+   * @param  int    $switch_post_id      The chosen product or variation id (the target tier's product).
+   * @param  string $order_status        New order status: 'checkout-draft' (default) or 'pending'.
+   * @return \WP_REST_Response
+   */
+  public function create_switch_order( $membership_post_id, $switch_post_id, $order_status = 'checkout-draft' ) {
     $product_id = $switch_post_id;
     if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
       $response_array['error'] = 'Error: Membership not found. Request did not succeed.';
@@ -1108,6 +1123,16 @@ class Admin_Controller {
 
     $wc_product = wc_get_product( $product_id );
 
+    // Defense in depth: reject products not linked to an INDIVIDUAL tier. The picker already filters
+    // (Phase 3), but never trust the client — an org-tier or non-tier product yields an unusable order.
+    $target_tier = Membership_Tier::get_tier_by_product_id( $product_id );
+    if ( ! $target_tier || ! $target_tier->is_individual_tier() ) {
+      return new \WP_REST_Response( [
+        'success' => false,
+        'error'   => 'Error: Selected product is not linked to an individual membership tier.',
+      ], 400 );
+    }
+
     // Ensure they exist in WP, and if not yet create them
     $customer_wp_id = wicket_create_wp_user_if_not_exist($customer_uuid);
 
@@ -1117,7 +1142,7 @@ class Admin_Controller {
     $order->set_customer_id( $customer_wp_id );
     $order->add_product( $wc_product );
     $order->calculate_totals(); // Without this order total will be zero
-    $order->set_status( 'checkout-draft' );
+    $order->set_status( $this->normalize_switch_order_status( $order_status ) );
     $order->save();
 
     // Associate the membership record with the order
@@ -1126,12 +1151,18 @@ class Admin_Controller {
       wc_update_order_item_meta( $item->get_id(), '_membership_post_id_switch', $membership_post_id );
     }
 
+    // Derive billing terms from the product; the producer sets NO membership_* date meta — the switch
+    // owns all date logic when the order is paid (§8.4.3/§7).
+    $product_period   = class_exists( 'WC_Subscriptions_Product' ) ? \WC_Subscriptions_Product::get_period( $wc_product ) : '';
+    $product_interval = class_exists( 'WC_Subscriptions_Product' ) ? \WC_Subscriptions_Product::get_interval( $wc_product ) : 0;
+    $billing = $this->derive_subscription_billing( $product_period, $product_interval );
+
     $subscription = wcs_create_subscription( array(
-      'order_id' => $order->get_id(),
-      'customer_id' => $customer_wp_id,
-      'billing_period' => 'year',
-      'billing_interval' => 1,
-      'start_date' => current_time( 'mysql' ),
+      'order_id'         => $order->get_id(),
+      'customer_id'      => $customer_wp_id,
+      'billing_period'   => $billing['billing_period'],
+      'billing_interval' => $billing['billing_interval'],
+      'start_date'       => current_time( 'mysql' ),
     ) );
     $subscription->add_product( $wc_product );
     $subscription->calculate_totals();
@@ -1464,6 +1495,37 @@ class Admin_Controller {
         wc_update_order_item_meta( $item->get_id(), '_membership_post_id_renew', $new_membership_post_id );
       }
     }
+  }
+
+  /**
+   * Clamp a requested switch-order status to the allow-list, defaulting safely.
+   *
+   * Only 'checkout-draft' (a saved draft the operator finalises later) and 'pending' (directly
+   * payable by the member) are valid. Anything else falls back to 'checkout-draft' (§8.4.2).
+   *
+   * @param  string $order_status  Requested status.
+   * @return string  A valid order status.
+   */
+  protected function normalize_switch_order_status( $order_status ) {
+    $allowed = [ 'checkout-draft', 'pending' ];
+    return in_array( $order_status, $allowed, true ) ? $order_status : 'checkout-draft';
+  }
+
+  /**
+   * Apply safe defaults to product-derived subscription billing terms.
+   *
+   * Kept separate from the WC_Subscriptions_Product reads so the defaulting is unit-testable without
+   * a WooCommerce product. Empty period -> 'year'; empty interval -> 1 (§8.4.3).
+   *
+   * @param  string     $period    Billing period read from the product ('day'|'week'|'month'|'year'|'').
+   * @param  int|string $interval  Billing interval read from the product.
+   * @return array{billing_period:string,billing_interval:int}
+   */
+  protected function derive_subscription_billing( $period, $interval ) {
+    return [
+      'billing_period'   => ! empty( $period ) ? $period : 'year',
+      'billing_interval' => ! empty( $interval ) ? (int) $interval : 1,
+    ];
   }
 
   /**
