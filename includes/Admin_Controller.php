@@ -1201,9 +1201,14 @@ class Admin_Controller {
    * @param  string|null $switch_date         Optional future switch date; null = immediate.
    * @param  int|null    $order_id            Optional paying order ID. When set (order-based trigger),
    *                                          re-points the new membership's billing linkage at this
-   *                                          order (§9.5) and hands the switch subscription's line-item
-   *                                          meta off from switch to renewal (§9.9). Null (admin
-   *                                          immediate switch) leaves both behaviours off — unchanged.
+   *                                          order (§9.5), hands the switch subscription's line-item
+   *                                          meta off from switch to renewal (§9.9), and adds an order
+   *                                          note (on the order and its subscription) linking to the
+   *                                          newly created membership. Null (admin immediate switch)
+   *                                          leaves all three behaviours off — unchanged.
+   *
+   * @see    Helper::get_membership_edit_url() for the membership deep-link used in the order note.
+   *
    * @return \WP_REST_Response
    */
   public function create_switch_membership( $membership_post_id, $new_tier_post_id, $switch_date = null, $order_id = null ) {
@@ -1375,6 +1380,29 @@ class Admin_Controller {
         $switch_subscription = \wcs_get_subscription( $order_linkage['membership_subscription_id'] );
         if ( $switch_subscription ) {
           $this->handoff_switch_meta_to_renewal( $switch_subscription, $new_post_id );
+        }
+      }
+
+      // Leave an audit trail on the paying order (and its subscription) linking straight to the
+      // specific membership this switch created — mirroring the membership link shown on orders for
+      // created/renewed memberships, so an operator can jump to (expand) the exact new record. The
+      // link is built here, not in create_switch_order(), because the membership only exists once the
+      // order is paid and this method runs.
+      $paying_order = wc_get_order( $order_id );
+      if ( $paying_order ) {
+        $membership_note = sprintf(
+          /* translators: %s is the "View Membership" edit link for the newly created membership. */
+          __( 'Tier switch complete. New membership created: %s', 'wicket-memberships' ),
+          '<a href="' . esc_url( Helper::get_membership_edit_url( $new_post_id ) ) . '">#' . (int) $new_post_id . ' ' . esc_html__( 'View Membership', 'wicket-memberships' ) . '</a>'
+        );
+        $paying_order->add_order_note( $membership_note );
+
+        // Record the same link on the switch subscription, matching where the switch order note lives.
+        if ( ! empty( $order_linkage['membership_subscription_id'] ) && function_exists( 'wcs_get_subscription' ) ) {
+          $note_subscription = \wcs_get_subscription( $order_linkage['membership_subscription_id'] );
+          if ( $note_subscription ) {
+            $note_subscription->add_order_note( $membership_note );
+          }
         }
       }
     }

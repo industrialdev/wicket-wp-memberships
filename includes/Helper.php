@@ -617,9 +617,43 @@ class Helper {
   }
 
   /**
+   * Build the admin edit-page URL for a specific membership post.
+   *
+   * Deep-links to the individual or organization member edit screen. The membership UUID is
+   * included so the target screen opens (expands) that exact membership record rather than the
+   * member's default membership. Shared by the WooCommerce order metabox
+   * (display_membership_edit_link_on_order) and by order-note builders that need to point an
+   * operator straight at the membership tied to an order.
+   *
+   * @param  int $membership_post_id  The membership CPT post ID to link to.
+   *
+   * @return string  Absolute admin URL, or an empty string when no post id is given.
+   */
+  public static function get_membership_edit_url( $membership_post_id ) {
+    if ( empty( $membership_post_id ) ) {
+      return '';
+    }
+
+    // Org vs individual selects both the edit screen and which owner identifier keys the URL.
+    $membership_type        = get_post_meta( $membership_post_id, 'membership_type', true ); // 'individual' or 'organization'
+    $membership_wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
+
+    if ( $membership_type === 'organization' ) {
+      $org_uuid = get_post_meta( $membership_post_id, 'org_uuid', true );
+      return admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_ORG_MEMBER_PAGE_SLUG . '&id=' . $org_uuid . '&membership_uuid=' . $membership_wicket_uuid );
+    }
+
+    $user_uuid = get_post_meta( $membership_post_id, 'membership_user_uuid', true );
+    return admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG . '&id=' . $user_uuid . '&membership_uuid=' . $membership_wicket_uuid );
+  }
+
+  /**
    * Display a membership edit link in the WooCommerce admin order details panel.
    *
    * @param \WC_Order $order
+   *
+   * @see Helper::get_membership_edit_url() for the deep-link URL construction.
+   *
    * @return void
    */
   public function display_membership_edit_link_on_order( $order ) {
@@ -628,17 +662,8 @@ class Helper {
       return;
     }
 
-    // Now check if it's org or individual membership and get the generate correct edit page link.
-    $membership_type = get_post_meta( $membership_post_id, 'membership_type', true ); // 'individual' or 'organization'
-    $membership_wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
-
-    if ( $membership_type === 'organization' ) {
-      $org_uuid = get_post_meta( $membership_post_id, 'org_uuid', true );
-      $edit_url = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_ORG_MEMBER_PAGE_SLUG . '&id=' . $org_uuid . '&membership_uuid=' . $membership_wicket_uuid );
-    } else {
-      $user_uuid = get_post_meta( $membership_post_id, 'membership_user_uuid', true );
-      $edit_url = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG . '&id=' . $user_uuid . '&membership_uuid=' . $membership_wicket_uuid );
-    }
+    // Deep-link (with membership UUID) to the exact membership tied to this order.
+    $edit_url = self::get_membership_edit_url( $membership_post_id );
 
     echo '<div class="order_data_column">
       <h4>' . esc_html__( 'Wicket Membership', 'wicket-memberships' ) . '</h4>
