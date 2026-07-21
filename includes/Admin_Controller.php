@@ -1093,7 +1093,12 @@ class Admin_Controller {
    * and returns the order's edit-screen URL. Payment (order -> processing) is what fires the switch
    * (see Membership_Controller::get_memberships_data_from_subscription_products()).
    *
-   * @param  int    $membership_post_id  The membership being switched (owner + status source).
+   * Same-family rule (§8.0): the chosen product must be linked to a tier whose type matches the
+   * membership being switched — an individual membership only to an individual tier, an organization
+   * membership only to an organization tier. Organization seats are NOT set here; they carry forward
+   * from the existing org membership when the switch runs (create_switch_membership org branch).
+   *
+   * @param  int    $membership_post_id  The membership being switched (owner + status + type source).
    * @param  int    $switch_post_id      The chosen product or variation id (the target tier's product).
    * @param  string $order_status        New order status: 'checkout-draft' (default) or 'pending'.
    * @return \WP_REST_Response
@@ -1109,6 +1114,8 @@ class Admin_Controller {
     $membership = Helper::get_post_meta( $membership_post_id );
     $membership_status = $membership['membership_status'];
     $customer_uuid = $membership['membership_user_uuid'];
+    // The membership's own type drives the same-family target-tier guard below (§8.0).
+    $source_membership_type = $membership['membership_type'];
 
     // Check if the membership is in an active status
     if( ! in_array( $membership_status, ['active', 'grace_period', 'delayed'] ) ) {
@@ -1123,13 +1130,19 @@ class Admin_Controller {
 
     $wc_product = wc_get_product( $product_id );
 
-    // Defense in depth: reject products not linked to an INDIVIDUAL tier. The picker already filters
-    // (Phase 3), but never trust the client — an org-tier or non-tier product yields an unusable order.
+    // Defense in depth (same-family rule §8.0): reject products whose tier type does not match the
+    // membership being switched. The picker already filters client-side (Phase 3), but never trust the
+    // client — a cross-family or non-tier product yields an unusable order. get_tier_type() returns
+    // false for a non-tier product, which fails the strict comparison and is rejected too.
     $target_tier = Membership_Tier::get_tier_by_product_id( $product_id );
-    if ( ! $target_tier || ! $target_tier->is_individual_tier() ) {
+    if ( ! $target_tier || $target_tier->get_tier_type() !== $source_membership_type ) {
       return new \WP_REST_Response( [
         'success' => false,
-        'error'   => 'Error: Selected product is not linked to an individual membership tier.',
+        'error'   => sprintf(
+          /* translators: %s is the membership type (individual or organization). */
+          __( 'Error: Selected product must be linked to a %s membership tier matching the membership being switched.', 'wicket-memberships' ),
+          $source_membership_type ?: 'individual'
+        ),
       ], 400 );
     }
 

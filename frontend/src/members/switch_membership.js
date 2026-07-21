@@ -41,12 +41,14 @@ const SwitchMembership = ({ membership }) => {
         fetchTiers({ per_page: 100 }),
       ]);
 
-      // Build the set of product + variation ids referenced by INDIVIDUAL tiers only (§8.4.1/§9.6).
+      // Build the set of product + variation ids referenced by tiers of the SAME type as the edited
+      // membership (individual or organization) — the same-family rule (Phase 8). An org membership
+      // therefore sees org-tier products, an individual sees individual-tier products.
       const allowedIds = new Set();
       (Array.isArray(tiers) ? tiers : [])
         .filter((tier) => {
           const tierType = tier.tier_data && tier.tier_data.type;
-          // Restrict to the edited membership's type; it is individual here.
+          // Restrict to the edited membership's own type; fall back to individual only if type unknown.
           return membershipType ? tierType === membershipType : tierType === 'individual';
         })
         .forEach((tier) => {

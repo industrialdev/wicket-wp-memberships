@@ -97,21 +97,28 @@ function get_item_data ( $other_data, $cart_item ) {
    * Pure guard combining the §4/§9 conditions so the decision is unit-testable in isolation from the
    * WooCommerce processing loop:
    *  - the switch marker is present (this is a switch line, not a renewal/new purchase),
-   *  - the target tier is individual (organization switching is out of scope — §9.6),
+   *  - the target tier is the SAME family as the membership being switched — an individual membership
+   *    switches only to an individual tier, an organization membership only to an organization tier
+   *    (§8.0 same-family rule; supersedes the earlier individual-only rule §9.6),
    *  - the membership being switched is still switchable (§9.8 status backstop; the primary re-entry
    *    guard is the §9.9 meta hand-off performed inside the switch method).
    *
-   * @param  mixed  $switch_meta        Value of _membership_post_id_switch on the line item.
-   * @param  string $target_tier_type   Resolved tier type ('individual' | 'organization').
-   * @param  string $membership_status  Current membership_status of the membership identified by $switch_meta.
+   * @param  mixed  $switch_meta             Value of _membership_post_id_switch on the line item.
+   * @param  string $target_tier_type        Resolved target tier type ('individual' | 'organization').
+   * @param  string $membership_status       Current membership_status of the membership identified by $switch_meta.
+   * @param  string $source_membership_type  Type of the membership being switched ('individual' | 'organization').
    * @return bool   True when the switch trigger should run for this line item.
    */
-  public function should_trigger_order_switch( $switch_meta, $target_tier_type, $membership_status ) {
+  public function should_trigger_order_switch( $switch_meta, $target_tier_type, $membership_status, $source_membership_type ) {
     if ( empty( $switch_meta ) ) {
       return false;
     }
-    // Individual only — never switch organization memberships via this path (§9.6).
-    if ( 'individual' !== $target_tier_type ) {
+    // Same-family only: the target tier's type must be a real membership type AND match the switched
+    // membership's own type. A non-tier product resolves to a falsy/blank $target_tier_type and is
+    // rejected here; a cross-family target (org tier for an individual membership, or vice-versa) is
+    // rejected too (§8.0 — supersedes the former individual-only check §9.6).
+    if ( ! in_array( $target_tier_type, [ 'individual', 'organization' ], true )
+         || $target_tier_type !== $source_membership_type ) {
       return false;
     }
     // Backstop: a membership already switched is cancelled, so a re-cycle would fail this check.
@@ -284,7 +291,10 @@ function get_item_data ( $other_data, $cart_item ) {
               $membership_post_id_switch = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_switch', true );
               if ( ! empty( $membership_post_id_switch ) ) {
                 $switch_membership_status = get_post_meta( $membership_post_id_switch, 'membership_status', true );
-                if ( $this->should_trigger_order_switch( $membership_post_id_switch, $membership_tier->get_tier_type(), $switch_membership_status ) ) {
+                // Source membership's own type drives the same-family guard (§8.0): org switches only to
+                // org, individual only to individual.
+                $switch_membership_type   = get_post_meta( $membership_post_id_switch, 'membership_type', true );
+                if ( $this->should_trigger_order_switch( $membership_post_id_switch, $membership_tier->get_tier_type(), $switch_membership_status, $switch_membership_type ) ) {
                   // Same method the admin REST switch calls; pass the paying order id for §9.5 linkage
                   // + §9.9 meta hand-off. Instance call — the method is non-static (design delta D1).
                   ( new Admin_Controller() )->create_switch_membership(
@@ -294,12 +304,14 @@ function get_item_data ( $other_data, $cart_item ) {
                     $order_id
                   );
                 } else {
-                  // Guard failed (org target, non-switchable status, or already switched): log and skip,
-                  // never fall through to build a normal/renewal membership for a switch line.
+                  // Guard failed (cross-family/non-tier target, non-switchable status, or already
+                  // switched): log and skip, never fall through to build a normal/renewal membership
+                  // for a switch line.
                   Utilities::wc_log_mship_error( [ 'Order-based switch skipped', [
                     'order_id'       => $order_id,
                     'switch_post_id' => $membership_post_id_switch,
                     'tier_type'      => $membership_tier->get_tier_type(),
+                    'source_type'    => $switch_membership_type,
                     'status'         => $switch_membership_status,
                   ] ] );
                 }
