@@ -919,7 +919,7 @@ function get_item_data ( $other_data, $cart_item ) {
   /**
    * Create the membership records
    */
-  public static function create_membership_record( $membership, $processing_renewal = false, $status_cycled = false ) {
+  public static function create_membership_record( $membership, $processing_renewal = false, $status_cycled = false, $skip_approval = false ) {
     $membership_wicket_uuid = '';
     $self = new self();
 
@@ -933,14 +933,14 @@ function get_item_data ( $other_data, $cart_item ) {
 
     if($self->bypass_wicket) {
       //Don't create the wicket connection when testing
-      $membership['membership_post_id'] = $self->create_local_membership_record( $membership, $self->guidv4().'-fake' );
+      $membership['membership_post_id'] = $self->create_local_membership_record( $membership, $self->guidv4().'-fake', $skip_approval );
       return $membership;
     }
 
     $tier = new Membership_Tier( $membership['membership_tier_post_id'] );
-    //we only create the mdp record if tier not pending approval | tier pending approval and is renewal
+    //we only create the mdp record if tier not pending approval | tier pending approval and is renewal | approval is being skipped
     $mdp_attempted = false;
-    if( ! $tier->is_approval_required() || ( ! $tier->is_renew_approval_required() && $tier->is_approval_required() && $self->processing_renewal )) {
+    if( $skip_approval || ! $tier->is_approval_required() || ( ! $tier->is_renew_approval_required() && $tier->is_approval_required() && $self->processing_renewal )) {
       $mdp_attempted = true;
       $membership_wicket_uuid = $self->create_mdp_record( $membership );
     }
@@ -951,7 +951,7 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     //always create the local membership record to get post_id
-    $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $membership_wicket_uuid );
+    $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $membership_wicket_uuid, $skip_approval );
     add_post_meta( $membership['membership_post_id'], 'membership_post_id', $membership['membership_post_id'], true );
     Utilities::wicket_logger( 'create local membership - postID', $membership['membership_post_id']);
 
@@ -973,9 +973,10 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     //we are pending approval so change some statuses and send email
-    if( ($tier->is_approval_required() && ! $self->processing_renewal) 
-      || ($tier->is_renew_approval_required()  && $self->processing_renewal) 
-    ) {
+    if( ! $skip_approval && (
+      ($tier->is_approval_required() && ! $self->processing_renewal)
+      || ($tier->is_renew_approval_required()  && $self->processing_renewal)
+    ) ) {
       $self->update_subscription_status( $membership['membership_subscription_id'], 'on-hold', 'Subscription pending approval.');
       //update membership status to pending approval
       $self->update_membership_status( $membership['membership_post_id'], Wicket_Memberships::STATUS_PENDING);

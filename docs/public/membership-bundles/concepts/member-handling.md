@@ -77,6 +77,15 @@ Adding a member creates:
 
 The line item carries `_membership_post_id` and `_member_name` meta so it can be traced back to the individual membership.
 
+### Initial membership status
+
+A new seat's status is seeded from the bundle's own status, then adjusted:
+
+- If the new seat's start date is in the future, the status becomes `delayed` regardless of tier settings.
+- If the assigned `Membership_Tier` has `approval_required` set **and the bundle is not currently `active`**, a brand-new seat is created as `pending` and the tier's approval email is sent, same as a standalone membership going through approval.
+- If the bundle **is** currently `active`, tier-level `approval_required` is skipped for new seats — the bundle's own status already reflects that entry is approved, so the seat is created `active` (or `delayed` if its start date is in the future) even when its tier has `approval_required` set.
+- On bundle renewal, tier-level `renew_approval_required` is always skipped for continuing members, regardless of the new bundle's status. The renewal batch processor (`Membership_Bundle_Cron_Controller::process_bundle_renewal_members()`) re-provisions every continuing member into the new-term bundle, which always starts `delayed` (see [Bundle Lifecycle](./bundle-lifecycle.md)) — so a bundle-status check alone would never skip the gate here. A successfully renewing bundle is treated as the re-approval event for its continuing members, so they carry over without landing in `pending` on every cycle.
+
 ## Removing a member
 
 There are two modes for removing a member.

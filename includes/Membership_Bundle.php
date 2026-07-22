@@ -820,8 +820,19 @@ class Membership_Bundle {
 
     // Seed the membership status from the bundle's own status so new members inherit
     // the bundle's lifecycle state. create_local_membership_record() will still
-    // override this to 'pending' when the tier requires approval, or 'delayed' when
-    // the start date is in the future — those rules take precedence.
+    // override this to 'delayed' when the start date is in the future. Tier-level
+    // approval is skipped in two cases:
+    //  - the bundle is already active — the bundle's own approval/activation already
+    //    gated entry, so a per-tier approval step would silently strand new members
+    //    in 'pending' under an active bundle.
+    //  - this is a renewal — the new-term bundle always starts 'delayed' (see
+    //    renew_bundle()), so the bundle-active check above never fires here, but a
+    //    successfully renewing bundle is itself the re-approval event for members
+    //    continuing into the new term. Without this, tiers with renew_approval_required
+    //    would strand continuing members in 'pending' every single renewal cycle even
+    //    though the bundle renewed cleanly.
+    $skip_tier_approval = $is_renewal || $this->get_membership_status() === Wicket_Memberships::STATUS_ACTIVE;
+
     $result = Membership_Controller::create_membership_record( [
       'membership_type'                           => 'individual',
       'user_id'                                   => $user_id,
@@ -853,7 +864,7 @@ class Membership_Bundle {
       // When the bundle has been synced to MDP, pass the bundle UUID so create_mdp_record()
       // links this person_membership to the bundle instead of creating a standalone record.
       'membership_bundle_mdp_uuid'                => (string) get_post_meta( $link_to_bundle_id, 'membership_bundle_mdp_uuid', true ),
-    ], $is_renewal );
+    ], $is_renewal, false, $skip_tier_approval );
 
     // When the bundle is synced to MDP and the MDP member assignment failed,
     // surface the error immediately rather than silently creating an unlinked WP post.
