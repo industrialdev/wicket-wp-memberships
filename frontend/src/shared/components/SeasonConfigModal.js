@@ -167,6 +167,7 @@ const SeasonConfigModal = ({
                   }
                   showMonthDropdown
                   showYearDropdown
+                  withPortal
                 />
               </ReactDatePickerStyledWrap>
             </FlexBlock>
@@ -186,6 +187,7 @@ const SeasonConfigModal = ({
                   selected={tempSeason.end_date ? new Date(tempSeason.end_date + "T00:00:00") : null}
                   showMonthDropdown
                   showYearDropdown
+                  withPortal
                 />
               </ReactDatePickerStyledWrap>
             </FlexBlock>

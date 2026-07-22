@@ -62,7 +62,17 @@ export const BorderedBox = styled.div`
   margin-top: 15px;
 `;
 
-export const SelectWpStyled = styled(Select)`
+// menuPortalTarget renders the option list into document.body via a portal, so it
+// escapes any clipped/scrollable ancestor (e.g. a WicketModal) instead of being cut off.
+// styles.menuPortal keeps the portaled menu above WP admin's own modal/overlay z-indexes.
+const selectPortalProps = {
+  menuPortalTarget: typeof document !== "undefined" ? document.body : null,
+  styles: {
+    menuPortal: (base) => ({ ...base, zIndex: 100000 }),
+  },
+};
+
+export const SelectWpStyled = styled(Select).attrs(selectPortalProps)`
   .select__input-container {
     margin: 0;
     padding: 0;
@@ -93,7 +103,7 @@ export const SelectWpStyled = styled(Select)`
   }
 `;
 
-export const AsyncSelectWpStyled = styled(AsyncSelect)`
+export const AsyncSelectWpStyled = styled(AsyncSelect).attrs(selectPortalProps)`
   .select__input-container {
     margin: 0;
     padding: 0;
@@ -185,11 +195,36 @@ export const LabelWpStyled = styled.label`
   padding: 0px;
 `;
 
+// Date pickers (react-datepicker withPortal) and react-select dropdowns
+// (SelectWpStyled/AsyncSelectWpStyled menuPortalTarget) render their popups via a
+// portal to document.body, so they no longer need this modal to disable its own
+// scroll/clipping. Leaving overflow at its @wordpress/components default lets the
+// modal cap its own height and scroll its content on short viewports.
+//
+// $fillHeight makes .components-modal__frame/.components-modal__content a real flex
+// column with a definite height (the frame's own display:flex has no flex-direction,
+// so flex:1 on .components-modal__content sizes it in the wrong axis by default and
+// its height stays auto, only ever clipped by the frame's overflow:hidden rather than
+// shrinking a child to fit). Opt in via the $fillHeight prop for modals with content
+// that needs to compress and internally scroll instead of clipping — e.g.
+// ModalPostSelector's post-picker table. Plain form modals (SeasonConfigModal,
+// manage_products.js) should NOT set this — they want their natural auto-height.
 export const ModalStyled = styled(Modal)`
-  &,
-  .components-modal__content {
-    overflow: visible;
-  }
+  ${({ $fillHeight }) =>
+    $fillHeight &&
+    `
+      &.components-modal__frame {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .components-modal__content {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+      }
+    `}
 `;
 
 export const RecordTopInfo = styled.div`

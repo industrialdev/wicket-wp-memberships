@@ -88,9 +88,26 @@ const TriggerButton = styled.button`
   }
 `;
 
+// Fills .components-modal__content (made a definite-height flex column by
+// WicketModal's $fillHeight prop, which @wordpress/components caps to the viewport
+// via max-height: calc(100% - 120px) / 70%, depending on breakpoint). Search input,
+// pagination bar, and footer keep their natural size; TableWrap is the only flexible
+// child, so it's what actually compresses when the modal has less room, instead of
+// footer buttons getting clipped by the frame's own overflow:hidden.
+const ModalBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+`;
+
 const TableWrap = styled.div`
   margin-top: 12px;
   overflow-x: auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 `;
 
 const truncate = `
@@ -169,7 +186,7 @@ const IconCol = styled(Col)`
 
 const TableBody = styled.div`
   border: 1px solid #c3c4c7;
-  max-height: 380px;
+  min-height: 0;
   overflow-y: auto;
 `;
 
@@ -581,118 +598,121 @@ const ModalPostSelector = ({
         isOpen={isOpen}
         title={modalTitle || label || __("Select an option", "wicket-memberships")}
         onRequestClose={closeModal}
+        $fillHeight
       >
-        {loadState === "error" && (
-          <Notice isDismissible={false} status="warning">
-            <div>{errorMessage}</div>
-            <div>
-              <WicketButton onClick={handleRetry} variant="link">
-                {__("Retry", "wicket-memberships")}
-              </WicketButton>
-            </div>
-          </Notice>
-        )}
-
-        <SearchWrap>
-          <SearchInput
-            type="search"
-            placeholder={__("Search…", "wicket-memberships")}
-            value={search}
-            onChange={handleSearchChange}
-            aria-label={__("Search options", "wicket-memberships")}
-          />
-        </SearchWrap>
-
-        <TableWrap>
-          {loadState === "loading" ? (
-            <LoadingState>
-              <Spinner />
-            </LoadingState>
-          ) : (
-            <TableBody role="listbox">
-              <TableHeader role="row">
-                {allColumns.map((col) =>
-                  col.key === "view" ? (
-                    <IconCol key="view" $width={44} aria-hidden="true" />
-                  ) : (
-                    headerCol(col.key, col.label, col.width, col.flex, col.sortable !== false)
-                  ),
-                )}
-              </TableHeader>
-
-              {loadState === "loaded" && filteredSorted.length === 0 && (
-                <EmptyRow>
-                  {search.trim()
-                    ? __("No results match your search.", "wicket-memberships")
-                    : __("No options available.", "wicket-memberships")}
-                </EmptyRow>
-              )}
-
-              {loadState === "loaded" &&
-                pageRows.map((opt) => (
-                  <TableRow
-                    key={opt.value}
-                    $isSelected={pendingValue && pendingValue.value === opt.value}
-                    onClick={() => handleSelect(opt)}
-                    role="option"
-                    aria-selected={value && value.value === opt.value}
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        handleSelect(opt);
-                      }
-                    }}
-                  >
-                    {allColumns.map((col) => renderCell(opt, col))}
-                  </TableRow>
-                ))}
-            </TableBody>
+        <ModalBody>
+          {loadState === "error" && (
+            <Notice isDismissible={false} status="warning">
+              <div>{errorMessage}</div>
+              <div>
+                <WicketButton onClick={handleRetry} variant="link">
+                  {__("Retry", "wicket-memberships")}
+                </WicketButton>
+              </div>
+            </Notice>
           )}
-        </TableWrap>
 
-        {loadState === "loaded" && filteredSorted.length > PAGE_SIZE && (
-          <PaginationBar>
-            <PaginationInfo>
-              {__("Page", "wicket-memberships")} {safePage} {__("of", "wicket-memberships")} {totalPages}
-              {" "}
-              <span style={{ color: "#a0a0a0" }}>
-                ({filteredSorted.length} {__("total", "wicket-memberships")})
-              </span>
-            </PaginationInfo>
-            <PaginationControls>
-              <WicketButton
-                variant="secondary"
-                isSmall
-                disabled={safePage <= 1}
-                onClick={() => setCurrentPage((p) => p - 1)}
-              >
-                {__("← Prev", "wicket-memberships")}
-              </WicketButton>
-              <WicketButton
-                variant="secondary"
-                isSmall
-                disabled={safePage >= totalPages}
-                onClick={() => setCurrentPage((p) => p + 1)}
-              >
-                {__("Next →", "wicket-memberships")}
-              </WicketButton>
-            </PaginationControls>
-          </PaginationBar>
-        )}
+          <SearchWrap>
+            <SearchInput
+              type="search"
+              placeholder={__("Search…", "wicket-memberships")}
+              value={search}
+              onChange={handleSearchChange}
+              aria-label={__("Search options", "wicket-memberships")}
+            />
+          </SearchWrap>
 
-        <ModalFooter>
-          <WicketButton variant="secondary" onClick={closeModal}>
-            {__("Cancel", "wicket-memberships")}
-          </WicketButton>
-          <WicketButton
-            variant="primary"
-            disabled={!pendingValue}
-            onClick={handleConfirm}
-          >
-            {__("Select", "wicket-memberships")}
-          </WicketButton>
-        </ModalFooter>
+          <TableWrap>
+            {loadState === "loading" ? (
+              <LoadingState>
+                <Spinner />
+              </LoadingState>
+            ) : (
+              <TableBody role="listbox">
+                <TableHeader role="row">
+                  {allColumns.map((col) =>
+                    col.key === "view" ? (
+                      <IconCol key="view" $width={44} aria-hidden="true" />
+                    ) : (
+                      headerCol(col.key, col.label, col.width, col.flex, col.sortable !== false)
+                    ),
+                  )}
+                </TableHeader>
+
+                {loadState === "loaded" && filteredSorted.length === 0 && (
+                  <EmptyRow>
+                    {search.trim()
+                      ? __("No results match your search.", "wicket-memberships")
+                      : __("No options available.", "wicket-memberships")}
+                  </EmptyRow>
+                )}
+
+                {loadState === "loaded" &&
+                  pageRows.map((opt) => (
+                    <TableRow
+                      key={opt.value}
+                      $isSelected={pendingValue && pendingValue.value === opt.value}
+                      onClick={() => handleSelect(opt)}
+                      role="option"
+                      aria-selected={value && value.value === opt.value}
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handleSelect(opt);
+                        }
+                      }}
+                    >
+                      {allColumns.map((col) => renderCell(opt, col))}
+                    </TableRow>
+                  ))}
+              </TableBody>
+            )}
+          </TableWrap>
+
+          {loadState === "loaded" && filteredSorted.length > PAGE_SIZE && (
+            <PaginationBar>
+              <PaginationInfo>
+                {__("Page", "wicket-memberships")} {safePage} {__("of", "wicket-memberships")} {totalPages}
+                {" "}
+                <span style={{ color: "#a0a0a0" }}>
+                  ({filteredSorted.length} {__("total", "wicket-memberships")})
+                </span>
+              </PaginationInfo>
+              <PaginationControls>
+                <WicketButton
+                  variant="secondary"
+                  isSmall
+                  disabled={safePage <= 1}
+                  onClick={() => setCurrentPage((p) => p - 1)}
+                >
+                  {__("← Prev", "wicket-memberships")}
+                </WicketButton>
+                <WicketButton
+                  variant="secondary"
+                  isSmall
+                  disabled={safePage >= totalPages}
+                  onClick={() => setCurrentPage((p) => p + 1)}
+                >
+                  {__("Next →", "wicket-memberships")}
+                </WicketButton>
+              </PaginationControls>
+            </PaginationBar>
+          )}
+
+          <ModalFooter>
+            <WicketButton variant="secondary" onClick={closeModal}>
+              {__("Cancel", "wicket-memberships")}
+            </WicketButton>
+            <WicketButton
+              variant="primary"
+              disabled={!pendingValue}
+              onClick={handleConfirm}
+            >
+              {__("Select", "wicket-memberships")}
+            </WicketButton>
+          </ModalFooter>
+        </ModalBody>
       </WicketModal>
     </>
   );

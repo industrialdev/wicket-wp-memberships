@@ -148,7 +148,12 @@ A simple spacer container with `30px` top margin. Place the primary action butto
 
 **Renders:** WordPress `<Modal>` component
 
-A `@wordpress/components` `Modal` with `overflow: visible` applied to both the modal root and its inner `.components-modal__content` element. Use whenever a modal contains a `<SelectWpStyled>`, `<AsyncSelectWpStyled>`, or date picker whose dropdown would otherwise be clipped by the modal's default `overflow: hidden` behaviour.
+A plain `@wordpress/components` `Modal` with no overflow override — it keeps the library's default height-capped, internally-scrollable behaviour. This is required by `ModalPostSelector`'s post-picker table, which needs the modal itself to clip/scroll on short viewports rather than letting content overflow past the modal box.
+
+Dropdowns that need to escape the modal's bounds handle it themselves via portals instead of relying on the modal disabling its own overflow:
+
+- `<SelectWpStyled>` / `<AsyncSelectWpStyled>` default to `menuPortalTarget={document.body}` (set via `.attrs()` in `shared/styled_elements.js`), so their option menu renders outside the modal via a portal. Override `menuPortalTarget`/`styles.menuPortal` per-instance only if a specific usage needs different behaviour.
+- Date pickers (`react-datepicker`, e.g. `SeasonConfigModal`, `MembershipDatePicker`) pass `withPortal` so the calendar popup renders via a portal instead of being clipped.
 
 :::details Example
 
@@ -156,7 +161,7 @@ A `@wordpress/components` `Modal` with `overflow: visible` applied to both the m
 import { ModalStyled } from 'shared/styled_elements';
 
 <ModalStyled title="Add Member" onRequestClose={onClose}>
-  <AsyncSelectWpStyled ... />
+  <AsyncSelectWpStyled ... /> {/* menu escapes the modal via its own portal */}
 </ModalStyled>
 ```
 
