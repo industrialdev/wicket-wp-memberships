@@ -104,6 +104,10 @@ class Admin_Controller {
     $Membership_Controller = new Membership_Controller();
     $user_id = $Membership_Controller->get_user_id_from_membership_post( $membership_post_id );
     $membership_new = $Membership_Controller->get_membership_array_from_user_meta_by_post_id( $membership_post_id, $user_id );
+    $membership_post_meta = Helper::get_post_meta( $membership_post_id );
+    if( ! empty( $membership_post_meta ) ) {
+      $membership_new = array_merge( (array) $membership_new, $membership_post_meta );
+    }
 
     if( empty( $new_post_status )) {
       $response_array['error'] = 'Invalid status transition. Requested status was not received.';
@@ -208,10 +212,10 @@ class Admin_Controller {
       
       // If the membership is in grace period, set the expiry to now
       else if( $current_post_status == Wicket_Memberships::STATUS_GRACE) {
-        //var_dump($membership_current);exit;
+        $current_end_date = $membership_post_meta['membership_ends_at'] ?? get_post_meta( $membership_post_id, 'membership_ends_at', true );
         $meta_data = [
           'membership_status' => $new_post_status,
-          //'membership_ends_at' => $membership_current['membership_ends_at'],
+          'membership_ends_at' => $current_end_date,
           'membership_expires_at' => $now_iso_date,
           'membership_grace_period_days' => 0
         ];
@@ -1154,15 +1158,23 @@ class Admin_Controller {
   }
 
   /**
-   * Admin membership edit page switch membership
-   * https://app.asana.com/1/1138832104141584/project/1209996062337717/task/1210003466118773
-   * 
-   * @param int $membership_post_id
-   * @param int $new_tier_post_id
-   * @param string $switch_date
+   * Admin membership edit page switch membership.
+   *
+   * Creates a new membership on the target tier, preserves the original END date, cancels the original
+   * membership, and patches its MDP record. The target tier may define a different grace period, so the
+   * new membership's expiry is recomputed as end_date + new-tier grace; when that changes the expiry, the
+   * scheduled `add_membership_expires_at` Action Scheduler event is re-pointed to the new date (the end
+   * date and early-renew events are unchanged and left as-is).
+   *
+   * @see https://app.asana.com/1/1138832104141584/project/1209996062337717/task/1210003466118773
+   * @see \Wicket_Memberships\Membership_Controller::scheduler_dates_for_expiry() for how the event is keyed.
+   *
+   * @param  int         $membership_post_id  Post ID of the membership being switched (the one replaced).
+   * @param  int         $new_tier_post_id    Post ID of the tier to switch to.
+   * @param  string|null $switch_date         Optional future switch date; null = immediate.
+   *
    * @return \WP_REST_Response
    */
-
   public function create_switch_membership( $membership_post_id, $new_tier_post_id, $switch_date = null ) {
     // Get the original membership post
     if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
@@ -1174,7 +1186,9 @@ class Admin_Controller {
       return new \WP_REST_Response(['success' => false, 'error' => 'Original membership not found.'], 404);
     }
     if(empty($switch_date)) {
-      $switch_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+      // Immediate switch: "now" in the MDP timezone, so the new membership starts now
+      // and the cancelled membership ends now (not midnight).
+      $switch_iso_date = Utilities::get_mdp_now()->format('c');
     } else {
       $switch_iso_date = (new \DateTime( date("Y-m-d", strtotime($switch_date)), wp_timezone() ))->format('c');
     }
@@ -1189,26 +1203,89 @@ class Admin_Controller {
     $membership_tier = new Membership_Tier( $new_tier_post_id );
     $membership_tier_uuid = $membership_tier->tier_data['mdp_tier_uuid'];
     $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
+    $membership_type = $membership_tier->tier_data['type'];
 
     $membership_starts_at = $switch_iso_date;
     $membership_ends_at = get_post_meta( $membership_post_id, 'membership_ends_at', true);
     $membership_ends_at = (new \DateTime( date("Y-m-d", strtotime($membership_ends_at)), wp_timezone() ))->format('c');
     $membership_grace_period_days = $config->get_late_fee_window_days();
 
-    //Create a new membership in the MDP for the new tier using the original membership data
-    $response = wicket_assign_individual_membership( 
-            $owner_uuid,
-            $membership_tier_uuid,
-            $membership_starts_at,
-            $membership_ends_at,
-            $membership_grace_period_days
-          );
+    // Capture the OLD membership's MDP identity/start before mutating its meta.
+    $old_membership_wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
+    $old_membership_starts_at   = get_post_meta( $membership_post_id, 'membership_starts_at', true );
+
+    // Capture the OLD membership's expiry and its scheduled-event key (order + product) before the
+    // meta is copied/overwritten. Used below to decide whether the expiry moved and to re-point the
+    // existing `add_membership_expires_at` action, which is keyed by order + product.
+    $old_membership_expires_at        = get_post_meta( $membership_post_id, 'membership_expires_at', true );
+    $old_membership_parent_order_id   = get_post_meta( $membership_post_id, 'membership_parent_order_id', true );
+    $old_membership_product_id        = get_post_meta( $membership_post_id, 'membership_product_id', true );
+
+    //Create a new membership in the MDP for the new tier using the original membership data.
+    //Organization tiers must use the organization_memberships endpoint, not the individual one.
+    if ( $membership_type === 'organization' ) {
+      $organization_uuid = get_post_meta( $membership_post_id, 'org_uuid', true );
+      $membership_seats = get_post_meta( $membership_post_id, 'org_seats', true );
+      if ( $membership_seats < 1 ) {
+        $membership_seats = null;
+      }
+      $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
+      // Link the old org membership as the predecessor so the base plugin copies its existing
+      // seat assignments forward (we are recreating the membership with the same seat count).
+      // grant_owner_assignment, however, follows the NEW tier's configured value.
+      if ( $base_version_supports_grant_owner_assignment ) {
+        $response = wicket_assign_organization_membership(
+              $owner_uuid,
+              $organization_uuid,
+              $membership_tier_uuid,
+              $membership_starts_at,
+              $membership_ends_at,
+              $membership_seats,
+              $membership_grace_period_days,
+              $old_membership_wicket_uuid, // previous_membership_uuid: triggers copy_previous_assignments
+              $membership_tier->is_grant_owner_assignment()
+            );
+      } else {
+        $response = wicket_assign_organization_membership(
+              $owner_uuid,
+              $organization_uuid,
+              $membership_tier_uuid,
+              $membership_starts_at,
+              $membership_ends_at,
+              $membership_seats,
+              $membership_grace_period_days,
+              $old_membership_wicket_uuid // previous_membership_uuid: triggers copy_previous_assignments
+            );
+      }
+    } else {
+      // Link the old person membership as the predecessor for MDP record continuity,
+      // mirroring the org path above and Membership_Controller::create_mdp_record().
+      $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
+      if ( $base_version_supports_previous_membership_assignment ) {
+        $response = wicket_assign_individual_membership(
+              $owner_uuid,
+              $membership_tier_uuid,
+              $membership_starts_at,
+              $membership_ends_at,
+              $membership_grace_period_days,
+              $old_membership_wicket_uuid // previous_membership_uuid: links predecessor record
+            );
+      } else {
+        $response = wicket_assign_individual_membership(
+              $owner_uuid,
+              $membership_tier_uuid,
+              $membership_starts_at,
+              $membership_ends_at,
+              $membership_grace_period_days
+            );
+      }
+    }
 
     if ( is_wp_error( $response ) ) {
       return new \WP_REST_Response([
-        'success' => false, 
-        'error' => 'Failed to create new wicket membership.', 
-        'wicket_api_error' => $response->get_error_message( 'wicket_api_error' ), 
+        'success' => false,
+        'error' => 'Failed to create new wicket membership.',
+        'wicket_api_error' => $response->get_error_message( 'wicket_api_error' ),
         'payload' => [
             $new_tier_post_id,
             $owner_uuid,
@@ -1254,15 +1331,110 @@ class Admin_Controller {
     update_post_meta( $new_post_id, 'membership_starts_at', $switch_iso_date );
     update_post_meta( $new_post_id, 'membership_grace_period_days', $membership_grace_period_days );
 
-    //update the old membership post with the new status and end date
+    // The target tier can carry a different grace period. The end date is preserved (inherited via the
+    // meta copy above), so recompute the expiry as end_date + new-tier grace and store it on the new post.
+    $new_membership_ends_at    = get_post_meta( $new_post_id, 'membership_ends_at', true );
+    $new_membership_expires_at = $this->derive_switch_expiry( $new_membership_ends_at, $membership_grace_period_days );
+    update_post_meta( $new_post_id, 'membership_expires_at', $new_membership_expires_at );
+
+    // Re-point the scheduled expiry event only when the expiry actually moved. The end date is unchanged
+    // (so `add_membership_ends_at` stays correct) and `early_renew_at` is left inherited (so its event
+    // stays correct) — only the expiry can shift with grace. The event is keyed by order + product (see
+    // Membership_Controller::scheduler_dates_for_expiry), which the new membership inherits from the
+    // original, so unscheduling that key and re-adding it simply moves the same event to the new date.
+    if ( ! empty( $old_membership_parent_order_id ) && ! empty( $old_membership_product_id )
+         && strtotime( $new_membership_expires_at ) !== strtotime( (string) $old_membership_expires_at )
+         && function_exists( 'as_unschedule_action' ) && function_exists( 'as_schedule_single_action' ) ) {
+      $expiry_event_args = [
+        'membership_parent_order_id' => $old_membership_parent_order_id,
+        'membership_product_id'      => $old_membership_product_id,
+      ];
+      as_unschedule_action( 'add_membership_expires_at', $expiry_event_args, 'wicket-membership-plugin' );
+      as_schedule_single_action( strtotime( $new_membership_expires_at ), 'add_membership_expires_at', $expiry_event_args, 'wicket-membership-plugin', false );
+    }
+
+    // ($old_membership_wicket_uuid / $old_membership_starts_at were captured before the new
+    //  membership was assigned, so they reflect the pre-switch MDP identity.)
+
+    //update the old membership post: cancel, end now, expire now, zero grace
     update_post_meta( $membership_post_id, 'membership_status', Wicket_Memberships::STATUS_CANCELLED );
     update_post_meta( $membership_post_id, 'membership_ends_at', $switch_iso_date );
+    update_post_meta( $membership_post_id, 'membership_expires_at', $switch_iso_date );
+    update_post_meta( $membership_post_id, 'membership_grace_period_days', 0 );
+
+    // Sync the cancelled membership to the MDP: end it now (mdp tz), zero the grace period.
+    // Organization memberships must be patched via the organization_memberships endpoint.
+    // Log-and-continue on failure — never block the switch flow.
+    if ( ! empty( $old_membership_wicket_uuid ) ) {
+      if ( $membership_type === 'organization' ) {
+        $mdp_update = wicket_update_organization_membership_dates(
+          $old_membership_wicket_uuid,
+          $old_membership_starts_at, // preserve original start; helper defaults to "now" if empty
+          $switch_iso_date,          // ends_at -> now (mdp timezone)
+          false,                     // max_seats -> leave unchanged
+          0                          // grace_period_days -> 0
+        );
+      } else {
+        $mdp_update = wicket_update_individual_membership_dates(
+          $old_membership_wicket_uuid,
+          $old_membership_starts_at, // preserve original start; helper defaults to "now" if empty
+          $switch_iso_date,          // ends_at -> now (mdp timezone)
+          0                          // grace_period_days -> 0
+        );
+      }
+      if ( is_wp_error( $mdp_update ) ) {
+        Utilities::wc_log_mship_error([
+          'Switch: failed to update old membership in MDP (continuing)',
+          'membership_post_id' => $membership_post_id,
+          'old_uuid'           => $old_membership_wicket_uuid,
+          'error'              => $mdp_update->get_error_message( 'wicket_api_error' ),
+        ]);
+      }
+    }
+
+    // Redirect to the appropriate edit screen for the membership type.
+    if ( $membership_type === 'organization' ) {
+      $organization_uuid = isset( $organization_uuid ) ? $organization_uuid : get_post_meta( $membership_post_id, 'org_uuid', true );
+      $redirect_url = admin_url("admin.php?page=wicket_org_member_edit&id={$organization_uuid}&membership_uuid={$membership_wicket_uuid}");
+    } else {
+      $redirect_url = admin_url("admin.php?page=wicket_individual_member_edit&id={$owner_uuid}&membership_uuid={$membership_wicket_uuid}");
+    }
 
     return new \WP_REST_Response([
       'success' => true,
       'membership_wicket_uuid' => $membership_wicket_uuid,
-      'redirect_url' => admin_url("admin.php?page=wicket_individual_member_edit&id={$owner_uuid}&membership_uuid={$membership_wicket_uuid}")
+      'redirect_url' => $redirect_url
     ], 200);
+  }
+
+  /**
+   * Derive a membership expiry timestamp from an end date and a grace-period length.
+   *
+   * Mirrors Membership_Config::get_membership_dates(): expiry = end date + grace days, snapped to
+   * end-of-day in the MDP timezone. A zero/empty grace period yields an expiry equal to the end date
+   * (matching the create-flow fallback where get_membership_dates() leaves expires_at unset). Kept as a
+   * small pure method so the offset math is verifiable independently of the switch orchestration.
+   *
+   * @param  string     $end_date_iso  The membership end date (ISO 8601).
+   * @param  int|string  $grace_days   Grace-period length in days from the target tier's config.
+   *
+   * @return string  Expiry as an ISO 8601 string.
+   */
+  protected function derive_switch_expiry( $end_date_iso, $grace_days ) {
+    $grace_days = (int) $grace_days;
+
+    // Zero grace: the membership expires exactly at its end date (no grace window).
+    if ( $grace_days <= 0 ) {
+      return $end_date_iso;
+    }
+
+    // Add the grace days to the end date, then snap to end-of-day in the MDP timezone. Take the
+    // calendar date (Y-m-d) so the offset carried on $end_date_iso cannot shift the day.
+    $expires_date = ( new \DateTime( $end_date_iso, new \DateTimeZone( 'UTC' ) ) )
+      ->modify( '+' . $grace_days . ' days' )
+      ->format( 'Y-m-d' );
+
+    return Utilities::get_mdp_day_end( $expires_date )->format( 'c' );
   }
 
   /**
@@ -1286,7 +1458,7 @@ class Admin_Controller {
     $old_customer_meta_array = $new_customer_meta_array = $customer_meta ? json_decode( $customer_meta, true ) : [];
 
     // Used to set the new membership start date and old membership end date
-    $now_iso_date = (new \DateTime( date("Y-m-d"), wp_timezone() ))->format('c');
+    $now_iso_date = Utilities::get_mdp_day_start()->format('c');
 
     $membership_tier_uuid = get_post_meta( $membership_post_id, 'membership_tier_uuid', true);
     $membership_starts_at = $now_iso_date;

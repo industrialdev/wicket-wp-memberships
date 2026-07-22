@@ -12,6 +12,7 @@ import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses
 import he from 'he';
 import moment from 'moment-timezone';
 import CreateRenewalOrder from './create_renewal_order';
+import ManageMembership from './manage_membership.js';
 
 export const EditWrap = styled.div`
 	max-width: 1000px;
@@ -810,7 +811,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                   </FlexItem>
                                 </Flex>
                               </BorderedBox>
-
+                              <ManageMembership membership={membership} />
                               <CreateRenewalOrder membership={membership} />
                             </Flex>
 
