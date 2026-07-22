@@ -328,6 +328,7 @@ class Membership_Bundle_Admin_Controller {
 
     return [
       'id'             => $bundle->get_bundle_group_uuid(),
+      'post_id'        => $post_id,
       'bundle_name'    => $bundle->get_name(),
       'org_name'       => (string) get_post_meta( $post_id, 'org_name', true ),
       'owner'          => self::build_owner_field( $bundle ),

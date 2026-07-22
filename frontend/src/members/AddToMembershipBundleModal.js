@@ -59,7 +59,7 @@ const AddToMembershipBundleModal = ({
       return groups
         .filter((bundle) => VALID_STATUSES.includes(bundle.status?.slug))
         .map((bundle) => ({
-          value: bundle.id,
+          value: bundle.post_id,
           title: bundle.bundle_name,
           org_name: bundle.org_name ?? "",
         }));

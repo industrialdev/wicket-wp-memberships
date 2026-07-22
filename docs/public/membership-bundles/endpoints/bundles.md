@@ -269,14 +269,19 @@ Returns a paginated, filterable list of membership bundles.
 
 ```json
 {
-    "posts": [
+    "results": [
         {
-            "ID": 123,
-            "title": "Acme Corp 2025 Membership",
-            "membership_status": "active",
-            "membership_starts_at": "2025-01-01T00:00:00+00:00",
-            "membership_ends_at": "2025-12-31T23:59:59+00:00",
-            "org_name": "Acme Corp"
+            "id": "3f9a1b2c-1234-4a5b-9c3d-abcdef012345",
+            "post_id": 123,
+            "bundle_name": "Acme Corp 2025 Membership",
+            "org_name": "Acme Corp",
+            "owner": { "uuid": "...", "name": "..." },
+            "status": { "slug": "active", "label": "Active" },
+            "last_updated": "2025-06-01 12:00:00",
+            "post_modified": "2025-06-01 12:00:00",
+            "org_uuid": "...",
+            "mdp_link": "https://admin.example.com/organizations/...",
+            "bundle_mdp_link": "https://admin.example.com/organizations/.../bundles/..."
         }
     ],
     "total": 1,
@@ -284,6 +289,8 @@ Returns a paginated, filterable list of membership bundles.
     "page": 1
 }
 ```
+
+`id` is the bundle's `membership_bundle_group_uuid` (stable across renewal cycles) — use it for admin navigation links (`?id=<uuid>`). `post_id` is the numeric WP post ID for the current `wicket_mship_bundle` post — use it when calling other endpoints that take a `bundle_post_id` path/body parameter (e.g. `move_individual_membership`, `add_member`).
 
 ### Example
 

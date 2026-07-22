@@ -60,9 +60,9 @@ const MoveToMembershipBundleModal = ({
         .filter(
           (g) =>
             VALID_STATUSES.includes(g.status?.slug) &&
-            g.id !== sourceBundlePostId
+            g.post_id !== sourceBundlePostId
         )
-        .map((g) => ({ value: g.id, title: g.bundle_name, org_name: g.org_name ?? "" }));
+        .map((g) => ({ value: g.post_id, title: g.bundle_name, org_name: g.org_name ?? "" }));
     });
 
   const handleSubmit = async () => {
@@ -71,8 +71,8 @@ const MoveToMembershipBundleModal = ({
     setError(null);
     try {
       await moveIndividualMembership(sourceBundlePostId, {
-        membership_post_id:   membershipPostId,
-        target_group_post_id: selectedBundle.value,
+        membership_post_id:    membershipPostId,
+        target_bundle_post_id: selectedBundle.value,
       });
       resetState();
       onSuccess(__("Member moved to new bundle.", "wicket-memberships"));

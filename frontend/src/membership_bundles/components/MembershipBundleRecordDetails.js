@@ -114,7 +114,7 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
 
   const handleSave = ({ renewalType, nextTierFormPageId, nextTierId, ...datepayload }) =>
     updateMembershipBundle(record.ID, {
-      group_post_id: record.ID,
+      bundle_post_id: record.ID,
       renewal_type: renewalType,
       next_tier_form_page_id: nextTierFormPageId,
       next_tier_id: nextTierId,
