@@ -35,6 +35,7 @@ source_files: ["includes/Membership_WP_REST_Controller.php"]
 - `get_tiers_mdp($request)`
 - `get_tier_info($request)`
 - `create_renewal_order($request)`
+- `get_all_wp_pages($request)`
 - `get_memberships_table_data($categories = null, $filters = [])`
 - `permissions_check_read($request)`
 - `permissions_check_write($request)`
@@ -115,6 +116,13 @@ Retrieves tier info for a given tier UUID and properties by delegating to the Me
 
 **create_renewal_order($request)**
 Creates a renewal order for a membership by delegating to the Admin_Controller.
+
+**get_all_wp_pages($request)**
+Returns every published WP page (`id`, `title.rendered`) for admin page-picker UIs — the tier and membership renewal-form page selectors (`GET /wicket_member/v1/wp_pages_all`).
+
+This exists instead of using core `GET /wp/v2/pages` because the WP Private Content Plus plugin hooks `rest_prepare_page` and `pre_get_posts` and strips out any page with a restricted `_wppcp_post_page_visibility` value from REST responses — including from plain admin list-building queries that aren't actual searches. Its `pre_get_posts` handler (`exclude_restricted_posts_from_search()` in `wp-private-content-plus/functions.php`) checks `isset( $query->query_vars['s'] )`, which WordPress sets (to `''`) on every `WP_Query`, so the check is always true under `REST_REQUEST` — the exclusion fires on every REST-context query, not just real searches. Renewal-form page pickers need to show *all* pages regardless of member-only visibility, since the tier/membership admin screens are staff-only already.
+
+The fix wraps the `get_posts()` call with `add_filter( 'disable_restriction_checks', '__return_true' )` / `remove_filter(...)` — the escape hatch WP Private Content Plus's own code already uses internally to avoid infinite recursion — rather than patching the third-party plugin. Do not swap this endpoint back to core `/wp/v2/pages` for either of the two consumers (`membership_tiers/edit.js`, `members/edit.js`) without re-checking that filter behavior first.
 
 **get_memberships_table_data($categories = null, $filters = [])**
 Builds and returns an array of membership data for the memberships table, filtered by categories and filters.

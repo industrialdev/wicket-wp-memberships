@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
 import apiFetch from '@wordpress/api-fetch';
 import { addQueryArgs } from '@wordpress/url';
-import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_SETTINGS } from '../constants';
+import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS } from '../constants';
 import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../styled_elements';
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
 import DatePicker from 'react-datepicker';
@@ -298,18 +298,15 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       });
   }
 
-  // Fetch Local WP Pages
+  // Fetch Local WP Pages (via plugin endpoint so pages with visibility
+  // restrictions from plugins like WP Private Content Plus are still listed)
   const getLocalWpPages = () => {
-		apiFetch({ path: addQueryArgs(`${API_URL}/pages`, {
-      _fields: 'id,title',
-			status: 'publish',
-			per_page: -1
-		}) }).then((posts) => {
-			let options = posts.map((post) => {
-				const decodedTitle = he.decode(post.title.rendered);
+		apiFetch({ path: `${PLUGIN_API_URL}/wp_pages_all` }).then((pages) => {
+			let options = pages.map((page) => {
+				const decodedTitle = he.decode(page.title.rendered);
 				return {
-					label: `${decodedTitle} | ID: ${post.id}`,
-					value: post.id
+					label: `${decodedTitle} | ID: ${page.id}`,
+					value: page.id
 				}
 			});
 
