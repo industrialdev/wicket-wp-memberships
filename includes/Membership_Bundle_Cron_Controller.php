@@ -206,7 +206,7 @@ class Membership_Bundle_Cron_Controller {
       if ( false === $result ) {
         Utilities::wc_log_mship_error( [ 'daily_bundle_activation_hook: transition failed', $bundle_post->ID ] );
       } else {
-        $bundles_updated[] = [ $bundle_post->ID, $bundle_post->membership_status, $bundle_post->membership_starts_at ];
+        $bundles_updated[] = [ $bundle_post->ID, $bundle->get_membership_status(), $bundle->get_dates()['starts_at'] ];
       }
     }
 
