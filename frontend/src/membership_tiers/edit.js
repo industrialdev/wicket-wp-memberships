@@ -249,17 +249,14 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	useEffect(() => {
 
-		// Fetch Local WP Pages
-		apiFetch({ path: addQueryArgs(`${API_URL}/pages`, {
-      _fields: 'id,title',
-			status: 'publish',
-			per_page: -1
-		}) }).then((tiers) => {
-			let options = tiers.map((tier) => {
-				const decodedTitle = he.decode(tier.title.rendered);
+		// Fetch Local WP Pages (via plugin endpoint so pages with visibility
+		// restrictions from plugins like WP Private Content Plus are still listed)
+		apiFetch({ path: `${PLUGIN_API_URL}/wp_pages_all` }).then((pages) => {
+			let options = pages.map((page) => {
+				const decodedTitle = he.decode(page.title.rendered);
 				return {
-					label: `${decodedTitle} | ID: ${tier.id}`,
-					value: tier.id
+					label: `${decodedTitle} | ID: ${page.id}`,
+					value: page.id
 				}
 			});
 
