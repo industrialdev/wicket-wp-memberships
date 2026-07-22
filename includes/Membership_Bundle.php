@@ -966,7 +966,8 @@ class Membership_Bundle {
     ?int   $product_id,
     string $start_date,
     array  $bundle_dates,
-    string $admin_note = ''
+    string $admin_note = '',
+    bool   $skip_tier_approval = false
   ): int|\WP_Error {
     if ( ! function_exists( 'wcs_create_subscription' ) ) {
       return new \WP_Error( 'wcs_unavailable', __( 'WooCommerce Subscriptions is not active.', 'wicket-memberships' ) );
@@ -1164,7 +1165,12 @@ class Membership_Bundle {
     //   - update_membership_subscription() → subscription end/next_payment via MDP timezone conversion
     //   - _membership_post_id_renew on subscription line item via wicket_update_subscription_meta_membership_post_id()
     //   - wicket_membership_created_mdp hook
-    do_action( 'wicket_member_create_record', $membership, false, false );
+    //
+    // Tier-level approval is skipped only when $skip_tier_approval was set by the caller —
+    // true when the member is being released from a bundle that was active at the moment of
+    // release. The member was already vetted as part of an active bundle, so re-running tier
+    // approval here would strand them in 'pending' despite coming from an active seat.
+    do_action( 'wicket_member_create_record', $membership, false, false, $skip_tier_approval );
 
     // Re-apply subscription dates after do_action to correct the drift introduced by
     // update_membership_subscription() inside create_membership_record(). That method
@@ -1394,13 +1400,20 @@ class Membership_Bundle {
       $this->post_id
     );
 
+    // Member is being released from this bundle right now — skip tier-level approval when
+    // the bundle is currently active, since the member was already vetted as part of an
+    // active bundle. If the bundle is only pending/delayed, the member's own approval
+    // status isn't established yet, so the tier gate still applies.
+    $skip_tier_approval = $this->get_membership_status() === Wicket_Memberships::STATUS_ACTIVE;
+
     return $this->provision_standalone_individual_membership(
       $meta['user_id'],
       $meta['tier_post_id'],
       $meta['variation_id'] ?? $meta['product_id'],
       $start_date,
       $bundle_dates,
-      $admin_note
+      $admin_note,
+      $skip_tier_approval
     );
   }
 
@@ -1990,6 +2003,12 @@ class Membership_Bundle {
     $individual_memberships = $this->get_individual_memberships( false );
     $bundle_dates           = $this->get_dates();
 
+    // Captured before transition_to(STATUS_CANCELLED) below overwrites it — members are
+    // being carried over from whatever this bundle's status was at the moment of
+    // cancellation, so tier-level approval should skip for them under the same rule as
+    // remove_member(): only when the bundle was active, not pending/delayed.
+    $skip_tier_approval = $this->get_membership_status() === Wicket_Memberships::STATUS_ACTIVE;
+
     $members_meta = [];
     foreach ( $individual_memberships as $membership_post ) {
       $membership_post_id = $membership_post->ID;
@@ -2049,7 +2068,8 @@ class Membership_Bundle {
         $meta['product_id'],
         $start_date,
         $bundle_dates,
-        $admin_note
+        $admin_note,
+        $skip_tier_approval
       );
 
       if ( is_wp_error( $result ) ) {

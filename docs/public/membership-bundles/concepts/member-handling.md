@@ -120,6 +120,8 @@ $result = Membership_Bundle_Admin_Controller::remove_member([
 // On success, $result['membership_post_id'] is the new standalone membership post ID
 ```
 
+The new standalone membership's status follows the same tier-approval rule as adding a member (see above): if the bundle was `active` at the moment of release, tier-level `approval_required` is skipped and the member carries over as `active` rather than being forced back into `pending`. If the bundle was `pending` or `delayed`, the tier gate still applies. This also applies when an entire bundle is cancelled with the keep-as-individual option — each member's approval-skip is evaluated against the bundle's status just before cancellation.
+
 ::: warning
 `keep_as_individual` works even when the bundle is in `grace-period` status — this is intentional so that members can be released from an expired-but-still-accessible bundle. This is why it does not use the same start-date guard as `add_member`.
 :::

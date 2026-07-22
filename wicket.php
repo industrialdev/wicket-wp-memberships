@@ -216,7 +216,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //catch the order status change to processing
       add_action( 'woocommerce_order_status_processing', array ( __NAMESPACE__.'\\Membership_Controller' , 'catch_order_completed' ), 10, 1);
       //create the membership record
-      add_action( 'wicket_member_create_record', array( __NAMESPACE__.'\\Membership_Controller', 'create_membership_record'), 10, 3 );
+      add_action( 'wicket_member_create_record', array( __NAMESPACE__.'\\Membership_Controller', 'create_membership_record'), 10, 4 );
 
       //Advanced Scheduler action hooks to run our `do_action(..)` triggers on the renewal transition dates
       add_action( 'add_membership_early_renew_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_early_renew_at' ), 10, 2 );

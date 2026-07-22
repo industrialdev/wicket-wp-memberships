@@ -193,7 +193,7 @@ No personal WC order or subscription is created — the bundle's subscription co
 
 Renamed from `create_individual_membership_for_group()`. Fail states: `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `mdp_create_failed`, `create_failed`.
 
-### `provision_standalone_individual_membership( int $user_id, int $tier_post_id, ?int $product_id, string $start_date, array $bundle_dates, string $admin_note = '' ): int|WP_Error` _(private)_
+### `provision_standalone_individual_membership( int $user_id, int $tier_post_id, ?int $product_id, string $start_date, array $bundle_dates, string $admin_note = '', bool $skip_tier_approval = false ): int|WP_Error` _(private)_
 
 Creates a fully-backed standalone individual membership for a member released from the group via the `keep_as_individual` mode of `remove_member()`. Replicates the checkout-driven membership creation flow in code. The resulting membership is identical to what a checkout purchase produces.
 
@@ -213,7 +213,7 @@ Creates a fully-backed standalone individual membership for a member released fr
 2. Create WC subscription (`wcs_create_subscription`) with `start_date` = group start. Inherits `_requires_manual_renewal` from the group subscription rather than re-deriving from user autopay preference.
 3. Build membership data array with group dates (`ends_at`, `expires_at`, `early_renew_at`) instead of `$config->get_membership_dates()` — member inherits remaining group term, not a fresh full-length term. Billing period sourced from `Membership_Config::get_period_data()`.
 4. Write `_wicket_membership_{product_id}` JSON blob to both order and subscription post meta.
-5. Fire `do_action('wicket_member_create_record', $membership, false, false)` — triggers `create_membership_record()` which owns all downstream side effects including subscription date writes via `update_membership_subscription()` (MDP timezone-aware).
+5. Fire `do_action('wicket_member_create_record', $membership, false, false, $skip_tier_approval)` — triggers `create_membership_record()` which owns all downstream side effects including subscription date writes via `update_membership_subscription()` (MDP timezone-aware). `$skip_tier_approval` is passed by the caller (`remove_member()` / `cancel_keep_as_individual()`) as `true` when the bundle was `active` at the moment of release — this bypasses `Membership_Tier::is_approval_required()` so a member already vetted under an active bundle doesn't land back in `pending` on release. If the bundle was only `pending`/`delayed`, the tier gate still applies.
 
 **Note:** `end` and `next_payment` dates are not set on the subscription at creation time. `update_membership_subscription()` inside `create_membership_record()` applies these values using `Utilities::get_mdp_day_end()` / `get_mdp_day_start()` for correct timezone pinning.
 
@@ -435,13 +435,13 @@ Cancels the group and converts every individual group membership to a standalone
 
 This is Path C of the bundle cancellation flow (see `Membership_Bundle_Admin_Controller::cancel_bundle()`). It encapsulates the full conversion loop so the controller stays a thin delegator.
 
-**Phase 1 — Read before cancel.** `assert_group_is_manageable()` rejects calls on a cancelled group, so all member meta (user ID, tier, product ID, variation resolution) is collected from `get_individual_memberships()` before the group status changes.
+**Phase 1 — Read before cancel.** `assert_group_is_manageable()` rejects calls on a cancelled group, so all member meta (user ID, tier, product ID, variation resolution) is collected from `get_individual_memberships()` before the group status changes. `$skip_tier_approval` is also captured here (`get_membership_status() === STATUS_ACTIVE`) — must happen before Phase 2, since the transition below overwrites the status this check reads.
 
 **Phase 2 — Cancel the group.** Calls `transition_to('cancelled')`, which cascades the cancelled status to child memberships and cancels the group WC subscription.
 
 **Phase 3 — Per-member conversion.** For each member:
 - Calls `Membership_Controller::update_membership_status()` to explicitly cancel the existing group membership post (the cascade in Phase 2 already does this, but the explicit call ensures the post is in the correct state before provisioning).
-- Calls `provision_standalone_individual_membership()` with the group dates, so each member inherits the remaining term rather than a fresh full-length period. The admin note on the resulting order and subscription records the origin group ID.
+- Calls `provision_standalone_individual_membership()` with the group dates and the Phase 1 `$skip_tier_approval` flag, so each member inherits the remaining term rather than a fresh full-length period, and does not get stranded in `pending` by tier approval if the group was active before cancellation. The admin note on the resulting order and subscription records the origin group ID.
 
 Non-fatal per-member errors (missing user, WCS unavailable, order/subscription failure) are collected in `warnings` and returned alongside `success_message`. Returns `false` only when the group transition itself fails.
 
