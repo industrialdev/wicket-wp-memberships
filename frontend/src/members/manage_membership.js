@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { __ } from '@wordpress/i18n';
-import { BorderedBox, LabelWpStyled, SelectWpStyled, AsyncSelectWpStyled } from '../styled_elements';
+import { BorderedBox, LabelWpStyled, SelectWpStyled, AsyncSelectWpStyled } from '../shared/styled_elements';
 import { Button, Modal, Icon } from '@wordpress/components';
 import { addQueryArgs } from '@wordpress/url';
 import apiFetch from '@wordpress/api-fetch';
-import { PLUGIN_API_URL } from '../constants';
-import { transferMembership } from '../services/api';
+import { PLUGIN_API_URL } from '../shared/constants';
+import { transferMembership } from '../shared/services/api';
 import SwitchMembership from './switch_membership';
 
 const ManageMembership = ({ membership }) => {
