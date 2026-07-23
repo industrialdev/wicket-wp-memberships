@@ -1,10 +1,10 @@
-import styled from "styled-components";
+import styled, { createGlobalStyle } from "styled-components";
 import { Flex, Disabled, Modal } from "@wordpress/components";
 import Select from "react-select";
 import AsyncSelect from "react-select/async";
 import ReactDatePickerCss from "!!raw-loader!react-datepicker/dist/react-datepicker.css";
 
-export const AppWrap = styled.div`
+const datePickerStyleRules = `
   ${ReactDatePickerCss}
 
   .react-datepicker__current-month {
@@ -25,6 +25,18 @@ export const AppWrap = styled.div`
   .react-datepicker__month-dropdown-container--select {
     margin: 0 4px;
   }
+`;
+
+export const AppWrap = styled.div`
+  ${datePickerStyleRules}
+`;
+
+// Mount once on any page/modal whose DatePicker uses popperContainer to portal its
+// popper to document.body — that portaled node lives outside AppWrap's DOM subtree,
+// so AppWrap's scoped rules above never reach it without this global copy.
+// (createGlobalStyle is safe to mount more than once across the app.)
+export const GlobalDatePickerStyle = createGlobalStyle`
+  ${datePickerStyleRules}
 `;
 
 export const CustomDisabled = styled(Disabled)`

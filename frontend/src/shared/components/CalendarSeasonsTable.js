@@ -2,6 +2,7 @@ import { __ } from "@wordpress/i18n";
 import { Icon, __experimentalHeading as Heading } from "@wordpress/components";
 import WicketButton from "./WicketButton";
 import { FormFlex } from "../styled_elements";
+import { formatDateWithTooltip } from "../constants";
 
 const CalendarSeasonsTable = ({ seasons, disabled, onEditSeason }) => (
   <>
@@ -41,8 +42,8 @@ const CalendarSeasonsTable = ({ seasons, disabled, onEditSeason }) => (
                   ? __("Active", "wicket-memberships")
                   : __("Inactive", "wicket-memberships")}
               </td>
-              <td className="column-columnname">{season.start_date}</td>
-              <td className="column-columnname">{season.end_date}</td>
+              <td className="column-columnname">{formatDateWithTooltip(season.start_date)}</td>
+              <td className="column-columnname">{formatDateWithTooltip(season.end_date)}</td>
               <td>
                 <WicketButton
                   disabled={disabled}

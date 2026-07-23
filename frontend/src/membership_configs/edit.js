@@ -1,5 +1,6 @@
 import { __ } from "@wordpress/i18n";
 import { createRoot } from "react-dom/client";
+import { createPortal } from "react-dom";
 import apiFetch from "@wordpress/api-fetch";
 import { useState, useEffect } from "react";
 import { addQueryArgs } from "@wordpress/url";
@@ -35,6 +36,7 @@ import {
   LabelWpStyled,
   ReactDatePickerStyledWrap,
   AppWrap,
+  GlobalDatePickerStyle,
 } from "../shared/styled_elements";
 import DatePicker from "react-datepicker";
 import moment from "moment-timezone";
@@ -42,6 +44,18 @@ import MembershipConfigTiers from "./tiers";
 import { fetchWcProducts } from "../shared/services/api";
 import { Tooltip } from "react-tooltip";
 //import 'react-tooltip/dist/react-tooltip.css';
+
+// The Season Modal (.components-modal__frame / __content) clips its own overflow,
+// so a normally-positioned popper gets cut off at the modal's edge. Render it into
+// document.body instead — GlobalDatePickerStyle makes sure the portaled node
+// still picks up react-datepicker's CSS despite living outside AppWrap.
+const PopperPortal = ({ children }) => {
+  if (typeof document === "undefined") return children;
+  return createPortal(
+    <div style={{ position: "relative", zIndex: 999999 }}>{children}</div>,
+    document.body,
+  );
+};
 
 const CreateMembershipConfig = ({
   configCptSlug,
@@ -1183,6 +1197,7 @@ const CreateMembershipConfig = ({
               paddingTop: "40px",
             }}
           >
+            <GlobalDatePickerStyle />
             <AppWrap>
               <form onSubmit={handleCreateSeasonSubmit}>
                 {Object.keys(seasonErrors).length > 0 && (
@@ -1234,16 +1249,13 @@ const CreateMembershipConfig = ({
                     </LabelWpStyled>
                     <ReactDatePickerStyledWrap>
                       <DatePicker
-                        popperPlacement="bottom"
+                        popperContainer={PopperPortal}
                         aria-label={__("Start Date", "wicket-memberships")}
                         dateFormat={DEFAULT_DATE_FORMAT}
                         showMonthDropdown
                         showYearDropdown
                         dropdownMode="select"
                         selected={getSeasonDatePickerValue(tempSeason.start_date)}
-                        popperProps={{
-                          zIndex: 25,
-                        }}
                         onChange={(value) => {
                           setTempSeason({
                             ...tempSeason,
@@ -1259,16 +1271,13 @@ const CreateMembershipConfig = ({
                     </LabelWpStyled>
                     <ReactDatePickerStyledWrap>
                       <DatePicker
-                        popperPlacement="bottom"
+                        popperContainer={PopperPortal}
                         aria-label={__("End Date", "wicket-memberships")}
                         dateFormat={DEFAULT_DATE_FORMAT}
                         showMonthDropdown
                         showYearDropdown
                         dropdownMode="select"
                         selected={getSeasonDatePickerValue(tempSeason.end_date)}
-                        popperProps={{
-                          zIndex: 25,
-                        }}
                         onChange={(value) => {
                           setTempSeason({
                             ...tempSeason,

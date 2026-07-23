@@ -37,7 +37,8 @@ const MembershipDatePicker = ({
           selected={value}
           placeholderText={placeholder}
           onChange={onChange}
-          withPortal
+          popperPlacement="bottom-start"
+          popperProps={{ zIndex: 25 }}
         />
         <span className="membership-date-picker__adornment" aria-hidden="true">
           <span className="membership-date-picker__divider" />

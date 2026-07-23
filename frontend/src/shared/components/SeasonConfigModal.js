@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { __ } from "@wordpress/i18n";
+import moment from "moment-timezone";
 import {
   Flex,
   FlexBlock,
@@ -11,11 +13,12 @@ import {
 } from "@wordpress/components";
 import WicketButton from "./WicketButton";
 import DatePicker from "react-datepicker";
-import { DEFAULT_DATE_FORMAT } from "../constants";
+import { DEFAULT_DATE_FORMAT, PLUGIN_SETTINGS } from "../constants";
 import {
   ActionRow,
   AppWrap,
   ErrorsRow,
+  GlobalDatePickerStyle,
   LabelWpStyled,
   ReactDatePickerStyledWrap,
 } from "../styled_elements";
@@ -28,10 +31,42 @@ const createEmptySeason = () => ({
   end_date: "",
 });
 
-const formatDate = (date) =>
-  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
-    date.getDate(),
-  ).padStart(2, "0")}`;
+// The modal (.components-modal__frame / __content) clips its own overflow, so a
+// normally-positioned popper gets cut off at the modal's edge. Render it into
+// document.body instead — GlobalDatePickerStyle makes sure the portaled node
+// still picks up react-datepicker's CSS despite living outside AppWrap.
+const PopperPortal = ({ children }) => {
+  if (typeof document === "undefined") return children;
+  return createPortal(
+    <div style={{ position: "relative", zIndex: 999999 }}>{children}</div>,
+    document.body,
+  );
+};
+
+const mdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || "UTC";
+
+// Converts a calendar-day Date from the picker into a full UTC ISO string in the
+// MDP timezone — start of day for start_date, end of day for end_date. Matches
+// the individual/organization membership config's convertSeasonDate() so a
+// season's end date is inclusive of its whole last day rather than starting at
+// midnight of that day.
+const convertSeasonDate = (dateValue, isEndDate = false) => {
+  if (!dateValue) return "";
+  const m = moment.tz(
+    [dateValue.getFullYear(), dateValue.getMonth(), dateValue.getDate()],
+    mdpTimezone,
+  );
+  return isEndDate ? m.endOf("day").utc().toISOString() : m.startOf("day").utc().toISOString();
+};
+
+// Converts a stored ISO string back into a plain calendar-day Date for the picker
+// (react-datepicker works in local time, so we take the MDP-timezone calendar
+// date and construct a local Date at midnight on that same day).
+const getSeasonDatePickerValue = (isoString) => {
+  if (!isoString) return null;
+  const m = moment.tz(isoString, mdpTimezone);
+  return new Date(m.year(), m.month(), m.date());
+};
 
 const SeasonConfigModal = ({
   isOpen,
@@ -111,6 +146,7 @@ const SeasonConfigModal = ({
           : __("Edit Season", "wicket-memberships")
       }
     >
+      <GlobalDatePickerStyle />
       <AppWrap>
         <form onSubmit={handleSubmit}>
           {Object.keys(errors).length > 0 ? (
@@ -156,18 +192,16 @@ const SeasonConfigModal = ({
                 <DatePicker
                   dateFormat={DEFAULT_DATE_FORMAT}
                   dropdownMode="select"
+                  popperContainer={PopperPortal}
                   onChange={(date) =>
                     setTempSeason((currentSeason) => ({
                       ...currentSeason,
-                      start_date: date ? formatDate(date) : "",
+                      start_date: convertSeasonDate(date, false),
                     }))
                   }
-                  selected={
-                    tempSeason.start_date ? new Date(tempSeason.start_date + "T00:00:00") : null
-                  }
+                  selected={getSeasonDatePickerValue(tempSeason.start_date)}
                   showMonthDropdown
                   showYearDropdown
-                  withPortal
                 />
               </ReactDatePickerStyledWrap>
             </FlexBlock>
@@ -178,16 +212,16 @@ const SeasonConfigModal = ({
                 <DatePicker
                   dateFormat={DEFAULT_DATE_FORMAT}
                   dropdownMode="select"
+                  popperContainer={PopperPortal}
                   onChange={(date) =>
                     setTempSeason((currentSeason) => ({
                       ...currentSeason,
-                      end_date: date ? formatDate(date) : "",
+                      end_date: convertSeasonDate(date, true),
                     }))
                   }
-                  selected={tempSeason.end_date ? new Date(tempSeason.end_date + "T00:00:00") : null}
+                  selected={getSeasonDatePickerValue(tempSeason.end_date)}
                   showMonthDropdown
                   showYearDropdown
-                  withPortal
                 />
               </ReactDatePickerStyledWrap>
             </FlexBlock>
