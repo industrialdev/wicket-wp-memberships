@@ -40,8 +40,8 @@ class Membership_Post_Types {
    * Restrict the auto-generated wp/v2 REST endpoints for the membership post
    * types to authenticated administrators.
    *
-   * Covers the membership config and tier post types (both registered with
-   * 'show_in_rest' => true). Authentication may be via cookie + nonce or via an
+   * Covers the membership config, tier, and bundle config post types (all
+   * registered with 'show_in_rest' => true). Authentication may be via cookie + nonce or via an
    * Application Password (header auth, no nonce required); access additionally
    * requires the 'manage_options' capability.
    *
@@ -61,6 +61,9 @@ class Membership_Post_Types {
       '/wp/v2/' . $this->membership_cpt_slug,
       '/wp/v2/' . $this->membership_config_cpt_slug,
       '/wp/v2/' . $this->membership_tier_cpt_slug,
+      // Bundle config was left off this list when it was originally added — same
+      // show_in_rest=>true CPT shape as the other three, same unauthenticated exposure.
+      '/wp/v2/' . $this->membership_bundle_config_cpt_slug,
     );
 
     $is_protected = false;

@@ -1067,7 +1067,9 @@ class Membership_Bundle {
     // _requires_manual_renewal is inherited from the bundle subscription rather than
     // re-derived from user autopay preference. The released member's billing behaviour
     // should match what the bundle was configured with.
-    $bundle_sub     = wcs_get_subscription( $this->get_subscription_id() );
+    // Guarded + global-namespace-prefixed to match the fix applied to every other
+    // wcs_get_subscription() call site (avoids a fatal if WC Subscriptions is inactive).
+    $bundle_sub     = function_exists( 'wcs_get_subscription' ) ? \wcs_get_subscription( $this->get_subscription_id() ) : null;
     $manual_renewal = $bundle_sub ? $bundle_sub->get_meta( '_requires_manual_renewal' ) : 'true';
     $sub->update_meta_data( '_requires_manual_renewal', $manual_renewal );
 

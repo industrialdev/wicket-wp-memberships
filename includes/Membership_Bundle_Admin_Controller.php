@@ -679,8 +679,10 @@ class Membership_Bundle_Admin_Controller {
     $config_data = $config ? Helper::get_post_meta( $config->get_post_id() ) : [];
 
     // Subscription and orders come from the primary (newest) bundle post.
+    // Guarded + global-namespace-prefixed to match the fix applied to every other
+    // wcs_get_subscription() call site (avoids a fatal if WC Subscriptions is inactive).
     $sub_id = $bundle->get_subscription_id();
-    $sub    = $sub_id ? wcs_get_subscription( $sub_id ) : null;
+    $sub    = ( $sub_id && function_exists( 'wcs_get_subscription' ) ) ? \wcs_get_subscription( $sub_id ) : null;
 
     $subscription_payload = $sub ? [
       'id'                => $sub->get_id(),
