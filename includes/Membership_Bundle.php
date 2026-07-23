@@ -985,21 +985,33 @@ class Membership_Bundle {
     $config = $tier->get_config();
     $period = $config ? $config->get_period_data() : [ 'period_type' => 'year', 'period_count' => 1 ];
 
-    // --- Step 1: Create WC order (pending) ---
+    // --- Step 1: Create WC order (pending) — only when inside the renewal window ---
     //
-    // The order is required — not optional. scheduler_dates_for_expiry() only schedules
-    // Action Scheduler lifecycle jobs when membership_parent_order_id is non-zero, and
-    // the AS job callbacks look up membership data via get_membership_array_from_order_and_product_id().
-    // No order = no lifecycle scheduling, no AutomateWoo renewal triggers.
-    $order = wc_create_order( [ 'customer_id' => $user_id ] );
-    if ( is_wp_error( $order ) ) {
-      Wicket()->log()->error( 'Membership_Bundle::provision_standalone_individual_membership: wc_create_order failed', [
-        'source'  => 'wicket-memberships',
-        'post_id' => $this->post_id,
-        'user_id' => $user_id,
-        'error'   => $order->get_error_message(),
-      ] );
-      return new \WP_Error( 'order_create_failed', __( 'Failed to create the WooCommerce order.', 'wicket-memberships' ) );
+    // A pending renewal order should only be generated when the member is actually
+    // inside the renewal window (at/after early_renew_at). Releasing someone from a
+    // bundle mid-term is not a renewal event — provisioning an order in that case
+    // would surface a spurious pending charge months before it's due. In that case
+    // skip the order and create an order-less subscription instead — WC Subscriptions'
+    // own core auto-renewal (wcs_create_renewal_order(), fired off the subscription's
+    // own next_payment date) does not require parent_id to be set, and this plugin's
+    // own bundle subscriptions (create_bundle_subscription()) are already created
+    // order-less, so this is a supported, precedented shape.
+    $now_ts            = current_datetime()->getTimestamp();
+    $early_renew_ts    = ! empty( $bundle_dates['early_renew_at'] ) ? strtotime( $bundle_dates['early_renew_at'] ) : strtotime( $bundle_dates['ends_at'] );
+    $in_renewal_window = $now_ts >= $early_renew_ts;
+
+    $order = null;
+    if ( $in_renewal_window ) {
+      $order = wc_create_order( [ 'customer_id' => $user_id ] );
+      if ( is_wp_error( $order ) ) {
+        Wicket()->log()->error( 'Membership_Bundle::provision_standalone_individual_membership: wc_create_order failed', [
+          'source'  => 'wicket-memberships',
+          'post_id' => $this->post_id,
+          'user_id' => $user_id,
+          'error'   => $order->get_error_message(),
+        ] );
+        return new \WP_Error( 'order_create_failed', __( 'Failed to create the WooCommerce order.', 'wicket-memberships' ) );
+      }
     }
 
     $wc_product = $product_id ? wc_get_product( $product_id ) : null;
@@ -1009,7 +1021,7 @@ class Membership_Bundle {
     // what WC itself uses when building order items during checkout.
     $unit_price = $wc_product ? (float) wc_get_price_excluding_tax( $wc_product ) : 0.0;
 
-    if ( $wc_product ) {
+    if ( $order && $wc_product ) {
       $item = new \WC_Order_Item_Product();
       $item->set_product( $wc_product );
       $item->set_quantity( 1 );
@@ -1020,32 +1032,39 @@ class Membership_Bundle {
       $order->add_item( $item );
       $order->calculate_totals();
     }
-    // Order stays pending — this is an admin-driven record, not a payment transaction.
-    $order->save();
 
-    if ( ! empty( $admin_note ) ) {
-      $order->add_order_note( $admin_note );
+    if ( $order ) {
+      // Order stays pending — this is an admin-driven record, not a payment transaction.
+      $order->save();
+
+      if ( ! empty( $admin_note ) ) {
+        $order->add_order_note( $admin_note );
+      }
     }
 
     // --- Step 2: Create WC subscription explicitly ---
     //
     // WCS does NOT auto-create a subscription for programmatic orders — that only fires
     // during actual checkout via woocommerce_checkout_order_processed. We must call
-    // wcs_create_subscription() explicitly.
-    $sub = wcs_create_subscription( [
-      'order_id'         => $order->get_id(),
+    // wcs_create_subscription() explicitly. order_id is omitted (defaults to 0) when
+    // there's no order — WCS core tolerates parent_id = 0 without issue.
+    $sub_args = [
       'customer_id'      => $user_id,
       'status'           => 'pending',
       'billing_period'   => $period['period_type'],
       'billing_interval' => $period['period_count'],
       'start_date'       => date( 'Y-m-d H:i:s', strtotime( $bundle_dates['starts_at'] ) ),
-    ] );
+    ];
+    if ( $order ) {
+      $sub_args['order_id'] = $order->get_id();
+    }
+    $sub = wcs_create_subscription( $sub_args );
 
     if ( is_wp_error( $sub ) ) {
       Wicket()->log()->error( 'Membership_Bundle::provision_standalone_individual_membership: wcs_create_subscription failed', [
         'source'   => 'wicket-memberships',
         'post_id'  => $this->post_id,
-        'order_id' => $order->get_id(),
+        'order_id' => $order ? $order->get_id() : 0,
         'error'    => $sub->get_error_message(),
       ] );
       return new \WP_Error( 'subscription_create_failed', __( 'Failed to create the WooCommerce subscription.', 'wicket-memberships' ) );
@@ -1121,8 +1140,12 @@ class Membership_Bundle {
       new \DateTimeZone( 'UTC' )
     ) )->format( 'Y-m-d' );
 
+    // get_membership_array_from_order_and_product_id() just reads post meta off whatever
+    // post ID it's given — it doesn't require that post to actually be a WC order. When
+    // there's no order (outside the renewal window), the subscription post id is used
+    // instead; the same _wicket_membership_{product_id} meta is written on both below.
     $membership = [
-      'membership_parent_order_id'                 => $order->get_id(),
+      'membership_parent_order_id'                 => $order ? $order->get_id() : $sub->get_id(),
       'membership_subscription_id'                 => $sub->get_id(),
       'membership_product_id'                      => $product_id,
       'membership_tier_post_id'                    => $tier_post_id,
@@ -1153,8 +1176,10 @@ class Membership_Bundle {
     // Mirror the order/subscription post meta that catch_order_completed() writes at
     // lines 364–370 of Membership_Controller. The AS job callbacks and renewal triggers
     // look up membership data via this meta key on both the order and subscription.
-    add_post_meta( $order->get_id(), '_wicket_membership_' . $product_id, wp_json_encode( $membership ), true );
-    add_post_meta( $sub->get_id(),   '_wicket_membership_' . $product_id, wp_json_encode( $membership ), true );
+    if ( $order ) {
+      add_post_meta( $order->get_id(), '_wicket_membership_' . $product_id, wp_json_encode( $membership ), true );
+    }
+    add_post_meta( $sub->get_id(), '_wicket_membership_' . $product_id, wp_json_encode( $membership ), true );
 
     // --- Step 4: Fire wicket_member_create_record ---
     //
