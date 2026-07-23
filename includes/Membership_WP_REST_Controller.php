@@ -103,6 +103,20 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       ),
     )
     );
+
+    /**
+    * Get all published WP pages, ignoring any visibility restrictions from third-party
+    * plugins (e.g. WP Private Content Plus), for use in tier renewal form page selectors.
+    */
+    register_rest_route( $this->namespace, '/wp_pages_all', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_all_wp_pages' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+    )
+    );
+
     /**
      * Get Tier by Product_ID
      */
@@ -373,6 +387,28 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         ],
       ],
     ] );
+
+    /**
+     * Transfer Membership
+     */
+    register_rest_route( $this->namespace, '/membership/(?P<membership_post_id>\d+)/transfer_membership', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'transfer_membership' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+      ),
+    ) );
+
+    /**
+     * Awitch Membership
+     */
+    register_rest_route( $this->namespace, '/membership/(?P<membership_post_id>\d+)/switch_membership', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'switch_membership' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+      ),
+    ) );
   }
 
   /**
@@ -627,6 +663,54 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     return rest_ensure_response( $response );
   }
 
+  /**
+   * Get every published WP page for admin page-picker UIs (e.g. the tier renewal
+   * form page selector). Queried directly via get_posts() instead of the core
+   * wp/v2/pages REST endpoint because third-party visibility plugins (e.g. WP
+   * Private Content Plus) hook rest_prepare_page and silently drop restricted
+   * pages from that endpoint's response, hiding valid pages from the picker.
+   *
+   * WP Private Content Plus also hooks pre_get_posts on every REST request
+   * (its `isset( $query->query_vars['s'] )` check is always true under
+   * REST_REQUEST, since WP_Query always sets an 's' var, even empty) and
+   * excludes restricted posts there too. We bypass that specific filter for
+   * this query only via its own 'disable_restriction_checks' escape hatch.
+   *
+   * @param  \WP_REST_Request  $request  The REST request (no parameters used).
+   *
+   * @return \WP_REST_Response  List of pages as [{ id, title: { rendered } }, ...].
+   */
+  public function get_all_wp_pages( \WP_REST_Request $request ) {
+    // Bypass WP Private Content Plus (WPCP) restriction checks for this query only.
+    // WPCP's pre_get_posts handler excludes member/role/users-restricted pages any
+    // time isset($query->query_vars['s']) is true under REST_REQUEST — and WP_Query
+    // always sets 's' (even as ''), so it fires on every REST query, not just real
+    // searches. Renewal-form page pickers are staff-only admin screens and must list
+    // every page regardless of front-end visibility restrictions, so we disable the
+    // check rather than let WPCP silently drop restricted pages from the results.
+    add_filter( 'disable_restriction_checks', '__return_true' );
+
+    $pages = get_posts( array(
+      'post_type'   => 'page',
+      'post_status' => 'publish',
+      'numberposts' => -1,
+      'orderby'     => 'title',
+      'order'       => 'ASC',
+    ) );
+
+    // Re-enable WP Private Content Plus (WPCP) restriction checks now that our query is done.
+    remove_filter( 'disable_restriction_checks', '__return_true' );
+
+    $response = array_map( function( $page ) {
+      return array(
+        'id'    => $page->ID,
+        'title' => array( 'rendered' => get_the_title( $page ) ),
+      );
+    }, $pages );
+
+    return rest_ensure_response( $response );
+  }
+
 	public function get_memberships_table_data($categories = null, $filters = [])
 	{
 		$memberships = [];
@@ -690,5 +774,28 @@ public function get_membership_dates( \WP_REST_Request $request ) {
       $status = 403;
     }
     return $status;
+  }
+
+   /**
+   * Transfer Membership handler
+   */
+  public function transfer_membership( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    if ( empty( $params['membership_post_id'] ) || empty( $params['new_owner_uuid'] ) ) {
+      return new \WP_REST_Response( [ 'success' => false, 'error' => ['Missing required parameters.', $params] ], 400 );
+    }
+    $result = Admin_Controller::transfer_membership( $params['membership_post_id'], $params['new_owner_uuid'] );
+    return new \WP_REST_Response( [ 'success' => $result ], 200 );
+  }
+
+  /**
+   * Switch Membership handler
+   */
+  public function switch_membership( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    if ( empty( $params['membership_post_id'] ) || empty( $params['switch_post_id'] ) || empty( $params['switch_type'] ) ) {
+      return new \WP_REST_Response( [ 'success' => false, 'error' => ['Missing required parameters.', $params] ], 400 );
+    }
+    return Admin_Controller::switch_membership_request( $params );
   }
 }

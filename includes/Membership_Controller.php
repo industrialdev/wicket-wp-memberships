@@ -80,7 +80,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
   function add_order_item_meta ( $item_id, $values ) {
     if(is_array($values)) {
-      if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
+      if( !empty( $values['org_uuid'] ) && empty( wc_get_order_item_meta( $item_id, '_org_uuid', true ) ) ) {
         wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
       }
 
@@ -1259,6 +1259,11 @@ function get_item_data ( $other_data, $cart_item ) {
   public function create_mdp_record( $membership ) {
     $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
     $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
+    // Capability gate (not version-gated): the base plugin ships a registry
+    // helper when it supports the copy_previous_assignments param. See atlas
+    // ADR 0004 / conventions/capability-detection.md.
+    $base_version_supports_copy_active_assignments = function_exists( 'wicket_supports' )
+      && wicket_supports( 'base-plugin.organization_membership.copy_previous_assignments' );
 
     // Bundle-member path: assign person_membership linked to the MDP bundle record.
     // Fires only when the bundle has already been synced (membership_bundle_mdp_uuid present).
@@ -1322,7 +1327,59 @@ function get_item_data ( $other_data, $cart_item ) {
         if( $membership['membership_seats'] < 1) {
           $membership['membership_seats'] = null;
         }
-        if( $base_version_supports_grant_owner_assignment ) {
+        if( $base_version_supports_copy_active_assignments ) {
+          $Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
+          $carry = $Tier->copy_active_assignments_on_renewal();
+          $response = wicket_assign_organization_membership(
+            $membership['person_uuid'],
+            $membership['organization_uuid'],
+            $membership['membership_tier_uuid'],
+            $membership['membership_starts_at'],
+            $membership['membership_ends_at'],
+            $membership['membership_seats'],
+            $membership['membership_grace_period_days'],
+            $previous_membership_wicket_uuid,
+            $Tier->is_grant_owner_assignment(),
+            $carry
+          );
+          // Seat-count overflow safety net (WWID-1908): if the MDP rejected the
+          // create because carrying assignments over would exceed the new tier's
+          // max_assignments and we tried to copy, retry once without copying. The
+          // overflow flag is set by the base plugin in error_data under the
+          // existing 'wicket_api_error' code; ?? false self-gates on older base.
+          // Idempotent: the failed first attempt creates nothing in the MDP
+          // (validation precedes save), and copy=false means no assignments to
+          // count, so the retry cannot loop on the same error.
+          if ( is_wp_error( $response ) && $carry && ( $response->get_error_data( 'wicket_api_error' )['overflow'] ?? false ) ) {
+            Utilities::wc_log_mship_error( [ 'carry-over overflow; retrying without copy', $previous_membership_wicket_uuid, 'seats' => $membership['membership_seats'] ] );
+            $response = wicket_assign_organization_membership(
+              $membership['person_uuid'],
+              $membership['organization_uuid'],
+              $membership['membership_tier_uuid'],
+              $membership['membership_starts_at'],
+              $membership['membership_ends_at'],
+              $membership['membership_seats'],
+              $membership['membership_grace_period_days'],
+              $previous_membership_wicket_uuid,
+              $Tier->is_grant_owner_assignment(),
+              false
+            );
+            // Defensive: log the retry outcome so QA can see whether the
+            // copy=false retry recovered or also failed. A failed retry still
+            // surfaces to the shared error handler below; this log names it.
+            if ( is_wp_error( $response ) ) {
+              Utilities::wc_log_mship_error( [ 'carry-over overflow: copy=false retry ALSO failed', $previous_membership_wicket_uuid, 'error' => $response->get_error_message( 'wicket_api_error' ) ] );
+            } else {
+              Utilities::wc_log_mship_error( [ 'carry-over overflow: copy=false retry succeeded, assignments not carried', $previous_membership_wicket_uuid ] );
+            }
+          } elseif ( is_wp_error( $response ) && $carry ) {
+            // Defensive: first attempt failed while we intended to copy, but it
+            // was NOT the max_assignments overflow. Surfaces the actual error so
+            // QA can distinguish a detection miss (overflow we didn't flag) from
+            // a genuinely different failure (auth, unrelated validation, etc.).
+            Utilities::wc_log_mship_error( [ 'carry-over first attempt failed (non-overflow, no retry)', $previous_membership_wicket_uuid, 'carry' => $carry, 'error' => $response->get_error_message( 'wicket_api_error' ) ] );
+          }
+        } elseif( $base_version_supports_grant_owner_assignment ) {
           $Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
           $response = wicket_assign_organization_membership(
             $membership['person_uuid'],
@@ -1611,6 +1668,35 @@ function get_item_data ( $other_data, $cart_item ) {
         if(empty($product_id)) {
           $product_id = $item->get_product_id();
         }
+
+        /**
+         * Diagnostic logging for the "renewal meta not stamped on the subscription item" issue.
+         * Ref: https://app.asana.com/1/1138832104141584/project/1216279585352300/task/1216187541614014
+         *
+         * We log only in this branch — where $item->get_product() returned an empty/false product object —
+         * because it is the suspected failure path. The object can fail to hydrate in a webhook/cron request
+         * context, on a cold object cache, or when a product-load filter returns null. When that happens,
+         * $product_id is set from get_variation_id() above. product_cat terms are stored on the PARENT product
+         * only, never on a variation, so has_term() on a variation id is always false, this item is skipped by
+         * the continue below, and _membership_post_id_renew is never written to the subscription item. Later
+         * renewal orders then have no membership link and create a duplicate record.
+         *
+         * Verification only (no behaviour change): captures whether the category check passes for the id we
+         * resolved, so we can confirm the cause on a real order before changing any logic.
+         *
+         * Possible fix (not applied here): resolve $product_id from $item->get_product_id() (the parent),
+         * which is persisted on the line item and survives a failed product-object load, so the category check
+         * runs against the parent as intended.
+         */
+        Utilities::wc_log_mship_error( ['renewal-meta-stamp diagnostic: product object failed to load', [
+          'subscription_id'            => is_object( $sub ) ? $sub->get_id() : ( $membership['membership_subscription_id'] ?? null ),
+          'order_id'                   => is_object( $sub ) ? $sub->get_parent_id() : ( $membership['membership_parent_order_id'] ?? null ),
+          'membership_subscription_id' => $membership['membership_subscription_id'] ?? null,
+          'item_id'                    => $item_id,
+          'product_id_checked'         => $product_id,
+          'membership_product_id'      => $membership['membership_product_id'] ?? null,
+          'passes_membership_category' => has_term( 'Membership', 'product_cat', $product_id ),
+        ]] );
       } else {
         $product_id = $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
         $variation_id = $product->get_id();

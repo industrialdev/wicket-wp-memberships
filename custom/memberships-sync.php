@@ -18,30 +18,181 @@
 #ini_set('error_reporting', 0);
 ini_set('max_execution_time', '0');
 
-//to make sure and run the sync on the init hook
-add_action( 'init', 'wicket_action_woocommerce_loaded', 10, 1 );
+// Run on template_redirect (not init): the current user, capability checks, and the admin
+// bar are all available here, and exiting now cleanly replaces the theme output with our page.
+add_action( 'template_redirect', 'wicket_action_woocommerce_loaded', 10, 1 );
 
+/**
+ * Launches the subscription sync tool when its trigger query var is present.
+ *
+ * @return void
+ */
 function wicket_action_woocommerce_loaded() {
   if(!empty($_REQUEST['mship_subscription_sync'])) {
     wicket_sync_subscriptions();
   }
 }
 
+/**
+ * Emits a single memory-usage diagnostic line into the streamed log.
+ *
+ * Purely observational: reports the current and peak PHP memory alongside the delta since the
+ * previous checkpoint so an operator can see whether memory sits high at baseline (site/plugin
+ * load) or climbs per record (the loop). Touches no plugin state and changes no control flow.
+ *
+ * @param  string  $label  Human-readable name of the checkpoint being reported.
+ *
+ * @return void  The diagnostic line is echoed directly into the open <pre> log.
+ */
+function wicket_sync_mem_probe( $label ) {
+  // Retain the previous checkpoint's usage across calls so each line can show the delta — the
+  // rate of growth is what localises the leak, more so than any single absolute figure.
+  static $last = 0;
+
+  $limit_raw = ini_get( 'memory_limit' );
+  $cur       = memory_get_usage( true );        // real allocated memory (includes emalloc blocks)
+  $peak      = memory_get_peak_usage( true );    // high-water mark for the whole request
+  $delta     = $cur - $last;
+  $last      = $cur;
+
+  // Format bytes to MB with a sign on the delta so growth (+) vs release (-) reads at a glance.
+  $mb        = function( $bytes ) { return number_format( $bytes / 1048576, 1 ) . 'MB'; };
+  $delta_str = ( $delta >= 0 ? '+' : '-' ) . $mb( abs( $delta ) );
+
+  echo "  <span style=\"color:#666\">[mem] {$label}: " . $mb( $cur ) . " used, " . $mb( $peak )
+     . " peak, {$delta_str} since last (limit {$limit_raw})</span>\n";
+}
+
+/**
+ * Reconciles WooCommerce membership subscriptions with their plugin membership records.
+ *
+ * Triggered by the `?mship_subscription_sync=1` browser request. Walks active/on-hold
+ * subscriptions, maps each line-item product to a Membership Tier, finds the matching
+ * membership for the subscriber, and links the subscription/order/product meta back to it
+ * (and syncs MDP seat counts for per-seat organization tiers). All output is streamed to
+ * the screen inside a <pre> block as a human-readable, grouped-per-record log.
+ *
+ * Runs as a dry-run by default; add `no_debug=1` to write changes. Supported request args:
+ * `count_only`, `subscription_to_update`, `page_number`, `page_length`, `created_after`.
+ *
+ * Renders as a standalone admin-styled page: only the WordPress admin bar and admin UI styles
+ * are loaded (not the active theme), with the current user's admin colour scheme. Admin-only.
+ *
+ * @return void Output is echoed directly; the request is terminated via wicket_sync_page_footer().
+ */
 function wicket_sync_subscriptions() {
-  echo "<pre>";
-  //for product mapping
-  if (defined('WP_ENVIRONMENT_TYPE')) {
-    $wp_env_type = WP_ENVIRONMENT_TYPE;
-    echo $wp_env_type."\n<BR>";
+  // Admin-only: this tool reads and (in LIVE mode) writes membership data and renders the
+  // logged-in admin bar, so require the same capability as the plugin's other admin tools.
+  if ( ! current_user_can( 'manage_options' ) ) {
+    wp_die( 'You do not have permission to access the membership subscription sync tool.' );
   }
-  $subscription_to_update = !empty($_REQUEST['subscription_to_update']) ? $_REQUEST['subscription_to_update'] : '';
-  $page_number = !empty($_REQUEST['page_number']) ? $_REQUEST['page_number'] : 1;
-  $page_length = !empty($_REQUEST['page_length']) ? $_REQUEST['page_length'] : 100;
-  $created_after = !empty($_REQUEST['created_after']) ? $_REQUEST['created_after'] : ''; //format YYYY-MM-DD
+
+  // [mem-probe] Baseline at tool entry. Captured now (nothing is open to echo into yet) and
+  // reported below once the <pre> log exists. A high value here means WP + the site's other
+  // plugins already consumed most of the limit before this tool did any work of its own.
+  $mem_at_entry = memory_get_usage( true );
+
+  // Sanitise the request parameters — they arrive raw from the URL/control bar.
+  // A single subscription id is treated as an int; 0/invalid means "batch mode".
+  $subscription_to_update = isset($_REQUEST['subscription_to_update']) ? (int) $_REQUEST['subscription_to_update'] : 0;
+  $subscription_to_update = $subscription_to_update > 0 ? (string) $subscription_to_update : '';
+  $page_number = isset($_REQUEST['page_number']) ? max(1, (int) $_REQUEST['page_number']) : 1;
+  $page_length = isset($_REQUEST['page_length']) ? (int) $_REQUEST['page_length'] : 100;
+  // Constrain page length to the values offered in the control bar to avoid runaway queries.
+  if (!in_array($page_length, [25, 50, 100, 200, 500, 1000], true)) {
+    $page_length = 100;
+  }
+  // Accept a created-after floor only when it is a valid YYYY-MM-DD date; otherwise ignore it.
+  $created_after = '';
+  if (!empty($_REQUEST['created_after']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_REQUEST['created_after'])) {
+    $created_after = $_REQUEST['created_after'];
+  }
+  // LIVE mode is opt-in only: debug stays true unless the control bar explicitly sends no_debug.
   $debug = empty($_REQUEST['no_debug']) ? true : false;
   $count_only = !empty($_REQUEST['count_only']) ? true : false;
 
+  // Only the control bar's buttons set this marker; a bare page load lacks it. We use it to
+  // distinguish "operator clicked Run/Count/Prev/Next" from "just landed on the page", so a
+  // plain load shows the form and runs nothing.
+  $action_requested = !empty($_REQUEST['wmsync_run']);
+
+  // Lightweight count so the control bar can show position within the total — but only once an
+  // action has been requested (the bare landing must run nothing). Uses IDs only (no per-
+  // subscription loading); the heavier membership-product breakdown stays behind "Count Only".
+  // [mem-probe] Bracket the unbounded full-set count query below; it runs regardless of page
+  // size and is a prime suspect for a large one-time spike, so capture before/after.
+  $mem_before_count = memory_get_usage( true );
+  $pagination_total = 0;
+  $total_pages = 1;
+  if ($action_requested && $subscription_to_update === '' && !$count_only) {
+    $count_args = [
+      'status' => ['active', 'on-hold'],
+      'return' => 'ids',
+      'subscriptions_per_page' => -1,
+    ];
+    if (!empty($created_after)) {
+      $count_args['date_created'] = '>=' . $created_after;
+    }
+    $pagination_total = count(wcs_get_subscriptions($count_args));
+    $total_pages = max(1, (int) ceil($pagination_total / $page_length));
+    // Clamp a page request that overshoots the available pages back to the last valid page.
+    if ($page_number > $total_pages) {
+      $page_number = $total_pages;
+    }
+  }
+  // [mem-probe] Memory after the full-set count; the delta from $mem_before_count is the cost of
+  // counting every active/on-hold subscription, reported in the header block below.
+  $mem_after_count = memory_get_usage( true );
+
+  // Open the standalone admin-styled page (title + admin bar + WordPress admin colours).
+  wicket_sync_page_header();
+
+  // Render the interactive control bar (plain HTML) above the streamed <pre> log.
+  wicket_sync_render_control_bar([
+    'subscription_to_update' => $subscription_to_update,
+    'page_number'            => $page_number,
+    'page_length'            => $page_length,
+    'created_after'          => $created_after,
+    'pagination_total'       => $pagination_total,
+    'total_pages'            => $total_pages,
+    'action_requested'       => $action_requested,
+  ]);
+
+  // Bare page load: show the form to get started and run nothing else.
+  if (!$action_requested) {
+    wicket_sync_page_footer();
+  }
+
+  // Style the log like an admin "card" so it sits naturally on the admin-grey page.
+  echo '<pre style="background:#fff;border:1px solid #c3c4c7;border-radius:4px;padding:14px 16px;max-width:900px;margin:0;overflow:auto;">';
+
   $log = [];
+
+  // Run summary header — describes what this invocation is going to do.
+  echo "<strong>Wicket Membership Subscription Sync</strong>\n";
+  if (defined('WP_ENVIRONMENT_TYPE')) {
+    echo "Environment: " . WP_ENVIRONMENT_TYPE . "\n";
+  }
+  echo "Mode: " . ($count_only ? "Count only (no changes)" : ($debug ? "DEBUG dry run — no changes will be written (switch to LIVE in the control bar to apply)" : "LIVE — changes will be written")) . "\n";
+  if (!empty($subscription_to_update)) {
+    echo "Scope: single subscription #{$subscription_to_update}\n";
+  } else {
+    // Show position within the total so the operator knows where they are in the batch.
+    $range_start = $pagination_total > 0 ? (($page_number - 1) * $page_length) + 1 : 0;
+    $range_end = min($page_number * $page_length, $pagination_total);
+    echo "Scope: page {$page_number} of {$total_pages} — records {$range_start}–{$range_end} of {$pagination_total} ({$page_length} per page)" . (!empty($created_after) ? ", created on/after {$created_after}" : "") . "\n";
+  }
+  echo str_repeat("=", 60) . "\n";
+
+  // [mem-probe] Pre-loop memory picture. Baseline shows how much the rest of the site consumed
+  // before this tool ran; the count-query delta isolates the one-time cost of the full-set count.
+  $mem_fmt = function( $b ) { return number_format( $b / 1048576, 1 ) . 'MB'; };
+  echo "  <span style=\"color:#666\">[mem] entry baseline: " . $mem_fmt( $mem_at_entry )
+     . " already used by WP + plugins before this tool ran (limit " . ini_get( 'memory_limit' ) . ")</span>\n";
+  echo "  <span style=\"color:#666\">[mem] full-set count query: " . $mem_fmt( $mem_before_count )
+     . " → " . $mem_fmt( $mem_after_count ) . " (" . $mem_fmt( $mem_after_count - $mem_before_count )
+     . " to count every active/on-hold subscription)</span>\n";
+  echo str_repeat("=", 60) . "\n";
 
   //get all subscriptions for page_number by page_length
 
@@ -60,6 +211,11 @@ function wicket_sync_subscriptions() {
     $membership_subscriptions = [];
     foreach($subscription_ids as $sub_id) {
       $subscription = wcs_get_subscription($sub_id);
+      // Counting scans the entire active/on-hold set (page size does not apply here), so a stale ID
+      // must skip rather than fatal on get_items() against a non-object.
+      if(empty($subscription)) {
+        continue;
+      }
       $items = $subscription->get_items();
       foreach($items as $item) {
         $product_id = $item->get_variation_id();
@@ -71,56 +227,91 @@ function wicket_sync_subscriptions() {
           break; // Found a membership product, no need to check other items
         }
       }
+
+      // Free per-record memory: this branch hydrates every active/on-hold subscription, so without
+      // flushing the runtime object cache it grows unbounded and exhausts the limit on large sites.
+      // Runtime-only flush leaves any persistent backend (Redis/Memcached) intact.
+      unset($subscription, $items);
+      if(function_exists('wp_cache_flush_runtime')) {
+        wp_cache_flush_runtime();
+      }
     }
 
-    echo 'Total Active Subscriptions: '.count($subscription_ids)."\n<BR>";
-    echo 'Subscriptions with Membership Products: '.count($membership_subscriptions)."\n<BR>";
-    die();
+    echo "Total active/on-hold subscriptions: " . count($subscription_ids) . "\n";
+    echo "Subscriptions containing membership products: " . count($membership_subscriptions) . "\n";
+    echo "</pre>";
+    wicket_sync_page_footer();
   }
   if(!empty($subscription_to_update)) {
-    $subscription = wcs_get_subscription($subscription_to_update);
-    $subscriptions = [$subscription];
+    // Single-subscription mode: carry just the ID so the loop hydrates it exactly like batch mode.
+    $subscription_ids = [ (int) $subscription_to_update ];
   } else {
+    // Batch mode: request IDs only (not hydrated objects). A page of 500/1000 would otherwise load
+    // every subscription — plus its parent order and line items — into memory up front and exhaust
+    // the PHP memory limit. The loop below hydrates one subscription at a time and frees it after.
     $argv = [
       'status' => ['active', 'on-hold'],
       'subscriptions_per_page'  => $page_length,
       'offset' => ($page_number - 1) * $page_length,
+      'return' => 'ids',
     ];
     if(!empty($created_after)) {
       $argv['date_created'] = '>=' . $created_after;
     }
-    $subscriptions = wcs_get_subscriptions($argv);
+    $subscription_ids = wcs_get_subscriptions($argv);
   }
 
   if($debug) {
-    echo 'DEBUG'."\n<BR>";;
     //var_dump($argv,$subscription_to_update);
   } else {
+    // Only initialise the live MDP API client when we intend to write changes.
     $wicket_api_client = wicket_api_client();
   }
 
-  $cnt=0;
-  foreach ($subscriptions as $sub_post) {
-    $sub = wcs_get_subscription( $sub_post->ID );
-      $cnt++;
-      echo " $cnt: <br>";
+  $cnt = 0;
+  // Total drives the "Record X of Y" header so the operator can gauge progress through the batch.
+  $total = count($subscription_ids);
+  // [mem-probe] Prime the probe's delta baseline so each per-record line below reports growth
+  // relative to loop start rather than to zero.
+  wicket_sync_mem_probe( 'loop start (before record 1)' );
+  foreach ($subscription_ids as $sub_id) {
+    // Hydrate a single subscription just-in-time; batch mode only holds IDs to bound memory.
+    $sub = wcs_get_subscription( $sub_id );
+    $cnt++;
+
+    // Begin a visually distinct block for this subscription record.
+    echo "\n" . str_repeat("-", 60) . "\n";
+
+    // A stale/removed ID (or a bad single-subscription entry) hydrates to false — report and skip
+    // rather than fataling on a method call against a non-object.
+    if ( ! $sub ) {
+      $log[] = 'Failed Sub ID:' . $sub_id . ' | Subscription not found';
+      echo "Record {$cnt} of {$total} — Subscription #{$sub_id}\n";
+      echo "  Skipped — subscription #{$sub_id} could not be loaded.\n";
+      continue;
+    }
+
+    echo "Record {$cnt} of {$total} — Subscription #{$sub->ID}\n";
+    // [mem-probe] Per-record memory. A steady per-record delta points at the loop/hydration;
+    // a flat delta with a high baseline points at the rest of the site.
+    wicket_sync_mem_probe( "after hydrating sub #{$sub->ID}" );
 
     //get user and email from subscription
     $user_id = $sub->get_user_id();
     if(empty($user_id)) {
       $log[] = 'Failed Sub ID:' . $sub->ID . ' | User Missing';
-      echo 'Failed Sub ID:' . $sub->ID . ' | User Missing' . "\n<br>";
+      echo "  Skipped — no user is associated with this subscription.\n";
       continue;
     }
     $user = get_user_by('id', $user_id);
     if (empty($user)) {
       $log[] = 'Failed Sub ID:' . $sub->ID . ' | User Missing';
-      echo 'Failed Sub ID:' . $sub->ID . ' | User Missing' . "\n<br>";
+      echo "  Skipped — user #{$user_id} no longer exists.\n";
       continue;
     }
 
     $log[] = 'New Sub ID:' . $sub->ID . ' | User ID: ' . $user->ID . ' | User Email: ' . $user->user_email;
-    echo 'New Sub ID:' . $sub->ID . ' | User ID: ' . $user->ID . ' | User Email: ' . $user->user_email . "\n<br>";
+    echo "  User #{$user->ID} ({$user->user_email})\n";
 
     $subscription_items = $sub->get_items();
     foreach($subscription_items as $item_id => $item) {
@@ -134,17 +325,23 @@ function wicket_sync_subscriptions() {
         //the subscriptions will have the old products attached and the Tiers have the new ones required for lookup
         $mapped_product_id = wicket_get_mapped_product_id_for_tier( $product_id);
 
+        // Item-level header groups all output for this line item under the subscription record.
+        // Show the product remap explicitly when the stored product differs from the tier's product.
+        $product_label = "“{$product_name}” (product #{$product_id}";
+        $product_label .= ($mapped_product_id != $product_id) ? " → mapped to #{$mapped_product_id})" : ")";
+        echo "  Item: {$product_label}\n";
+
         $Tier = \Wicket_Memberships\Membership_Tier::get_tier_by_product_id($mapped_product_id);
         if(empty($Tier)) {
           $product_name = $item->get_name();
           $log[] = 'No mapped tier for new product ('.$product_name.') ID: ' . $mapped_product_id ;
-          echo '<span style="color:red">No mapped tier ID for new product ('.$product_name.') ID:</span> ' . $mapped_product_id."\n<br>";
+          echo "    <span style=\"color:red\">No Tier maps to product #{$mapped_product_id} — skipping item.</span>\n";
           continue;
         }
         $tier_id = $Tier->get_membership_tier_post_id();
         if(empty($tier_id)) {
           $log[] = 'No tier postID found for new product ID: ' . $mapped_product_id;
-          echo 'No tier postID found for new product ID: ' . $mapped_product_id . "\n<br>";
+          echo "    <span style=\"color:red\">Tier for product #{$mapped_product_id} has no post ID — skipping item.</span>\n";
           continue; //entry not mapped to a tier
         }
 
@@ -171,20 +368,22 @@ function wicket_sync_subscriptions() {
         //update meta on membership if found
         if (empty($user_memberships)) {
           $log[] = 'No Membership found for User ID ' . $user_id . ' on Tier ID ' . $tier_id . ' for productID: ' . $mapped_product_id;
-          echo '<span style="color:red">No Membership found for User ID ' . $user_id . ' on Tier ID ' . $tier_id  . ' for productID: ' . $mapped_product_id . " with Product Name: <u>" . $product_name . "</u>" .  "</span>\n<br>";
+          echo "    <span style=\"color:red\">No membership found for user #{$user_id} on Tier #{$tier_id} — skipping item.</span>\n";
           continue;
         }
           $log[] = 'Found Membership ( ID: '.$user_memberships[0]->ID.' ) for User ID ' . $user_id . ' on Tier ID ' . $tier_id;
-          echo 'Found '.count($user_memberships). 'Membership <a target="_blank" href="/wp/wp-admin/post.php?action=edit&post='.$user_memberships[0]->ID.'"> '.$user_memberships[0]->ID.'</a>for User ID ' . $user_id . ' on Tier ID ' . $tier_id . "with Product Name: <u>" . $product_name . "</u> (ID: " . $mapped_product_id . ")\n";
+          // Note when more than one membership matches; only the first is linked.
+          $match_note = count($user_memberships) > 1 ? " (" . count($user_memberships) . " matched, using first)" : "";
+          echo "    Matched membership <a target=\"_blank\" href=\"/wp/wp-admin/post.php?action=edit&post={$user_memberships[0]->ID}\">#{$user_memberships[0]->ID}</a> on Tier #{$tier_id}.{$match_note}\n";
 
           $meta_check = wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true);
           if(!empty($meta_check)) {
             $log[] = 'ITEM Meta _membership_post_id_renew ALREADY SET to '.$meta_check;
-            echo '<span style="color:blue">ITEM Meta _membership_post_id_renew ALREADY SET to '.$meta_check."</span>\n<br>";
+            echo "    <span style=\"color:blue\">Renewal link already set (_membership_post_id_renew = {$meta_check}) — skipping item.</span>\n";
             continue;
           } else {
             $log[] = 'ITEM Meta _membership_post_id_renew NOT SET or NOT EQUAL to membership ID '.$user_memberships[0]->ID;
-            echo '<span style="color:green;font-weight:bold;">ITEM Meta _membership_post_id_renew NOT SET or NOT EQUAL to membership ID '.$user_memberships[0]->ID."</span>\n<br>";
+            echo "    <span style=\"color:green;font-weight:bold;\">Renewal link not set — will link to membership #{$user_memberships[0]->ID}.</span>\n";
           }
           //var_dump($user_memberships);
           //var_dump(get_post_meta($user_memberships[0]->ID));exit;
@@ -195,14 +394,15 @@ function wicket_sync_subscriptions() {
             update_post_meta($user_memberships[0]->ID, 'membership_product_id', $mapped_product_id);
             update_post_meta($user_memberships[0]->ID, 'membership_subscription_id', $sub->ID);
             update_post_meta($user_memberships[0]->ID, 'membership_parent_order_id', $sub->get_parent_id());
+            echo "    <span style=\"color:green\">Updated membership #{$user_memberships[0]->ID} meta — product #{$mapped_product_id}, subscription #{$sub->ID}, order #{$sub->get_parent_id()}.</span>\n";
             //add the membership post_id to support subscription renewaitem_idl flow (only) in subscription item meta
             if(empty(wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)) && !empty($user_memberships[0]->ID)) {
               wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $user_memberships[0]->ID, true );
               $log[] = 'ITEM Meta _membership_post_id_renew Set to '.$user_memberships[0]->ID;
-              echo 'ITEM Meta _membership_post_id_renew Set to '.$user_memberships[0]->ID."\n<br>";
+              echo "    <span style=\"color:green\">Linked subscription item to membership #{$user_memberships[0]->ID} (_membership_post_id_renew).</span>\n";
             } else {
               $log[] = 'ITEM Meta _membership_post_id_renew ALREADY SET to '.wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true);
-              echo 'ITEM Meta _membership_post_id_renew ALREADY SET to '.wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true)."\n<br>";
+              echo "    <span style=\"color:blue\">Renewal link already set to " . wc_get_order_item_meta( $item_id, '_membership_post_id_renew', true ) . ".</span>\n";
             }
           }
           //update membership json from post data
@@ -212,17 +412,17 @@ function wicket_sync_subscriptions() {
           if($Tier->is_organization_tier() && $Tier->is_per_seat() && (!empty($wicket_api_client) || !empty($debug))) {
             $quantity = $item->get_quantity();
             $log[] = 'Organization Tier - Syncing MDP Seats to Subscription Item with Product: ' . $product_name . ' and Quantity: '.$quantity;
-            echo 'Organization Tier - Syncing MDP Seats to Subscription Item with Product: ' . $product_name . ' and Quantity: '.$quantity."\n<br>";
+            echo "    Organization tier — syncing {$quantity} seat(s) to MDP from item quantity.\n";
             if(empty($debug)) {
               $wicket_membership_uuid = get_post_meta($user_memberships[0]->ID, 'membership_wicket_uuid', true);
               update_post_meta($user_memberships[0]->ID, 'org_seats', $quantity);
               $updated = memberships_update_seat_count( $wicket_api_client, $wicket_membership_uuid, $quantity);
               if(is_wp_error($updated)) {
                 $log[] = 'Error updating MDP Seats via API: ' . $updated->get_error_message();
-                echo '<span style="color:red">Error updating MDP Seats via API: ' . $updated->get_error_message() . '</span>'."\n<br>";
+                echo "      <span style=\"color:red\">Error updating MDP seats via API: " . $updated->get_error_message() . "</span>\n";
               } else {
                 $log[] = 'MDP Seats updated to '.$quantity;
-                echo 'MDP Seats updated to '.$quantity."\n<br>";
+                echo "      <span style=\"color:green\">MDP seats updated to {$quantity}.</span>\n";
               }
             }
           }
@@ -231,18 +431,307 @@ function wicket_sync_subscriptions() {
             //wicket_wc_log_mship_sync( $log, $page_number . '-' . $page_length );
           #}
     } // end foreach item
+
+    // Release per-record memory. WP/WC pile every loaded post, order, and meta row into the
+    // in-memory object cache, which otherwise grows for the whole page and exhausts the memory
+    // limit at large page sizes. Flush only the runtime cache so a persistent backend
+    // (Redis/Memcached) is left intact; fall back to nothing on WP < 6.0.
+    unset( $sub, $subscription_items );
+    if ( function_exists( 'wp_cache_flush_runtime' ) ) {
+      wp_cache_flush_runtime();
+    }
   } //end foreach subscription
-  die();
+  // [mem-probe] End-of-run total so the whole-batch growth is visible at a glance.
+  wicket_sync_mem_probe( 'end of run (after all records)' );
+  echo "</pre>";
+  wicket_sync_page_footer();
 }
 
+/**
+ * Opens the standalone, admin-styled HTML page for the sync tool.
+ *
+ * The tool replaces the normal theme output (it exits before the template renders), so this
+ * prints a minimal document that loads ONLY the WordPress admin bar and core admin UI styles
+ * — not the active theme — and adopts the current user's admin colour scheme. Pair every call
+ * with wicket_sync_page_footer() to render the admin bar and close the document.
+ *
+ * @global \WP_Admin_Bar $wp_admin_bar  The admin bar instance, force-initialised if needed.
+ * @return void
+ */
+function wicket_sync_page_header() {
+  global $wp_admin_bar;
+
+  // Guarantee the admin bar shows even if the user's profile hides it on the front end, and
+  // initialise it directly when the normal (priority 0) template_redirect init was skipped.
+  add_filter( 'show_admin_bar', '__return_true' );
+  if ( empty( $wp_admin_bar ) && function_exists( '_wp_admin_bar_init' ) ) {
+    _wp_admin_bar_init();
+  }
+
+  // Queue only the admin-bar + core admin UI styles, plus the user's colour scheme. The
+  // theme's wp_enqueue_scripts never fires here, so no theme CSS reaches the page.
+  wp_enqueue_style( 'admin-bar' );
+  wp_enqueue_style( 'common' );
+  wp_enqueue_style( 'buttons' );
+  wp_enqueue_style( 'forms' );
+  wp_enqueue_style( 'dashicons' );
+  wicket_sync_enqueue_admin_color_scheme();
+
+  if ( ! headers_sent() ) {
+    header( 'Content-Type: text/html; charset=' . get_bloginfo( 'charset' ) );
+  }
+  ?>
+<!DOCTYPE html>
+<html <?php language_attributes(); ?>>
+<head>
+<meta charset="<?php bloginfo( 'charset' ); ?>" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wicket Membership Subscription Sync</title>
+<?php wp_print_styles(); ?>
+</head>
+<?php // admin-bar.css reserves the bar's height via html margin-top; the extra top padding adds breathing room below it. ?>
+<body class="wp-core-ui" style="background:#f0f0f1;color:#3c434a;margin:0;padding:40px 20px 20px;">
+<?php
+}
+
+/**
+ * Renders the admin bar, prints its script, closes the page, and terminates the request.
+ *
+ * @return void  Ends the request via exit.
+ */
+function wicket_sync_page_footer() {
+  if ( function_exists( 'wp_admin_bar_render' ) ) {
+    wp_admin_bar_render();
+  }
+  // Only the admin-bar script is needed (its submenu/keyboard behaviour); deps load with it.
+  wp_print_scripts( array( 'admin-bar' ) );
+  echo "\n</body>\n</html>";
+  exit;
+}
+
+/**
+ * Enqueues the current user's WordPress admin colour scheme stylesheet, when one applies.
+ *
+ * Colour schemes are normally registered only inside wp-admin; this loads and registers them
+ * so this front-end tool page can match the admin appearance. The default "fresh" scheme has
+ * no separate stylesheet (its colours are baked into the base styles), so nothing is added.
+ *
+ * @global array $_wp_admin_css_colors  Registered admin colour schemes, keyed by slug.
+ * @return void
+ */
+function wicket_sync_enqueue_admin_color_scheme() {
+  global $_wp_admin_css_colors;
+
+  // Register the schemes on the front end where wp-admin would normally have done it.
+  if ( empty( $_wp_admin_css_colors ) ) {
+    if ( ! function_exists( 'register_admin_color_schemes' ) && file_exists( ABSPATH . 'wp-admin/includes/misc.php' ) ) {
+      require_once ABSPATH . 'wp-admin/includes/misc.php';
+    }
+    if ( function_exists( 'register_admin_color_schemes' ) ) {
+      register_admin_color_schemes();
+    }
+  }
+
+  $scheme = get_user_option( 'admin_color' );
+  if ( empty( $scheme ) ) {
+    $scheme = 'fresh';
+  }
+
+  // Only non-default schemes ship a dedicated stylesheet URL; "fresh" relies on the base CSS.
+  if ( ! empty( $_wp_admin_css_colors[ $scheme ]->url ) ) {
+    wp_register_style( 'wicket-sync-admin-colors', $_wp_admin_css_colors[ $scheme ]->url, array( 'admin-bar', 'common' ), null );
+    wp_enqueue_style( 'wicket-sync-admin-colors' );
+  }
+}
+
+/**
+ * Renders the sync tool's interactive control bar above the streamed <pre> log.
+ *
+ * Emits a GET form that re-submits to the current URL with pagination, date, scope, and
+ * run-mode controls, pre-filled from the current request. Safety model:
+ *  - The dry/live radio always defaults to "dry" on every load (LIVE is never persisted),
+ *    so writes are an explicit, per-run decision.
+ *  - Submitting LIVE requires both selecting the LIVE radio AND ticking the confirm box;
+ *    this is enforced client-side before the form is allowed to submit no_debug=1.
+ *  - Prev, Next, and Count Only always submit as a dry run regardless of the radio, so
+ *    navigation and counting can never write data.
+ *
+ * @param array $state {
+ *   Normalised request state and computed pagination figures.
+ *
+ *   @type string $subscription_to_update  Single subscription id, or '' for batch mode.
+ *   @type int    $page_number             Current (clamped) page number.
+ *   @type int    $page_length             Records per page.
+ *   @type string $created_after           YYYY-MM-DD floor, or '' when unset.
+ *   @type int    $pagination_total        Total subscriptions in the paginated set.
+ *   @type int    $total_pages             Total pages for the current page length.
+ * }
+ *
+ * @global void   No globals; reads $_SERVER['REQUEST_URI'] for the form action.
+ * @return void   Outputs HTML directly.
+ */
+function wicket_sync_render_control_bar( array $state ) {
+  // Re-submit to the same path (query string is rebuilt from the form fields).
+  $action = esc_url( strtok( $_SERVER['REQUEST_URI'], '?' ) );
+
+  $single  = $state['subscription_to_update'];
+  $page    = (int) $state['page_number'];
+  $len     = (int) $state['page_length'];
+  $created = $state['created_after'];
+  $total   = (int) $state['pagination_total'];
+  $pages   = (int) $state['total_pages'];
+  // False on a bare landing — totals haven't been queried yet, so show a hint not "0 of 0".
+  $action_requested = !empty( $state['action_requested'] );
+
+  // 1-based record range shown beside the pager, clamped to the total.
+  $range_start = $total > 0 ? ( ( $page - 1 ) * $len ) + 1 : 0;
+  $range_end   = min( $page * $len, $total );
+
+  // In single-subscription scope the pager and date are ignored, so dim that section.
+  $is_batch       = ( $single === '' );
+  $prev_disabled  = ( $page <= 1 )     ? 'disabled' : '';
+  $next_disabled  = ( $page >= $pages ) ? 'disabled' : '';
+  $batch_opacity  = $is_batch ? '1' : '0.4';
+
+  // Page-length dropdown options, current value pre-selected.
+  $len_options = '';
+  foreach ( [ 25, 50, 100, 200, 500, 1000 ] as $opt ) {
+    $len_options .= '<option value="' . $opt . '" ' . selected( $opt, $len, false ) . '>' . $opt . '</option>';
+  }
+
+  $env = defined( 'WP_ENVIRONMENT_TYPE' ) ? esc_html( WP_ENVIRONMENT_TYPE ) : '';
+  $created_attr = esc_attr( $created );
+  $single_attr  = esc_attr( $single );
+
+  ?>
+  <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;border:1px solid #ccd0d4;background:#fff;padding:14px 16px;margin:0 0 12px;max-width:900px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <strong style="font-size:14px;">Wicket Membership Subscription Sync</strong>
+      <?php if ( $env ) : ?><span style="color:#666;font-size:12px;">env: <?php echo $env; ?></span><?php endif; ?>
+    </div>
+
+    <form id="wmsync-form" method="get" action="<?php echo $action; ?>">
+      <?php // Persist the trigger and the run-mode flags (set by the buttons via JS). ?>
+      <input type="hidden" name="mship_subscription_sync" value="1" />
+      <input type="hidden" id="wmsync-no_debug" name="no_debug" value="" />
+      <input type="hidden" id="wmsync-count_only" name="count_only" value="" />
+      <input type="hidden" id="wmsync-page" name="page_number" value="<?php echo $page; ?>" />
+      <?php // Set to 1 by every action button; absent on a bare load so the server runs nothing. ?>
+      <input type="hidden" id="wmsync-run" name="wmsync_run" value="" />
+
+      <div style="opacity:<?php echo $batch_opacity; ?>;margin-bottom:8px;">
+        <label>Created after
+          <input type="date" id="wmsync-created" name="created_after" value="<?php echo $created_attr; ?>" />
+        </label>
+        <a href="#" title="Clear date" style="text-decoration:none;margin-right:14px;"
+           onclick="document.getElementById('wmsync-created').value='';return false;">&#10005;</a>
+        <label style="margin-left:6px;">Per page
+          <?php // Changing page length resets to page 1 so the offset stays meaningful. ?>
+          <select name="page_length" onchange="document.getElementById('wmsync-page').value=1;">
+            <?php echo $len_options; ?>
+          </select>
+        </label>
+      </div>
+
+      <div style="margin-bottom:8px;">
+        <label>Single subscription ID
+          <input type="text" name="subscription_to_update" value="<?php echo $single_attr; ?>" size="10" />
+        </label>
+        <span style="color:#666;font-size:12px;">&larr; overrides pagination &amp; date</span>
+      </div>
+
+      <div style="opacity:<?php echo $batch_opacity; ?>;margin:10px 0;display:flex;align-items:center;gap:10px;">
+        <button type="button" onclick="wmsyncSubmit('count');">&#128290; Count Only</button>
+        <span style="border-left:1px solid #ddd;height:18px;"></span>
+        <button type="button" <?php echo $prev_disabled; ?> onclick="wmsyncPage(-1);">&#9664; Prev</button>
+        <span style="font-size:13px;"><?php
+          // Totals are only known after a run/count; before that, prompt the operator.
+          if ( $action_requested ) {
+            echo 'Page ' . $page . ' of ' . $pages . ' &middot; records ' . $range_start . '&ndash;' . $range_end . ' of ' . $total;
+          } else {
+            echo '<em style="color:#666;">Run or Count to load totals</em>';
+          }
+        ?></span>
+        <button type="button" <?php echo $next_disabled; ?> onclick="wmsyncPage(1);">Next &#9654;</button>
+      </div>
+
+      <div style="border-top:1px solid #eee;padding-top:10px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <span>Mode:</span>
+        <?php // Radio ALWAYS defaults to dry on load — LIVE is never pre-selected from the request. ?>
+        <label><input type="radio" name="wmsync_mode" value="dry" checked onchange="wmsyncModeChange();" /> Dry run</label>
+        <label><input type="radio" name="wmsync_mode" value="live" onchange="wmsyncModeChange();" /> <span style="color:#b32d2e;font-weight:bold;">LIVE</span></label>
+        <label style="color:#b32d2e;"><input type="checkbox" id="wmsync-confirm" disabled /> I understand LIVE writes data</label>
+        <button type="button" style="margin-left:auto;font-weight:bold;" onclick="wmsyncSubmit('run');">&#9654; Run</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+  // Set the hidden run-mode flags, then submit. Navigation/counting force a safe dry run;
+  // only an explicit "run" honours the dry/live radio, and live additionally requires the
+  // confirmation box to be ticked.
+  function wmsyncSubmit(mode){
+    var f=document.getElementById('wmsync-form');
+    var nd=document.getElementById('wmsync-no_debug');
+    var co=document.getElementById('wmsync-count_only');
+    // Mark this submission as an explicit action so the server processes it (vs. a bare load).
+    document.getElementById('wmsync-run').value='1';
+    if(mode==='count'){ co.value='1'; nd.value=''; f.submit(); return; }
+    co.value='';
+    if(mode==='prev'||mode==='next'){ nd.value=''; f.submit(); return; }
+    // mode === 'run'
+    var live=document.querySelector('input[name=wmsync_mode]:checked').value==='live';
+    if(live){
+      if(!document.getElementById('wmsync-confirm').checked){
+        alert('To run LIVE you must tick “I understand LIVE writes data”.');
+        return;
+      }
+      nd.value='1';
+    } else {
+      nd.value='';
+    }
+    f.submit();
+  }
+  // Adjust the hidden page field then submit as a dry-run navigation.
+  function wmsyncPage(delta){
+    var p=document.getElementById('wmsync-page');
+    var v=(parseInt(p.value,10)||1)+delta;
+    if(v<1){ v=1; }
+    p.value=v;
+    wmsyncSubmit(delta<0?'prev':'next');
+  }
+  // The confirm box only matters in LIVE mode; disable+clear it otherwise.
+  function wmsyncModeChange(){
+    var live=document.querySelector('input[name=wmsync_mode]:checked').value==='live';
+    var c=document.getElementById('wmsync-confirm');
+    c.disabled=!live;
+    if(!live){ c.checked=false; }
+  }
+  </script>
+  <?php
+}
+
+/**
+ * Pushes an organization membership's seat limit (max_assignments) to the MDP.
+ *
+ * @param  object      $client                 The Wicket API client.
+ * @param  string      $wicket_membership_uuid The MDP organization membership UUID.
+ * @param  int         $seat_count             Desired seat count; values < 1 mean "unlimited".
+ *
+ * @return mixed|\WP_Error  The API response, or a WP_Error if the request throws.
+ */
 function memberships_update_seat_count( $client, $wicket_membership_uuid, $seat_count) {
+
+    // Mirror Membership_Controller: a seat count below 1 means "no limit", which the MDP
+    // represents as a null max_assignments rather than 0. Keeps both sync paths consistent.
+    $max_assignments = ( (int) $seat_count < 1 ) ? null : (int) $seat_count;
 
     // build membership payload
     $payload = [
       'data' => [
         'type' => 'organization_memberships',
         'attributes' => [
-          'max_assignments' => $seat_count
+          'max_assignments' => $max_assignments
         ],
       ]
     ];
@@ -266,6 +755,20 @@ function wicket_get_mapped_product_id_for_tier( $product_id ) {
     return $product_id;
 }
 
+/**
+ * Rebuilds and stores the membership JSON blob across order, subscription, and user meta.
+ *
+ * Flattens the membership post meta into a single record, overlays the incoming IDs
+ * (product/subscription/order), regenerates the membership JSON, and writes it to the
+ * parent order meta, the subscription meta, and the subscriber's user meta. In debug mode
+ * it instead dumps the would-be JSON to the screen and writes nothing.
+ *
+ * @param  int    $post_id             Membership CPT post ID to rebuild the JSON for.
+ * @param  bool|int $debug             When truthy, preview only — no meta is written.
+ * @param  array  $membership_incoming Incoming overrides (product/subscription/order IDs).
+ *
+ * @return string|void  The encoded user-meta JSON on a live write; nothing on debug preview.
+ */
 function wicket_update_membership_json_data( $post_id, $debug = 0, $membership_incoming = []) {
 
   $membership_meta = get_post_meta( $post_id );
@@ -287,9 +790,21 @@ function wicket_update_membership_json_data( $post_id, $debug = 0, $membership_i
   $membership_json = \Wicket_Memberships\Helper::get_membership_json_from_membership_post_data( $membership );
 
   if($debug) {
-    echo 'JSON Updated:<br><pre>';
+    // Dry-run: capture (don't echo) the JSON that would be written so it can be shown on
+    // demand instead of flooding the log; var_dump writes to output, so buffer it.
+    ob_start();
     var_dump($membership_json);
-    echo '</pre><br>';
+    $json_preview = ob_get_clean();
+
+    // Unique id per preview so multiple records on one page toggle independently.
+    static $preview_seq = 0;
+    $preview_id = 'wmsync-json-' . (++$preview_seq);
+
+    // Render a small clickable icon that toggles the hidden JSON block; collapsed by default
+    // to keep the per-record log readable. Inline onclick avoids a separate script per block.
+    echo "    Membership JSON preview (not written in debug mode) ";
+    echo "<a href=\"#\" title=\"Show/hide JSON\" style=\"text-decoration:none;\" onclick=\"var e=document.getElementById('{$preview_id}');e.style.display=(e.style.display==='none'?'block':'none');return false;\">&#128269;</a>\n";
+    echo "<span id=\"{$preview_id}\" style=\"display:none;margin-left:2em;\">" . htmlspecialchars($json_preview) . "</span>";
     return;
   }
 

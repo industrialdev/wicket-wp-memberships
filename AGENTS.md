@@ -145,7 +145,18 @@ One short line is almost always enough. No paragraph-length comment blocks insid
 - Standard WP boilerplate any WP developer recognises.
 - The current task, PR number, or issue reference (those belong in the commit message).
 
----
-
 ## Commit & Pull Request Guidelines
 Keep commits focused with short, imperative messages. PRs should include purpose, test evidence, and screenshots for UI changes. Link related issues and note breaking changes.
+
+## Release & Branch Workflow
+All work happens on branches. `main` is locked; changes land via peer-reviewed
+Pull Request (devs cross-review each other). Never commit to `main` directly, and never push or open a
+PR without explicit human approval.
+
+Merging a PR to `main` **auto-releases** via the `wicket-release-bot` GitHub
+App: version bump, `CHANGELOG.md` update, git tag. Never bump versions or
+create tags by hand. The bump level comes from a marker in the PR title
+(squash-merge makes it the commit message): _(none)_ / `#patch` = patch, `#minor`,
+`#major`, or `#norelease` (no release; use for docs/tooling-only merges).
+Conventional commit prefixes (`feat:`, `fix:`, `docs:`, ...) drive changelog
+grouping; a `!` (e.g. `feat!:`) flags a BREAKING change.

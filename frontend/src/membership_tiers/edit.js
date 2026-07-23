@@ -57,6 +57,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	const [form, setForm] = useState({
 		grant_owner_assignment: false,
+		copy_active_assignments_on_renewal: true,
 		approval_required: false,
 		renew_approval_required: false,
 		approval_email_recipient: '',
@@ -112,6 +113,12 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			next_tier_id: form.renewal_type === 'current_tier' || form.renewal_type === 'subscription' ? '' : form.next_tier_id,
 			next_tier_form_page_id: form.renewal_type === 'sequential_logic' || form.renewal_type === 'subscription' ? '' : form.next_tier_form_page_id,
 		};
+
+		// copy_active_assignments_on_renewal only applies to organization tiers;
+		// strip it from individual/person tiers to avoid persisting dead data.
+		if (form.type !== 'organization') {
+			delete newForm.copy_active_assignments_on_renewal;
+		}
 
 		apiFetch({
 			path: endpoint,
@@ -214,17 +221,14 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	useEffect(() => {
 
-		// Fetch Local WP Pages
-		apiFetch({ path: addQueryArgs(`${API_URL}/pages`, {
-      _fields: 'id,title',
-			status: 'publish',
-			per_page: -1
-		}) }).then((tiers) => {
-			let options = tiers.map((tier) => {
-				const decodedTitle = he.decode(tier.title.rendered);
+		// Fetch Local WP Pages (via plugin endpoint so pages with visibility
+		// restrictions from plugins like WP Private Content Plus are still listed)
+		apiFetch({ path: `${PLUGIN_API_URL}/wp_pages_all` }).then((pages) => {
+			let options = pages.map((page) => {
+				const decodedTitle = he.decode(page.title.rendered);
 				return {
-					label: `${decodedTitle} | ID: ${tier.id}`,
-					value: tier.id
+					label: `${decodedTitle} | ID: ${page.id}`,
+					value: page.id
 				}
 			});
 
@@ -314,6 +318,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 				setForm({
 					...post.tier_data,
+					copy_active_assignments_on_renewal: post.tier_data.copy_active_assignments_on_renewal ?? true,
 					product_data: productData,
 					renewal_type: initialRenewalType
 				});
@@ -648,6 +653,15 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
                             onChange={(value) => setForm({ ...form, grant_owner_assignment: value })}
                             __nextHasNoMarginBottom={true}
                           />
+                          <div style={{ marginTop: '8px' }}>
+                            <CheckboxControl
+                              label={__('Copy active assignments on renewal', 'wicket-memberships')}
+                              help={__('When off, renewing this tier will not copy people from the previous membership.', 'wicket-memberships')}
+                              checked={form.copy_active_assignments_on_renewal}
+                              onChange={(value) => setForm({ ...form, copy_active_assignments_on_renewal: value })}
+                              __nextHasNoMarginBottom={true}
+                            />
+                          </div>
                         </FlexItem>
                       </Flex>
 

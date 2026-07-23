@@ -57,6 +57,8 @@ Three namespaced base paths are exported from `shared/constants.js` and used int
 | `fetchMdpPersons` | POST | `/wicket_member/v1/mdp_person/search` | MDP person objects |
 | `fetchSearchOrgs` | POST | `/wicket-base/v1/search-orgs` | Org objects matching the search term |
 | `fetchOrgByUuid` | GET | `/wicket_member/v1/org_data` | Org display data object |
+| `transferMembership` | POST | `/wicket_member/v1/membership/<id>/transfer_membership` | Transfer result |
+| `switchMembership` | POST | `/wicket_member/v1/membership/<id>/switch_membership` | Switch result |
 
 ---
 
@@ -561,6 +563,41 @@ Resolves an org UUID to its display data.
 **Endpoint:** `GET /wicket_member/v1/org_data?org_uuid=<uuid>`
 
 **Returns:** Promise resolving to an object with at minimum `{ name, location }`.
+
+---
+
+## Membership Transfer / Switch
+
+### `transferMembership({ new_owner_uuid, membership_post_id })`
+
+Transfers ownership of an individual membership to a different MDP person.
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `new_owner_uuid` | `string` | Yes | MDP UUID of the new owner |
+| `membership_post_id` | `string\|number` | Yes | WP post ID of the membership to transfer |
+
+**Endpoint:** `POST /wicket_member/v1/membership/<membership_post_id>/transfer_membership`
+
+**Returns:** Promise resolving to the transfer result.
+
+---
+
+### `switchMembership(membershipId, switchPostID, switchType)`
+
+Switches a membership to a different tier or product.
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `membershipId` | `string\|number` | Yes | WP post ID of the membership |
+| `switchPostID` | `string\|number` | Yes | WP post ID to switch to |
+| `switchType` | `string` | Yes | Type of switch being performed |
+
+Rejects with an error string if any of the three arguments is missing.
+
+**Endpoint:** `POST /wicket_member/v1/membership/<membershipId>/switch_membership?switch_post_id=<switchPostID>&switch_type=<switchType>`
+
+**Returns:** Promise resolving to the switch result.
 
 ---
 

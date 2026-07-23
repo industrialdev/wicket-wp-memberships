@@ -155,6 +155,7 @@ Mounts on `#edit_member`. Renders the full edit page for a single member (indivi
   - **Billing info** — linked subscription and order table (if present)
   - **Manage Status** action (opens `ManageStatusModal`)
   - **Actions dropdown** — "Create Renewal Order" and "Add to Membership Bundle"
+  - **`ManageMembership`** — "Manage Membership" button opening a modal with Transfer and Switch actions (see below)
   - **Edit form** — start/end/expiry date pickers, renewal type selector, conditional fields (sequential tier, form page), seats info and membership-owner selector (organisation only)
   - **Update Membership** submit button
 - For bundle memberships: `MembershipBundleDetails` replaces the edit form
@@ -259,6 +260,51 @@ The original standalone component that renders a `BorderedBox` with a trigger bu
 ### API called
 
 `POST /wicket-memberships/v1/create-renewal-order` via the `createRenewalOrder` service function, passing `membership_post_id`, `product_id`, and optionally `variation_id`.
+
+---
+
+## members/manage_membership.js — Manage Membership Modal
+
+Not mounted directly. Default export used by `members/edit.js` inside each membership record's expanded panel.
+
+### What it renders
+
+A "Manage Membership" button inside a `BorderedBox`. Clicking it validates eligibility before opening the modal:
+
+- Blocked (shows a warning modal instead) unless the membership's `membership_starts_at` is in the past **and** `membership_status` is `active` (case-insensitive check against `'active'`/`'Active'`).
+- When eligible, opens a `Modal` with a "Select Action" dropdown: **Transfer Membership** or **Switch Membership**.
+- **Transfer**: async-select to search an MDP person (`/mdp_person/search`, min 3 characters), a two-step confirm, then calls `transferMembership`. On success with a `redirect_url`, opens it in a new tab and reloads the page.
+- **Switch**: renders `SwitchMembership` (see below) inline.
+
+### Props
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `membership` | `object` | Yes | The membership record object; uses `membership.data.membership_post_id`, `membership.data.membership_starts_at`, `membership.data.membership_status` |
+
+### API called
+
+`transferMembership({ new_owner_uuid, membership_post_id })` from `shared/services/api.js`.
+
+---
+
+## members/switch_membership.js — Switch Membership Form
+
+Not mounted directly. Default export rendered by `manage_membership.js` when the "Switch Membership" action is selected.
+
+### What it renders
+
+A "Switch Tier Action" dropdown with a single visible option, **Create Membership** (a "Create Order" option exists in code but is intentionally hidden — tier-only switch; see the `SWITCH_INTEGRATION_MIGRATE_IMPLEMENTATION.md` code comment before removing it). Selecting **Create Membership** shows a searchable tier select, filtered to tiers matching the current membership's type (individual/organization) so a membership cannot be switched cross-type. Submitting calls `switchMembership(membership.ID, tierPostId, 'tier')`; on a response with `redirect_url`, navigates the browser there.
+
+### Props
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `membership` | `object` | Yes | The membership record object; uses `membership.ID` and `membership.data.membership_type` |
+
+### API called
+
+`fetchTiers`, `fetchWcProducts`, `fetchProductVariations`, and `switchMembership` from `shared/services/api.js`.
 
 ---
 

@@ -25,6 +25,9 @@ class Settings {
     <form action="options.php" method="post">
     <h2>Wicket Membership Settings</h2>
     <?php
+      // Surface active local-import / sync-tool state at the top of the page so admins
+      // are not surprised that command-line import endpoints or the sync tool are live.
+      Settings::wicket_membership_render_environment_notices();
       Settings::check_migrate_tier_slugs();
       settings_fields( 'wicket_membership_plugin_options' );
       do_settings_sections( 'wicket_membership_plugin' ); ?>
@@ -32,6 +35,49 @@ class Settings {
     <a href="edit.php?post_type=wicket_membership" target="_blank"><input class="button button-secondary" type="button" value="View Raw Membership Posts"/></a></p>
     </form>
     <?php
+  }
+
+  /**
+   * Renders warning notices at the top of the settings page for active local-import state.
+   *
+   * Two independent conditions are surfaced because they have real security/operational
+   * implications and are easy to leave enabled unintentionally:
+   *  - ALLOW_LOCAL_IMPORTS is on, exposing the command-line CSV import tooling.
+   *  - The memberships-sync.php tool is actively included (its function is defined),
+   *    meaning the browser-triggered subscription sync endpoint is reachable.
+   *
+   * The sync tool is loaded from wicket.php whenever the `allow_local_imports` option key
+   * exists, so detecting the function presence is the only reliable "is it live" signal.
+   *
+   * @see wicket_sync_subscriptions() Defined in custom/memberships-sync.php when included.
+   *
+   * @return void
+   */
+  public static function wicket_membership_render_environment_notices() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+
+    // Local imports flagged on — command-line CSV import endpoints are enabled.
+    $local_imports_enabled = ! empty( $options['allow_local_imports'] );
+
+    // The sync tool defines this function only when custom/memberships-sync.php is included.
+    $sync_tool_active = function_exists( 'wicket_sync_subscriptions' );
+
+    if ( ! $local_imports_enabled && ! $sync_tool_active ) {
+      return;
+    }
+
+    echo '<div class="notice notice-warning" style="margin:15px 0;padding:10px 12px;">';
+    echo '<p style="margin-top:0;"><strong>&#9888; Local Import / Sync Tooling Active</strong></p>';
+
+    if ( $local_imports_enabled ) {
+      echo '<p style="margin:6px 0;"><strong>ALLOW_LOCAL_IMPORTS is enabled.</strong> Command-line CSV import tooling is active. This should remain disabled in production unless an import is actively in progress.</p>';
+    }
+
+    if ( $sync_tool_active ) {
+      echo '<p style="margin:6px 0;"><strong>The memberships-sync tool (<code>custom/memberships-sync.php</code>) is actively included.</strong> The browser-triggered subscription sync endpoint (<code>?mship_subscription_sync=1</code>) is reachable. See the import instructions below for how to use the sync tool safely.</p>';
+    }
+
+    echo '</div>';
   }
 
   public function get_next_scheduled_membership_activation() {
@@ -92,7 +138,8 @@ class Settings {
     add_settings_field( 'bypass_status_change_lockout', '<p>BYPASS_STATUS_CHANGE_LOCKOUT</p>', [__NAMESPACE__.'\\Settings', 'bypass_status_change_lockout'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'wicket_show_order_debug_data', '<p>WICKET_SHOW_ORDER_DEBUG_DATA</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_order_debug_data'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'allow_local_imports', '<p>ALLOW_LOCAL_IMPORTS</p>', [__NAMESPACE__.'\\Settings', 'allow_local_imports'], 'wicket_membership_plugin', 'debug_settings' );
-    add_settings_field( 'wicket_mship_import_create_subscriptions', '<p style="color:#999">Import Subscription Option:</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_import_create_subscriptions'], 'wicket_membership_plugin', 'debug_settings' );
+    add_settings_field( 'wicket_mship_import_create_subscriptions_tier_only', '<p style="color:#999">Import Subscription Option:</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_import_create_subscriptions_tier_only'], 'wicket_membership_plugin', 'debug_settings' );
+    add_settings_field( 'wicket_mship_import_create_subscriptions', '', [__NAMESPACE__.'\\Settings', 'wicket_mship_import_create_subscriptions'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'wicket_memberships_debug_renew', '<p>WICKET_MEMBERSHIPS_DEBUG_RENEW</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_renew'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'wicket_memberships_debug_cart_ids', '<p>WICKET_MEMBERSHIPS_DEBUG_CART_IDS</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_cart_ids'], 'wicket_membership_plugin', 'debug_settings' );
     add_settings_field( 'bypass_wicket', '<p>BYPASS_WICKET</p>', [__NAMESPACE__.'\\Settings', 'bypass_wicket'], 'wicket_membership_plugin', 'debug_settings' );
@@ -214,10 +261,45 @@ class Settings {
 
   }
   
+  /**
+   * Renders the "tier subscription only" import option checkbox.
+   *
+   * This is the middle of three mutually understood import-subscription states:
+   *   - Neither this nor the "every membership" option checked -> no subscriptions on import.
+   *   - This checked -> only memberships whose Tier renewal type is "Subscription" get one.
+   *   - The "every membership" option checked -> all imported memberships get one (overrides this).
+   *
+   * Defaults to enabled (opt-out) when never saved, preserving the legacy behaviour where
+   * subscription-renewal tiers always received a subscription on import.
+   *
+   * @see wicket_mship_import_create_subscriptions() The broader "every membership" option.
+   * @see Import_Controller::create_individual_memberships() Consumes both options.
+   *
+   * @return void
+   */
+  public static function wicket_mship_import_create_subscriptions_tier_only() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    // Default to checked when the option has never been saved, preserving legacy import behaviour.
+    $value = isset( $options['wicket_mship_import_create_subscriptions_tier_only'] ) ? $options['wicket_mship_import_create_subscriptions_tier_only'] : 1;
+    echo "<input id='wicket_mship_import_create_subscriptions_tier_only' name='wicket_membership_plugin_options[wicket_mship_import_create_subscriptions_tier_only]' type='checkbox' value='1' ".checked(1, esc_attr( $value ), false). " />"
+      .'Create a WooCommerce Subscription only for imported memberships created in a Tier with their renewal type = "Subscription". <p>Enabled by default. Uncheck both subscription options to import without creating any subscriptions.</p>';
+  }
+
+  /**
+   * Renders the "every imported membership" subscription option checkbox.
+   *
+   * When checked this overrides the tier-only option and creates a subscription for
+   * every imported membership regardless of its Tier renewal type. See
+   * wicket_mship_import_create_subscriptions_tier_only() for the three-state behaviour.
+   *
+   * @see wicket_mship_import_create_subscriptions_tier_only() The narrower tier-only option.
+   *
+   * @return void
+   */
   public static function wicket_mship_import_create_subscriptions() {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_mship_import_create_subscriptions' name='wicket_membership_plugin_options[wicket_mship_import_create_subscriptions]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_import_create_subscriptions']), false). " />"
-      .'Create a WooCommerce Subscription for every imported membership, regardless of tier renewal type. <p>By default only Memberships created in a Tier with their renewal type = "Subscription" will have subscriptions created on import.</p>';
+      .'Create a WooCommerce Subscription for every imported membership, regardless of tier renewal type.';
   }
 
   public static function wicket_mship_subscription_renew() {
@@ -260,7 +342,18 @@ class Settings {
         <p style="color:black;font-style:italic">2. Upload Membership CSV to media folder. Separate files for Individuals and Organizations.</p>
         <p style="color:black;font-style:italic">3. Run the import command from the ssh command line in the plugin folder: <code>php ./csv_import_threads.php</code>.</p>
         <p style="color:black;font-style:italic">4. Follow guidance to add the correct args. Import is batched, wait until complete or run as a background task!</p>
+        <p style="color:black;font-style:italic">5. Can be run locally to populate a remote server by pointing the <code>api_domain</code> to the remote site with plugin installed!</p>
         <p style="color:black;font-style:italic"><code>php ./csv_import_threads.php { individual|organization } { file_path from /uploads/ } { api_domain - optional str } { skip_approval - optional bool }</code></p>
+        <?php
+          // The subscription sync tool is loaded from wicket.php only while MDP Import
+          // (this setting) is enabled, so its link is surfaced here alongside the import steps.
+          $sync_tool_url = esc_url( home_url( '/?mship_subscription_sync=1' ) );
+        ?>
+        <p style="color:#b32d2e;font-style:italic;margin-top:10px;border-top:1px solid #eee;padding-top:10px;">
+            <strong>Note — reusing existing subscriptions:</strong> When importing memberships <em>without</em> creating new subscriptions, and you want imported memberships to attach to subscriptions that already exist, use the Subscription Sync tool to link them. It walks active/on-hold subscriptions and links each to its matching membership record. For each subscription it looks for a current membership belonging to the same user (matched by email) on the same tier (resolved from the product assigned to the subscription).
+            <br>This tool is only available while <strong>MDP Import</strong> (this setting) is enabled.
+            <br><a target="_blank" rel="noopener" href="<?php echo $sync_tool_url; ?>">Open the Subscription Sync tool in a new tab &#8599;</a>
+        </p>
     </div>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -315,6 +408,7 @@ class Settings {
     $newinput['bypass_wicket'] = trim($input['bypass_wicket']);
     $newinput['wicket_mship_subscription_renew'] = trim($input['wicket_mship_subscription_renew']); 
     $newinput['wicket_mship_mdp_timezone'] = trim($input['wicket_mship_mdp_timezone']);
+    $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim($input['wicket_mship_import_create_subscriptions_tier_only']);
     $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
     $newinput['wicket_mship_enable_bundles'] = trim($input['wicket_mship_enable_bundles']);
     $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
