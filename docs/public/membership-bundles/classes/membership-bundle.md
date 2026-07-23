@@ -309,13 +309,15 @@ public function transition_to( string $new_status ): array|false
 
 The main entry point for all status changes. Applies lifecycle guards, recalculates dates where applicable, activates the WooCommerce subscription on `pending → active`, and cascades the new status to all child memberships.
 
+When the `bypass_status_change_lockout` setting (`BYPASS_STATUS_CHANGE_LOCKOUT`) is enabled, only the lifecycle-map guard (`can_transition_to()`) is skipped — subscription activation, member cascade, and MDP sync still run for any transition `plan_status_transition()` recognizes. Only transitions outside the normal lifecycle map fall back to a raw status-only write under bypass.
+
 **Parameters**
 
 | Name | Type | Required | Description |
 |---|---|---|---|
 | `$new_status` | `string` | Yes | Target status slug (e.g. `'active'`, `'cancelled'`). |
 
-**Returns:** `['success_message' => string, 'bypassed' => bool]` on success, `false` when the transition is not allowed from the current status.
+**Returns:** `['success_message' => string, 'bypassed' => bool]` on success, `false` when the transition is not allowed from the current status. `bypassed` is `true` only when the raw status-only fallback path was used.
 
 :::details Example
 ```php

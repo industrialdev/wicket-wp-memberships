@@ -406,6 +406,8 @@ Sets the `membership_status` meta value directly. This remains public as a low-l
 
 Executes a group status transition and its side effects. This is the supported lifecycle entrypoint for status changes. It applies transition rules via `can_transition_to()`, plans transition dates via `plan_status_transition()`, activates the linked subscription for `pending → active` and `delayed → active`, persists the new group state via `apply_status_transition()`, and cascades the new status to child memberships via `cascade_status_to_members()`. Returns an array containing `success_message` and `bypassed` on success, or `false` when the requested transition cannot be performed.
 
+When `BYPASS_STATUS_CHANGE_LOCKOUT` is set, only the `can_transition_to()` guard is skipped — subscription activation, member cascade, and MDP sync still run for any transition `plan_status_transition()` recognizes. `bypassed` is only `true` when the requested transition falls outside `plan_status_transition()`'s recognized paths and the method falls back to a raw `set_membership_status()` write with no side effects (dev/testing use only).
+
 `plan_status_transition()` covers the following paths:
 - `pending → active`: recalculates dates from config anchored to activation date (today); activates subscription.
 - `delayed → active`: preserves dates set at creation; status change only (no subscription activation).

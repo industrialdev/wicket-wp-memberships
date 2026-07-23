@@ -2091,20 +2091,13 @@ class Membership_Bundle {
    * @return array{success_message: string, bypassed: bool}|false
    */
   public function transition_to( string $new_status ) {
-    // Bypass path skips lifecycle rules entirely — for dev/testing only.
-    if ( ! empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
-      if ( ! $this->set_membership_status( $new_status ) ) {
-        return false;
-      }
+    $bypassed = ! empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] );
 
-      return [
-        'success_message' => 'BYPASSED STATUS LOCKOUT — status set to ' . $new_status,
-        'bypassed'        => true,
-      ];
-    }
-
-    // Guard against illegal transitions before touching any state.
-    if ( ! $this->can_transition_to( $new_status ) ) {
+    // Bypass only skips the lifecycle-map guard below — it must NOT skip the
+    // subscription activation / member cascade / MDP sync side effects that a
+    // real transition performs, or bundles flip to active while their WC
+    // subscription and children are silently left behind.
+    if ( ! $bypassed && ! $this->can_transition_to( $new_status ) ) {
       return false;
     }
 
@@ -2112,6 +2105,20 @@ class Membership_Bundle {
     // before any writes, so a planning failure is still fully reversible.
     $transition_plan = $this->plan_status_transition( $new_status );
     if ( false === $transition_plan ) {
+      // Under bypass, plan_status_transition() may not recognize the requested
+      // transition (it only models the real lifecycle map). Fall back to a raw
+      // status write so bypass still allows arbitrary dev/testing transitions.
+      if ( $bypassed ) {
+        if ( ! $this->set_membership_status( $new_status ) ) {
+          return false;
+        }
+
+        return [
+          'success_message' => 'BYPASSED STATUS LOCKOUT — status set to ' . $new_status,
+          'bypassed'        => true,
+        ];
+      }
+
       return false;
     }
 
@@ -2138,7 +2145,7 @@ class Membership_Bundle {
 
     return [
       'success_message' => $transition_plan['success_message'],
-      'bypassed'        => false,
+      'bypassed'        => $bypassed,
     ];
   }
 
