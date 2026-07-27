@@ -5,6 +5,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- new releases inserted below this line -->
 
+## [1.0.113] - 2026-07-27
+
+### Fixed
+- repair renewal callouts silently suppressed in legacy 1.x branch
+- repair renewal callouts silently suppressed in legacy 1.x branch
+
+### Documentation
+- self-contained release automation reference #norelease
+- add release automation reference #norelease
+
+
 ## [1.0.112] - 2026-07-09
 
 ### Added
