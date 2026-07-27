@@ -1286,18 +1286,21 @@ function wicket_sub_org_select_callback( $subscription ) {
   }
 
   /**
-   * Prevent WooCommerce Subscriptions from skipping the cart page on membership renewals.
+   * Prevent WooCommerce Subscriptions from skipping the cart page on membership renewals and switches.
    *
    * WCS hooks `woocommerce_add_to_cart_redirect` at priority 10 and returns
    * `wc_get_checkout_url()`, bypassing the cart entirely. When `membership_post_id_renew`
    * is present in the URL the user must land on the cart page so they can review the
    * discounted price before proceeding. Returning false cancels the WCS redirect.
    *
+   * `membership_post_id_switch` gets the same treatment: a member arriving from the self-serve switch
+   * callout must be able to review what the switch costs on the cart page before checking out.
+   *
    * @param string|false $url The redirect URL proposed by WCS.
    * @return string|false Original URL unchanged, or false to cancel the redirect.
    */
   public function prevent_renewal_checkout_redirect( $url ) {
-    if ( empty( $_GET['membership_post_id_renew'] ) ) {
+    if ( empty( $_GET['membership_post_id_renew'] ) && empty( $_GET['membership_post_id_switch'] ) ) {
       return $url;
     }
 
