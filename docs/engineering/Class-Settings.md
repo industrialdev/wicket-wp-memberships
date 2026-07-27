@@ -20,6 +20,7 @@ source_files: ["includes/Settings.php"]
 - `wicket_mship_membership_merge_key()` (static)
 - `wicket_mship_multi_tier_renewal()` (static)
 - `wicket_mship_disable_renewal()` (static)
+- `wicket_mship_disable_switch()` (static)
 - `wicket_mship_assign_subscription()` (static)
 - `wicket_show_mship_order_org_search()` (static)
 - `bypass_wicket()` (static)
@@ -68,7 +69,15 @@ Outputs a text field for the merge webhook HMAC-SHA256 authentication key, displ
 Outputs a checkbox to enable multi-tier renewal logic and related UI in the plugin.
 
 **wicket_mship_disable_renewal()** (static)
-Outputs a checkbox to disable renewal callouts in the Account Centre.
+Outputs the GLOBAL callout kill switch: when enabled, `Membership_Controller::get_membership_callouts()`
+returns every bucket empty — renewal, grace period, pending approval and switch. Sets
+`$_ENV['WICKET_MSHIP_DISABLE_RENEWALS']`.
+
+**wicket_mship_disable_switch()** (static)
+Outputs the PRECISE kill switch for the self-serve membership switch callout only; renewal, grace
+period and pending approval callouts are unaffected. Sets `$_ENV['WICKET_MSHIP_DISABLE_SWITCH']`.
+Intended for sites whose Account Centre build predates the switch consumer — such a build renders the
+switch callout's copy but cannot build its button, leaving members an actionless card.
 
 **wicket_mship_assign_subscription()** (static)
 Outputs a checkbox to allow assigning memberships by ID on the WooCommerce Subscription page.

@@ -2254,6 +2254,13 @@ function get_item_data ( $other_data, $cart_item ) {
       #echo "//-->$debug_comment_eol";
     }
 
+    // Independent kill switch for the switch callout: an Account Centre build that predates the
+    // switch consumer renders the bucket's copy but cannot build its button, so this lets a site
+    // suppress it without also disabling renewals. The key is still emitted (empty) either way.
+    if(!empty($_ENV['WICKET_MSHIP_DISABLE_SWITCH'])) {
+      $switch = [];
+    }
+
     if(!empty($_ENV['WICKET_MSHIP_DISABLE_RENEWALS'])) {
       // Switching is not a renewal, but the key is still emitted (empty) so the ACC can read the
       // bucket unconditionally on both return paths.

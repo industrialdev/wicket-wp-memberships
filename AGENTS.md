@@ -94,6 +94,8 @@ Key flags that alter behavior:
 - `WICKET_MSHIP_SUBSCRIPTION_RENEW`: Enables subscription-based renewal.
 - `WICKET_MSHIP_ASSIGN_SUBSCRIPTION`: Enables linking subscriptions to memberships.
 - `WICKET_MSHIP_AUTORENEW_TOGGLE`: Shows autorenew checkbox on subscriptions.
+- `WICKET_MSHIP_DISABLE_RENEWALS`: **Global** Account Centre callout kill switch — `get_membership_callouts()` returns every bucket empty (renewal, grace period, pending approval, switch).
+- `WICKET_MSHIP_DISABLE_SWITCH`: **Switch-only** callout kill switch — empties the `switch` bucket only, leaving renewal callouts intact.
 - `BYPASS_WICKET`: Skips MDP sync (useful for local dev).
 - `ALLOW_LOCAL_IMPORTS`: Enables CSV import REST endpoints.
 - `WICKET_MSHIP_MDP_TIMEZONE`: Timezone for date calculations (default: UTC).

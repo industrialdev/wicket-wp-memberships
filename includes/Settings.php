@@ -119,6 +119,7 @@ class Settings {
     //options
     add_settings_field( 'wicket_show_mship_order_org_search', '<p>Set the Organization on Subscription Membership in Admin</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_mship_order_org_search'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Renewal Callouts</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_disable_switch', '<p>Disable Switch Callouts</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_switch'], 'wicket_membership_plugin', 'functional_settings' );
 
     add_settings_field( 'wicket_mship_multi_tier_renewal', '<p>Use Multi-Tier Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_multi_tier_renewal'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_assign_subscription', '<p>Membership Subscription Assignment</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_assign_subscription'], 'wicket_membership_plugin', 'functional_settings' );
@@ -163,10 +164,36 @@ class Settings {
       Only use this if you undertsand the Multi-Tier Renewal Flow & Rules and follow the instructions to configure everything correctly.';
   }
 
+  /**
+   * Render the "Disable Renewal Callouts" checkbox.
+   *
+   * GLOBAL kill switch: suppresses every Account Centre callout bucket — renewal, grace period,
+   * pending approval and switch. Paired with wicket_mship_disable_switch(), which hides the switch
+   * callout only.
+   *
+   * @return void
+   */
   public static function wicket_mship_disable_renewal() {
     $options = get_option( 'wicket_membership_plugin_options' );
     echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_disable_renewal]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_disable_renewal']), false). " />"
-      .'Do not display renewal callouts in ACC.';
+      .'<strong>Global.</strong> Do not display <em>any</em> callouts in the Account Centre &mdash; renewal, grace period, pending approval and membership switch are all suppressed. '
+      .'Use this to turn the whole callout system off. To hide only the switch callout, use <em>Disable Switch Callouts</em> below instead.';
+  }
+
+  /**
+   * Render the "Disable Switch Callouts" checkbox.
+   *
+   * PRECISE kill switch: suppresses only the self-serve membership switch callout bucket, leaving
+   * renewal, grace period and pending approval callouts untouched. Its main use is a site running an
+   * Account Centre build that predates the switch consumer: such a build renders the switch callout's
+   * copy but cannot build its button, leaving members with an actionless card.
+   *
+   * @return void
+   */
+  public static function wicket_mship_disable_switch() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_disable_switch]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_disable_switch']), false). " />"
+      .'<strong>Switch only.</strong> Do not display self-serve membership switch callouts in the Account Centre. Renewal, grace period and pending approval callouts are unaffected.';
   }
 
   public static function wicket_mship_assign_subscription() {
@@ -383,6 +410,7 @@ class Settings {
     $newinput['wicket_mship_autorenew_toggle'] = trim($input['wicket_mship_autorenew_toggle']);
     $newinput['wicket_mship_autorenew_override'] = trim($input['wicket_mship_autorenew_override']);
     $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
+    $newinput['wicket_mship_disable_switch'] = trim($input['wicket_mship_disable_switch']);
     $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
     $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);
     $newinput['bypass_status_change_lockout'] = trim($input['bypass_status_change_lockout']);

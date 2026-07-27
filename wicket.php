@@ -138,6 +138,11 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_DISABLE_RENEWALS']=true;
             }
           }
+          if(isset($options['wicket_mship_disable_switch'])) {
+            if($options['wicket_mship_disable_switch']) {
+              $_ENV['WICKET_MSHIP_DISABLE_SWITCH']=true;
+            }
+          }
           if(isset($options['wicket_mship_multi_tier_renewal'])) {
             if($options['wicket_mship_multi_tier_renewal']) {
               $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS']=true;
