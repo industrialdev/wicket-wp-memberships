@@ -630,6 +630,162 @@ class Membership_Tier {
   }
 
   /**
+   * Check whether this tier lets its members start a self-serve membership switch.
+   *
+   * Master toggle for Track A. When false every other `switch_*` key on this tier is ignored, so the
+   * callout producer must consult this before reading any switch destination or copy.
+   *
+   * @return bool True when self-serve switching is enabled for this (source) tier.
+   */
+  public function is_self_serve_switch_enabled() {
+    if ( isset( $this->tier_data['self_serve_switch_enabled'] ) && $this->tier_data['self_serve_switch_enabled'] == 1 ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the self-serve switch type.
+   *
+   * Decides which destination key carries the switch: `specific_tier` uses
+   * get_switch_target_product_id(), `form_flow` uses get_switch_form_flow_page_id().
+   *
+   * @return string|bool 'specific_tier' | 'form_flow', false when unset or blank.
+   */
+  public function get_switch_type() {
+    if ( ! empty( $this->tier_data['switch_type'] ) ) {
+      return $this->tier_data['switch_type'];
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the WC product ID the self-serve switch order buys.
+   *
+   * Only meaningful when get_switch_type() is 'specific_tier'. The destination tier is resolved
+   * downstream from this product via get_tier_by_product_id(), not stored directly.
+   *
+   * @return int|bool WC product post ID, false when unset or zero.
+   */
+  public function get_switch_target_product_id() {
+    if ( isset( $this->tier_data['switch_target_product_id'] ) && $this->tier_data['switch_target_product_id'] !== 0 ) {
+      return intval( $this->tier_data['switch_target_product_id'] );
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the WC product variation ID the self-serve switch order buys.
+   *
+   * Set only when the target product is a variable subscription; a simple subscription target leaves
+   * this blank.
+   *
+   * @return int|bool WC product variation post ID, false when unset or zero.
+   */
+  public function get_switch_target_variation_id() {
+    if ( isset( $this->tier_data['switch_target_variation_id'] ) && $this->tier_data['switch_target_variation_id'] !== 0 ) {
+      return intval( $this->tier_data['switch_target_variation_id'] );
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the WP page ID the self-serve switch callout links to.
+   *
+   * Only meaningful when get_switch_type() is 'form_flow'. Stored as an ID and resolved to a
+   * permalink at callout time, mirroring the form-flow renewal page (next_tier_form_page_id) so an
+   * admin re-slugging the page does not break existing tiers.
+   *
+   * @return int|bool WP page post ID, false when unset or zero.
+   */
+  public function get_switch_form_flow_page_id() {
+    if ( isset( $this->tier_data['switch_form_flow_page_id'] ) && $this->tier_data['switch_form_flow_page_id'] !== 0 ) {
+      return intval( $this->tier_data['switch_form_flow_page_id'] );
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the self-serve switch callout data.
+   *
+   * @return array|bool Array keyed by 'locales', false otherwise
+   *
+   * Example return:
+   * [
+   *    'locales' => [
+   *      'en' => [
+   *        'callout_header' => 'Example Header',
+   *        'callout_content' => 'Example Content',
+   *        'callout_button_label' => 'Example Button Label',
+   *      ],
+   *    ],
+   * ]
+   */
+  private function get_switch_callout_data() {
+    if ( isset( $this->tier_data['switch_callout_data'] ) && is_array( $this->tier_data['switch_callout_data'] ) ) {
+      return $this->tier_data['switch_callout_data'];
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the self-serve switch callout header.
+   *
+   * @param  string $lang Language code (ISO 639-1) to read; defaults to English.
+   *
+   * @return string|bool Localized header string, false when the tier has no copy for $lang.
+   */
+  public function get_switch_callout_header($lang = 'en') {
+    $switch_callout_data = $this->get_switch_callout_data();
+
+    if ( isset( $switch_callout_data['locales'][$lang]['callout_header'] ) ) {
+      return $switch_callout_data['locales'][$lang]['callout_header'];
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the self-serve switch callout content.
+   *
+   * @param  string $lang Language code (ISO 639-1) to read; defaults to English.
+   *
+   * @return string|bool Localized content string, false when the tier has no copy for $lang.
+   */
+  public function get_switch_callout_content($lang = 'en') {
+    $switch_callout_data = $this->get_switch_callout_data();
+
+    if ( isset( $switch_callout_data['locales'][$lang]['callout_content'] ) ) {
+      return $switch_callout_data['locales'][$lang]['callout_content'];
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the self-serve switch callout button label.
+   *
+   * @param  string $lang Language code (ISO 639-1) to read; defaults to English.
+   *
+   * @return string|bool Localized button label, false when the tier has no copy for $lang.
+   */
+  public function get_switch_callout_button_label($lang = 'en') {
+    $switch_callout_data = $this->get_switch_callout_data();
+
+    if ( isset( $switch_callout_data['locales'][$lang]['callout_button_label'] ) ) {
+      return $switch_callout_data['locales'][$lang]['callout_button_label'];
+    }
+
+    return false;
+  }
+
+  /**
    * Get the cycle data
    *
    * @return array|bool Array, false otherwise

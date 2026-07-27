@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { __ } from '@wordpress/i18n';
 import { SelectWpStyled, LabelWpStyled } from '../styled_elements';
 import { Button, Icon } from '@wordpress/components';
-import { WC_PRODUCT_TYPES } from '../constants';
-import { fetchWcProducts, fetchProductVariations, fetchTiers } from '../services/api';
+import { fetchProductVariations, fetchTiers } from '../services/api';
 import { switchMembership as switchMembershipApi } from '../services/api';
+import { fetchSwitchTargetProducts } from '../services/switch_products';
 
 const SwitchMembership = ({ membership }) => {
   const [switchOption, setSwitchOption] = useState(null);
@@ -29,70 +29,14 @@ const SwitchMembership = ({ membership }) => {
 
   const getAllWcProducts = async () => {
     setIsLoadingProducts(true);
-    const membershipType = membership && membership.data && membership.data.membership_type;
     try {
-      // Fetch candidate WC subscription products and all tiers in parallel.
-      const [productResults, tiers] = await Promise.all([
-        Promise.all(
-          WC_PRODUCT_TYPES.map((type) =>
-            fetchWcProducts({ status: 'publish', per_page: 100, type })
-          )
-        ),
-        fetchTiers({ per_page: 100 }),
-      ]);
-
-      // Build the set of product + variation ids referenced by tiers of the SAME type as the edited
-      // membership (individual or organization) — the same-family rule (Phase 8). An org membership
-      // therefore sees org-tier products, an individual sees individual-tier products.
-      const allowedIds = new Set();
-      (Array.isArray(tiers) ? tiers : [])
-        .filter((tier) => {
-          const tierType = tier.tier_data && tier.tier_data.type;
-          // Restrict to the edited membership's own type; fall back to individual only if type unknown.
-          return membershipType ? tierType === membershipType : tierType === 'individual';
-        })
-        .forEach((tier) => {
-          const productData = (tier.tier_data && tier.tier_data.product_data) || [];
-          productData.forEach((pd) => {
-            if (pd.product_id) { allowedIds.add(pd.product_id); }
-            if (pd.variation_id) { allowedIds.add(pd.variation_id); }
-          });
-        });
-
-      // Products/variations belonging to the membership's CURRENT tier — a switch must move the
-      // member to a different product, so these must not be offered even though they are tier-linked.
-      // Exclusion is split by granularity so a variable parent shared across tiers is not lost:
-      //   - simple subscription  -> drop the parent product from the picker entirely
-      //   - variable subscription -> keep the parent (other variations may belong to other tiers)
-      //                              and hide only the current tier's variation in the variation picker
-      const currentTierPostId =
-        membership && membership.data && membership.data.membership_tier_post_id;
-      const excludedProductIds = new Set();
-      const currentTierVariationIds = new Set();
-      (Array.isArray(tiers) ? tiers : [])
-        // String() compare: membership_tier_post_id may be a string while the tier REST id is numeric.
-        .filter((tier) => currentTierPostId && String(tier.id) === String(currentTierPostId))
-        .forEach((tier) => {
-          const productData = (tier.tier_data && tier.tier_data.product_data) || [];
-          productData.forEach((pd) => {
-            if (pd.variation_id) {
-              currentTierVariationIds.add(pd.variation_id);
-            } else if (pd.product_id) {
-              excludedProductIds.add(pd.product_id);
-            }
-          });
-        });
+      // Same-family filtering + current-tier self-exclusion live in the shared helper, which the
+      // tier editor's self-serve switch target picker also calls.
+      const { options, excludedVariationIds: currentTierVariationIds } = await fetchSwitchTargetProducts({
+        membershipType: membership && membership.data && membership.data.membership_type,
+        currentTierPostId: membership && membership.data && membership.data.membership_tier_post_id,
+      });
       setExcludedVariationIds(currentTierVariationIds);
-
-      // Keep only tier-linked products, minus any simple product that IS the current tier.
-      const options = productResults
-        .flat()
-        .filter((product) => allowedIds.has(product.id) && !excludedProductIds.has(product.id))
-        .map((product) => ({
-          label: `${product.name} | ID: ${product.id}`,
-          value: product.id,
-          type: product.type,
-        }));
       setWcProductOptions(options);
     } catch (error) {
       setWcProductOptions([]);

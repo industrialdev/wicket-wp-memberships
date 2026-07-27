@@ -446,7 +446,16 @@ class Membership_Post_Types {
   }
 
   /**
-   * Register rest fields for the membership tier post type
+   * Register rest fields for the membership tier post type.
+   *
+   * Exposes the serialized `tier_data` post meta on the core `/wp/v2/wicket_mship_tier` route. The
+   * update callback writes the raw value, so new `tier_data` keys persist without a storage change;
+   * the properties map and validate_callback below exist for validation and forward-compatibility.
+   * Fires on `rest_api_init`.
+   *
+   * @see Membership_Tier::get_meta_tier_data_field_name() For the meta key written here.
+   *
+   * @return void
    */
   public function register_membership_tier_cpt_fields() {
     // Tier Data
@@ -569,6 +578,79 @@ class Membership_Post_Types {
               // only allow 'individual' or 'organization' type
               if ( ! in_array( $value['type'], [ 'individual', 'organization' ] ) ) {
                 $errors->add( 'rest_invalid_param_type', __( 'The tier type must be either individual or organization.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
+              // Self-serve membership switch (Track A). Nothing below is enforced unless this source
+              // tier opts in, so tiers that never offer a self-serve switch may leave every key blank.
+              if ( ! empty( $value['self_serve_switch_enabled'] ) ) {
+                $switch_type = isset( $value['switch_type'] ) ? $value['switch_type'] : '';
+
+                if ( ! in_array( $switch_type, [ 'specific_tier', 'form_flow' ], true ) ) {
+                  $errors->add( 'rest_invalid_param_switch_type', __( 'The Switch Type must be either specific tier or form flow when the self-serve membership switch is enabled.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
+
+                if ( $switch_type === 'specific_tier' ) {
+                  if ( empty( $value['switch_target_product_id'] ) ) {
+                    $errors->add( 'rest_invalid_param_switch_target_product_id', __( 'The Switch Target Product must not be empty for the specific tier switch type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  } else {
+                    // Resolve the tier from the most specific id the admin picked: a variable
+                    // subscription is tier-linked by its variation, a simple one by the parent product.
+                    $switch_target_id = empty( $value['switch_target_variation_id'] ) ? $value['switch_target_product_id'] : $value['switch_target_variation_id'];
+                    $switch_target_tier = Membership_Tier::get_tier_by_product_id( $switch_target_id );
+
+                    if ( $switch_target_tier === false ) {
+                      $errors->add( 'rest_invalid_param_switch_target_product_id', __( 'The Switch Target Product must belong to a membership tier.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                    } elseif ( $switch_target_tier->get_tier_type() !== $value['type'] ) {
+                      // Same-family rule: catch a cross-family destination at config time rather than
+                      // letting it silently fail the identical runtime check in should_trigger_order_switch().
+                      $errors->add( 'rest_invalid_param_switch_target_product_id', __( 'The Switch Target Product must belong to a tier of the same type (individual or organization) as this tier.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                    }
+                  }
+
+                  if ( ! empty( $value['switch_form_flow_page_id'] ) ) {
+                    $errors->add( 'rest_invalid_param_switch_form_flow_page_id', __( 'The Switch Form Flow Page must be empty for the specific tier switch type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+                }
+
+                if ( $switch_type === 'form_flow' ) {
+                  if ( empty( $value['switch_form_flow_page_id'] ) ) {
+                    $errors->add( 'rest_invalid_param_switch_form_flow_page_id', __( 'The Switch Form Flow Page must not be empty for the form flow switch type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  } else {
+                    // The callout resolves this id to a permalink, so an unpublished page would produce
+                    // a CTA members cannot open.
+                    $switch_form_flow_page = get_post( $value['switch_form_flow_page_id'] );
+
+                    if ( ! $switch_form_flow_page || $switch_form_flow_page->post_status !== 'publish' ) {
+                      $errors->add( 'rest_invalid_param_switch_form_flow_page_id', __( 'The Switch Form Flow Page must be a published page.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                    }
+                  }
+
+                  if ( ! empty( $value['switch_target_product_id'] ) || ! empty( $value['switch_target_variation_id'] ) ) {
+                    $errors->add( 'rest_invalid_param_switch_target_product_id', __( 'The Switch Target Product must be empty for the form flow switch type.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+                }
+
+                // Callout copy is mandatory in every active language: the Account Centre consumer
+                // renders this text verbatim and carries no fallback strings of its own.
+                $switch_locales_valid = true;
+                $language_codes = Helper::get_wp_languages_iso();
+                foreach ( $language_codes as $language_code ) {
+                  if ( empty( $value['switch_callout_data']['locales'][ $language_code ]['callout_header'] ) ) {
+                    $switch_locales_valid = false;
+                  }
+
+                  if ( empty( $value['switch_callout_data']['locales'][ $language_code ]['callout_content'] ) ) {
+                    $switch_locales_valid = false;
+                  }
+
+                  if ( empty( $value['switch_callout_data']['locales'][ $language_code ]['callout_button_label'] ) ) {
+                    $switch_locales_valid = false;
+                  }
+                }
+
+                if ( $switch_locales_valid === false ) {
+                  $errors->add( 'rest_invalid_param_switch_callout_data', __( 'The switch callout data must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                }
               }
 
               // at least one product is required for all tier types
@@ -728,6 +810,53 @@ class Membership_Post_Types {
                 ),
                 'max_seats' => array(
                   'type' => 'integer',
+                ),
+              ),
+            ),
+            'self_serve_switch_enabled' => array(
+              'type'        => 'boolean',
+              'description' => 'Enable Self-Serve Membership Switch',
+            ),
+            'switch_type' => array(
+              'type'        => 'string',
+              'description' => 'Self-Serve Switch Type',
+            ),
+            'switch_target_product_id' => array(
+              'type'        => 'integer',
+              'description' => 'Self-Serve Switch Target Product ID',
+            ),
+            'switch_target_variation_id' => array(
+              'type'        => 'integer',
+              'description' => 'Self-Serve Switch Target Product Variation ID',
+            ),
+            'switch_form_flow_page_id' => array(
+              'type'        => 'integer',
+              'description' => 'Self-Serve Switch Form Flow Page ID',
+            ),
+            'switch_callout_data' => array(
+              'type'        => 'object',
+              'description' => 'Self-Serve Switch Callout Data',
+              'properties'  => array(
+                'locales' => array(
+                  'type'        => 'object',
+                  'description' => 'Localized switch callout data',
+                  'properties'  => array(
+                    'type'        => 'object',
+                    'properties'  => array(
+                      'callout_header'       => array(
+                        'type'        => 'string',
+                        'description' => 'The localized header for the switch callout',
+                      ),
+                      'callout_content'      => array(
+                        'type'        => 'string',
+                        'description' => 'The localized content for the switch callout',
+                      ),
+                      'callout_button_label' => array(
+                        'type'        => 'string',
+                        'description' => 'The localized label for the switch callout button',
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
