@@ -36,6 +36,9 @@ source_files: ["includes/Membership_WP_REST_Controller.php"]
 - `get_tier_info($request)`
 - `create_renewal_order($request)`
 - `get_all_wp_pages($request)`
+- `get_all_wc_products($request)`
+- `get_wc_product_variations($request)`
+- `parse_exclude_ids($raw)` (private)
 - `get_memberships_table_data($categories = null, $filters = [])`
 - `permissions_check_read($request)`
 - `permissions_check_write($request)`
@@ -123,6 +126,24 @@ Returns every published WP page (`id`, `title.rendered`) for admin page-picker U
 This exists instead of using core `GET /wp/v2/pages` because the WP Private Content Plus plugin hooks `rest_prepare_page` and `pre_get_posts` and strips out any page with a restricted `_wppcp_post_page_visibility` value from REST responses — including from plain admin list-building queries that aren't actual searches. Its `pre_get_posts` handler (`exclude_restricted_posts_from_search()` in `wp-private-content-plus/functions.php`) checks `isset( $query->query_vars['s'] )`, which WordPress sets (to `''`) on every `WP_Query`, so the check is always true under `REST_REQUEST` — the exclusion fires on every REST-context query, not just real searches. Renewal-form page pickers need to show *all* pages regardless of member-only visibility, since the tier/membership admin screens are staff-only already.
 
 The fix wraps the `get_posts()` call with `add_filter( 'disable_restriction_checks', '__return_true' )` / `remove_filter(...)` — the escape hatch WP Private Content Plus's own code already uses internally to avoid infinite recursion — rather than patching the third-party plugin. Do not swap this endpoint back to core `/wp/v2/pages` for either of the two consumers (`membership_tiers/edit.js`, `members/edit.js`) without re-checking that filter behavior first.
+
+**get_all_wc_products($request)**
+Returns published WooCommerce products (`id`, `name`, `type`) for the plugin's admin product pickers (`GET /wicket_member/v1/wc_products_all`). Accepts `type` (single product type slug; omit for all types) and `exclude` (comma-separated or array of product IDs).
+
+Same root cause as `get_all_wp_pages()` — WP Private Content Plus's `pre_get_posts` handler filters every REST-context query — but it breaks the product pickers in two distinct ways:
+
+1. Products with a restricted `_wppcp_post_page_visibility` vanish from the list.
+2. WPCP calls `$query->set( 'post__not_in', ... )`, which **overwrites rather than merges**. WooCommerce maps its REST `exclude` param onto that same key, so a single restricted post of *any* type anywhere on the site silently discards the picker's "already in use" exclusion list, and products assigned to other tiers reappear as selectable. This fires even when zero products are restricted.
+
+Deliberately implemented as a plugin-namespaced endpoint rather than as a dispatch-level filter on `/wc/v3/products`. A dispatch filter cannot distinguish this plugin's requests from any other admin consumer of that route, so it would relax WPCP restrictions for WooCommerce itself and every other caller. Keeping the bypass on our own route confines it to requests this plugin's admin screens make. Verified: with a restricted product present, `/wc/v3/products`, `/wp/v2/pages` and direct `WP_Query` product queries all still filter it out.
+
+**get_wc_product_variations($request)**
+Returns published variations of one product as `[{ id }]` (`GET /wicket_member/v1/wc_product_variations/{id}`). Accepts `exclude` (comma-separated or array of variation IDs). Companion to `get_all_wc_products()` — WooCommerce's `/wc/v3/products/{id}/variations` route is filtered by the same handler, which also clobbers the exclusion list of variations already assigned to other tiers.
+
+Both endpoints are consumed only through `fetchWcProducts()` / `fetchProductVariations()` in `frontend/src/services/api.js`, which serve the tier edit, config edit, member edit renewal-order, and switch-membership pickers. Do not point those helpers back at `/wc/v3/...` without re-checking the filter behavior above.
+
+**parse_exclude_ids($raw)** (private)
+Normalises a REST `exclude` parameter into a list of positive integer IDs. Accepts either a comma-separated string (how the product pickers pass `productsInUse`) or an array (how they pass `productVariationsInUse`), and drops zeros so a stray empty segment cannot become ID `0`.
 
 **get_memberships_table_data($categories = null, $filters = [])**
 Builds and returns an array of membership data for the memberships table, filtered by categories and filters.

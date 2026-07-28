@@ -105,6 +105,32 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     );
 
     /**
+    * Get published WooCommerce products for the plugin's admin product pickers, ignoring any
+    * visibility restrictions from third-party plugins (e.g. WP Private Content Plus).
+    */
+    register_rest_route( $this->namespace, '/wc_products_all', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_all_wc_products' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+    )
+    );
+
+    /**
+    * Get published variations of a single WooCommerce product, ignoring any visibility
+    * restrictions from third-party plugins (e.g. WP Private Content Plus).
+    */
+    register_rest_route( $this->namespace, '/wc_product_variations/(?P<id>\d+)', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_wc_product_variations' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+    )
+    );
+
+    /**
      * Get Tier by Product_ID
      */
     register_rest_route( $this->namespace, '/product_tiers/(?P<id>\d+)', array(
@@ -609,6 +635,153 @@ public function get_membership_dates( \WP_REST_Request $request ) {
         'title' => array( 'rendered' => get_the_title( $page ) ),
       );
     }, $pages );
+
+    return rest_ensure_response( $response );
+  }
+
+  /**
+   * Normalise a REST `exclude` parameter into a list of post IDs.
+   *
+   * The React pickers pass their "already in use" lists either as a comma-separated string
+   * (product IDs) or as an array (variation IDs), so both shapes are accepted here.
+   *
+   * @param  mixed  $raw  Raw parameter value: comma-separated string, array, or empty.
+   *
+   * @return array<int, int>  Positive integer IDs, empty when nothing was supplied.
+   */
+  private function parse_exclude_ids( $raw ) {
+    if ( empty( $raw ) ) {
+      return array();
+    }
+
+    $ids = is_array( $raw ) ? $raw : explode( ',', (string) $raw );
+    $ids = array_map( 'absint', $ids );
+
+    // Drop zeros so a stray empty segment (e.g. a trailing comma) can't become ID 0.
+    return array_values( array_filter( $ids ) );
+  }
+
+  /**
+   * Get published WooCommerce products for the plugin's admin product pickers.
+   *
+   * Queried here rather than through WooCommerce's own /wc/v3/products endpoint because
+   * third-party visibility plugins filter that route for every caller. WP Private Content
+   * Plus hooks pre_get_posts and, under REST_REQUEST, excludes any post whose
+   * `_wppcp_post_page_visibility` is member/role/users. Two things go wrong on the pickers
+   * as a result:
+   *
+   *   1. Restricted products disappear from the list entirely.
+   *   2. WPCP calls $query->set( 'post__not_in', ... ), overwriting rather than merging.
+   *      WooCommerce maps its REST `exclude` param onto that same key, so a single restricted
+   *      post of ANY type anywhere on the site discards the picker's "already in use" list and
+   *      products assigned to other tiers reappear as selectable.
+   *
+   * Keeping this on the plugin's own namespace means the WPCP bypass applies only to requests
+   * this plugin's admin screens make — /wc/v3/products keeps its normal filtered behaviour for
+   * WooCommerce itself and every other consumer on the site.
+   *
+   * @see    get_all_wp_pages()  Same workaround applied to the page pickers.
+   *
+   * @param  \WP_REST_Request  $request  Accepts `type` (single product type slug; omit for all)
+   *                                     and `exclude` (comma-separated or array of product IDs).
+   *
+   * @return \WP_REST_Response  List of products as [{ id, name, type }, ...].
+   */
+  public function get_all_wc_products( \WP_REST_Request $request ) {
+    // Bail cleanly when WooCommerce is unavailable rather than fataling on wc_get_products().
+    if ( ! function_exists( 'wc_get_products' ) ) {
+      return rest_ensure_response( array() );
+    }
+
+    $args = array(
+      'status'  => 'publish',
+      'limit'   => -1,
+      'orderby' => 'title',
+      'order'   => 'ASC',
+      'return'  => 'objects',
+    );
+
+    $type = $request->get_param( 'type' );
+    if ( ! empty( $type ) ) {
+      $args['type'] = sanitize_text_field( $type );
+    }
+
+    $exclude = $this->parse_exclude_ids( $request->get_param( 'exclude' ) );
+    if ( ! empty( $exclude ) ) {
+      $args['exclude'] = $exclude;
+    }
+
+    // Bypass WP Private Content Plus restriction checks for this query only, via its own
+    // 'disable_restriction_checks' escape hatch. These pickers are staff-only admin screens
+    // and must list every product regardless of front-end visibility restrictions.
+    add_filter( 'disable_restriction_checks', '__return_true' );
+
+    $products = wc_get_products( $args );
+
+    // Re-enable WP Private Content Plus restriction checks now that our query is done.
+    remove_filter( 'disable_restriction_checks', '__return_true' );
+
+    $response = array_map( function( $product ) {
+      return array(
+        'id'   => $product->get_id(),
+        'name' => $product->get_name(),
+        'type' => $product->get_type(),
+      );
+    }, $products );
+
+    return rest_ensure_response( $response );
+  }
+
+  /**
+   * Get the published variations of a single WooCommerce product for the admin pickers.
+   *
+   * Companion to get_all_wc_products() — WooCommerce's own variations route sits under
+   * /wc/v3/products/{id}/variations and is filtered by the same WP Private Content Plus
+   * pre_get_posts handler, which also clobbers the `exclude` list of variations already
+   * assigned to other tiers.
+   *
+   * @see    get_all_wc_products()  Parent-product equivalent, with the full explanation.
+   *
+   * @param  \WP_REST_Request  $request  Requires `id` (parent product ID) from the route;
+   *                                     accepts `exclude` (comma-separated or array of
+   *                                     variation IDs).
+   *
+   * @return \WP_REST_Response  List of variations as [{ id }, ...].
+   */
+  public function get_wc_product_variations( \WP_REST_Request $request ) {
+    if ( ! function_exists( 'wc_get_products' ) ) {
+      return rest_ensure_response( array() );
+    }
+
+    $parent_id = absint( $request->get_param( 'id' ) );
+    if ( ! $parent_id ) {
+      return rest_ensure_response( array() );
+    }
+
+    $args = array(
+      'type'   => 'variation',
+      'parent' => $parent_id,
+      'status' => 'publish',
+      'limit'  => -1,
+      'return' => 'ids',
+    );
+
+    $exclude = $this->parse_exclude_ids( $request->get_param( 'exclude' ) );
+    if ( ! empty( $exclude ) ) {
+      $args['exclude'] = $exclude;
+    }
+
+    // Same WPCP bypass as get_all_wc_products(), scoped to this single query.
+    add_filter( 'disable_restriction_checks', '__return_true' );
+
+    $variation_ids = wc_get_products( $args );
+
+    remove_filter( 'disable_restriction_checks', '__return_true' );
+
+    // The pickers only ever render the variation ID, so keep the payload minimal.
+    $response = array_map( function( $variation_id ) {
+      return array( 'id' => (int) $variation_id );
+    }, $variation_ids );
 
     return rest_ensure_response( $response );
   }

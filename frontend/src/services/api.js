@@ -1,11 +1,6 @@
 import apiFetch from "@wordpress/api-fetch";
 import { addQueryArgs } from "@wordpress/url";
-import {
-  API_URL,
-  PLUGIN_API_URL,
-  TIER_CPT_SLUG,
-  WC_API_V3_URL,
-} from "../constants";
+import { API_URL, PLUGIN_API_URL, TIER_CPT_SLUG } from "../constants";
 
 /**
  * Fetch Local Membership Tiers Posts
@@ -152,23 +147,32 @@ export const fetchMembershipFilters = (memberType = null) => {
 };
 
 /**
- * Fetch WooCommerce Products
+ * Fetch WooCommerce Products.
+ *
+ * Uses the plugin endpoint rather than wc/v3/products so products carrying visibility
+ * restrictions from plugins like WP Private Content Plus are still listed in the admin
+ * pickers. Only `type` and `exclude` are forwarded — the endpoint always returns every
+ * published product, so `status` and `per_page` are no longer needed.
  */
-export const fetchWcProducts = (queryParams = {}) => {
+export const fetchWcProducts = ({ type, exclude } = {}) => {
   return apiFetch({
-    path: addQueryArgs(`${WC_API_V3_URL}/products`, queryParams),
+    path: addQueryArgs(`${PLUGIN_API_URL}/wc_products_all`, {
+      ...(type ? { type } : {}),
+      ...(exclude && exclude.length ? { exclude: [].concat(exclude).join(",") } : {}),
+    }),
   });
 };
 
 /**
- * Fetch WooCommerce Product Variations
+ * Fetch WooCommerce Product Variations.
+ *
+ * Plugin-endpoint counterpart to fetchWcProducts, for the same reason. Returns `[{ id }]`.
  */
-export const fetchProductVariations = (productId, queryParams = {}) => {
+export const fetchProductVariations = (productId, { exclude } = {}) => {
   return apiFetch({
-    path: addQueryArgs(
-      `${WC_API_V3_URL}/products/${productId}/variations`,
-      queryParams,
-    ),
+    path: addQueryArgs(`${PLUGIN_API_URL}/wc_product_variations/${productId}`, {
+      ...(exclude && exclude.length ? { exclude: [].concat(exclude).join(",") } : {}),
+    }),
   });
 };
 
