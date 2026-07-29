@@ -5,6 +5,7 @@ namespace Wicket_Memberships;
 use Wicket_Memberships\Membership_Controller;
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Api_Key_Access;
 
 /**
  * Class Settings
@@ -126,7 +127,8 @@ class Settings {
     add_settings_field( 'wicket_mship_autorenew_toggle', '<p>Enable User Autorenew Subscription Toggle</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_toggle'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_autorenew_override', '<p>Enable Auto-Renew Override on Order Processing</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_override'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field('wicket_mship_mdp_timezone', '<p>MDP Timezone</p>', [__NAMESPACE__ . '\\Settings', 'wicket_mship_mdp_timezone'], 'wicket_membership_plugin', 'functional_settings');
-    
+    add_settings_field( 'wicket_mship_api_allowed_keys', '<p>WooCommerce API Keys with Membership API Access</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_api_allowed_keys'], 'wicket_membership_plugin', 'functional_settings' );
+
     //debug
     add_settings_section( 'debug_settings', 'Debug Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_debug_text'], 'wicket_membership_plugin' );
     add_settings_field( 'wicket_membership_debug_mode', '<p>WICKET_MEMBERSHIPS_DEBUG_MODE</p>', [__NAMESPACE__.'\\Settings', 'wicket_membership_debug_mode'], 'wicket_membership_plugin', 'debug_settings' );
@@ -197,6 +199,55 @@ class Settings {
           <?php } ?>
       </select><?php
       }
+
+  /**
+   * Render the multi-select of WooCommerce API keys permitted to reach the membership CPT
+   * REST endpoints.
+   *
+   * Selecting nothing leaves the endpoints reachable only by the credentials that work today
+   * (cookie and Application Password), so an empty selection is the safe default.
+   *
+   * Options are keyed by `key_id` rather than the key's name, because the name is free text in
+   * WooCommerce and two keys may share one. The owner is shown alongside so it is clear which
+   * account a key resolves to before it is approved.
+   *
+   * @see \Wicket_Memberships\Api_Key_Access::get_available_keys()  Supplies the option list.
+   *
+   * @return void
+   */
+  public static function wicket_mship_api_allowed_keys() {
+    $options  = get_option( 'wicket_membership_plugin_options' );
+    $selected = isset( $options[ Api_Key_Access::OPTION_KEY ] ) ? (array) $options[ Api_Key_Access::OPTION_KEY ] : array();
+    $selected = array_map( 'absint', $selected );
+
+    $keys = Api_Key_Access::get_available_keys();
+
+    echo 'Select which WooCommerce REST API keys may read and write the membership records through the WordPress REST API. Keys not selected here have no access to it. The key holder must also be an administrator.';
+
+    // No control to render when WooCommerce is inactive or no keys have been created yet — an
+    // empty <select> would read as "there is nothing to grant" rather than "there is nothing yet".
+    if ( empty( $keys ) ) {
+      echo '<br /><em>' . esc_html__( 'No WooCommerce REST API keys are available. Create one under WooCommerce → Settings → Advanced → REST API.', 'wicket-memberships' ) . '</em>';
+
+      return;
+    }
+
+    ?><br /><select class="" multiple="multiple" size="6" name="wicket_membership_plugin_options[<?php echo esc_attr( Api_Key_Access::OPTION_KEY ); ?>][]"><?php
+    foreach ( $keys as $key ) {
+      // WooCommerce allows an unnamed key; show a placeholder so the row is still selectable.
+      $description = '' !== trim( $key['description'] ) ? $key['description'] : __( '(unnamed key)', 'wicket-memberships' );
+
+      // Name plus the key's last characters only — the same two details WooCommerce shows on its
+      // own key list, which is how an administrator recognises a key they created there.
+      $label = sprintf( '%s — ending in %s', $description, $key['truncated_key'] );
+      ?>
+        <option value="<?php echo esc_attr( $key['key_id'] ); ?>" <?php selected( in_array( $key['key_id'], $selected, true ) ); ?>>
+          <?php echo esc_html( $label ); ?>
+        </option>
+      <?php
+    }
+    ?></select><br /><em><?php esc_html_e( 'Revoking a key in WooCommerce removes it from this list. A key that is revoked and recreated is a new key, and must be selected again here.', 'wicket-memberships' ); ?></em><?php
+  }
 
   public static function bypass_wicket() {
     $options = get_option( 'wicket_membership_plugin_options' );
@@ -396,6 +447,12 @@ class Settings {
     $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim($input['wicket_mship_import_create_subscriptions_tier_only']);
     $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
     $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
+    // Allowlisted WooCommerce API key IDs. absint then drop zeros so an empty submitted value can
+    // never be stored as key_id 0. Absent from $input when every option is deselected, which must
+    // persist as an empty list rather than leaving the previous selection in place.
+    $newinput[ Api_Key_Access::OPTION_KEY ] = isset( $input[ Api_Key_Access::OPTION_KEY ] )
+      ? array_values( array_unique( array_filter( array_map( 'absint', (array) $input[ Api_Key_Access::OPTION_KEY ] ) ) ) )
+      : [];
     if(!empty($_REQUEST['schedule_daily_membership_expiry_hook'])) {
       $count = Membership_Controller::daily_membership_expiry_hook();
       Utilities::wc_log_mship_error(['schedule_daily_membership_expiry_hook','Count: '.$count]);

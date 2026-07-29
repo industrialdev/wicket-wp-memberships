@@ -2,6 +2,7 @@
 namespace Wicket_Memberships;
 
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Api_Key_Access;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
@@ -27,16 +28,189 @@ class Membership_Post_Types {
 
     // Gate the membership CPT REST endpoints to authenticated administrators
     add_filter('rest_pre_dispatch', [ $this, 'restrict_membership_rest_access' ], 10, 3);
+
+    // Let WooCommerce authenticate approved API keys on those same endpoints. Does nothing until
+    // a key is selected on the settings page, and nothing if WooCommerce is inactive.
+    add_filter('woocommerce_rest_is_request_to_rest_api', [ $this, 'allow_woocommerce_key_auth' ]);
+  }
+
+  /**
+   * The wp/v2 REST base routes for all three membership post types.
+   *
+   * Single source of truth for "which routes are ours". Two different matchers consume it — one
+   * working from the parsed REST route, one from the raw request URI — and they must never drift
+   * apart on which endpoints are covered.
+   *
+   * @see is_protected_rest_route()        Matcher for the parsed-route form.
+   * @see is_protected_rest_request_uri()  Matcher for the raw-URI form.
+   *
+   * @return string[]  Collection routes, e.g. `/wp/v2/wicket_membership`.
+   */
+  private function get_protected_rest_bases() {
+    return array(
+      '/wp/v2/' . $this->membership_cpt_slug,
+      '/wp/v2/' . $this->membership_config_cpt_slug,
+      '/wp/v2/' . $this->membership_tier_cpt_slug,
+    );
+  }
+
+  /**
+   * Whether a parsed REST route targets one of the membership post types.
+   *
+   * Matches the collection route exactly, or any sub-route beneath it (e.g. `/<base>/123`), so a
+   * single record is protected as tightly as the list. A trailing slash falls into the sub-route
+   * branch and is therefore handled without normalising it away.
+   *
+   * @param  string  $route  Route as reported by WP_REST_Request::get_route(), e.g. `/wp/v2/foo`.
+   *
+   * @return bool  True when the route belongs to a membership post type.
+   */
+  private function is_protected_rest_route( $route ) {
+    if ( ! is_string( $route ) || '' === $route ) {
+      return false;
+    }
+
+    foreach ( $this->get_protected_rest_bases() as $base ) {
+      if ( $route === $base || 0 === strpos( $route, $base . '/' ) ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Recover the REST route from the raw request URI.
+   *
+   * Needed because some consumers run before (or outside) route dispatch and have no
+   * WP_REST_Request to ask — notably WooCommerce's `woocommerce_rest_is_request_to_rest_api`
+   * filter, which receives no arguments and matches on `$_SERVER['REQUEST_URI']` itself.
+   *
+   * Handles both permalink shapes: WordPress serves REST either at a path under the REST prefix,
+   * or via a `rest_route` query argument when pretty permalinks are unavailable.
+   *
+   * @return string  Route with a leading slash, e.g. `/wp/v2/wicket_membership`; empty string when
+   *                 the request is not a REST request at all.
+   */
+  private function get_requested_rest_route() {
+    // Plain-permalink form: the route travels as a query argument.
+    if ( ! empty( $_GET['rest_route'] ) ) {
+      return '/' . ltrim( sanitize_text_field( wp_unslash( $_GET['rest_route'] ) ), '/' );
+    }
+
+    if ( empty( $_SERVER['REQUEST_URI'] ) ) {
+      return '';
+    }
+
+    $path = wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH );
+
+    if ( ! is_string( $path ) || '' === $path ) {
+      return '';
+    }
+
+    // Locate the prefix by search rather than assuming position 0, so subdirectory installs
+    // (/subsite/wp-json/...) resolve. rest_get_url_prefix() is used instead of a literal because
+    // the prefix is filterable.
+    $needle = '/' . trailingslashit( rest_get_url_prefix() );
+    $pos    = strpos( $path, $needle );
+
+    if ( false === $pos ) {
+      return '';
+    }
+
+    return '/' . ltrim( substr( $path, $pos + strlen( $needle ) ), '/' );
+  }
+
+  /**
+   * Whether the current request URI targets one of the membership post types.
+   *
+   * URI-based counterpart to is_protected_rest_route(), for callers that have no WP_REST_Request.
+   *
+   * @return bool  True when the raw request URI resolves to a membership route.
+   */
+  private function is_protected_rest_request_uri() {
+    return $this->is_protected_rest_route( $this->get_requested_rest_route() );
+  }
+
+  /**
+   * Let WooCommerce authenticate an approved API key on the membership CPT endpoints.
+   *
+   * WooCommerce refuses to authenticate anything outside its own namespaces: authenticate()
+   * returns early unless is_request_to_rest_api() is true, which only matches URIs containing
+   * `wp-json/wc/` or `wp-json/wc-`. A consumer key sent to `/wp/v2/wicket_membership` is therefore
+   * never even inspected, and the request reaches restrict_membership_rest_access() as an
+   * anonymous user. This filter is the sole seam WooCommerce provides for widening that.
+   *
+   * Returning true here does not grant access — it only lets WooCommerce *attempt* authentication.
+   * The key's secret, its read/read_write scope, and the caller's `manage_options` capability are
+   * all still enforced downstream, unchanged.
+   *
+   * Conditions are ordered cheapest-first; only the last touches the database. The filter runs on
+   * most requests (WooCommerce calls it from `determine_current_user`), so the common path must
+   * exit on a superglobal read.
+   *
+   * Never returns a hard false: the incoming value is passed through on every failure, so
+   * WooCommerce's own `true` for genuine `wc/` routes survives untouched.
+   *
+   * @see \Wicket_Memberships\Api_Key_Access                     Key lookup and credential parsing.
+   * @see restrict_membership_rest_access()                      The capability gate this feeds.
+   * @see docs/local/WOOCOMMERCE_API_KEY_AUTH_FOR_MEMBERSHIP_CPTS.md  §2.4 for the full contract.
+   *
+   * @param  bool  $is_wc_request  WooCommerce's own determination for this request.
+   *
+   * @return bool  True to let WooCommerce authenticate this request; otherwise $is_wc_request.
+   */
+  public function allow_woocommerce_key_auth( $is_wc_request ) {
+    // Already one of WooCommerce's own routes — nothing to add, and we must never downgrade it.
+    if ( $is_wc_request ) {
+      return $is_wc_request;
+    }
+
+    // 1. SSL only. WooCommerce would otherwise fall through to OAuth 1.0a over plain HTTP; by
+    // failing here the request never reaches that branch at all.
+    if ( ! is_ssl() ) {
+      return $is_wc_request;
+    }
+
+    // 2. A WooCommerce-shaped credential is present. Cheap early-out that keeps Application
+    // Password requests (which occupy the same Basic header slot) off the rest of this path.
+    if ( null === Api_Key_Access::get_request_consumer_key() ) {
+      return $is_wc_request;
+    }
+
+    // 3. The request targets one of our three CPT routes.
+    if ( ! $this->is_protected_rest_request_uri() ) {
+      return $is_wc_request;
+    }
+
+    // 4. Refuse OAuth outright — Basic over TLS is the only supported transport.
+    if ( Api_Key_Access::request_has_oauth_params() ) {
+      return $is_wc_request;
+    }
+
+    // 5. The key is on the administrator's allowlist. Only this step queries.
+    $key_id = Api_Key_Access::get_key_id_for_request();
+
+    if ( null === $key_id || ! in_array( $key_id, Api_Key_Access::get_allowed_key_ids(), true ) ) {
+      return $is_wc_request;
+    }
+
+    return true;
   }
 
   /**
    * Restrict the auto-generated wp/v2 REST endpoints for the membership post
    * types to authenticated administrators.
    *
-   * Covers the membership config and tier post types (both registered with
-   * 'show_in_rest' => true). Authentication may be via cookie + nonce or via an
-   * Application Password (header auth, no nonce required); access additionally
-   * requires the 'manage_options' capability.
+   * Covers all three membership post types (membership records, configs and tiers — all
+   * registered with 'show_in_rest' => true), both their collection routes and single-record
+   * sub-routes.
+   *
+   * The check is deliberately agnostic about *how* the caller authenticated: it asks only whether
+   * someone is logged in and holds 'manage_options'. Cookie + nonce, Application Password and any
+   * other mechanism that resolves a user all arrive here identically.
+   *
+   * @see get_protected_rest_bases()  Shared route list, also used by the URI-based matcher.
    *
    * @param mixed            $result  Response to replace the requested version with, or null.
    * @param \WP_REST_Server  $server  Server instance.
@@ -49,23 +223,7 @@ class Membership_Post_Types {
       return $result;
     }
 
-    $route = $request->get_route();
-    $protected_bases = array(
-      '/wp/v2/' . $this->membership_cpt_slug,
-      '/wp/v2/' . $this->membership_config_cpt_slug,
-      '/wp/v2/' . $this->membership_tier_cpt_slug,
-    );
-
-    $is_protected = false;
-    foreach ( $protected_bases as $base ) {
-      // Match the collection route exactly or any sub-route (e.g. /<base>/123).
-      if ( $route === $base || 0 === strpos( $route, $base . '/' ) ) {
-        $is_protected = true;
-        break;
-      }
-    }
-
-    if ( ! $is_protected ) {
+    if ( ! $this->is_protected_rest_route( $request->get_route() ) ) {
       return $result;
     }
 

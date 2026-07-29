@@ -7,6 +7,7 @@ audience: [implementer, support, developer, end-user]
 
 ## Product Docs (Operators & Support)
 - [Overview](product/overview.md) — What the plugin does, CPTs, lifecycle, feature flags, requirements
+- [Setting — WooCommerce API Keys with Membership API Access](product/settings-membership-api-access.md) — Choose which WooCommerce API keys may read/write membership records over the REST API
 
 ## Engineering Docs (Developers & Agents)
 
@@ -17,6 +18,7 @@ audience: [implementer, support, developer, end-user]
 ### Features
 - [Membership Transfer — Engineering Reference](engineering/membership_transfer.md) — Move an individual membership's term to a different owner; new record minted, order stays with the payer
 - [Membership Switch — Engineering Reference](engineering/membership_switch.md) — Switch a membership to a different tier; preserves end date, re-points the expiry scheduler event
+- [Membership CPT REST Access — Engineering Reference](engineering/membership-cpt-rest-access.md) — How the three CPTs are exposed over `wp/v2`, the `manage_options` gate, and admitting approved WooCommerce API keys
 
 ### Tools
 - [Subscription Sync Tool — Engineering Reference](engineering/memberships_sync.md) — How `custom/memberships-sync.php` links subscriptions to memberships and syncs per-seat MDP seat counts
@@ -42,3 +44,4 @@ audience: [implementer, support, developer, end-user]
 - [Switch a Membership to a Different Tier](guides/membership_switch.md) — Move a member to a different tier; keeps the end date
 - [Link a Membership Tier to a WooCommerce Product](guides/link-tier-to-product.md) — Connect tiers to subscription products so memberships are created on purchase
 - [Subscription Sync Tool](guides/membership-sync.md) — Link existing subscriptions to imported membership records; per-seat org seat sync
+- [Grant an Integration Access to Membership Data](guides/grant-api-access-to-memberships.md) — Let an external system reach membership records using its existing WooCommerce API key
