@@ -74,7 +74,19 @@ To revoke access, deselect the key and save. Access stops immediately; the key k
 | Stored as | Array of WooCommerce `key_id` integers |
 | Default | _(empty — no keys selected)_ |
 
+## The Other Way In
+
+This setting governs one of two ways an integration can reach membership data. The other is a WordPress **Application Password**, created on a user's profile under **Users → Profile → Application Passwords**.
+
+| | This setting (WooCommerce key) | Application Password |
+|---|---|---|
+| Granted | Per key, by ticking it here | Per user, on their profile |
+| Appears on this page | Yes | No |
+| Best for | A tool already integrated with the store | A tool that only needs membership data |
+
+Application Passwords are unaffected by this setting — they work whether or not any key is selected, and nothing here can enable or disable them. Both routes end at the same administrator-only check.
+
 ## Related
 
-- [Grant an Integration Access to Membership Data](../guides/grant-api-access-to-memberships.md) — step-by-step guide
+- [Connect an Integration to Membership Data](../guides/grant-api-access-to-memberships.md) — step-by-step guide covering both routes
 - [Membership CPT REST Access](../engineering/membership-cpt-rest-access.md) — technical reference
