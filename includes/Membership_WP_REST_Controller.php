@@ -662,6 +662,38 @@ public function get_membership_dates( \WP_REST_Request $request ) {
   }
 
   /**
+   * Normalise a REST `per_page` parameter into a wc_get_products() `limit`.
+   *
+   * Mirrors the /wc/v3 contract the product pickers were built against so replacing that route
+   * does not change how many rows they receive. WooCommerce treats -1 as "no limit"; any other
+   * non-positive value is meaningless, so fall back to /wc/v3's default of 10 rather than
+   * returning an empty list and making the picker look broken.
+   *
+   * @param  mixed  $raw  Raw parameter value; null or empty when the caller omitted it.
+   *
+   * @return int  Row limit suitable for wc_get_products()'s `limit` argument.
+   */
+  private function parse_per_page_param( $raw ) {
+    $per_page = (int) $raw;
+
+    return ( -1 === $per_page || $per_page > 0 ) ? $per_page : 10;
+  }
+
+  /**
+   * Normalise a REST `status` parameter for wc_get_products().
+   *
+   * Defaults to `publish` so an omitted or empty parameter can never widen the result set to
+   * drafts or private products — the pickers only ever ask for published rows.
+   *
+   * @param  mixed  $raw  Raw parameter value; null or empty when the caller omitted it.
+   *
+   * @return string  A single post status slug.
+   */
+  private function parse_status_param( $raw ) {
+    return ! empty( $raw ) ? sanitize_text_field( (string) $raw ) : 'publish';
+  }
+
+  /**
    * Get published WooCommerce products for the plugin's admin product pickers.
    *
    * Queried here rather than through WooCommerce's own /wc/v3/products endpoint because
@@ -682,8 +714,19 @@ public function get_membership_dates( \WP_REST_Request $request ) {
    *
    * @see    get_all_wp_pages()  Same workaround applied to the page pickers.
    *
-   * @param  \WP_REST_Request  $request  Accepts `type` (single product type slug; omit for all)
-   *                                     and `exclude` (comma-separated or array of product IDs).
+   * Deliberately honours `status` and `per_page` rather than hardcoding them. This endpoint
+   * exists only to sidestep WPCP, so it stays a drop-in replacement for /wc/v3/products and
+   * leaves how much data the pickers pull exactly as it was. Changing pagination here would be
+   * an unrelated behaviour change smuggled into a bug fix.
+   *
+   * @see    get_all_wp_pages()  Same workaround applied to the page pickers.
+   *
+   * @param  \WP_REST_Request  $request  Accepts `type` (single product type slug; omit for all),
+   *                                     `exclude` (comma-separated or array of product IDs),
+   *                                     `status` (post status; defaults to publish) and
+   *                                     `per_page` (result cap; -1 for all, defaults to 10 as
+   *                                     /wc/v3 does). Pagination beyond the first page is not
+   *                                     supported — no caller needs it.
    *
    * @return \WP_REST_Response  List of products as [{ id, name, type }, ...].
    */
@@ -694,8 +737,8 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     }
 
     $args = array(
-      'status'  => 'publish',
-      'limit'   => -1,
+      'status'  => $this->parse_status_param( $request->get_param( 'status' ) ),
+      'limit'   => $this->parse_per_page_param( $request->get_param( 'per_page' ) ),
       'orderby' => 'title',
       'order'   => 'ASC',
       'return'  => 'objects',
@@ -744,9 +787,11 @@ public function get_membership_dates( \WP_REST_Request $request ) {
    *
    * @param  \WP_REST_Request  $request  Requires `id` (parent product ID) from the route;
    *                                     accepts `exclude` (comma-separated or array of
-   *                                     variation IDs).
+   *                                     variation IDs), plus `status` and `per_page`, honoured
+   *                                     for the same drop-in reasons as get_all_wc_products().
    *
-   * @return \WP_REST_Response  List of variations as [{ id }, ...].
+   * @return \WP_REST_Response  List of variations as [{ id, name }, ...], matching the
+   *                            `id` and `name` fields of the /wc/v3 variations response.
    */
   public function get_wc_product_variations( \WP_REST_Request $request ) {
     if ( ! function_exists( 'wc_get_products' ) ) {
@@ -761,9 +806,9 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     $args = array(
       'type'   => 'variation',
       'parent' => $parent_id,
-      'status' => 'publish',
-      'limit'  => -1,
-      'return' => 'ids',
+      'status' => $this->parse_status_param( $request->get_param( 'status' ) ),
+      'limit'  => $this->parse_per_page_param( $request->get_param( 'per_page' ) ),
+      'return' => 'objects',
     );
 
     $exclude = $this->parse_exclude_ids( $request->get_param( 'exclude' ) );
@@ -774,14 +819,20 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     // Same WPCP bypass as get_all_wc_products(), scoped to this single query.
     add_filter( 'disable_restriction_checks', '__return_true' );
 
-    $variation_ids = wc_get_products( $args );
+    $variations = wc_get_products( $args );
 
     remove_filter( 'disable_restriction_checks', '__return_true' );
 
-    // The pickers only ever render the variation ID, so keep the payload minimal.
-    $response = array_map( function( $variation_id ) {
-      return array( 'id' => (int) $variation_id );
-    }, $variation_ids );
+    // The switch-membership and create-renewal-order pickers label options with the variation
+    // name, so `name` has to be present here. wc_get_formatted_variation() is called with the
+    // same arguments WooCommerce's own /wc/v3 variations controller uses (flat, values only),
+    // so those labels read identically to before this endpoint replaced that route.
+    $response = array_map( function( $variation ) {
+      return array(
+        'id'   => $variation->get_id(),
+        'name' => wc_get_formatted_variation( $variation, true, false, false ),
+      );
+    }, $variations );
 
     return rest_ensure_response( $response );
   }

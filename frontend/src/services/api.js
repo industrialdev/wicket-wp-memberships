@@ -151,13 +151,16 @@ export const fetchMembershipFilters = (memberType = null) => {
  *
  * Uses the plugin endpoint rather than wc/v3/products so products carrying visibility
  * restrictions from plugins like WP Private Content Plus are still listed in the admin
- * pickers. Only `type` and `exclude` are forwarded — the endpoint always returns every
- * published product, so `status` and `per_page` are no longer needed.
+ * pickers. The route is the only thing that changes: `status` and `per_page` are still
+ * forwarded and still honoured server-side, so callers keep the same paging behaviour they
+ * had against wc/v3 and this fix stays scoped to the visibility problem.
  */
-export const fetchWcProducts = ({ type, exclude } = {}) => {
+export const fetchWcProducts = ({ type, exclude, status, per_page } = {}) => {
   return apiFetch({
     path: addQueryArgs(`${PLUGIN_API_URL}/wc_products_all`, {
       ...(type ? { type } : {}),
+      ...(status ? { status } : {}),
+      ...(per_page ? { per_page } : {}),
       ...(exclude && exclude.length ? { exclude: [].concat(exclude).join(",") } : {}),
     }),
   });
@@ -166,11 +169,15 @@ export const fetchWcProducts = ({ type, exclude } = {}) => {
 /**
  * Fetch WooCommerce Product Variations.
  *
- * Plugin-endpoint counterpart to fetchWcProducts, for the same reason. Returns `[{ id }]`.
+ * Plugin-endpoint counterpart to fetchWcProducts, for the same reason. Returns `[{ id, name }]`;
+ * `name` matches what /wc/v3 returned, since some pickers label options with it. `status` and
+ * `per_page` are forwarded and honoured here too.
  */
-export const fetchProductVariations = (productId, { exclude } = {}) => {
+export const fetchProductVariations = (productId, { exclude, status, per_page } = {}) => {
   return apiFetch({
     path: addQueryArgs(`${PLUGIN_API_URL}/wc_product_variations/${productId}`, {
+      ...(status ? { status } : {}),
+      ...(per_page ? { per_page } : {}),
       ...(exclude && exclude.length ? { exclude: [].concat(exclude).join(",") } : {}),
     }),
   });
