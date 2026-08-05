@@ -1,12 +1,17 @@
 import { useState } from "@wordpress/element";
 import { __, sprintf } from "@wordpress/i18n";
 import { Button } from "@wordpress/components";
+import apiFetch from "@wordpress/api-fetch";
 import WicketModal from "../shared/components/WicketModal";
 import ModalPostSelector from "../shared/components/ModalPostSelector";
 import Alert from "../shared/components/Alert";
 import styled from "styled-components";
-import { fetchMembershipBundles } from "../shared/services/api";
-import { addMemberToBundle } from "../shared/services/api";
+import { API_URL, TIER_CPT_SLUG } from "../shared/constants";
+import {
+  fetchMembershipBundles,
+  fetchMembershipProducts,
+  addMemberToBundle,
+} from "../shared/services/api";
 
 const ModalFooter = styled.div`
   display: flex;
@@ -39,11 +44,17 @@ const AddToMembershipBundleModal = ({
   const [selectedBundle, setSelectedGroup] = useState(null);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [productOptions, setProductOptions] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [resolvingProducts, setResolvingProducts] = useState(false);
 
   const resetState = () => {
     setSelectedGroup(null);
     setError(null);
     setSubmitting(false);
+    setProductOptions(null);
+    setSelectedProduct(null);
+    setResolvingProducts(false);
   };
 
   const handleClose = () => {
@@ -65,6 +76,48 @@ const AddToMembershipBundleModal = ({
         }));
     });
 
+  // Resolve the tier's product/variation options when the backend can't infer
+  // one, e.g. when the existing membership has no linked order/subscription.
+  const resolveProductValue = (product) => ({
+    value: product.variation_id || product.product_id,
+    title: product.name,
+    productId: product.product_id,
+    variationId: product.variation_id || null,
+  });
+
+  const loadProductOptionsForAmbiguousTier = async () => {
+    setResolvingProducts(true);
+    try {
+      const tier = await apiFetch({ path: `${API_URL}/${TIER_CPT_SLUG}/${tierPostId}` });
+      const productData = tier?.tier_data?.product_data ?? [];
+
+      const ids = [
+        ...new Set(productData.map((p) => p.variation_id || p.product_id).filter(Boolean)),
+      ];
+      const nameMap = {};
+      if (ids.length > 0) {
+        try {
+          const resolved = await fetchMembershipProducts(ids);
+          resolved.forEach((p) => { nameMap[p.id] = p.name; });
+        } catch (err) {
+          console.error("[AddToMembershipBundleModal] fetchMembershipProducts error", err);
+        }
+      }
+
+      setProductOptions(
+        productData.map((p) => resolveProductValue({
+          ...p,
+          name: nameMap[p.variation_id || p.product_id] ?? String(p.variation_id || p.product_id),
+        }))
+      );
+    } catch (err) {
+      console.error("[AddToMembershipBundleModal] loadProductOptionsForAmbiguousTier error", err);
+      setError(__("Could not load the tier's products. Please try again.", "wicket-memberships"));
+    } finally {
+      setResolvingProducts(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedBundle) return;
     setSubmitting(true);
@@ -74,10 +127,20 @@ const AddToMembershipBundleModal = ({
         mode: "existing",
         existing_membership_post_id: membershipPostId,
         tier_post_id: tierPostId,
+        ...(selectedProduct?.productId ? { product_id: selectedProduct.productId } : {}),
+        ...(selectedProduct?.variationId ? { variation_id: selectedProduct.variationId } : {}),
       });
       resetState();
       onSuccess();
     } catch (err) {
+      // The backend can't infer a product when this membership has no linked
+      // order/subscription (e.g. imported or comp memberships) and its tier has
+      // more than one product — ask the admin to pick one instead of dead-ending.
+      if (err?.code === "ambiguous_product" && !productOptions) {
+        setSubmitting(false);
+        loadProductOptionsForAmbiguousTier();
+        return;
+      }
       setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));
       setSubmitting(false);
     }
@@ -117,6 +180,31 @@ const AddToMembershipBundleModal = ({
         ]}
       />
 
+      {(resolvingProducts || productOptions) && (
+        <div style={{ marginTop: "16px" }}>
+          <p>
+            {__(
+              "This membership has no linked order or subscription, so the product can't be inferred automatically. Please select one for its tier.",
+              "wicket-memberships"
+            )}
+          </p>
+          <ModalPostSelector
+            id="add_to_group_product_selector"
+            label={__("Product", "wicket-memberships")}
+            modalTitle={__("Select Product", "wicket-memberships")}
+            value={selectedProduct}
+            onChange={setSelectedProduct}
+            disabled={resolvingProducts}
+            loadOptions={() => Promise.resolve(productOptions ?? [])}
+            columns={[
+              { key: "title", label: __("Product Name", "wicket-memberships"), flex: 1,   searchable: true },
+              { key: "sku",   label: __("SKU",          "wicket-memberships"), width: 180, searchable: true },
+              { key: "price", label: __("Price",        "wicket-memberships"), width: 120, format: "currency" },
+            ]}
+          />
+        </div>
+      )}
+
       <ModalFooter>
         <Button variant="secondary" onClick={handleClose} disabled={submitting}>
           {__("Cancel", "wicket-memberships")}
@@ -124,8 +212,13 @@ const AddToMembershipBundleModal = ({
         <Button
           variant="primary"
           onClick={handleSubmit}
-          disabled={!selectedBundle || submitting}
-          isBusy={submitting}
+          disabled={
+            !selectedBundle ||
+            submitting ||
+            resolvingProducts ||
+            (productOptions && !selectedProduct)
+          }
+          isBusy={submitting || resolvingProducts}
         >
           {__("Add to Bundle", "wicket-memberships")}
         </Button>
