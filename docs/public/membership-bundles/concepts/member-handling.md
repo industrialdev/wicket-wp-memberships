@@ -53,6 +53,8 @@ $result = Membership_Bundle_Admin_Controller::add_member([
 
 The `person_uuid` parameter is ignored in `existing` mode — the user is resolved from the existing membership post.
 
+Cancelling the existing membership also cancels its own WooCommerce subscription (via `membership_subscription_id` post meta), if it has one. This prevents the member's original personal subscription from continuing to renew after their seat moves into the bundle.
+
 ### Start date resolution
 
 When adding a new member, the seat's start date is derived from the bundle's current date window:
@@ -104,7 +106,7 @@ $result = Membership_Bundle_Admin_Controller::remove_member([
 
 ### Mode: `keep_as_individual`
 
-Converts the bundle seat to a standalone individual membership. The existing bundle-linked membership is cancelled, and a new standalone membership is created with:
+Converts the bundle seat to a standalone individual membership. The existing bundle-linked membership is cancelled (including its own WooCommerce subscription, if any — see note above), and a new standalone membership is created with:
 
 - Start date: today (UTC)
 - End, expiry, and early-renewal dates inherited from the bundle (so the member keeps the remaining paid term)
@@ -130,7 +132,7 @@ Both modes require the bundle to be in `pending`, `active`, or `delayed` status.
 
 ## Moving a member between bundles
 
-Moving cancels the seat in the source bundle and creates a new seat in the target bundle. The member retains the same tier and product; the start date is resolved against the target bundle's date window.
+Moving cancels the seat in the source bundle (including its own WooCommerce subscription, if any — see note above) and creates a new seat in the target bundle. The member retains the same tier and product; the start date is resolved against the target bundle's date window.
 
 ```php
 $result = Membership_Bundle_Admin_Controller::move_individual_membership([

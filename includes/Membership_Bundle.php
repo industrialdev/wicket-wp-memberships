@@ -634,7 +634,8 @@ class Membership_Bundle {
    * Cancel a single individual membership that belongs to this bundle.
    *
    * Performs the full local cancellation sequence: date collapse per current status,
-   * update_local_membership_record(), update_membership_status(), amend_membership_json().
+   * update_local_membership_record(), update_membership_status(), amend_membership_json(),
+   * then cancels the membership's own WC subscription (if any).
    * Mirrors the logic in Admin_Controller::bundle_admin_manage_status() for cancelled status.
    *
    * $sync_mdp controls whether the cancellation is pushed to MDP:
@@ -686,6 +687,27 @@ class Membership_Bundle {
     $mc->update_local_membership_record( $membership_post_id, $meta_data );
     $mc->update_membership_status( $membership_post_id, Wicket_Memberships::STATUS_CANCELLED );
     $mc->amend_membership_json( $membership_post_id, array_merge( $meta_data, [ 'membership_status' => Wicket_Memberships::STATUS_CANCELLED ] ) );
+
+    // Cancel the individual membership's own WC subscription — mirrors Admin_Controller::bundle_admin_manage_status().
+    // Without this, the original personal subscription keeps renewing after the membership moves into the bundle.
+    if ( function_exists( 'wcs_get_subscription' ) ) {
+      $subscription_id = get_post_meta( $membership_post_id, 'membership_subscription_id', true );
+      $sub             = ! empty( $subscription_id ) ? wcs_get_subscription( $subscription_id ) : false;
+      if ( ! empty( $sub ) ) {
+        $sub->update_status( 'cancelled' );
+        if ( ! empty( $meta_data['membership_ends_at'] ) && $current_status !== Wicket_Memberships::STATUS_GRACE ) {
+          $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
+          $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+          $sub->update_dates( [
+            'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
+          ] );
+        }
+        $sub->update_dates( [
+          'next_payment' => 0,
+        ] );
+        $sub->save();
+      }
+    }
 
     // Only sync to MDP for single-member operations. Bundle-level cancellations propagate
     // automatically from the bundle org record — per-member calls would be redundant.
