@@ -284,6 +284,12 @@ class Membership_Post_Types {
           'type'        => 'object',
           'description' => 'Late Fee Window Data',
           'arg_options' => [
+            'sanitize_callback' => function( $value ) {
+              if ( is_array( $value ) && ( $value['cycle_type'] ?? null ) === 'calendar' && is_array( $value['calendar_items'] ?? null ) ) {
+                $value['calendar_items'] = $this->normalize_calendar_season_dates( $value['calendar_items'] );
+              }
+              return $value;
+            },
             'validate_callback' => function( $value ) {
               $errors = new WP_Error();
 
@@ -316,6 +322,11 @@ class Membership_Post_Types {
                 if ( ! is_array( $value['calendar_items'] ) ) {
                   $errors->add( 'rest_invalid_param_calendar_items', __( 'The calendar items must be an array.', 'wicket-memberships' ), array( 'status' => 400 ) );
                 }
+
+                // Normalize dates for validation so legacy/partial season data
+                // (e.g. bare Y-m-d dates missing a time component) is checked
+                // against the same day boundaries that will actually be stored.
+                $value['calendar_items'] = $this->normalize_calendar_season_dates( $value['calendar_items'] );
 
                 if ( count( $value['calendar_items'] ) < 1 ) {
                   $errors->add( 'rest_invalid_param_calendar_items', __( 'At least one season item must be defined.', 'wicket-memberships' ), array( 'status' => 400 ) );
@@ -1116,6 +1127,35 @@ class Membership_Post_Types {
           ],
       ]);
     });
+  }
+
+  /**
+   * Normalize calendar season start/end dates to the start/end of day in the
+   * MDP timezone (converted to UTC), so partial or legacy season data (e.g.
+   * bare Y-m-d dates with no time component) always ends up with consistent
+   * day boundaries. Without this, a season saved before this convention
+   * existed keeps a bare date forever, since the admin UI only re-derives a
+   * season's dates when that specific season's date picker is touched.
+   *
+   * @param array $calendar_items List of season items with start_date/end_date.
+   * @return array Season items with normalized start_date/end_date.
+   */
+  private function normalize_calendar_season_dates( $calendar_items ) {
+    if ( ! is_array( $calendar_items ) ) {
+      return $calendar_items;
+    }
+
+    foreach ( $calendar_items as $key => $item ) {
+      if ( ! empty( $item['start_date'] ) ) {
+        $calendar_items[ $key ]['start_date'] = Utilities::get_mdp_day_start( $item['start_date'] )->format( 'c' );
+      }
+
+      if ( ! empty( $item['end_date'] ) ) {
+        $calendar_items[ $key ]['end_date'] = Utilities::get_mdp_day_end( $item['end_date'] )->format( 'c' );
+      }
+    }
+
+    return $calendar_items;
   }
 
 }
