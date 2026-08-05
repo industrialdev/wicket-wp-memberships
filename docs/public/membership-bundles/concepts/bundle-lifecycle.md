@@ -87,6 +87,7 @@ Each bundle has exactly one WooCommerce subscription. Its state changes in step 
 | `expired` | `active` or `cancelled` | Expiry does not touch the subscription; it depends on whether a renewal payment occurred |
 | `cancelled` (immediately) | `cancelled` | Hard-cancelled at cancellation time |
 | `cancelled` (at end date) | `pending-cancel` → `cancelled` | Set to `pending-cancel` immediately; a scheduled Action Scheduler job hard-cancels at `ends_at` |
+| `cancelled` (keep as individual) | `cancelled` | Bundle's own subscription is hard-cancelled; each converted member gets a new, separate subscription |
 
 ## Cron-driven transitions
 
@@ -170,7 +171,7 @@ Membership_Bundle_Admin_Controller::cancel_bundle(
 
 ### Path C — Keep as individual
 
-Each active bundle member is converted to a standalone individual membership that inherits the remaining bundle term (same `ends_at`, `expires_at`, and `early_renew_at`). The bundle itself is cancelled. Each released member gets their own WooCommerce order and subscription.
+Each active bundle member is converted to a standalone individual membership that inherits the remaining bundle term (same `ends_at`, `expires_at`, and `early_renew_at`). The bundle itself is cancelled, and its original WooCommerce subscription is hard-cancelled. Each released member gets their own WooCommerce order and subscription.
 
 ```php
 Membership_Bundle_Admin_Controller::cancel_bundle(

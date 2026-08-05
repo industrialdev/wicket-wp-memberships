@@ -1947,6 +1947,8 @@ class Membership_Bundle {
       return false;
     }
 
+    $this->schedule_deferred_subscription_cancellation( $current_ends_at );
+
     // Collapse expires_at on each individual membership so daily_membership_expiry_hook
     // fires at ends_at. Status stays active — members keep access until that date.
     // Skip already-final members — collapsing expires_at on cancelled/expired records
@@ -1958,6 +1960,8 @@ class Membership_Bundle {
       }
       update_post_meta( $membership_post->ID, 'membership_expires_at', $current_ends_at );
     }
+
+    $this->sync_mdp_update();
 
     return [ 'success_message' => 'Membership bundle cancelled. Members retain access until end date.' ];
   }
@@ -2149,14 +2153,18 @@ class Membership_Bundle {
       return false;
     }
 
-    // Activate the WC subscription first — if this fails the caller can detect
-    // it without also having to undo a status write.
+    // Activate or cancel the WC subscription first — if this fails the caller can
+    // detect it without also having to undo a status write.
     if ( ! empty( $transition_plan['activate_subscription'] ) ) {
       $this->activate_subscription_for_dates(
         $transition_plan['transition_dates']['starts_at'],
         $transition_plan['transition_dates']['ends_at'],
         $transition_plan['transition_dates']['expires_at']
       );
+    }
+
+    if ( ! empty( $transition_plan['cancel_subscription'] ) ) {
+      $this->cancel_subscription( $transition_plan['transition_dates']['ends_at'] );
     }
 
     // Write status and dates atomically via apply_status_transition.
@@ -2174,6 +2182,135 @@ class Membership_Bundle {
       'success_message' => $transition_plan['success_message'],
       'bypassed'        => $bypassed,
     ];
+  }
+
+  /**
+   * Build the transition dates and side effects for a requested status change.
+   *
+   * @param string $new_status
+   * @return array{transition_dates: array<string, string|null>, success_message: string, activate_subscription: bool}|false
+   */
+  private function plan_status_transition( string $new_status ) {
+    $current_status = $this->get_membership_status();
+
+    // pending → active: recalculate dates anchored to today so the membership period
+    // runs from activation date, not from the original creation date.
+    if ( $current_status === Wicket_Memberships::STATUS_PENDING && $new_status === Wicket_Memberships::STATUS_ACTIVE ) {
+      $config     = $this->get_config();
+      $today      = Utilities::get_mdp_day_start( 'now' )->format( 'c' );
+      $dates      = $config ? $config->get_membership_dates( [ 'start_date' => $today ] ) : [];
+
+      return [
+        'transition_dates' => [
+          'starts_at'      => $dates['start_date'] ?? Utilities::get_mdp_day_start( 'now' )->format( 'c' ),
+          'ends_at'        => $dates['end_date'] ?? Utilities::get_mdp_day_end( 'now' )->format( 'c' ),
+          // expires_at / early_renew_at fall back to end_date when no grace/window is configured.
+          'expires_at'     => $dates['expires_at'] ?? ( $dates['end_date'] ?? Utilities::get_mdp_day_end( 'now' )->format( 'c' ) ),
+          'early_renew_at' => $dates['early_renew_at'] ?? ( $dates['end_date'] ?? Utilities::get_mdp_day_end( 'now' )->format( 'c' ) ),
+        ],
+        'success_message'      => 'Pending membership bundle activated successfully.',
+        'activate_subscription' => true,
+      ];
+    }
+
+    if ( $new_status === Wicket_Memberships::STATUS_CANCELLED ) {
+      // Cancelling before any active period: backdate starts_at by one day so the
+      // membership record reflects a zero-length period in MDP rather than appearing
+      // to have been active today.
+      if ( in_array( $current_status, [ Wicket_Memberships::STATUS_PENDING, Wicket_Memberships::STATUS_DELAYED ], true ) ) {
+        return [
+          'transition_dates' => [
+            'starts_at'      => Utilities::get_mdp_day_start( '-1 day' )->format( 'c' ),
+            'ends_at'        => Utilities::get_mdp_day_end( 'now' )->format( 'c' ),
+            'expires_at'     => Utilities::get_mdp_day_end( 'now' )->format( 'c' ),
+            'early_renew_at' => null,
+          ],
+          'success_message'      => 'Membership bundle cancelled successfully.',
+          'activate_subscription' => false,
+          'cancel_subscription'   => true,
+        ];
+      }
+
+      // Cancelling during grace period: preserve the original ends_at so the member's
+      // paid period is not retroactively shortened; collapse expires_at to now.
+      if ( $current_status === Wicket_Memberships::STATUS_GRACE ) {
+        $current_end = get_post_meta( $this->post_id, 'membership_ends_at', true );
+
+        return [
+          'transition_dates' => [
+            'starts_at'      => null,
+            'ends_at'        => $current_end !== '' ? $current_end : null,
+            'expires_at'     => Utilities::get_mdp_day_end( 'now' )->format( 'c' ),
+            'early_renew_at' => null,
+          ],
+          'success_message'      => 'Membership bundle cancelled successfully.',
+          'activate_subscription' => false,
+          'cancel_subscription'   => true,
+        ];
+      }
+
+      // Cancelling from active or any other status: give a one-day notice window
+      // so downstream systems processing the webhook have time to react before the
+      // record is fully closed.
+      return [
+        'transition_dates' => [
+          'starts_at'      => null,
+          'ends_at'        => Utilities::get_mdp_day_end( '+1 day' )->format( 'c' ),
+          'expires_at'     => Utilities::get_mdp_day_end( '+1 day' )->format( 'c' ),
+          'early_renew_at' => null,
+        ],
+        'success_message'      => 'Membership bundle cancelled successfully.',
+        'activate_subscription' => false,
+        'cancel_subscription'   => true,
+      ];
+    }
+
+    // delayed → active: status change only — dates were set at creation, preserve them.
+    // Matches individual membership behaviour: daily_membership_activation_hook writes status only.
+    if ( $current_status === Wicket_Memberships::STATUS_DELAYED && $new_status === Wicket_Memberships::STATUS_ACTIVE ) {
+      return [
+        'transition_dates' => [
+          'starts_at'      => null,
+          'ends_at'        => null,
+          'expires_at'     => null,
+          'early_renew_at' => null,
+        ],
+        'success_message'       => 'Delayed membership bundle activated successfully.',
+        'activate_subscription' => false,
+      ];
+    }
+
+    // active → grace-period: status change only — preserve all existing dates.
+    // Matches individual membership behaviour: daily_membership_grace_period_hook writes status only.
+    if ( $new_status === Wicket_Memberships::STATUS_GRACE ) {
+      return [
+        'transition_dates' => [
+          'starts_at'      => null,
+          'ends_at'        => null,
+          'expires_at'     => null,
+          'early_renew_at' => null,
+        ],
+        'success_message'       => 'Membership bundle moved to grace period.',
+        'activate_subscription' => false,
+      ];
+    }
+
+    // * → expired: status change only — preserve all existing dates.
+    // Matches individual membership behaviour: daily_membership_expiry_hook writes status only.
+    if ( $new_status === Wicket_Memberships::STATUS_EXPIRED ) {
+      return [
+        'transition_dates' => [
+          'starts_at'      => null,
+          'ends_at'        => null,
+          'expires_at'     => null,
+          'early_renew_at' => null,
+        ],
+        'success_message'      => 'Membership bundle marked as expired.',
+        'activate_subscription' => false,
+      ];
+    }
+
+    return false;
   }
 
   /**
@@ -2484,6 +2621,103 @@ class Membership_Bundle {
   }
 
   /**
+   * Hard-cancel the linked WC subscription for this bundle.
+   *
+   * @param string|null $ends_at_utc Optional end-date override, e.g. the transition
+   *                                 plan's collapsed ends_at. Skipped when empty.
+   * @return void
+   */
+  private function cancel_subscription( ?string $ends_at_utc = null ): void {
+    $subscription_id = $this->get_subscription_id();
+    if ( ! $subscription_id || ! function_exists( 'wcs_get_subscription' ) ) {
+      return;
+    }
+
+    $sub = wcs_get_subscription( $subscription_id );
+    if ( ! $sub ) {
+      return;
+    }
+
+    if ( ! empty( $ends_at_utc ) ) {
+      try {
+        $sub->update_dates( [ 'end' => date( 'Y-m-d H:i:s', strtotime( $ends_at_utc ) ) ] );
+      } catch ( \Exception $e ) {
+        Wicket()->log()->error( 'Membership_Bundle: could not update subscription end date before cancel', [
+          'source'          => 'wicket-memberships',
+          'post_id'         => $this->post_id,
+          'subscription_id' => $subscription_id,
+          'error'           => $e->getMessage(),
+        ] );
+      }
+    }
+
+    $sub->add_order_note(
+      sprintf(
+        /* translators: 1: membership bundle post ID */
+        __( 'Subscription cancelled — membership bundle (ID: %d) cancelled.', 'wicket-memberships' ),
+        $this->post_id
+      )
+    );
+
+    try {
+      $sub->update_status( 'cancelled' );
+    } catch ( \Exception $e ) {
+      Wicket()->log()->error( 'Membership_Bundle: could not cancel subscription', [
+        'source'          => 'wicket-memberships',
+        'post_id'         => $this->post_id,
+        'subscription_id' => $subscription_id,
+        'error'           => $e->getMessage(),
+      ] );
+      return;
+    }
+
+    $sub->save();
+  }
+
+  /**
+   * Set the linked WC subscription to pending-cancel and schedule an Action
+   * Scheduler job to hard-cancel it when the bundle's end date is reached.
+   *
+   * @param string $ends_at_utc
+   * @return void
+   */
+  private function schedule_deferred_subscription_cancellation( string $ends_at_utc ): void {
+    $subscription_id = $this->get_subscription_id();
+    if ( $subscription_id && function_exists( 'wcs_get_subscription' ) ) {
+      $sub = wcs_get_subscription( $subscription_id );
+      if ( $sub ) {
+        $sub->add_order_note(
+          sprintf(
+            /* translators: 1: membership bundle post ID */
+            __( 'Set to pending-cancel — membership bundle (ID: %d) cancelled at end date. Subscription will be cancelled when the bundle end date is reached.', 'wicket-memberships' ),
+            $this->post_id
+          )
+        );
+
+        try {
+          $sub->update_status( 'pending-cancel' );
+        } catch ( \Exception $e ) {
+          // Subscription may already be in a terminal status (cancelled, expired).
+          // Log and continue — the AS job will still fire at ends_at.
+          Wicket()->log()->error( 'Membership_Bundle: could not set subscription to pending-cancel', [
+            'source'          => 'wicket-memberships',
+            'post_id'         => $this->post_id,
+            'subscription_id' => $subscription_id,
+            'error'           => $e->getMessage(),
+          ] );
+        }
+
+        $sub->save();
+      }
+    }
+
+    $ends_at_ts = strtotime( $ends_at_utc );
+    if ( $ends_at_ts && ! as_next_scheduled_action( 'wicket_bundle_cancel_subscription', [ $this->post_id ] ) ) {
+      as_schedule_single_action( $ends_at_ts, 'wicket_bundle_cancel_subscription', [ $this->post_id ] );
+    }
+  }
+
+  /**
    * Sync the linked WC subscription's next_payment and end dates to the bundle's
    * current ends_at / expires_at values.
    *
@@ -2765,132 +2999,6 @@ class Membership_Bundle {
     $subscription->add_order_note(
       "Reassigning customer to {$user->user_email} on membership bundle ownership change."
     );
-  }
-
-  /**
-   * Build the transition dates and side effects for a requested status change.
-   *
-   * @param string $new_status
-   * @return array{transition_dates: array<string, string|null>, success_message: string, activate_subscription: bool}|false
-   */
-  private function plan_status_transition( string $new_status ) {
-    $current_status = $this->get_membership_status();
-
-    // pending → active: recalculate dates anchored to today so the membership period
-    // runs from activation date, not from the original creation date.
-    if ( $current_status === Wicket_Memberships::STATUS_PENDING && $new_status === Wicket_Memberships::STATUS_ACTIVE ) {
-      $config     = $this->get_config();
-      $today      = Utilities::get_mdp_day_start( 'now' )->format( 'c' );
-      $dates      = $config ? $config->get_membership_dates( [ 'start_date' => $today ] ) : [];
-
-      return [
-        'transition_dates' => [
-          'starts_at'      => $dates['start_date'] ?? Utilities::get_mdp_day_start( 'now' )->format( 'c' ),
-          'ends_at'        => $dates['end_date'] ?? Utilities::get_mdp_day_end( 'now' )->format( 'c' ),
-          // expires_at / early_renew_at fall back to end_date when no grace/window is configured.
-          'expires_at'     => $dates['expires_at'] ?? ( $dates['end_date'] ?? Utilities::get_mdp_day_end( 'now' )->format( 'c' ) ),
-          'early_renew_at' => $dates['early_renew_at'] ?? ( $dates['end_date'] ?? Utilities::get_mdp_day_end( 'now' )->format( 'c' ) ),
-        ],
-        'success_message'      => 'Pending membership bundle activated successfully.',
-        'activate_subscription' => true,
-      ];
-    }
-
-    if ( $new_status === Wicket_Memberships::STATUS_CANCELLED ) {
-      // Cancelling before any active period: backdate starts_at by one day so the
-      // membership record reflects a zero-length period in MDP rather than appearing
-      // to have been active today.
-      if ( in_array( $current_status, [ Wicket_Memberships::STATUS_PENDING, Wicket_Memberships::STATUS_DELAYED ], true ) ) {
-        return [
-          'transition_dates' => [
-            'starts_at'      => Utilities::get_mdp_day_start( '-1 day' )->format( 'c' ),
-            'ends_at'        => Utilities::get_mdp_day_end( 'now' )->format( 'c' ),
-            'expires_at'     => Utilities::get_mdp_day_end( 'now' )->format( 'c' ),
-            'early_renew_at' => null,
-          ],
-          'success_message'      => 'Membership bundle cancelled successfully.',
-          'activate_subscription' => false,
-        ];
-      }
-
-      // Cancelling during grace period: preserve the original ends_at so the member's
-      // paid period is not retroactively shortened; collapse expires_at to now.
-      if ( $current_status === Wicket_Memberships::STATUS_GRACE ) {
-        $current_end = get_post_meta( $this->post_id, 'membership_ends_at', true );
-
-        return [
-          'transition_dates' => [
-            'starts_at'      => null,
-            'ends_at'        => $current_end !== '' ? $current_end : null,
-            'expires_at'     => Utilities::get_mdp_day_end( 'now' )->format( 'c' ),
-            'early_renew_at' => null,
-          ],
-          'success_message'      => 'Membership bundle cancelled successfully.',
-          'activate_subscription' => false,
-        ];
-      }
-
-      // Cancelling from active or any other status: give a one-day notice window
-      // so downstream systems processing the webhook have time to react before the
-      // record is fully closed.
-      return [
-        'transition_dates' => [
-          'starts_at'      => null,
-          'ends_at'        => Utilities::get_mdp_day_end( '+1 day' )->format( 'c' ),
-          'expires_at'     => Utilities::get_mdp_day_end( '+1 day' )->format( 'c' ),
-          'early_renew_at' => null,
-        ],
-        'success_message'      => 'Membership bundle cancelled successfully.',
-        'activate_subscription' => false,
-      ];
-    }
-
-    // delayed → active: status change only — dates were set at creation, preserve them.
-    // Matches individual membership behaviour: daily_membership_activation_hook writes status only.
-    if ( $current_status === Wicket_Memberships::STATUS_DELAYED && $new_status === Wicket_Memberships::STATUS_ACTIVE ) {
-      return [
-        'transition_dates' => [
-          'starts_at'      => null,
-          'ends_at'        => null,
-          'expires_at'     => null,
-          'early_renew_at' => null,
-        ],
-        'success_message'       => 'Delayed membership bundle activated successfully.',
-        'activate_subscription' => false,
-      ];
-    }
-
-    // active → grace-period: status change only — preserve all existing dates.
-    // Matches individual membership behaviour: daily_membership_grace_period_hook writes status only.
-    if ( $new_status === Wicket_Memberships::STATUS_GRACE ) {
-      return [
-        'transition_dates' => [
-          'starts_at'      => null,
-          'ends_at'        => null,
-          'expires_at'     => null,
-          'early_renew_at' => null,
-        ],
-        'success_message'       => 'Membership bundle moved to grace period.',
-        'activate_subscription' => false,
-      ];
-    }
-
-    // * → expired: status change only — preserve all existing dates.
-    // Matches individual membership behaviour: daily_membership_expiry_hook writes status only.
-    if ( $new_status === Wicket_Memberships::STATUS_EXPIRED ) {
-      return [
-        'transition_dates' => [
-          'starts_at'      => null,
-          'ends_at'        => null,
-          'expires_at'     => null,
-          'early_renew_at' => null,
-        ],
-        'success_message'      => 'Membership bundle marked as expired.',
-        'activate_subscription' => false,
-      ];
-    }
-
-    return false;
   }
 
   /**

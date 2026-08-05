@@ -1113,6 +1113,8 @@ class Membership_Bundle_Admin_Controller {
     // Path C — keep_as_individual
     // -------------------------------------------------------------------------
     if ( $member_handling === 'keep_as_individual' ) {
+      // cancel_keep_as_individual() calls transition_to(STATUS_CANCELLED) internally,
+      // which cancels the bundle's own WC subscription as part of the transition.
       $result = $bundle->cancel_keep_as_individual();
       if ( false === $result ) {
         return new \WP_REST_Response( [ 'error' => 'Could not cancel membership bundle. Transition failed.' ], 400 );
@@ -1122,7 +1124,6 @@ class Membership_Bundle_Admin_Controller {
       if ( ! empty( $result['warnings'] ) ) {
         $response['warnings'] = $result['warnings'];
       }
-      $bundle->sync_mdp_update();
       return new \WP_REST_Response( $response, 200 );
     }
 
@@ -1130,17 +1131,13 @@ class Membership_Bundle_Admin_Controller {
     // Path A — cancel_all + immediately
     // -------------------------------------------------------------------------
     if ( $timing === 'immediately' ) {
-      // transition_to('cancelled') collapses dates to now, cancels the bundle subscription
-      // via plan_status_transition, and cascades cancelled status to all child memberships
-      // via cascade_status_to_members(). No per-member loop needed.
+      // transition_to('cancelled') collapses dates to now, cancels the bundle's own WC
+      // subscription, and cascades cancelled status to all child memberships via
+      // cascade_status_to_members(). No per-member loop or extra subscription call needed.
       $transition_result = $bundle->transition_to( Wicket_Memberships::STATUS_CANCELLED );
       if ( false === $transition_result ) {
         return new \WP_REST_Response( [ 'error' => 'Could not cancel membership bundle. Transition failed.' ], 400 );
       }
-
-      self::cancel_bundle_subscription( $bundle->get_subscription_id(), array_merge( $bundle->get_dates(), [ 'bundle_post_id' => $bundle_post_id ] ) );
-
-      $bundle->sync_mdp_update();
 
       return new \WP_REST_Response( [ 'success' => 'Membership bundle and all individual memberships cancelled immediately.' ], 200 );
     }
@@ -1155,98 +1152,18 @@ class Membership_Bundle_Admin_Controller {
     }
 
     // Delegates to transition_to_cancelled_at_end_date() which: sets bundle status to
-    // cancelled preserving ends_at, collapses bundle expires_at to ends_at, and updates
-    // individual membership expires_at without touching their active status.
+    // cancelled preserving ends_at, collapses bundle expires_at to ends_at, updates
+    // individual membership expires_at without touching their active status, sets the
+    // bundle's own subscription to pending-cancel, and schedules the AS job that hard-
+    // cancels it at ends_at.
     $transition_result = $bundle->transition_to_cancelled_at_end_date();
     if ( false === $transition_result ) {
       return new \WP_REST_Response( [ 'error' => 'Could not cancel membership bundle at end date. Transition failed.' ], 400 );
     }
 
-    // Set bundle subscription to pending-cancel so it stops renewing immediately.
-    $sub_id = $bundle->get_subscription_id();
-    if ( $sub_id && function_exists( 'wcs_get_subscription' ) ) {
-      $sub = wcs_get_subscription( $sub_id );
-      if ( $sub ) {
-        $sub->add_order_note(
-          sprintf(
-            /* translators: 1: membership bundle post ID */
-            __( 'Set to pending-cancel by admin — membership bundle (ID: %d) cancelled at end date. Subscription will be cancelled when the bundle end date is reached.', 'wicket-memberships' ),
-            $bundle_post_id
-          )
-        );
-        try {
-          $sub->update_status( 'pending-cancel' );
-        } catch ( \Exception $e ) {
-          // Subscription may already be in a terminal status (cancelled, expired).
-          // Log and continue — the AS job will still fire at ends_at.
-          Utilities::wc_log_mship_error( [
-            'Bundle_Admin_Controller::cancel_bundle (path B): could not set subscription to pending-cancel',
-            'subscription_id' => $sub->get_id(),
-            'error'           => $e->getMessage(),
-          ] );
-        }
-        $sub->save();
-      }
-    }
-
-    // Schedule one AS job at ends_at to hard-cancel the subscription.
-    // The hook handler in wicket.php calls $subscription->update_status('cancelled').
-    $ends_at_ts = strtotime( $bundle_dates['ends_at'] );
-    if ( $ends_at_ts && ! as_next_scheduled_action( 'wicket_bundle_cancel_subscription', [ $bundle_post_id ] ) ) {
-      as_schedule_single_action( $ends_at_ts, 'wicket_bundle_cancel_subscription', [ $bundle_post_id ] );
-    }
-
     // Deferred — sync fires when the AS job calls transition_to('cancelled') at ends_at.
 
     return new \WP_REST_Response( [ 'success' => 'Membership bundle set to cancel at end date. Subscription set to pending-cancel.' ], 200 );
-  }
-
-  /**
-   * Cancel the WC subscription linked to a membership bundle.
-   *
-   * Updates the subscription end date from $meta_data['ends_at'], clears next_payment,
-   * and sets status to cancelled. No-op when the subscription does not exist or
-   * WooCommerce Subscriptions is not active.
-   *
-   * @param int|false $subscription_id
-   * @param array     $meta_data  Bundle date meta — expects key 'ends_at'.
-   */
-  private static function cancel_bundle_subscription( $subscription_id, array $meta_data ): void {
-    if ( ! $subscription_id || ! function_exists( 'wcs_get_subscription' ) ) {
-      return;
-    }
-
-    $sub = wcs_get_subscription( $subscription_id );
-    if ( ! $sub ) {
-      return;
-    }
-
-    $date_updates = [];
-    if ( ! empty( $meta_data['ends_at'] ) ) {
-      $date_updates['end'] = date( 'Y-m-d H:i:s', strtotime( $meta_data['ends_at'] ) );
-    }
-
-    try {
-      if ( ! empty( $date_updates ) ) {
-        $sub->update_dates( $date_updates );
-      }
-    } catch ( \Exception $e ) {
-      Utilities::wc_log_mship_error( [
-        'Bundle_Admin_Controller::cancel_bundle_subscription: could not update subscription dates',
-        'subscription_id' => $subscription_id,
-        'error'           => $e->getMessage(),
-      ] );
-    }
-
-    $sub->add_order_note(
-      sprintf(
-        /* translators: 1: membership bundle post ID */
-        __( 'Subscription cancelled immediately by admin via membership bundle cancellation (bundle ID: %d).', 'wicket-memberships' ),
-        $meta_data['bundle_post_id'] ?? 0
-      )
-    );
-    $sub->update_status( 'cancelled' );
-    $sub->save();
   }
 
   // ---------------------------------------------------------------------------
