@@ -50,6 +50,11 @@ const ManageTierProducts = ({
 
   const [productVariations, setProductVariations] = useState([]); // { product_id: [] }
 
+  // Tracks whether the product request is still in flight, so an empty result can be told apart
+  // from a pending one. Starts true because the fetch always fires on mount, which avoids a flash
+  // of "no options" on the first render.
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+
   const getAllWcProducts = async () => {
     const promises = WC_PRODUCT_TYPES.map((type) =>
       fetchWcProducts({
@@ -59,6 +64,8 @@ const ManageTierProducts = ({
         type: type,
       }),
     );
+
+    setIsLoadingProducts(true);
 
     try {
       const results = await Promise.all(promises);
@@ -71,6 +78,8 @@ const ManageTierProducts = ({
       setWcProductOptions(options);
     } catch (error) {
       console.error("Error fetching products:", error);
+    } finally {
+      setIsLoadingProducts(false);
     }
   };
 
@@ -115,10 +124,6 @@ const ManageTierProducts = ({
       setTempProduct(product);
     }
     setIsModalOpen(true);
-  };
-
-  const wcProductOptionsExist = () => {
-    return wcProductOptions.length > 0;
   };
 
   // Load variations for the selected product id
@@ -281,8 +286,11 @@ const ManageTierProducts = ({
       : __("Products", "wicket-memberships");
   };
 
+  // Gates the whole component on whether the product request has SETTLED, not on whether it
+  // returned anything. An empty result is a valid loaded state — the UI must render so the
+  // select can show its own empty message instead of the component hanging on a spinner.
   const allRemoteDataLoaded = () => {
-    return wcProductOptions.length > 0;
+    return !isLoadingProducts;
   };
   console.log("limit:");
   console.log(limit);
@@ -427,7 +435,7 @@ const ManageTierProducts = ({
                   )}
                   isClearable={false}
                   isSearchable={true}
-                  isLoading={!wcProductOptionsExist()}
+                  isLoading={isLoadingProducts}
                   options={wcProductOptions}
                   styles={{ menuPortal: (base) => ({ ...base, zIndex: 9999 }) }}
                   onChange={(selected) => {

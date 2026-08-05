@@ -2140,7 +2140,7 @@ function get_item_data ( $other_data, $cart_item ) {
               $query_string = $parts['query'];
             }
           }
-          $renewal_link_url = '/cart/?' . $query_string;
+          $renewal_link_url = wc_get_cart_url() . '?' . $query_string;
           $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
         } elseif( empty($renewal_link_url) && $current_time < strtotime($membership_data['meta']['membership_expires_at']) /* !empty( $the_order) /*&& $the_order->ID != $membership_data['meta']['membership_parent_order_id']*/) {
           //$the_order->update_status('on-hold', __('Order status changed generating a pending renewal order.'));
