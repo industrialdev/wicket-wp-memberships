@@ -24,6 +24,13 @@ class Utilities {
       add_action('wp_ajax_wicket_tier_uuid_update', [$this, 'handle_wicket_tier_uuid_update'] );
     }
     add_action('delete_user', [$this, 'handle_wp_delete_user'], 10, 3);
+    // Priority 1000: the base plugin recomputes display_name at 999, so anything earlier
+    // caches a value that is about to change. See WWID-2121.
+    add_action('profile_update', [$this, 'sync_membership_owner_profile'], 1000, 2);
+    // Second entry point for the MDP path. WC_Customer_Data_Store::update() fires
+    // profile_update from wp_update_user() BEFORE it writes the first_name/last_name meta,
+    // so the hook above sees the old name. This one fires once the save has completed.
+    add_action('woocommerce_rest_insert_customer', [$this, 'sync_membership_owner_profile_rest'], 10, 3);
     $this->membership_cpt_slug = Helper::get_membership_cpt_slug();
 
     add_filter( 'woocommerce_cart_item_quantity', [$this, 'disable_cart_item_quantity'], 10, 3);
@@ -610,6 +617,232 @@ class Utilities {
   }
 
 
+  /**
+   * Run the owner profile sync after a WooCommerce REST customer write.
+   *
+   * The MDP updates people through `PUT wc/v3/customers/{id}`. On that path
+   * `WC_Customer_Data_Store::update()` calls `wp_update_user()` — firing `profile_update` —
+   * and only afterwards writes the `first_name` / `last_name` user meta, so a name change is
+   * not yet visible to the `profile_update` handler. This hook fires after `save()` has
+   * completed and therefore sees the finished record.
+   *
+   * Both entry points funnel into the same method; its per-request value memo keeps the
+   * second pass from repeating work the first pass already did.
+   *
+   * @see Utilities::sync_membership_owner_profile()  Does the actual work.
+   *
+   * @param  \WP_User         $user_data  The customer that was just written.
+   * @param  \WP_REST_Request $request    The REST request, unused.
+   * @param  bool             $creating   True on create, false on update, unused.
+   *
+   * @return void
+   */
+  public function sync_membership_owner_profile_rest( $user_data, $request = null, $creating = false ) {
+    if ( empty( $user_data->ID ) ) {
+      return;
+    }
+
+    $this->sync_membership_owner_profile( $user_data->ID );
+  }
+
+  /**
+   * Refresh the owner name and email cached on this user's membership records.
+   *
+   * The MDP pushes person profile changes into WordPress by calling WooCommerce's customer
+   * endpoint (`PUT wc/v3/customers/{id}`), which ends in `wp_update_user()` and fires
+   * `profile_update`. Membership records cache the owner's display name and email in four
+   * places at purchase time and never revisit them, so an MDP email change leaves admin
+   * search matching the old address while the list column shows the new one.
+   *
+   * Runs at priority 1000 because the base plugin recomputes `display_name` from the
+   * first/last name meta at priority 999 (`wicket-cas-role-sync.php:211`); reading earlier
+   * would cache a value that is about to change.
+   *
+   * Updates the flat post meta, then refreshes each JSON copy (user meta, parent order,
+   * subscription) in place. The three JSON documents are NOT identical copies — the user
+   * meta blob carries `user_name`/`user_email` while the order and subscription blobs carry
+   * `membership_wp_user_*` and a different set of period and org keys — so each is patched
+   * separately and only where the key already exists. Writing one merged array to all three
+   * (as Membership_Controller::amend_membership_json() does) would delete keys such as
+   * `membership_period`, `membership_grace_period_days` and `organization_uuid` from the
+   * order and subscription copies.
+   *
+   * @see docs/bugfix/WWID-2121-membership-name-email-drift.md
+   *
+   * @param  int          $user_id         WP user whose profile was just updated.
+   * @param  \WP_User|null $old_user_data  User row as it was before the update. Only the
+   *                                       `wp_users` columns are a reliable snapshot; meta
+   *                                       backed properties resolve to current values.
+   *
+   * @return void
+   */
+  public function sync_membership_owner_profile( $user_id, $old_user_data = null ) {
+    // Memo of what we already wrote for each user this request, keyed by user ID. The
+    // priority-999 display_name handler calls wp_update_user() itself, so profile_update
+    // fires a second time for the same edit; without this both passes would write.
+    static $synced = [];
+
+    $user_id = (int) $user_id;
+    if ( empty( $user_id ) ) {
+      return;
+    }
+
+    $user = get_userdata( $user_id );
+    if ( empty( $user ) ) {
+      return;
+    }
+
+    // Cheap early-out before touching the database. Only user_email and display_name are
+    // compared: both are real wp_users columns and therefore genuinely snapshotted on
+    // $old_user_data, whereas WP_User resolves meta backed properties such as last_name
+    // lazily against the live value, so a "before" comparison on those is always equal.
+    if ( $old_user_data instanceof \WP_User
+      && $old_user_data->user_email === $user->user_email
+      && $old_user_data->display_name === $user->display_name ) {
+      return;
+    }
+
+    // Same values already written for this user in this request - nothing left to do.
+    $signature = md5( $user->user_email . '|' . $user->display_name . '|' . $user->last_name );
+    if ( isset( $synced[ $user_id ] ) && $synced[ $user_id ] === $signature ) {
+      return;
+    }
+    $synced[ $user_id ] = $signature;
+
+    $memberships = get_posts( array(
+      'post_type'      => $this->membership_cpt_slug,
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+      'fields'         => 'ids',
+      'meta_query'     => array(
+        array(
+          'key'     => 'user_id',
+          'value'   => $user_id,
+          'compare' => '=',
+        ),
+      ),
+    ) );
+
+    if ( empty( $memberships ) ) {
+      return;
+    }
+
+    // Owner fields under both naming conventions. Which of these a given JSON document
+    // actually carries differs by location, so they are applied as an intersection below.
+    $owner_fields = array(
+      'user_name'                       => $user->display_name,
+      'user_email'                      => $user->user_email,
+      'membership_wp_user_display_name' => $user->display_name,
+      'membership_wp_user_last_name'    => $user->last_name,
+      'membership_wp_user_email'        => $user->user_email,
+    );
+
+    $written = array();
+
+    foreach ( $memberships as $membership_post_id ) {
+      // Flat post meta - what the admin member search and list table query against.
+      update_post_meta( $membership_post_id, 'user_name', $user->display_name );
+      update_post_meta( $membership_post_id, 'user_email', $user->user_email );
+
+      $product_id      = get_post_meta( $membership_post_id, 'membership_product_id', true );
+      $order_id        = get_post_meta( $membership_post_id, 'membership_parent_order_id', true );
+      $subscription_id = get_post_meta( $membership_post_id, 'membership_subscription_id', true );
+      $blob_key        = '_wicket_membership_' . $product_id;
+
+      // Each JSON document is patched where it lives and keeps its own shape. The order and
+      // subscription copies hold keys the user meta copy does not (membership_period,
+      // membership_grace_period_days, organization_uuid, membership_seats and others), so a
+      // single merged array must never be written across all three.
+      $written[ $membership_post_id ] = array(
+        'user' => self::refresh_membership_json_owner_fields(
+          'user', $user_id, '_wicket_membership_' . $membership_post_id, $owner_fields
+        ),
+        'order' => empty( $order_id ) || empty( $product_id ) ? null
+          : self::refresh_membership_json_owner_fields( 'post', $order_id, $blob_key, $owner_fields ),
+        'subscription' => empty( $subscription_id ) || empty( $product_id ) ? null
+          : self::refresh_membership_json_owner_fields( 'post', $subscription_id, $blob_key, $owner_fields ),
+      );
+    }
+
+    self::wc_log_mship_error( array(
+      'WWID-2121 owner profile sync' => array(
+        'user_id'          => $user_id,
+        'person_uuid'      => $user->user_login,
+        'old_email'        => $old_user_data instanceof \WP_User ? $old_user_data->user_email : null,
+        'new_email'        => $user->user_email,
+        'old_display_name' => $old_user_data instanceof \WP_User ? $old_user_data->display_name : null,
+        'new_display_name' => $user->display_name,
+        // Per membership: which keys were refreshed in each JSON document. null means the
+        // record has no such linked object; an empty array means the blob was missing.
+        'json_updated'     => $written,
+      ),
+    ), 'info' );
+  }
+
+  /**
+   * Refresh the owner fields inside one stored membership JSON document, in place.
+   *
+   * Only keys already present in the document are updated — the document's shape is never
+   * changed. This matters because the user meta, order and subscription copies of the
+   * membership JSON hold overlapping but genuinely different key sets, so a caller must not
+   * assume one canonical array can be written to all three.
+   *
+   * @see Utilities::sync_membership_owner_profile()  Sole caller.
+   *
+   * @param  string $store         Where the document lives: 'user' or 'post'.
+   * @param  int    $object_id     User ID, or order/subscription post ID.
+   * @param  string $meta_key      Meta key holding the JSON document.
+   * @param  array  $owner_fields  Candidate owner field values, keyed by field name.
+   *
+   * @return array  Names of the fields actually refreshed; empty when the document is
+   *                absent, unparseable, or carries none of the candidate fields.
+   */
+  private static function refresh_membership_json_owner_fields( $store, $object_id, $meta_key, $owner_fields ) {
+    $raw = 'user' === $store
+      ? get_user_meta( $object_id, $meta_key, true )
+      : get_post_meta( $object_id, $meta_key, true );
+
+    $document = json_decode( (string) $raw, true );
+    if ( ! is_array( $document ) ) {
+      return array();
+    }
+
+    $refreshed = array();
+    foreach ( $owner_fields as $field => $value ) {
+      // array_key_exists, not isset: a key present but stored as null still belongs to this
+      // document's shape and should be refreshed rather than skipped.
+      if ( array_key_exists( $field, $document ) && $document[ $field ] !== $value ) {
+        $document[ $field ] = $value;
+        $refreshed[]        = $field;
+      }
+    }
+
+    if ( empty( $refreshed ) ) {
+      return $refreshed;
+    }
+
+    if ( 'user' === $store ) {
+      update_user_meta( $object_id, $meta_key, json_encode( $document ) );
+    } else {
+      update_post_meta( $object_id, $meta_key, json_encode( $document ) );
+    }
+
+    return $refreshed;
+  }
+
+  /**
+   * Remove a deleted user's membership records and their cached meta copies.
+   *
+   * Fired on `delete_user`. Deletes each membership post owned by the user along with the
+   * JSON blob copies held on the user and the parent order, and notes the removal on the
+   * order.
+   *
+   * @param  int       $user_id   WP user being deleted.
+   * @param  int|false $reassign  User ID content is reassigned to, false when not reassigned.
+   * @param  \WP_User|false $user The user object being deleted.
+   *
+   * @return void
+   */
   function handle_wp_delete_user( $user_id, $reassign = false, $user = false) {
     $args = array(
       'post_type' => $this->membership_cpt_slug,
@@ -625,7 +858,10 @@ class Utilities {
     );
     $memberships = new \WP_Query( $args );
     foreach($memberships->posts as $mship) {
-      if(get_post_meta( $mship->ID, 'user_email', true) == $user->user_email) {
+      // Ownership is already established by the user_id meta_query above. This previously
+      // compared the cached user_email against the live one, which silently stopped
+      // matching once the MDP changed the address, orphaning the record. See WWID-2121.
+      if( (int) get_post_meta( $mship->ID, 'user_id', true) === (int) $user_id ) {
         //clear the meta on the user for this membership
         $user_meta_removed = delete_user_meta( $user_id, '_wicket_membership_'.$mship->ID );
         if( $order_id = get_post_meta( $mship->ID, 'membership_parent_order_id', true)) {

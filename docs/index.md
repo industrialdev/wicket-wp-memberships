@@ -37,6 +37,9 @@ audience: [implementer, support, developer, end-user]
 - [Settings](engineering/Class-Settings.md) — Plugin options page: feature flags, debug toggles, scheduled action status
 - [Utilities](engineering/Class-Utilities.md) — WooCommerce integration hooks: cart/checkout modifications, product protection, timezone date helpers
 
+## Bugfix Design Docs (Developers)
+- [WWID-2121 — Membership Name/Email Drift from MDP Profile Updates](bugfix/WWID-2121-membership-name-email-drift.md) — Sync cached owner name/email onto membership posts and the order/subscription JSON blobs when the MDP updates a WP user
+
 ## Guides (End Users)
 - [Transfer a Membership to a New Owner](guides/membership_transfer.md) — Move a membership to a different person; keeps the remaining term
 - [Switch a Membership to a Different Tier](guides/membership_switch.md) — Move a member to a different tier; keeps the end date
