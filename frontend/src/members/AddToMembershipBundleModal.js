@@ -184,7 +184,7 @@ const AddToMembershipBundleModal = ({
         <div style={{ marginTop: "16px" }}>
           <p>
             {__(
-              "This membership has no linked order or subscription, so the product can't be inferred automatically. Please select one for its tier.",
+              "Select the product to use for this membership.",
               "wicket-memberships"
             )}
           </p>
