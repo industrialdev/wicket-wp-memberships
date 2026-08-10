@@ -1758,11 +1758,21 @@ class Membership_Post_Types {
 
     foreach ( $calendar_items as $key => $item ) {
       if ( ! empty( $item['start_date'] ) ) {
-        $calendar_items[ $key ]['start_date'] = Utilities::get_mdp_day_start( $item['start_date'] )->format( 'c' );
+        try {
+          $calendar_items[ $key ]['start_date'] = Utilities::get_mdp_day_start( $item['start_date'] )->format( 'c' );
+        } catch ( \InvalidArgumentException $e ) {
+          // Leave the raw, unparseable value in place. The validate_callback's
+          // strtotime()/empty() checks below will reject it with a normal 400
+          // instead of this normalization step throwing a fatal 500.
+        }
       }
 
       if ( ! empty( $item['end_date'] ) ) {
-        $calendar_items[ $key ]['end_date'] = Utilities::get_mdp_day_end( $item['end_date'] )->format( 'c' );
+        try {
+          $calendar_items[ $key ]['end_date'] = Utilities::get_mdp_day_end( $item['end_date'] )->format( 'c' );
+        } catch ( \InvalidArgumentException $e ) {
+          // Same rationale as start_date above.
+        }
       }
     }
 

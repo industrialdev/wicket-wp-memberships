@@ -1216,14 +1216,47 @@ function wicket_sub_org_select_callback( $subscription ) {
    * @param \DateTimeZone $mdp_timezone MDP timezone.
    * @return \DateTime DateTime in the MDP timezone.
    */
+  /**
+   * Parse a date string into an MDP-timezone-aware DateTime.
+   *
+   * Bare `Y-m-d` dates are constructed directly in the MDP timezone to avoid
+   * a UTC round-trip that silently shifts the calendar day backward when
+   * MDP is behind UTC. Any other format (full ISO, `now`, relative strings)
+   * is parsed as-is and then relabeled into the MDP timezone, unchanged from
+   * the prior behavior. Malformed input that `DateTime` can't parse at all
+   * throws `\InvalidArgumentException` (instead of `DateTime`'s own
+   * `\Exception`), so callers on a public REST path can catch one specific
+   * type and fail with a normal 400 instead of a fatal 500.
+   *
+   * @param  string        $date_string   Date string to parse (bare date, ISO datetime, or relative format).
+   * @param  \DateTimeZone $mdp_timezone  Timezone to construct/relabel the date into.
+   *
+   * @throws \InvalidArgumentException  If $date_string can't be parsed as a date at all.
+   *
+   * @return \DateTime  Parsed date in the MDP timezone.
+   */
   private static function parse_as_mdp_date($date_string, \DateTimeZone $mdp_timezone)
   {
+    $date_string = (string) $date_string;
+
     if (preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($date_string))) {
-      return new \DateTime($date_string, $mdp_timezone);
+      try {
+        return new \DateTime($date_string, $mdp_timezone);
+      } catch (\Throwable $e) {
+        // Fall through to the general parser below in case the bare-date
+        // pattern matched but the value is still somehow invalid.
+      }
     }
 
-    $mdp_date = new \DateTime($date_string);
-    return $mdp_date->setTimezone($mdp_timezone);
+    try {
+      $mdp_date = new \DateTime($date_string);
+      return $mdp_date->setTimezone($mdp_timezone);
+    } catch (\Throwable $e) {
+      // Normalize every unparseable-date failure (bare or general path) to one
+      // exception type, so REST call sites that want a clean 400 instead of a
+      // fatal 500 can catch a single, specific type.
+      throw new \InvalidArgumentException("Unparseable date string: {$date_string}", 0, $e);
+    }
   }
 
   /**
