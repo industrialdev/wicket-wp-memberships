@@ -1198,6 +1198,63 @@ function wicket_sub_org_select_callback( $subscription ) {
   }
 
   /**
+   * Parse a date string as a calendar date in the MDP timezone.
+   *
+   * A bare date (e.g. "2026-01-01", no time/offset) has no instant in time —
+   * it must be interpreted as already being that calendar day in the MDP
+   * timezone, not as a UTC midnight that then gets re-labeled into MDP time
+   * (which can roll the date backward/forward a day depending on offset).
+   * A string that does carry a time/offset (e.g. a full ISO datetime) is
+   * parsed normally and converted to the MDP timezone.
+   *
+   * @param string $date_string Date string to parse.
+   * @param \DateTimeZone $mdp_timezone MDP timezone.
+   * @return \DateTime DateTime in the MDP timezone.
+   */
+  /**
+   * Parse a date string into an MDP-timezone-aware DateTime.
+   *
+   * Bare `Y-m-d` dates are constructed directly in the MDP timezone to avoid
+   * a UTC round-trip that silently shifts the calendar day backward when
+   * MDP is behind UTC. Any other format (full ISO, `now`, relative strings)
+   * is parsed as-is and then relabeled into the MDP timezone, unchanged from
+   * the prior behavior. Malformed input that `DateTime` can't parse at all
+   * throws `\InvalidArgumentException` (instead of `DateTime`'s own
+   * `\Exception`), so callers on a public REST path can catch one specific
+   * type and fail with a normal 400 instead of a fatal 500.
+   *
+   * @param  string        $date_string   Date string to parse (bare date, ISO datetime, or relative format).
+   * @param  \DateTimeZone $mdp_timezone  Timezone to construct/relabel the date into.
+   *
+   * @throws \InvalidArgumentException  If $date_string can't be parsed as a date at all.
+   *
+   * @return \DateTime  Parsed date in the MDP timezone.
+   */
+  private static function parse_as_mdp_date($date_string, \DateTimeZone $mdp_timezone)
+  {
+    $date_string = (string) $date_string;
+
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($date_string))) {
+      try {
+        return new \DateTime($date_string, $mdp_timezone);
+      } catch (\Throwable $e) {
+        // Fall through to the general parser below in case the bare-date
+        // pattern matched but the value is still somehow invalid.
+      }
+    }
+
+    try {
+      $mdp_date = new \DateTime($date_string);
+      return $mdp_date->setTimezone($mdp_timezone);
+    } catch (\Throwable $e) {
+      // Normalize every unparseable-date failure (bare or general path) to one
+      // exception type, so REST call sites that want a clean 400 instead of a
+      // fatal 500 can catch a single, specific type.
+      throw new \InvalidArgumentException("Unparseable date string: {$date_string}", 0, $e);
+    }
+  }
+
+  /**
    * Get the start of an MDP day (midnight) in UTC timezone.
    * This converts a date to the start of the day in the MDP timezone, then converts to UTC.
    *
@@ -1209,11 +1266,7 @@ function wicket_sub_org_select_callback( $subscription ) {
     // Get MDP timezone from environment variable, fallback to UTC
     $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
 
-    // Create DateTime (timezone in string may override $mdp_timezone parameter)
-    $mdp_date = new \DateTime($date_string);
-
-    // Force timezone to MDP (handles cases where input string contains timezone info)
-    $mdp_date->setTimezone($mdp_timezone);
+    $mdp_date = self::parse_as_mdp_date($date_string, $mdp_timezone);
 
     // Set to start of day (midnight) in MDP timezone
     $mdp_date->setTime(0, 0, 0);
@@ -1234,11 +1287,7 @@ function wicket_sub_org_select_callback( $subscription ) {
     // Get MDP timezone from environment variable, fallback to UTC
     $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
 
-    // Create DateTime (timezone in string may override $mdp_timezone parameter)
-    $mdp_date = new \DateTime($date_string);
-
-    // Force timezone to MDP (handles cases where input string contains timezone info)
-    $mdp_date->setTimezone($mdp_timezone);
+    $mdp_date = self::parse_as_mdp_date($date_string, $mdp_timezone);
 
     // Set to end of day (23:59:59) in MDP timezone
     $mdp_date->setTime(23, 59, 59);
