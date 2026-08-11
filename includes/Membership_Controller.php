@@ -1331,7 +1331,27 @@ function get_item_data ( $other_data, $cart_item ) {
         ]);
       }
       //moved outside of conditional for merge membership functionality to work on update membership post meta
-      wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
+      // external_id is what makes the MDP mark this membership as externally
+      // managed by WooCommerce (badge + locked dates). create_local_membership_record
+      // used to discard the PATCH return, so a failure was silent. Capture the
+      // result and log every failure so it surfaces (e.g. a 409 when external_id
+      // is already held by another membership_person) instead of leaving the
+      // membership unlinked (dates editable, no badge). No retry here: a
+      // permanent conflict cannot be retried away, and transient retry belongs
+      // in the HTTP client layer, not at this call site.
+      $external_id_result = wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
+      if ( is_wp_error( $external_id_result ) ) {
+        Wicket()->log()->error(
+          'create_local_membership_record: external_id PATCH failed; membership will not show as Woo-managed and dates stay editable in MDP',
+          [
+            'source'                  => 'wicket-membership-plugin',
+            'membership_wicket_uuid'  => $membership_wicket_uuid,
+            'wicket_membership_type'  => $wicket_membership_type,
+            'membership_post_id'      => $membership_post,
+            'error'                   => $external_id_result->get_error_message(),
+          ]
+        );
+      }
 
     if( !empty( $membership['membership_parent_order_id'] )) {
       $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
