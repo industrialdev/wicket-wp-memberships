@@ -1214,19 +1214,27 @@ class Membership_Bundle {
     // — pushing the result one day forward in UTC when MDP timezone is behind UTC.
     // Fix: pass only the date portion (Y-m-d) so no embedded timezone can shift the day.
     // $ends_date_only and $expires_date_only already computed above (Step 3) as Y-m-d strings.
+    //
+    // next_payment only applies to the 'subscription' renewal type — matches
+    // Helper::has_next_payment_date()/update_membership_subscription()'s rule that
+    // current_tier/sequential_logic/form_flow tiers get no next_payment date at all.
     $sub->read_meta_data( true );
-    $next_payment_dt = Utilities::get_mdp_day_end( $ends_date_only );
-    $end_dt          = Utilities::get_mdp_day_end( $expires_date_only );
+    $end_dt = Utilities::get_mdp_day_end( $expires_date_only );
 
-    if ( $end_dt <= $next_payment_dt ) {
-      $end_dt->modify( '+1 second' );
+    $dates_to_update = [];
+    if ( $tier->is_renewal_subscription() ) {
+      $next_payment_dt = Utilities::get_mdp_day_end( $ends_date_only );
+      if ( $end_dt <= $next_payment_dt ) {
+        $end_dt->modify( '+1 second' );
+      }
+      $dates_to_update['next_payment'] = $next_payment_dt->format( 'Y-m-d H:i:s' );
+    } else {
+      $dates_to_update['next_payment'] = '';
     }
+    $dates_to_update['end'] = $end_dt->format( 'Y-m-d H:i:s' );
 
     try {
-      $sub->update_dates( [
-        'next_payment' => $next_payment_dt->format( 'Y-m-d H:i:s' ),
-        'end'          => $end_dt->format( 'Y-m-d H:i:s' ),
-      ] );
+      $sub->update_dates( $dates_to_update );
       $sub->save();
     } catch ( \Exception $e ) {
       Wicket()->log()->error( 'Membership_Bundle::provision_standalone_individual_membership: could not correct subscription dates', [
