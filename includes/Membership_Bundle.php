@@ -123,14 +123,13 @@ class Membership_Bundle {
     // Wrap the new post in a Membership_Bundle instance so we can use its setters.
     $bundle = new static( $post_id );
 
-    // Bundle memberships always start pending — dates are set now but only take effect
-    // when an admin activates the bundle. Future start dates still use delayed so the
-    // daily activation hook can promote them on schedule.
+    // Bundle memberships activate immediately on creation. Future start dates still use
+    // delayed so the daily activation hook can promote them on schedule.
     $current_date = Utilities::get_utc_datetime()->format( 'c' );
     if ( strtotime( $start_date ) > strtotime( $current_date ) ) {
       $initial_status = Wicket_Memberships::STATUS_DELAYED;
     } else {
-      $initial_status = Wicket_Memberships::STATUS_PENDING;
+      $initial_status = Wicket_Memberships::STATUS_ACTIVE;
     }
 
     // Write status, owner, org, and config meta. Any failure rolls back the post entirely
@@ -174,19 +173,6 @@ class Membership_Bundle {
       // Non-fatal: the bundle record is still usable without a subscription.
       // Consistent with individual membership precedent where subscription
       // creation is decoupled from record creation entirely.
-    }
-
-    if ( $initial_status === Wicket_Memberships::STATUS_PENDING ) {
-      // TODO: Implement the full bundle approval workflow — send approval email, link admin
-      //       to the org edit page, handle pending→active transition, show callout in member
-      //       portal while pending. Mirror the individual/org tier approval in
-      //       Membership_Controller::create_membership_record() lines 764–781 and
-      //       Admin_Controller::bundle_admin_manage_status(). Also determine whether bundle-level
-      //       approval should block individual memberships from being added until approved.
-      Wicket()->log()->info( 'Membership_Bundle::create: approval required — bundle remains pending', [
-        'source'  => 'wicket-memberships',
-        'post_id' => $post_id,
-      ] );
     }
 
     // Generate a fresh group UUID anchored to org_uuid. Every new bundle starts its own
@@ -1858,7 +1844,9 @@ class Membership_Bundle {
     ];
 
     if ( $current_status === Wicket_Memberships::STATUS_PENDING ) {
-      // Admins can manually activate a pending bundle or cancel it.
+      // New bundles activate immediately on creation and skip this state, but a bundle
+      // can still land in pending via manual admin action or approval-gated config.
+      // Admins can activate or cancel it from here.
       $allowed_slugs = [
         Wicket_Memberships::STATUS_ACTIVE,
         Wicket_Memberships::STATUS_CANCELLED,

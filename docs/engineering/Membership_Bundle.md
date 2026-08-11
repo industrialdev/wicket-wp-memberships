@@ -26,7 +26,7 @@ Call chain: `Membership_Bundle_WP_REST_Controller` → `Membership_Bundle_Admin_
 
 | Constant | Meta value | Description |
 |---|---|---|
-| `Wicket_Memberships::STATUS_PENDING` | `pending` | Created, not yet activated by admin |
+| `Wicket_Memberships::STATUS_PENDING` | `pending` | Awaiting admin approval — reached via manual admin action or approval-gated config, not the default creation path |
 | `Wicket_Memberships::STATUS_ACTIVE` | `active` | Active membership period |
 | `Wicket_Memberships::STATUS_DELAYED` | `delayed` | Start date in future |
 | `Wicket_Memberships::STATUS_GRACE` | `grace_period` | Past end date, within grace period |
@@ -106,7 +106,7 @@ Creates a new membership bundle post and populates all required meta in a single
 | `$start_date` | `string` | ISO 8601 start date for the membership period (must be non-empty) |
 | `$sync_to_mdp` | `bool` | Default `true`. Set `false` when importing a bundle that already exists in MDP, to skip `sync_mdp_create()` and avoid creating a duplicate record there. The caller is then responsible for seeding `membership_bundle_mdp_uuid` directly. |
 
-Initial membership status: if `start_date` is in the future → `delayed`; otherwise → `pending`. Bundle memberships always start `pending` so an admin must explicitly activate them. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. A pending WooCommerce subscription is created and linked via `membership_subscription_id` post meta; if subscription creation fails the bundle is still returned (non-fatal, logged). A fresh `membership_bundle_group_uuid` is generated — use `renew_bundle()` instead when creating a renewal term that must share the same series UUID.
+Initial membership status: if `start_date` is in the future → `delayed`; otherwise → `active`. Bundles activate immediately on creation — `pending` is not assigned by `create()` and is only reached via manual admin action or approval-gated config. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. A pending WooCommerce subscription is created and linked via `membership_subscription_id` post meta; if subscription creation fails the bundle is still returned (non-fatal, logged). A fresh `membership_bundle_group_uuid` is generated — use `renew_bundle()` instead when creating a renewal term that must share the same series UUID.
 
 ---
 

@@ -10,7 +10,7 @@ A membership bundle moves through a defined set of statuses from creation to exp
 
 | Status | Slug | Meaning |
 |---|---|---|
-| Pending | `pending` | Created but not yet activated by an admin |
+| Pending | `pending` | Awaiting admin approval — only reachable via manual admin action or approval-gated config, not the default creation path |
 | Active | `active` | Within the paid membership period |
 | Delayed | `delayed` | Start date is in the future |
 | Grace Period | `grace-period` | Past the end date but within the configured grace window |
@@ -32,10 +32,11 @@ Wicket_Memberships::STATUS_CANCELLED  // 'cancelled'
 
 ```mermaid
 flowchart TD
-    created([created]) --> pending
+    created([created]) -->|start_date future| delayed
+    created -->|start_date today or past| active
+    created -.->|manual admin action / approval-gated config| pending
 
     pending -->|admin activates| active
-    pending -->|start_date future| delayed
     pending -->|admin cancels| cancelled
 
     delayed -->|starts_at passed — cron| active
@@ -60,6 +61,9 @@ flowchart TD
 
 | Transition | Trigger |
 |---|---|
+| `created → active` | Automatic — default on creation when `start_date` is today or past |
+| `created → delayed` | Automatic — default on creation when `start_date` is in the future |
+| `created → pending` | Manual admin action or approval-gated config only — not the default path |
 | `pending → active` | Admin action (UI or REST API) |
 | `pending → cancelled` | Admin action |
 | `delayed → active` | Daily cron (`daily_bundle_activation_hook`) |
@@ -80,7 +84,7 @@ Each bundle has exactly one WooCommerce subscription. Its state changes in step 
 
 | Bundle status | WC subscription state | Notes |
 |---|---|---|
-| `pending` | `pending` | Created at bundle creation; activated on `pending → active` |
+| `pending` | `pending` | Only reached via manual admin action or approval-gated config; activated on `pending → active` |
 | `delayed` | `pending` | Not yet activated; activation deferred to `starts_at` date |
 | `active` | `active` | Activated when bundle goes active; drives renewal payments for `subscription` renewal type |
 | `grace-period` | `active` | Subscription stays active during grace period — it may still process a renewal payment |
