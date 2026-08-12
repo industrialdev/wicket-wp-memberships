@@ -1186,13 +1186,44 @@ function get_item_data ( $other_data, $cart_item ) {
       }
       if( is_wp_error( $response ) ) {
         $this->error_message = $response->get_error_message( 'wicket_api_error' );
-        //$this->surface_error();
+        // WWID-2199: surface the real MDP error so callers that do not run in a
+        // checkout context (the bulk importer, admin tools) can see WHY the
+        // assign failed instead of only observing an empty UUID. The importer's
+        // adapter reads this via get_error_message(); wc_log_mship_error() also
+        // lands it in wc-logs for QA (wc_add_notice never fires here).
+        Utilities::wc_log_mship_error( [
+          'Membership_Controller::create_mdp_record MDP assign failed',
+          [
+            'person_uuid'          => $membership['person_uuid'] ?? '',
+            'membership_type'      => $membership['membership_type'] ?? '',
+            'membership_tier_uuid' => $membership['membership_tier_uuid'] ?? '',
+            'membership_starts_at' => $membership['membership_starts_at'] ?? '',
+            'membership_ends_at'   => $membership['membership_ends_at'] ?? '',
+            'error'                => $this->error_message,
+          ],
+        ] );
         $membership_wicket_uuid = '';
       } else {
         $membership_wicket_uuid = $response['data']['id'];
       }
     }
     return $membership_wicket_uuid;
+  }
+
+  /**
+   * The last MDP error message stashed by create_mdp_record() / update_mdp_record().
+   *
+   * WWID-2199: create_mdp_record() returns '' on failure and previously had no
+   * way for a non-checkout caller (the bulk importer, admin tools) to read WHY
+   * the MDP rejected the assign. Public read-only accessor so the importer can
+   * surface the real validation error (e.g. a 422 for ends_at <= starts_at)
+   * instead of a generic "returned no UUID". The value is also wc_log_mship_
+   * error()d inside create_mdp_record() so it is visible in wc-logs regardless.
+   *
+   * @return string
+   */
+  public function get_error_message() {
+    return $this->error_message;
   }
 
   /**
