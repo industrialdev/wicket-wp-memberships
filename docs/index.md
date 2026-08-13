@@ -46,6 +46,11 @@ audience: [implementer, support, developer, end-user]
 - [Settings](engineering/Class-Settings.md) — Plugin options page: feature flags, debug toggles, scheduled action status
 - [Utilities](engineering/Class-Utilities.md) — WooCommerce integration hooks: cart/checkout modifications, product protection, timezone date helpers
 
+## Bug Fix Docs (Developers)
+Repair work only — kept separate from Engineering Docs so novel feature work is distinguishable from fixes to discovered issues. See [scope & required sections](bugfix/README.md).
+
+- [WP Private Content Plus Collision — Admin Product & Page Pickers](bugfix/wppcp-product-picker-collision.md) — Why product/variation/page lookups use plugin endpoints instead of `/wc/v3/products` and `/wp/v2/pages`; WPCP filters every REST query and clobbers `post__not_in`. Includes regression coverage, the three harness prerequisites, and proposed coverage for the pages endpoint (WWID-1763)
+
 ## Public Docs (External Developers & New Team Members)
 - [Overview](public/index.md) — Entry point for all public developer documentation
 - [Membership Bundles](public/membership-bundles/index.md) — Class APIs, REST endpoints, and conceptual guides for the Membership Bundles feature
