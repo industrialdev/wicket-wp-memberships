@@ -4,6 +4,7 @@ namespace Wicket_Memberships;
 
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Autorenew;
 
 /**
  * Class Admin_Controller
@@ -560,6 +561,11 @@ class Admin_Controller {
           }
         }
       }
+      // Computed live for now (WWID-1875 M1.6): once M2 lands stored is_autorenew /
+      // is_autorenew_reason meta, read that here instead of recomputing per row.
+      $autorenew_status = Autorenew::resolve_status( $membership_item['data'] );
+      $membership_item['subscription']['is_autorenewing'] = $autorenew_status['result'];
+      $membership_item['subscription']['autorenew_reason'] = $autorenew_status['reason'];
       $membership_item['switch_to_url'] = Helper::get_user_switch_to_url( $meta['user_id'] );
       $membership_item['_sort_start_ts'] = strtotime($meta['membership_starts_at'] ?? '');
       $membership_item['_sort_tier_weight'] = $tier_sort_weights[$meta['membership_tier_uuid'] ?? ''] ?? 0;
