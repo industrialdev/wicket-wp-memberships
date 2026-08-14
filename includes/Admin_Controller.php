@@ -178,11 +178,13 @@ class Admin_Controller {
       $membership_post_data = Helper::get_post_meta( $membership_post_id );
 
       //update wicket wxternal_id
+      // Return value ignored on purpose: the method flags failures via post meta
+      // (_collision/_failed) and wc-logs, and this flow must not abort on a failed link.
       $wicket_membership_type = 'person_memberships';
       if($membership_post_data['membership_type'] == 'organization') {
         $wicket_membership_type = 'organization_memberships';
       }
-      wicket_update_membership_external_id( $membership['membership_wicket_uuid'], $wicket_membership_type, $membership_post_id );
+      $Membership_Controller->assign_membership_external_id( $membership['membership_wicket_uuid'], $wicket_membership_type, $membership_post_id );
 
       do_action('wicket_membership_created_mdp', $membership_post_data);
       $response_array['success'] = 'Pending membership activated successfully.';
@@ -1015,7 +1017,9 @@ class Admin_Controller {
 
           $single_merged_wicket_membership_uuid = $response1['data']['id'];
           update_post_meta( $membership_post_id, 'membership_wicket_uuid', $single_merged_wicket_membership_uuid);
-          wicket_update_membership_external_id( $single_merged_wicket_membership_uuid, 'person_memberships', $membership_post_id );
+          // Return value ignored on purpose: failures are flagged via post meta
+          // (_collision/_failed) and wc-logs; the merge itself must complete.
+          (new Membership_Controller)->assign_membership_external_id( $single_merged_wicket_membership_uuid, 'person_memberships', $membership_post_id );
       }
 
       $orig_user_id = is_numeric( $record_id ) ? $record_id : get_post_meta( $membership_post_id, 'user_id', true);
@@ -1534,10 +1538,9 @@ class Admin_Controller {
 
     $membership_type = $old_customer_meta_array['membership_type'] == 'individual' ? 'person_memberships' : 'organization_memberships';
     // Update the new wicket membership with the new external ID
-    $response_external_id = wicket_update_membership_external_id( $membership_wicket_uuid, $membership_type, $new_post_id );
-    if ( is_wp_error( $response_external_id ) ) {
-      Utilities::wc_log_mship_error( [ 'Transfer membership - Set external ID failed.', 'wicket_api_error' => $response_external_id->get_error_message( 'wicket_api_error' ), $membership_wicket_uuid, $membership_type, $new_post_id, $old_customer_meta_array['membership_type'] ]);
-    }
+    // Return value ignored on purpose: failures are flagged via post meta
+    // (_collision/_failed) and wc-logs; the owner change must complete regardless.
+    (new Membership_Controller)->assign_membership_external_id( $membership_wicket_uuid, $membership_type, $new_post_id );
 
     $meta_data = [
       'membership_starts_at' =>  $old_customer_meta_array['membership_starts_at'],

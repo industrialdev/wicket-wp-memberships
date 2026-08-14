@@ -1227,6 +1227,87 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
+   * Assign the WP membership post ID as the MDP external_id, with a pre-flight
+   * collision check.
+   *
+   * external_id is the WP post ID and the MDP holds a unique index on it per
+   * membership type. When another membership already owns that ID, the PATCH
+   * returns an opaque 409 and external_id stays NULL silently. This method
+   * detects the collision before the PATCH when the base plugin helper is
+   * available, reports it with the owning record, and flags the post either way
+   * so the broken state is visible in WP admin and wc-logs instead of silent.
+   *
+   * @param string $membership_wicket_uuid MDP membership id.
+   * @param string $wicket_membership_type person_memberships|organization_memberships.
+   * @param int    $membership_post_id     WP membership post ID (the external_id).
+   * @return bool True on success, false on collision or failure.
+   */
+  public function assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post_id ) {
+    $logger = wc_get_logger();
+    $log_context = [ 'source' => 'wicket-memberships' ];
+
+    // Pre-flight: detect an external_id already owned by a different membership.
+    // The helper ships in wicket-wp-base-plugin; guard with function_exists so
+    // this plugin stays safe if a site runs an older base plugin.
+    if ( function_exists( 'wicket_get_membership_by_external_id' ) ) {
+      $owner = wicket_get_membership_by_external_id( $membership_post_id, $wicket_membership_type );
+
+      if ( ! is_wp_error( $owner ) && ! empty( $owner['id'] ) && $owner['id'] !== $membership_wicket_uuid ) {
+        $owner_id = $owner['id'];
+        $logger->error(
+          sprintf(
+            'Membership external_id collision: WP post %1$s already owned by %2$s/%3$s (target %4$s). Skipping external_id PATCH; post %1$s left without an MDP link.',
+            $membership_post_id,
+            $wicket_membership_type,
+            $owner_id,
+            $membership_wicket_uuid
+          ),
+          $log_context
+        );
+        update_post_meta( $membership_post_id, '_wicket_membership_external_id_collision', [
+          'external_id' => $membership_post_id,
+          'type'        => $wicket_membership_type,
+          'owner'       => $owner_id,
+          'target'      => $membership_wicket_uuid,
+          'time'        => current_time( 'mysql', true ),
+        ] );
+        return false;
+      }
+    }
+
+    // No collision (or pre-flight unavailable): PATCH and act on the result.
+    $result = wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post_id );
+
+    if ( is_wp_error( $result ) ) {
+      // The base helper already logged the API error; flag the post too so the
+      // broken state is visible at the WP layer, not only in wc-logs.
+      $logger->error(
+        sprintf(
+          'Membership external_id PATCH failed for WP post %1$s (target %2$s/%3$s): %4$s',
+          $membership_post_id,
+          $wicket_membership_type,
+          $membership_wicket_uuid,
+          $result->get_error_message()
+        ),
+        $log_context
+      );
+      update_post_meta( $membership_post_id, '_wicket_membership_external_id_failed', [
+        'external_id' => $membership_post_id,
+        'type'        => $wicket_membership_type,
+        'target'      => $membership_wicket_uuid,
+        'error'       => $result->get_error_message(),
+        'time'        => current_time( 'mysql', true ),
+      ] );
+      return false;
+    }
+
+    // Success: clear stale flags from a prior failed attempt.
+    delete_post_meta( $membership_post_id, '_wicket_membership_external_id_failed' );
+    delete_post_meta( $membership_post_id, '_wicket_membership_external_id_collision' );
+    return true;
+  }
+
+  /**
    * Check if MDP Membership Record already exists
    */
   private function check_mdp_membership_record_exists( $membership ) {
@@ -1401,7 +1482,9 @@ function get_item_data ( $other_data, $cart_item ) {
         ]);
       }
       //moved outside of conditional for merge membership functionality to work on update membership post meta
-      wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
+      // Return value ignored on purpose: failures are flagged via post meta
+      // (_collision/_failed) and wc-logs; local record creation must complete.
+      $this->assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
 
     if( !empty( $membership['membership_parent_order_id'] )) {
       $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
