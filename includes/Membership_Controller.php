@@ -1482,6 +1482,8 @@ function get_item_data ( $other_data, $cart_item ) {
         ]);
       }
       //moved outside of conditional for merge membership functionality to work on update membership post meta
+      // Return value ignored on purpose: failures are flagged via post meta
+      // (_collision/_failed) and wc-logs; local record creation must complete.
       $this->assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
 
     if( !empty( $membership['membership_parent_order_id'] )) {
