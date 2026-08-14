@@ -982,6 +982,12 @@ class Membership_Post_Types {
           'type'        => 'object',
           'description' => 'Cycle Data',
           'arg_options' => [
+            'sanitize_callback' => function( $value ) {
+              if ( is_array( $value ) && ( $value['cycle_type'] ?? null ) === 'calendar' && is_array( $value['calendar_items'] ?? null ) ) {
+                $value['calendar_items'] = $this->normalize_calendar_season_dates( $value['calendar_items'] );
+              }
+              return $value;
+            },
             'validate_callback' => function( $value ) {
               $errors = new \WP_Error();
 
@@ -1014,6 +1020,11 @@ class Membership_Post_Types {
                 if ( ! is_array( $value['calendar_items'] ) ) {
                   $errors->add( 'rest_invalid_param_calendar_items', __( 'The calendar items must be an array.', 'wicket-memberships' ), array( 'status' => 400 ) );
                 }
+
+                // Normalize dates for validation so legacy/partial season data
+                // (e.g. bare Y-m-d dates missing a time component) is checked
+                // against the same day boundaries that will actually be stored.
+                $value['calendar_items'] = $this->normalize_calendar_season_dates( $value['calendar_items'] );
 
                 if ( count( $value['calendar_items'] ) < 1 ) {
                   $errors->add( 'rest_invalid_param_calendar_items', __( 'At least one season item must be defined.', 'wicket-memberships' ), array( 'status' => 400 ) );
