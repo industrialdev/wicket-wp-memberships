@@ -179,6 +179,8 @@ class Admin_Controller {
       $membership_post_data = Helper::get_post_meta( $membership_post_id );
 
       //update wicket wxternal_id
+      // Return value ignored on purpose: the method flags failures via post meta
+      // (_collision/_failed) and wc-logs, and this flow must not abort on a failed link.
       $wicket_membership_type = 'person_memberships';
       if($membership_post_data['membership_type'] == 'organization') {
         $wicket_membership_type = 'organization_memberships';
@@ -1041,6 +1043,8 @@ class Admin_Controller {
 
           $single_merged_wicket_membership_uuid = $response1['data']['id'];
           update_post_meta( $membership_post_id, 'membership_wicket_uuid', $single_merged_wicket_membership_uuid);
+          // Return value ignored on purpose: failures are flagged via post meta
+          // (_collision/_failed) and wc-logs; the merge itself must complete.
           (new Membership_Controller)->assign_membership_external_id( $single_merged_wicket_membership_uuid, 'person_memberships', $membership_post_id );
       }
 
@@ -1560,6 +1564,8 @@ class Admin_Controller {
 
     $membership_type = $old_customer_meta_array['membership_type'] == 'individual' ? 'person_memberships' : 'organization_memberships';
     // Update the new wicket membership with the new external ID
+    // Return value ignored on purpose: failures are flagged via post meta
+    // (_collision/_failed) and wc-logs; the owner change must complete regardless.
     (new Membership_Controller)->assign_membership_external_id( $membership_wicket_uuid, $membership_type, $new_post_id );
 
     $meta_data = [
