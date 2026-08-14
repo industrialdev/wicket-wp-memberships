@@ -124,7 +124,7 @@ class Autorenew {
     $result = false;
 
     if ( post_type_exists( 'aw_workflow' ) ) {
-      $workflows = get_posts( [
+      $workflows = \get_posts( [
         'post_type' => 'aw_workflow',
         'post_status' => 'publish',
         'title' => 'Wicket: Force Subscription Auto-Renewal',
