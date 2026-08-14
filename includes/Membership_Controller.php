@@ -6,6 +6,7 @@ use Wicket_Memberships\Helper;
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Config;
+use Wicket_Memberships\Autorenew;
 
 /**
  * Main controller methods
@@ -1852,10 +1853,11 @@ function get_item_data ( $other_data, $cart_item ) {
           $sub = \wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
         }
         if(!empty($sub)) {
-          $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
-          $subscription_status = $sub->get_status();
+          // Use the single source of truth for autorenew status rather than re-deriving it from
+          // the raw flag and a status blocklist here.
+          $is_autopay_enabled = Autorenew::is_autorenewing( $membership_data['meta'] );
           $next_payment_date = $sub->get_time( 'next_payment' );
-          if( $is_autopay_enabled && !empty($next_payment_date) && $subscription_status != 'on-hold' && $subscription_status != 'expired' && $subscription_status != 'cancelled' && $subscription_status != 'switched' && $subscription_status != 'trash' && (current_time( 'timestamp' ) < $next_payment_date)) {
+          if( $is_autopay_enabled && !empty($next_payment_date) && (current_time( 'timestamp' ) < $next_payment_date)) {
             echo "<$debug_comment_hide--";
             echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
             echo '|'.( strtotime($next_payment_date) - current_time( 'timestamp' ) );
@@ -1974,10 +1976,11 @@ function get_item_data ( $other_data, $cart_item ) {
             $sub = \wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
           }
           if(!empty($sub)) {
-            $subscription_status = $sub->get_status();
-            $is_autopay_enabled = $sub->get_requires_manual_renewal() ? false : true;
+            // Use the single source of truth for autorenew status rather than re-deriving it from
+            // the raw flag and a status blocklist here.
+            $is_autopay_enabled = Autorenew::is_autorenewing( $membership_data['meta'] );
             $next_payment_date = $sub->get_time( 'next_payment' );
-            if(empty($next_payment_date) || $subscription_status == 'on-hold' || $subscription_status == 'expired' || $subscription_status == 'cancelled' || $subscription_status == 'switched' || $subscription_status == 'trash' || (current_time( 'timestamp' ) > $next_payment_date)) {
+            if(empty($next_payment_date) || (current_time( 'timestamp' ) > $next_payment_date)) {
               $is_autopay_enabled = false;
             }
           }
