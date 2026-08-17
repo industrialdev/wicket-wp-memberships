@@ -689,7 +689,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                               <>
                                 {' '}
                                 <Tooltip
-                                  text={__('This membership subscription will automatically renew via automatic payment.', 'wicket-memberships')}
+                                  text={__('This membership subscription will automatically renew via automatic payment. This value is cached and may take a few minutes to update after a change.', 'wicket-memberships')}
                                 >
                                   <span><AutoRenewIcon /></span>
                                 </Tooltip>

@@ -10,6 +10,14 @@ defined( 'ABSPATH' ) || exit;
  */
 class Autorenew {
 
+  /**
+   * Exact title of the AutomateWoo workflow that bypasses the gateway-support check. See
+   * atlas/quirks/automatewoo-forced-autorenew-workflow.md.
+   *
+   * @var string
+   */
+  const FORCED_WORKFLOW_TITLE = 'Wicket: Force Subscription Auto-Renewal';
+
   public function __construct() {
     // Bust the cached forced-autorenew-workflow lookup whenever an aw_workflow post changes,
     // so a newly published/unpublished workflow is picked up without waiting for cache expiry.
@@ -110,10 +118,11 @@ class Autorenew {
   /**
    * Whether a published AutomateWoo workflow named exactly "Wicket: Force Subscription
    * Auto-Renewal" exists (exact match, not fuzzy). Cached; see atlas/quirks/automatewoo-forced-autorenew-workflow.md.
+   * Public: also read directly by `Autorenew_Sync` to compare against its debounce baseline.
    *
    * @return bool
    */
-  private static function has_forced_workflow() {
+  public static function has_forced_workflow() {
     // get_transient() returns false on a miss; stored values are always the strings 'yes'/'no',
     // so a strict false check unambiguously means "not cached yet".
     $cached = get_transient( self::forced_workflow_transient_key() );
@@ -127,7 +136,7 @@ class Autorenew {
       $workflows = \get_posts( [
         'post_type' => 'aw_workflow',
         'post_status' => 'publish',
-        'title' => 'Wicket: Force Subscription Auto-Renewal',
+        'title' => self::FORCED_WORKFLOW_TITLE,
         'posts_per_page' => 1,
         'fields' => 'ids',
       ] );

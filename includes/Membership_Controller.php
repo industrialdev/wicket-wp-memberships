@@ -7,6 +7,7 @@ use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Config;
 use Wicket_Memberships\Autorenew;
+use Wicket_Memberships\Autorenew_Sync;
 
 /**
  * Main controller methods
@@ -1260,6 +1261,13 @@ function get_item_data ( $other_data, $cart_item ) {
       'post_status' => 'publish',
       'meta_input'  => $meta_data
     ]);
+
+    // Refresh the stored autorenew status: $meta_data may not include
+    // membership_subscription_id (only fields the caller actually changed), so read the
+    // now-current, freshly-saved post meta rather than relying on this method's own input. See
+    // A0007.
+    Autorenew_Sync::refresh_for_membership_post( $membership_post_id );
+
     $user_id = $meta_data['user_id'] ?? $this->get_user_id_from_membership_post( $membership_post_id );
     if( empty( $user_id ) ) {
       return $return;
@@ -1372,6 +1380,10 @@ function get_item_data ( $other_data, $cart_item ) {
       }
       //moved outside of conditional for merge membership functionality to work on update membership post meta
       wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
+
+      // Refresh the stored autorenew status now that the subscription link (and its status/
+      // manual-renewal flag) is known to be current on this post. See A0007.
+      Autorenew_Sync::refresh_for_membership_post( $membership_post );
 
     if( !empty( $membership['membership_parent_order_id'] )) {
       $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );

@@ -4,7 +4,7 @@ namespace Wicket_Memberships;
 
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Helper;
-use Wicket_Memberships\Autorenew;
+use Wicket_Memberships\Autorenew_Sync;
 
 /**
  * Class Admin_Controller
@@ -561,9 +561,10 @@ class Admin_Controller {
           }
         }
       }
-      // Computed live for now (WWID-1875 M1.6): once M2 lands stored is_autorenew /
-      // is_autorenew_reason meta, read that here instead of recomputing per row.
-      $autorenew_status = Autorenew::resolve_status( $membership_item['data'] );
+      // get_stored_status() computes and stores this once if never computed (e.g. a membership
+      // created before this cache existed) rather than treating missing meta as a confirmed
+      // false — but never recomputes live on every render once it's stored.
+      $autorenew_status = Autorenew_Sync::get_stored_status( $membership->ID );
       $membership_item['subscription']['is_autorenewing'] = $autorenew_status['result'];
       $membership_item['subscription']['autorenew_reason'] = $autorenew_status['reason'];
       $membership_item['switch_to_url'] = Helper::get_user_switch_to_url( $meta['user_id'] );

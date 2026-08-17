@@ -5,6 +5,7 @@ namespace Wicket_Memberships;
 use Wicket_Memberships\Membership_Controller;
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Autorenew_Sync;
 
 /**
  * Class Settings
@@ -396,18 +397,6 @@ class Settings {
     $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim($input['wicket_mship_import_create_subscriptions_tier_only']);
     $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
     $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
-    if(!empty($_REQUEST['schedule_daily_membership_expiry_hook'])) {
-      $count = Membership_Controller::daily_membership_expiry_hook();
-      Utilities::wc_log_mship_error(['schedule_daily_membership_expiry_hook','Count: '.$count]);
-    }
-    if(!empty($_REQUEST['schedule_daily_membership_grace_period_hook'])) {
-      $count = Membership_Controller::daily_membership_grace_period_hook();
-      Utilities::wc_log_mship_error(['schedule_daily_membership_grace_period_hook','Count: '.$count]);
-    }
-    if(!empty($_REQUEST['schedule_daily_membership_activation_hook'])) {
-      $count = Membership_Controller::daily_membership_activation_hook();
-      Utilities::wc_log_mship_error(['schedule_daily_membership_activation_hook','Count: '.$count]);
-    }
     return $newinput;
   }
 
@@ -433,6 +422,93 @@ class Settings {
     if(!empty($schedule)) {
       echo "<p>Next <strong>membership expiry</strong> (Active/Grace Period → Expired) will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_expiry_hook=1'>Run Now</a></p>";
     }
+
+    if ( as_has_scheduled_action( 'wicket_mship_autorenew_sweep_batch', null, 'wicket-memberships' ) ) {
+      $progress = Autorenew_Sync::get_sweep_progress();
+      // The transient can be missing even mid-sweep (e.g. expired, or cleared out of band) —
+      // fall back to a plain "In Progress" label rather than showing a broken "0 of 0". The link
+      // stays clickable during a sweep: clicking it restarts from offset 0 via enqueue_sweep(),
+      // same as starting a fresh one, so there's no separate "cancel" state to build.
+      $progress_text = $progress ? " (In Progress: {$progress['processed']} of {$progress['total']} membership records processed)" : ' (In Progress)';
+      echo "<p><strong>Autorenew status</strong>: recompute and recache the auto-renew status for every membership. Runs in the background via Action Scheduler, in batches of ".Autorenew_Sync::SWEEP_BATCH_SIZE.". ( AS Hook: wicket_mship_autorenew_sweep_batch ) <a href='options-general.php?page=wicket-membership-settings&wicket_mship_refresh_autorenew_status=1'>Refresh All Now</a>{$progress_text}</p>";
+    } else {
+      echo "<p><strong>Autorenew status</strong>: recompute and recache the auto-renew status for every membership. Runs in the background via Action Scheduler, in batches of ".Autorenew_Sync::SWEEP_BATCH_SIZE.". ( AS Hook: wicket_mship_autorenew_sweep_batch ) <a href='options-general.php?page=wicket-membership-settings&wicket_mship_refresh_autorenew_status=1'>Refresh All Now</a></p>";
+    }
+  }
+
+  /**
+   * Query args that trigger one of this page's manual "Run Now" / "Refresh All Now" links.
+   * Shared by `handle_manual_action_links()` (to detect and strip them) and tests (to assert
+   * against `run_triggered_actions()` without needing the redirect/exit wrapper).
+   *
+   * @var string[]
+   */
+  const MANUAL_ACTION_TRIGGER_PARAMS = [
+    'schedule_daily_membership_expiry_hook',
+    'schedule_daily_membership_grace_period_hook',
+    'schedule_daily_membership_activation_hook',
+    'wicket_mship_refresh_autorenew_status',
+  ];
+
+  /**
+   * Hooked to `admin_init`. Runs the four "Run Now" / "Refresh All Now" manual-trigger links on
+   * this settings page. These are plain GET links (not a form submit), so they can't live inside
+   * `wicket_membership_plugin_options_validate()` — that only runs when the settings form itself
+   * is POSTed to options.php, which a bare link to this page never does.
+   *
+   * Redirects back to a clean URL (trigger query var stripped) after handling one, since the
+   * trigger param otherwise stays in the address bar — admin_init fires on every load, so without
+   * the redirect, simply reloading or revisiting the page re-runs the same trigger indefinitely
+   * (observed: repeatedly restarting the autorenew sweep from scratch on every page view). The
+   * actual side effects live in `run_triggered_actions()` so tests can exercise them without
+   * hitting this method's `exit`.
+   *
+   * @return void
+   */
+  public static function handle_manual_action_links() {
+    if ( empty( $_GET['page'] ) || 'wicket-membership-settings' !== $_GET['page'] ) {
+      return;
+    }
+
+    if ( ! self::run_triggered_actions() ) {
+      return;
+    }
+
+    wp_safe_redirect( remove_query_arg( self::MANUAL_ACTION_TRIGGER_PARAMS ) );
+    exit;
+  }
+
+  /**
+   * Runs whichever of this page's manual triggers are present in `$_GET`, if any.
+   *
+   * @return bool  True if at least one trigger ran (caller should redirect to clear the query
+   *               string), false if none were present.
+   */
+  public static function run_triggered_actions() {
+    if ( empty( array_filter( self::MANUAL_ACTION_TRIGGER_PARAMS, fn( $param ) => ! empty( $_GET[ $param ] ) ) ) ) {
+      return false;
+    }
+
+    if ( ! empty( $_GET['schedule_daily_membership_expiry_hook'] ) ) {
+      $count = Membership_Controller::daily_membership_expiry_hook();
+      Utilities::wc_log_mship_error( [ 'schedule_daily_membership_expiry_hook', 'Count: ' . $count ] );
+    }
+    if ( ! empty( $_GET['schedule_daily_membership_grace_period_hook'] ) ) {
+      $count = Membership_Controller::daily_membership_grace_period_hook();
+      Utilities::wc_log_mship_error( [ 'schedule_daily_membership_grace_period_hook', 'Count: ' . $count ] );
+    }
+    if ( ! empty( $_GET['schedule_daily_membership_activation_hook'] ) ) {
+      $count = Membership_Controller::daily_membership_activation_hook();
+      Utilities::wc_log_mship_error( [ 'schedule_daily_membership_activation_hook', 'Count: ' . $count ] );
+    }
+    if ( ! empty( $_GET['wicket_mship_refresh_autorenew_status'] ) ) {
+      // Queues the real chunked Action Scheduler batch job rather than running inline, since a
+      // manual sweep can cover thousands of memberships and must not risk timing out this request.
+      Autorenew_Sync::enqueue_sweep();
+      Utilities::wc_log_mship_error( [ 'wicket_mship_refresh_autorenew_status', 'Autorenew status sweep enqueued' ] );
+    }
+
+    return true;
   }
 
   public static function check_migrate_tier_slugs() {
