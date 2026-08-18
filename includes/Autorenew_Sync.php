@@ -88,9 +88,10 @@ class Autorenew_Sync {
   }
 
   /**
-   * Computes and stores the current autorenew result and reason for one membership post.
-   * Safe to call more than once for the same membership in a request — each call just
-   * overwrites both meta values with the freshly computed answer.
+   * Computes and stores the current autorenew result and reason for one membership post, and
+   * pushes the change to the MDP if the computed result actually changed. Safe to call more than
+   * once for the same membership in a request — each call just overwrites both meta values with
+   * the freshly computed answer.
    *
    * @param  int $membership_post_id  The `wicket_membership` post ID to refresh.
    * @return void
@@ -99,8 +100,65 @@ class Autorenew_Sync {
     $membership_meta = Helper::get_post_meta( $membership_post_id );
     $status = Autorenew::resolve_status( $membership_meta );
 
+    $previous_result = metadata_exists( 'post', $membership_post_id, self::META_KEY_RESULT )
+      ? (bool) get_post_meta( $membership_post_id, self::META_KEY_RESULT, true )
+      : null;
+
     update_post_meta( $membership_post_id, self::META_KEY_RESULT, $status['result'] );
     update_post_meta( $membership_post_id, self::META_KEY_REASON, $status['reason'] ?? '' );
+
+    // Push to the MDP only on a real change (including the first-ever computation, where
+    // $previous_result is null) — a bulk sweep or a listener firing with no actual change
+    // shouldn't PATCH the MDP for every membership it happens to touch.
+    if ( $previous_result !== $status['result'] ) {
+      self::push_to_mdp( $membership_post_id, $membership_meta, $status['result'] );
+    }
+  }
+
+  /**
+   * Pushes a membership's autorenew status to the MDP. Individual memberships only — organization
+   * memberships are out of scope for this feature (see the plan doc's org deferral); a membership
+   * with no `membership_wicket_uuid` yet (not yet created in the MDP) is skipped, since there's no
+   * MDP record to patch.
+   *
+   * `wicket_update_individual_membership_dates()` always sends `starts_at`/`ends_at` in its
+   * payload — unlike `grace_period_days`/`is_autorenew`, it has no way to omit them — and defaults
+   * empty values to "now" / "one year from now." An autorenew-only push must read the membership's
+   * real, precise dates directly via `get_post_meta()` (not `Helper::get_post_meta()`, which
+   * truncates `_at` fields to a plain date, dropping the time/timezone) and pass them through
+   * unchanged, or this call would silently corrupt the membership's real MDP dates as a side
+   * effect of a change that was only ever about autorenew status.
+   *
+   * @param  int    $membership_post_id  The `wicket_membership` post ID being pushed.
+   * @param  array  $membership_meta     This post's own meta, as returned by `Helper::get_post_meta()`.
+   * @param  bool   $is_autorenew        The freshly computed autorenew result to push.
+   * @return void
+   */
+  private static function push_to_mdp( $membership_post_id, $membership_meta, $is_autorenew ) {
+    if ( ( $membership_meta['membership_type'] ?? '' ) !== 'individual' ) {
+      return;
+    }
+
+    if ( empty( $membership_meta['membership_wicket_uuid'] ) ) {
+      return;
+    }
+
+    $response = wicket_update_individual_membership_dates(
+      $membership_meta['membership_wicket_uuid'],
+      get_post_meta( $membership_post_id, 'membership_starts_at', true ),
+      get_post_meta( $membership_post_id, 'membership_ends_at', true ),
+      false, // grace_period_days: not this push's concern, omit
+      $is_autorenew
+    );
+
+    if ( is_wp_error( $response ) ) {
+      Utilities::wc_log_mship_error( sprintf(
+        'Autorenew sync: failed to push is_autorenew=%s to MDP for membership #%d: %s',
+        $is_autorenew ? 'true' : 'false',
+        $membership_post_id,
+        $response->get_error_message( 'wicket_api_error' )
+      ) );
+    }
   }
 
   /**
@@ -237,8 +295,16 @@ class Autorenew_Sync {
     ] );
 
     foreach ( $membership_post_ids as $membership_post_id ) {
+      $previous_result = metadata_exists( 'post', $membership_post_id, self::META_KEY_RESULT )
+        ? (bool) get_post_meta( $membership_post_id, self::META_KEY_RESULT, true )
+        : null;
+
       update_post_meta( $membership_post_id, self::META_KEY_RESULT, false );
       update_post_meta( $membership_post_id, self::META_KEY_REASON, __( 'Linked subscription not found.', 'wicket-memberships' ) );
+
+      if ( false !== $previous_result ) {
+        self::push_to_mdp( $membership_post_id, Helper::get_post_meta( $membership_post_id ), false );
+      }
     }
   }
 

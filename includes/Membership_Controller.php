@@ -740,6 +740,13 @@ function get_item_data ( $other_data, $cart_item ) {
       return $membership;
     }
 
+    // A brand new membership has no subscription-lifecycle trigger to have run yet, so
+    // compute the initial autorenew status here rather than leaving it unset until the
+    // next Autorenew_Sync listener fires.
+    $autorenew_status = Autorenew::resolve_status( $membership );
+    $membership['membership_is_autorenew'] = $autorenew_status['result'];
+    $membership['membership_is_autorenew_reason'] = $autorenew_status['reason'];
+
     $tier = new Membership_Tier( $membership['membership_tier_post_id'] );
     //we only create the mdp record if tier not pending approval | tier pending approval and is renewal
     if( ! $tier->is_approval_required() || ( ! $tier->is_renew_approval_required() && $tier->is_approval_required() && $self->processing_renewal )) {
@@ -970,9 +977,21 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Update the membership record in MDP
+   * Update the membership record in MDP.
+   *
+   * Reads autorenew status off `$membership`/`$meta_data` as attributes
+   * (`membership_is_autorenew`, `membership_is_autorenew_reason`), the same way grace period and
+   * dates already are, rather than as separate parameters — callers that don't set these keys
+   * keep working exactly as before, since a missing key omits the field from the MDP push
+   * entirely. Individual memberships only; the organization branch below is untouched (see plan
+   * doc's org deferral).
+   *
+   * @param  array $membership  Membership data array. May include `membership_is_autorenew`
+   *               (bool) and `membership_is_autorenew_reason` (string).
+   * @param  array $meta_data   Fields being changed on this update. Checked first, same as the
+   *               other date/grace-period fields, falling back to `$membership`.
+   * @return array|WP_Error|array{error: string}
    */
-
    public function update_mdp_record( $membership, $meta_data ) {
     if( !empty( $_ENV['BYPASS_WICKET'] )) {
       return;
@@ -981,6 +1000,7 @@ function get_item_data ( $other_data, $cart_item ) {
     $ends_at = '';
     $grace_period_days = false;
     $max_assignments = false;
+    $is_autorenew = $meta_data['membership_is_autorenew'] ?? $membership['membership_is_autorenew'] ?? null;
 
     if('development' == wp_get_environment_type()) {
           Utilities::wc_log_mship_error( ['update_mdp_record', $membership, $meta_data] );
@@ -1017,7 +1037,8 @@ function get_item_data ( $other_data, $cart_item ) {
         $membership['membership_wicket_uuid'],
         $starts_at,
         $ends_at,
-        $grace_period_days
+        $grace_period_days,
+        $is_autorenew
       );
     } else {
     if( $max_assignments < 1) {
@@ -1049,9 +1070,18 @@ function get_item_data ( $other_data, $cart_item ) {
    }
 
   /**
-   * Create the Membership Record in MDP
+   * Create the Membership Record in MDP.
+   *
+   * Reads autorenew status off `$membership` as an attribute (`membership_is_autorenew`), the
+   * same way grace period and dates already are, rather than as a separate parameter — a missing
+   * key omits the field from the MDP push entirely. Individual memberships only; the organization
+   * branch below is untouched.
+   *
+   * @param  array $membership  Membership data array. May include `membership_is_autorenew` (bool).
+   * @return array|WP_Error
    */
   public function create_mdp_record( $membership ) {
+    $is_autorenew = $membership['membership_is_autorenew'] ?? null;
     $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
     $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
     // Capability gate (not version-gated): the base plugin ships a registry
@@ -1077,7 +1107,8 @@ function get_item_data ( $other_data, $cart_item ) {
             $membership['membership_starts_at'],
             $membership['membership_ends_at'],
             $membership['membership_grace_period_days'],
-            $previous_membership_wicket_uuid
+            $previous_membership_wicket_uuid,
+            $is_autorenew
           );
         } else {
           $response = wicket_assign_individual_membership(
@@ -1085,7 +1116,9 @@ function get_item_data ( $other_data, $cart_item ) {
             $membership['membership_tier_uuid'],
             $membership['membership_starts_at'],
             $membership['membership_ends_at'],
-            $membership['membership_grace_period_days']
+            $membership['membership_grace_period_days'],
+            '',
+            $is_autorenew
           );
         }
       } else {
@@ -1343,6 +1376,8 @@ function get_item_data ( $other_data, $cart_item ) {
       'membership_product_id' => $membership['membership_product_id'],
       'membership_subscription_id' => $membership['membership_subscription_id'],
       'previous_membership_post_id' => $membership['previous_membership_post_id'] ?? '',
+      Autorenew_Sync::META_KEY_RESULT => $membership['membership_is_autorenew'] ?? null,
+      Autorenew_Sync::META_KEY_REASON => $membership['membership_is_autorenew_reason'] ?? '',
     ];
 
     if(!empty( $membership['previous_membership_post_id'] ?? '' )) {

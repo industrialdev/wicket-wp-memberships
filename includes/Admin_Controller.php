@@ -4,6 +4,7 @@ namespace Wicket_Memberships;
 
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Autorenew;
 use Wicket_Memberships\Autorenew_Sync;
 
 /**
@@ -142,6 +143,9 @@ class Admin_Controller {
       $membership['membership_wicket_uuid'] = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
 
       //create the mdp record we skipped before
+      $autorenew_status = Autorenew_Sync::get_stored_status( $membership_post_id );
+      $membership['membership_is_autorenew'] = $autorenew_status['result'];
+      $membership['membership_is_autorenew_reason'] = $autorenew_status['reason'];
       if( empty( $membership['membership_wicket_uuid'] ) ) {
         $membership_data = $membership;
         $membership_data['membership_grace_period_days'] = $config->get_late_fee_window_days();
@@ -317,6 +321,18 @@ class Admin_Controller {
 
     //update membership dates in MDP
     if( !empty( $updated ) && ! $Membership_Controller->bypass_wicket ) {
+      // A membership transitioning to a terminal status will never auto-renew, regardless of
+      // what the subscription itself reports — Autorenew::resolve_status() only inspects the
+      // subscription, not this CPT's own status, so a terminal transition must be forced here.
+      $is_terminal_status = in_array( $new_post_status, [ Wicket_Memberships::STATUS_CANCELLED, Wicket_Memberships::STATUS_EXPIRED ], true );
+      if ( $is_terminal_status ) {
+        $meta_data['membership_is_autorenew'] = false;
+        $meta_data['membership_is_autorenew_reason'] = __( 'Membership status is terminal.', 'wicket-memberships' );
+      } else {
+        $autorenew_status = Autorenew_Sync::get_stored_status( $membership_post_id );
+        $meta_data['membership_is_autorenew'] = $autorenew_status['result'];
+        $meta_data['membership_is_autorenew_reason'] = $autorenew_status['reason'];
+      }
       $response = $Membership_Controller->update_mdp_record( $membership_new, $meta_data );
       if ( !empty($response['error']) && strstr( $response['error'], '404 Not Found') !== false && ! empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
         $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
@@ -735,6 +751,11 @@ class Admin_Controller {
     $membership['membership_type'] = $membership_post['membership_type'][0];
     $membership['membership_wicket_uuid'] = $membership_post['membership_wicket_uuid'][0];
     $membership['org_seats'] = $membership_post['org_seats'][0] ?? 0;
+    // The local record was just saved above (update_local_membership_record()), so the stored
+    // status already reflects this edit — no need to recompute live here.
+    $autorenew_status = Autorenew_Sync::get_stored_status( $membership_post_id );
+    $data['membership_is_autorenew'] = $autorenew_status['result'];
+    $data['membership_is_autorenew_reason'] = $autorenew_status['reason'];
     $wicket_response = $Membership_Controller->update_mdp_record( $membership, $data );
 
     $membership['membership_subscription_id'] = $membership_post['membership_subscription_id'][0];
@@ -1008,12 +1029,15 @@ class Admin_Controller {
         $date2 = new \DateTime($membership->membership_expires_at);
         $interval = $date1->diff($date2);
         $grace_period_days = !empty($interval->days) ? $interval->days : 0;
+          $is_autorenew = Autorenew_Sync::get_stored_status( $membership_post_id )['result'];
           $response1 = wicket_assign_individual_membership(
             $person_uuid,
             $membership->membership_tier_uuid,
             $membership->membership_start_at,
             $membership->membership_ends_at,
             $grace_period_days,
+            '',
+            $is_autorenew
           );
           Utilities::wc_log_mship_error(["CREATED mship single merge in MDP", $response1]);
 
@@ -1268,6 +1292,10 @@ class Admin_Controller {
       // Link the old person membership as the predecessor for MDP record continuity,
       // mirroring the org path above and Membership_Controller::create_mdp_record().
       $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
+      // Fresh, not carried forward: the new membership post doesn't exist yet to read stored
+      // meta from. The switch reuses the same subscription as the old membership today, so this
+      // matches the old membership's value, but computing it here stays correct if that changes.
+      $is_autorenew = Autorenew::resolve_status( [ 'membership_subscription_id' => get_post_meta( $membership_post_id, 'membership_subscription_id', true ) ] )['result'];
       if ( $base_version_supports_previous_membership_assignment ) {
         $response = wicket_assign_individual_membership(
               $owner_uuid,
@@ -1275,7 +1303,8 @@ class Admin_Controller {
               $membership_starts_at,
               $membership_ends_at,
               $membership_grace_period_days,
-              $old_membership_wicket_uuid // previous_membership_uuid: links predecessor record
+              $old_membership_wicket_uuid, // previous_membership_uuid: links predecessor record
+              $is_autorenew
             );
       } else {
         $response = wicket_assign_individual_membership(
@@ -1283,7 +1312,9 @@ class Admin_Controller {
               $membership_tier_uuid,
               $membership_starts_at,
               $membership_ends_at,
-              $membership_grace_period_days
+              $membership_grace_period_days,
+              '',
+              $is_autorenew
             );
       }
     }
@@ -1368,6 +1399,12 @@ class Admin_Controller {
     update_post_meta( $membership_post_id, 'membership_ends_at', $switch_iso_date );
     update_post_meta( $membership_post_id, 'membership_expires_at', $switch_iso_date );
     update_post_meta( $membership_post_id, 'membership_grace_period_days', 0 );
+    // Cancelling the old membership here doesn't touch its WC subscription (it's shared with the
+    // new membership), so Autorenew_Sync's listeners never fire and never refresh this
+    // membership's own stored status — write it directly, matching
+    // Autorenew_Sync::handle_subscription_deleted()'s pattern for the same class of gap.
+    update_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_RESULT, false );
+    update_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_REASON, __( 'Membership was switched to a new tier.', 'wicket-memberships' ) );
 
     // Sync the cancelled membership to the MDP: end it now (mdp tz), zero the grace period.
     // Organization memberships must be patched via the organization_memberships endpoint.
@@ -1382,11 +1419,15 @@ class Admin_Controller {
           0                          // grace_period_days -> 0
         );
       } else {
+        // Explicit false, not a recompute: the membership is being cancelled in this same
+        // request, and Autorenew::resolve_status() doesn't look at this CPT's own status, only
+        // the (still shared/active) subscription — a recompute here would wrongly report true.
         $mdp_update = wicket_update_individual_membership_dates(
           $old_membership_wicket_uuid,
           $old_membership_starts_at, // preserve original start; helper defaults to "now" if empty
           $switch_iso_date,          // ends_at -> now (mdp timezone)
-          0                          // grace_period_days -> 0
+          0,                         // grace_period_days -> 0
+          false                      // is_autorenew -> false: cancelled, will never renew
         );
       }
       if ( is_wp_error( $mdp_update ) ) {
@@ -1479,13 +1520,21 @@ class Admin_Controller {
       $membership_grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
     }
 
+    // Fresh, not carried forward: the new membership post doesn't exist yet to read stored meta
+    // from, and while today's transfer keeps the same subscription (so this matches the old
+    // membership's value), computing it directly here stays correct if that ever changes.
+    $membership_subscription_id = get_post_meta( $membership_post_id, 'membership_subscription_id', true );
+    $is_autorenew = Autorenew::resolve_status( [ 'membership_subscription_id' => $membership_subscription_id ] )['result'];
+
     //Create a new membership in the MDP for the new owner using the original membership data
-    $response = wicket_assign_individual_membership( 
+    $response = wicket_assign_individual_membership(
             $new_owner_uuid,
             $membership_tier_uuid,
             $membership_starts_at,
             $membership_ends_at,
-            $membership_grace_period_days
+            $membership_grace_period_days,
+            '',
+            $is_autorenew
           );
 
     if ( is_wp_error( $response ) ) {
@@ -1538,6 +1587,12 @@ class Admin_Controller {
     update_post_meta( $membership_post_id, 'membership_status', Wicket_Memberships::STATUS_CANCELLED );
     //TODO: we have reassigned the subscription to the new user so unassign the meta data linking to old membership
     //delete_post_meta( $membership_post_id, 'membership_subscription_id');
+    // Cancelling the old membership here doesn't touch its WC subscription, so
+    // Autorenew_Sync's listeners never fire and never refresh this membership's own stored
+    // status — write it directly, matching Autorenew_Sync::handle_subscription_deleted()'s
+    // pattern for the same class of gap.
+    update_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_RESULT, false );
+    update_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_REASON, __( 'Membership was transferred to a new owner.', 'wicket-memberships' ) );
 
     $membership_type = $old_customer_meta_array['membership_type'] == 'individual' ? 'person_memberships' : 'organization_memberships';
     // Update the new wicket membership with the new external ID
@@ -1550,9 +1605,14 @@ class Admin_Controller {
       'membership_starts_at' =>  $old_customer_meta_array['membership_starts_at'],
       'membership_ends_at' =>  $now_iso_date,
       'membership_expires_at' => $now_iso_date,
-      'membership_grace_period_days' => 0
+      'membership_grace_period_days' => 0,
+      // Explicit false, not a recompute: the membership is being cancelled in this same request,
+      // and Autorenew::resolve_status() doesn't look at this CPT's own status, only the (still
+      // shared/active) subscription — a recompute here would wrongly report true.
+      'membership_is_autorenew' => false,
+      'membership_is_autorenew_reason' => __( 'Membership was transferred to a new owner.', 'wicket-memberships' ),
     ];
-    
+
     (new Membership_Controller)->update_mdp_record( $old_customer_meta_array, $meta_data );
 
     $old_customer_meta_array['membership_ends_at'] = $now_iso_date;
