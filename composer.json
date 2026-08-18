@@ -1,7 +1,7 @@
 {
   "name": "industrialdev/wicket-wp-memberships",
   "description": "Wicket Memberships",
-  "version": "1.0.121",
+  "version": "1.0.122",
   "keywords": ["wordpress", "plugin"],
   "homepage": "https://github.com/industrialdev/wicket-wp-memberships",
   "authors": [
@@ -10,6 +10,7 @@
       "homepage": "https://wicket.io"
     }
   ],
+  "version": "1.0.107",
   "type": "wordpress-plugin",
   "autoload": {
     "psr-4": {
@@ -18,5 +19,8 @@
   },
   "require": {
     "php": ">=8.0"
+  },
+  "scripts": {
+    "production": "composer install --no-dev --optimize-autoloader"
   }
 }

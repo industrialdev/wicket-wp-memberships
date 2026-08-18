@@ -79,7 +79,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
   function add_order_item_meta ( $item_id, $values ) {
     if(is_array($values)) {
-      if(empty(wc_get_order_item_meta( $item_id, '_org_uuid', true) && !empty($values['org_uuid']))) {
+      if( !empty( $values['org_uuid'] ) && empty( wc_get_order_item_meta( $item_id, '_org_uuid', true ) ) ) {
         wc_add_order_item_meta( $item_id, '_org_uuid', $values['org_uuid'] );
       }
 
@@ -1055,7 +1055,11 @@ function get_item_data ( $other_data, $cart_item ) {
   public function create_mdp_record( $membership ) {
     $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
     $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
-    $base_version_supports_copy_active_assignments = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.4.10', '>' );
+    // Capability gate (not version-gated): the base plugin ships a registry
+    // helper when it supports the copy_previous_assignments param. See atlas
+    // ADR 0004 / conventions/capability-detection.md.
+    $base_version_supports_copy_active_assignments = function_exists( 'wicket_supports' )
+      && wicket_supports( 'base-plugin.organization_membership.copy_previous_assignments' );
 
     $previous_membership_wicket_uuid = '';
     if(!empty($membership['previous_membership_post_id'])) {
@@ -1097,6 +1101,7 @@ function get_item_data ( $other_data, $cart_item ) {
         }
         if( $base_version_supports_copy_active_assignments ) {
           $Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
+          $carry = $Tier->copy_active_assignments_on_renewal();
           $response = wicket_assign_organization_membership(
             $membership['person_uuid'],
             $membership['organization_uuid'],
@@ -1107,8 +1112,45 @@ function get_item_data ( $other_data, $cart_item ) {
             $membership['membership_grace_period_days'],
             $previous_membership_wicket_uuid,
             $Tier->is_grant_owner_assignment(),
-            $Tier->copy_active_assignments_on_renewal()
+            $carry
           );
+          // Seat-count overflow safety net (WWID-1908): if the MDP rejected the
+          // create because carrying assignments over would exceed the new tier's
+          // max_assignments and we tried to copy, retry once without copying. The
+          // overflow flag is set by the base plugin in error_data under the
+          // existing 'wicket_api_error' code; ?? false self-gates on older base.
+          // Idempotent: the failed first attempt creates nothing in the MDP
+          // (validation precedes save), and copy=false means no assignments to
+          // count, so the retry cannot loop on the same error.
+          if ( is_wp_error( $response ) && $carry && ( $response->get_error_data( 'wicket_api_error' )['overflow'] ?? false ) ) {
+            Utilities::wc_log_mship_error( [ 'carry-over overflow; retrying without copy', $previous_membership_wicket_uuid, 'seats' => $membership['membership_seats'] ] );
+            $response = wicket_assign_organization_membership(
+              $membership['person_uuid'],
+              $membership['organization_uuid'],
+              $membership['membership_tier_uuid'],
+              $membership['membership_starts_at'],
+              $membership['membership_ends_at'],
+              $membership['membership_seats'],
+              $membership['membership_grace_period_days'],
+              $previous_membership_wicket_uuid,
+              $Tier->is_grant_owner_assignment(),
+              false
+            );
+            // Defensive: log the retry outcome so QA can see whether the
+            // copy=false retry recovered or also failed. A failed retry still
+            // surfaces to the shared error handler below; this log names it.
+            if ( is_wp_error( $response ) ) {
+              Utilities::wc_log_mship_error( [ 'carry-over overflow: copy=false retry ALSO failed', $previous_membership_wicket_uuid, 'error' => $response->get_error_message( 'wicket_api_error' ) ] );
+            } else {
+              Utilities::wc_log_mship_error( [ 'carry-over overflow: copy=false retry succeeded, assignments not carried', $previous_membership_wicket_uuid ] );
+            }
+          } elseif ( is_wp_error( $response ) && $carry ) {
+            // Defensive: first attempt failed while we intended to copy, but it
+            // was NOT the max_assignments overflow. Surfaces the actual error so
+            // QA can distinguish a detection miss (overflow we didn't flag) from
+            // a genuinely different failure (auth, unrelated validation, etc.).
+            Utilities::wc_log_mship_error( [ 'carry-over first attempt failed (non-overflow, no retry)', $previous_membership_wicket_uuid, 'carry' => $carry, 'error' => $response->get_error_message( 'wicket_api_error' ) ] );
+          }
         } elseif( $base_version_supports_grant_owner_assignment ) {
           $Tier = new Membership_Tier( $membership['membership_tier_post_id'] );
           $response = wicket_assign_organization_membership(
@@ -1147,13 +1189,125 @@ function get_item_data ( $other_data, $cart_item ) {
       }
       if( is_wp_error( $response ) ) {
         $this->error_message = $response->get_error_message( 'wicket_api_error' );
-        //$this->surface_error();
+        // WWID-2199: surface the real MDP error so callers that do not run in a
+        // checkout context (the bulk importer, admin tools) can see WHY the
+        // assign failed instead of only observing an empty UUID. The importer's
+        // adapter reads this via get_error_message(); wc_log_mship_error() also
+        // lands it in wc-logs for QA (wc_add_notice never fires here).
+        Utilities::wc_log_mship_error( [
+          'Membership_Controller::create_mdp_record MDP assign failed',
+          [
+            'person_uuid'          => $membership['person_uuid'] ?? '',
+            'membership_type'      => $membership['membership_type'] ?? '',
+            'membership_tier_uuid' => $membership['membership_tier_uuid'] ?? '',
+            'membership_starts_at' => $membership['membership_starts_at'] ?? '',
+            'membership_ends_at'   => $membership['membership_ends_at'] ?? '',
+            'error'                => $this->error_message,
+          ],
+        ] );
         $membership_wicket_uuid = '';
       } else {
         $membership_wicket_uuid = $response['data']['id'];
       }
     }
     return $membership_wicket_uuid;
+  }
+
+  /**
+   * The last MDP error message stashed by create_mdp_record() / update_mdp_record().
+   *
+   * WWID-2199: create_mdp_record() returns '' on failure and previously had no
+   * way for a non-checkout caller (the bulk importer, admin tools) to read WHY
+   * the MDP rejected the assign. Public read-only accessor so the importer can
+   * surface the real validation error (e.g. a 422 for ends_at <= starts_at)
+   * instead of a generic "returned no UUID". The value is also wc_log_mship_
+   * error()d inside create_mdp_record() so it is visible in wc-logs regardless.
+   *
+   * @return string
+   */
+  public function get_error_message() {
+    return $this->error_message;
+  }
+
+  /**
+   * Assign the WP membership post ID as the MDP external_id, with a pre-flight
+   * collision check.
+   *
+   * external_id is the WP post ID and the MDP holds a unique index on it per
+   * membership type. When another membership already owns that ID, the PATCH
+   * returns an opaque 409 and external_id stays NULL silently. This method
+   * detects the collision before the PATCH when the base plugin helper is
+   * available, reports it with the owning record, and flags the post either way
+   * so the broken state is visible in WP admin and wc-logs instead of silent.
+   *
+   * @param string $membership_wicket_uuid MDP membership id.
+   * @param string $wicket_membership_type person_memberships|organization_memberships.
+   * @param int    $membership_post_id     WP membership post ID (the external_id).
+   * @return bool True on success, false on collision or failure.
+   */
+  public function assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post_id ) {
+    $logger = wc_get_logger();
+    $log_context = [ 'source' => 'wicket-memberships' ];
+
+    // Pre-flight: detect an external_id already owned by a different membership.
+    // The helper ships in wicket-wp-base-plugin; guard with function_exists so
+    // this plugin stays safe if a site runs an older base plugin.
+    if ( function_exists( 'wicket_get_membership_by_external_id' ) ) {
+      $owner = wicket_get_membership_by_external_id( $membership_post_id, $wicket_membership_type );
+
+      if ( ! is_wp_error( $owner ) && ! empty( $owner['id'] ) && $owner['id'] !== $membership_wicket_uuid ) {
+        $owner_id = $owner['id'];
+        $logger->error(
+          sprintf(
+            'Membership external_id collision: WP post %1$s already owned by %2$s/%3$s (target %4$s). Skipping external_id PATCH; post %1$s left without an MDP link.',
+            $membership_post_id,
+            $wicket_membership_type,
+            $owner_id,
+            $membership_wicket_uuid
+          ),
+          $log_context
+        );
+        update_post_meta( $membership_post_id, '_wicket_membership_external_id_collision', [
+          'external_id' => $membership_post_id,
+          'type'        => $wicket_membership_type,
+          'owner'       => $owner_id,
+          'target'      => $membership_wicket_uuid,
+          'time'        => current_time( 'mysql', true ),
+        ] );
+        return false;
+      }
+    }
+
+    // No collision (or pre-flight unavailable): PATCH and act on the result.
+    $result = wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post_id );
+
+    if ( is_wp_error( $result ) ) {
+      // The base helper already logged the API error; flag the post too so the
+      // broken state is visible at the WP layer, not only in wc-logs.
+      $logger->error(
+        sprintf(
+          'Membership external_id PATCH failed for WP post %1$s (target %2$s/%3$s): %4$s',
+          $membership_post_id,
+          $wicket_membership_type,
+          $membership_wicket_uuid,
+          $result->get_error_message()
+        ),
+        $log_context
+      );
+      update_post_meta( $membership_post_id, '_wicket_membership_external_id_failed', [
+        'external_id' => $membership_post_id,
+        'type'        => $wicket_membership_type,
+        'target'      => $membership_wicket_uuid,
+        'error'       => $result->get_error_message(),
+        'time'        => current_time( 'mysql', true ),
+      ] );
+      return false;
+    }
+
+    // Success: clear stale flags from a prior failed attempt.
+    delete_post_meta( $membership_post_id, '_wicket_membership_external_id_failed' );
+    delete_post_meta( $membership_post_id, '_wicket_membership_external_id_collision' );
+    return true;
   }
 
   /**
@@ -1331,27 +1485,9 @@ function get_item_data ( $other_data, $cart_item ) {
         ]);
       }
       //moved outside of conditional for merge membership functionality to work on update membership post meta
-      // external_id is what makes the MDP mark this membership as externally
-      // managed by WooCommerce (badge + locked dates). create_local_membership_record
-      // used to discard the PATCH return, so a failure was silent. Capture the
-      // result and log every failure so it surfaces (e.g. a 409 when external_id
-      // is already held by another membership_person) instead of leaving the
-      // membership unlinked (dates editable, no badge). No retry here: a
-      // permanent conflict cannot be retried away, and transient retry belongs
-      // in the HTTP client layer, not at this call site.
-      $external_id_result = wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
-      if ( is_wp_error( $external_id_result ) ) {
-        Wicket()->log()->error(
-          'create_local_membership_record: external_id PATCH failed; membership will not show as Woo-managed and dates stay editable in MDP',
-          [
-            'source'                  => 'wicket-membership-plugin',
-            'membership_wicket_uuid'  => $membership_wicket_uuid,
-            'wicket_membership_type'  => $wicket_membership_type,
-            'membership_post_id'      => $membership_post,
-            'error'                   => $external_id_result->get_error_message(),
-          ]
-        );
-      }
+      // Return value ignored on purpose: failures are flagged via post meta
+      // (_collision/_failed) and wc-logs; local record creation must complete.
+      $this->assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
 
     if( !empty( $membership['membership_parent_order_id'] )) {
       $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
@@ -1878,7 +2014,7 @@ function get_item_data ( $other_data, $cart_item ) {
               $query_string = $parts['query'];
             }
           }
-          $renewal_link_url = '/cart/?' . $query_string;
+          $renewal_link_url = wc_get_cart_url() . '?' . $query_string;
           $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
         } elseif( empty($renewal_link_url) && $current_time < strtotime($membership_data['meta']['membership_expires_at']) /* !empty( $the_order) /*&& $the_order->ID != $membership_data['meta']['membership_parent_order_id']*/) {
           //$the_order->update_status('on-hold', __('Order status changed generating a pending renewal order.'));
