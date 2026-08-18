@@ -498,25 +498,51 @@ class Membership_Post_Types {
                   $errors->add( 'rest_invalid_param_approval_email_recipient', __( 'The approval email recipient must be a valid email.', 'wicket-memberships' ), array( 'status' => 400 ) );
                 }
 
-                // validate locales to be not empty
-                $locales_valid = true;
+                // Validate locales to be not empty.
+                //
+                // Read defensively, for the same reason as the switch callout below: a tier
+                // whose approval_callout_data is absent (or whose locales gained a language
+                // after the tier was last saved) would otherwise emit PHP warnings ahead of
+                // the JSON body, corrupting the very error response the admin form has to read.
+                $approval_callout_locales = [];
+                if ( isset( $value['approval_callout_data']['locales'] ) && is_array( $value['approval_callout_data']['locales'] ) ) {
+                  $approval_callout_locales = $value['approval_callout_data']['locales'];
+                }
+
+                $approval_callout_fields = [
+                  'callout_header'       => __( 'Callout Header', 'wicket-memberships' ),
+                  'callout_content'      => __( 'Callout Content', 'wicket-memberships' ),
+                  'callout_button_label' => __( 'Button Label', 'wicket-memberships' ),
+                ];
+
+                // Named per language and per field, so the admin is not left opening every
+                // language tab in the modal to find which one is short.
+                $approval_callout_missing = [];
                 $language_codes = Helper::get_wp_languages_iso();
                 foreach ( $language_codes as $language_code ) {
-                  if ( empty( $value['approval_callout_data']['locales'][ $language_code ]['callout_header'] ) ) {
-                    $locales_valid = false;
-                  }
+                  $locale_data = ( isset( $approval_callout_locales[ $language_code ] ) && is_array( $approval_callout_locales[ $language_code ] ) )
+                    ? $approval_callout_locales[ $language_code ]
+                    : [];
 
-                  if ( empty( $value['approval_callout_data']['locales'][ $language_code ]['callout_content'] ) ) {
-                    $locales_valid = false;
-                  }
+                  foreach ( $approval_callout_fields as $field_key => $field_label ) {
+                    $field_value = isset( $locale_data[ $field_key ] ) ? trim( (string) $locale_data[ $field_key ] ) : '';
 
-                  if ( empty( $value['approval_callout_data']['locales'][ $language_code ]['callout_button_label'] ) ) {
-                    $locales_valid = false;
+                    if ( $field_value === '' ) {
+                      $approval_callout_missing[] = sprintf( '%1$s [%2$s]', $field_label, strtoupper( $language_code ) );
+                    }
                   }
                 }
 
-                if ( $locales_valid === false ) {
-                  $errors->add( 'rest_invalid_param_approval_callout_data', __( 'The approval callout data must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                if ( ! empty( $approval_callout_missing ) ) {
+                  $errors->add(
+                    'rest_invalid_param_approval_callout_data',
+                    sprintf(
+                      /* translators: %s: comma separated list of missing callout fields, each followed by its language code. */
+                      __( 'The Approval callout configuration is incomplete, missing: %s', 'wicket-memberships' ),
+                      implode( ', ', $approval_callout_missing )
+                    ),
+                    array( 'status' => 400 )
+                  );
                 }
               }
 
@@ -632,24 +658,51 @@ class Membership_Post_Types {
 
                 // Callout copy is mandatory in every active language: the Account Centre consumer
                 // renders this text verbatim and carries no fallback strings of its own.
-                $switch_locales_valid = true;
+                //
+                // Read defensively. A tier saved before self-serve switching carries no
+                // switch_callout_data key at all, and indexing straight into it emits PHP
+                // warnings that get echoed ahead of the JSON body — which leaves the admin
+                // form unable to parse the very error it is being sent, so the save appears
+                // to do nothing at all.
+                $switch_callout_locales = [];
+                if ( isset( $value['switch_callout_data']['locales'] ) && is_array( $value['switch_callout_data']['locales'] ) ) {
+                  $switch_callout_locales = $value['switch_callout_data']['locales'];
+                }
+
+                $switch_callout_fields = [
+                  'callout_header'       => __( 'Callout Header', 'wicket-memberships' ),
+                  'callout_content'      => __( 'Callout Content', 'wicket-memberships' ),
+                  'callout_button_label' => __( 'Button Label', 'wicket-memberships' ),
+                ];
+
+                // Named per language and per field: 'must not be empty' left the admin opening
+                // every language tab in the modal to find which one was short.
+                $switch_callout_missing = [];
                 $language_codes = Helper::get_wp_languages_iso();
                 foreach ( $language_codes as $language_code ) {
-                  if ( empty( $value['switch_callout_data']['locales'][ $language_code ]['callout_header'] ) ) {
-                    $switch_locales_valid = false;
-                  }
+                  $locale_data = ( isset( $switch_callout_locales[ $language_code ] ) && is_array( $switch_callout_locales[ $language_code ] ) )
+                    ? $switch_callout_locales[ $language_code ]
+                    : [];
 
-                  if ( empty( $value['switch_callout_data']['locales'][ $language_code ]['callout_content'] ) ) {
-                    $switch_locales_valid = false;
-                  }
+                  foreach ( $switch_callout_fields as $field_key => $field_label ) {
+                    $field_value = isset( $locale_data[ $field_key ] ) ? trim( (string) $locale_data[ $field_key ] ) : '';
 
-                  if ( empty( $value['switch_callout_data']['locales'][ $language_code ]['callout_button_label'] ) ) {
-                    $switch_locales_valid = false;
+                    if ( $field_value === '' ) {
+                      $switch_callout_missing[] = sprintf( '%1$s [%2$s]', $field_label, strtoupper( $language_code ) );
+                    }
                   }
                 }
 
-                if ( $switch_locales_valid === false ) {
-                  $errors->add( 'rest_invalid_param_switch_callout_data', __( 'The switch callout data must not be empty.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                if ( ! empty( $switch_callout_missing ) ) {
+                  $errors->add(
+                    'rest_invalid_param_switch_callout_data',
+                    sprintf(
+                      /* translators: %s: comma separated list of missing callout fields, each followed by its language code. */
+                      __( 'The Self-Serve Switch callout configuration is incomplete, missing: %s', 'wicket-memberships' ),
+                      implode( ', ', $switch_callout_missing )
+                    ),
+                    array( 'status' => 400 )
+                  );
                 }
               }
 

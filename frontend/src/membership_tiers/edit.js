@@ -56,6 +56,8 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	const [approvalCalloutErrors, setApprovalCalloutErrors] = useState([]);
 
+	const [switchCalloutErrors, setSwitchCalloutErrors] = useState([]);
+
 	const [isSubmitting, setSubmitting] = useState(false);
 
 	const [mdpTiers, setMdpTiers] = useState([]);
@@ -123,6 +125,33 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 		// TODO: Frontend data validation here if needed?
 
+		setErrors([]);
+
+		// Callout copy is required in every active language and the REST route rejects the whole
+		// tier when it is short. Checking here names the missing fields without spending a round
+		// trip, and without the save looking like it worked.
+		if (form.approval_required || form.renew_approval_required) {
+			const approvalCalloutIssues = collectApprovalCalloutIssues(form);
+
+			if (approvalCalloutIssues.length > 0) {
+				setErrors(approvalCalloutIssues);
+				scrollToErrors();
+
+				return;
+			}
+		}
+
+		if (form.self_serve_switch_enabled) {
+			const switchCalloutIssues = validateSwitchCallout(form);
+
+			if (switchCalloutIssues.length > 0) {
+				setErrors(switchCalloutIssues);
+				scrollToErrors();
+
+				return;
+			}
+		}
+
 		setSubmitting(true);
 		console.log('Saving membership tier');
 
@@ -184,16 +213,46 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 				window.location.href = tierListUrl;
 			}
 		}).catch((error) => {
+			// The rejection shape is not guaranteed. A REST validation failure carries
+			// data.params, but a 500, a PHP warning printed ahead of the JSON body, or a dropped
+			// connection carries none of it — and reading error.data.params blindly threw inside
+			// this very handler, which is why a rejected save used to leave the form spinning
+			// with nothing on screen.
 			let newErrors = [];
+			const params = error && error.data ? error.data.params : null;
 
-			Object.keys(error.data.params).forEach((key) => {
-				let errors = error.data.params[key].split(/(?<=[.?!])\s+|\.$/);
-				newErrors = newErrors.concat(errors).filter(sentence => sentence.trim() !== '');
-			})
+			if (params && typeof params === 'object') {
+				Object.keys(params).forEach((key) => {
+					const message = typeof params[key] === 'string' ? params[key] : JSON.stringify(params[key]);
+					const errors = message.split(/(?<=[.?!])\s+|\.$/);
+					newErrors = newErrors.concat(errors).filter(sentence => sentence.trim() !== '');
+				})
+			}
 
-			setErrors(newErrors);
+			// Never fail silently: an unrecognized rejection still has to say something.
+			if (newErrors.length === 0) {
+				newErrors.push(
+					(error && error.message)
+						? error.message
+						: __('The membership tier could not be saved. Please try again.', 'wicket-memberships')
+				);
+			}
+
+			// Notices render above a long form; without this the admin sees only the button
+			// switching back from "Saving now...".
+			setErrors([...new Set(newErrors)]);
 			setSubmitting(false);
+			scrollToErrors();
 		});
+	}
+
+	/**
+	 * Bring the notice row at the top of the form into view.
+	 */
+	const scrollToErrors = () => {
+		if (typeof window === 'undefined') { return; }
+
+		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
   const fetchTierInfo = (tierUuid) => {
@@ -235,13 +294,58 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		});
 	}
 
-	const validateApprovalCallout = () => {
-		let isValid = true;
-		const newErrors = [];
+	/**
+	 * Read one locale's approval callout copy, tolerating a tier that has none.
+	 *
+	 * Mirrors getSwitchCalloutLocale(). A tier saved before a WPML language was added carries no
+	 * entry for it, and indexing straight into locales[code] throws while rendering the modal.
+	 */
+	const getApprovalCalloutLocale = (source, locale) => {
+		if (!source || !source.approval_callout_data || !source.approval_callout_data.locales) { return {}; }
+
+		return source.approval_callout_data.locales[locale] || {};
+	}
+
+	/**
+	 * Mirror of the REST rule in Membership_Post_Types::register_membership_tier_cpt_fields():
+	 * when approval is required, every active language needs a header, content and a button label.
+	 *
+	 * @param {object} source form or tempForm.
+	 * @return {string[]} Empty when the callout is complete.
+	 */
+	const collectApprovalCalloutIssues = (source) => {
+		const fields = [
+			{ key: 'callout_header', label: __('Callout Header', 'wicket-memberships') },
+			{ key: 'callout_content', label: __('Callout Content', 'wicket-memberships') },
+			{ key: 'callout_button_label', label: __('Button Label', 'wicket-memberships') }
+		];
+
+		const missing = [];
+
+		languageCodesArray.forEach((locale) => {
+			const localeData = getApprovalCalloutLocale(source, locale);
+
+			fields.forEach((field) => {
+				if (String(localeData[field.key] || '').trim() === '') {
+					missing.push(`${field.label} [${locale.toUpperCase()}]`);
+				}
+			});
+		});
+
+		if (missing.length === 0) { return []; }
+
+		return [
+			__('The Approval callout configuration is incomplete, missing:', 'wicket-memberships')
+			+ ' ' + missing.join(', ')
+		];
+	}
+
+	const validateApprovalCallout = (source) => {
+		const newErrors = collectApprovalCalloutIssues(source);
 
 		setApprovalCalloutErrors(newErrors);
 
-		return isValid;
+		return newErrors.length === 0;
 	}
 
 	const handleApprovalCalloutSubmit = (e) => {
@@ -252,7 +356,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			approval_callout_data: tempForm.approval_callout_data
 		});
 
-		if (!validateApprovalCallout()) { return }
+		// Committed above either way so a partially filled modal never loses the admin's typing;
+		// the modal simply stays open, with the missing fields named, until the copy is complete.
+		if (!validateApprovalCallout(tempForm)) { return }
 
 		closeApprovalCalloutModal();
 	}
@@ -280,6 +386,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	 * Reinitialize the approval callout form with the current form data
 	 */
 	const reInitApprovalCallout = () => {
+		setApprovalCalloutErrors([]);
 		setTempForm(form)
 		openApprovalCalloutModal();
 	}
@@ -288,6 +395,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	 * Reinitialize the switch callout form with the current form data
 	 */
 	const reInitSwitchCallout = () => {
+		setSwitchCalloutErrors([]);
 		setTempForm(form)
 		openSwitchCalloutModal();
 	}
@@ -325,13 +433,57 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		}));
 	}
 
+	/**
+	 * Mirror of the REST rule in Membership_Post_Types::register_membership_tier_cpt_fields():
+	 * every active language needs a header, content and a button label. Returns one message per
+	 * missing field so the admin knows which language tab to open.
+	 *
+	 * @param {object} source form or tempForm — a tier saved before self-serve switching has no
+	 *                        switch_callout_data at all, so read it through getSwitchCalloutLocale().
+	 * @return {string[]} Empty when the callout is complete.
+	 */
+	const validateSwitchCallout = (source) => {
+		const fields = [
+			{ key: 'callout_header', label: __('Callout Header', 'wicket-memberships') },
+			{ key: 'callout_content', label: __('Callout Content', 'wicket-memberships') },
+			{ key: 'callout_button_label', label: __('Button Label', 'wicket-memberships') }
+		];
+
+		const missing = [];
+
+		languageCodesArray.forEach((locale) => {
+			const localeData = getSwitchCalloutLocale(source, locale);
+
+			fields.forEach((field) => {
+				if (String(localeData[field.key] || '').trim() === '') {
+					missing.push(`${field.label} [${locale.toUpperCase()}]`);
+				}
+			});
+		});
+
+		if (missing.length === 0) { return []; }
+
+		return [
+			__('The Self-Serve Switch callout configuration is incomplete, missing:', 'wicket-memberships')
+			+ ' ' + missing.join(', ')
+		];
+	}
+
 	const handleSwitchCalloutSubmit = (e) => {
 		e.preventDefault();
 
+		// Committed either way so a partially filled modal never loses the admin's typing; the
+		// modal simply stays open, with the missing fields named, until the copy is complete.
 		setForm({
 			...form,
 			switch_callout_data: tempForm.switch_callout_data
 		});
+
+		const calloutErrors = validateSwitchCallout(tempForm);
+
+		setSwitchCalloutErrors(calloutErrors);
+
+		if (calloutErrors.length > 0) { return }
 
 		closeSwitchCalloutModal();
 	}
@@ -1117,7 +1269,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 									}
 								});
 							}}
-							value={tempForm.approval_callout_data.locales[currentApprovalCalloutLocale].callout_header}
+							value={getApprovalCalloutLocale(tempForm, currentApprovalCalloutLocale).callout_header || ''}
 						/>
 
 						<TextareaControl
@@ -1137,7 +1289,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 									}
 								});
 							}}
-							value={tempForm.approval_callout_data.locales[currentApprovalCalloutLocale].callout_content}
+							value={getApprovalCalloutLocale(tempForm, currentApprovalCalloutLocale).callout_content || ''}
 						/>
 
 						<TextControl
@@ -1157,7 +1309,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 									}
 								});
 							}}
-							value={tempForm.approval_callout_data.locales[currentApprovalCalloutLocale].callout_button_label}
+							value={getApprovalCalloutLocale(tempForm, currentApprovalCalloutLocale).callout_button_label || ''}
 						/>
 
 						<Button variant="primary" type='submit'>
@@ -1179,6 +1331,14 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 						}
 					}
 				>
+					{switchCalloutErrors.length > 0 && (
+						<ErrorsRow>
+							{switchCalloutErrors.map((error) => (
+								<Notice isDismissible={false} key={error} status="warning">{error}</Notice>
+							))}
+						</ErrorsRow>
+					)}
+
 					<form onSubmit={handleSwitchCalloutSubmit}>
 						<SelectControl
 							label={__('Language', 'wicket-memberships')}
