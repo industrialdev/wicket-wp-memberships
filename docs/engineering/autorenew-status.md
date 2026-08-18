@@ -13,45 +13,7 @@ actually auto-renew. See `Class-Autorenew.md` for the method summary.
 
 It checks, in order: linked subscription exists, subscription status is
 active, not a staging/duplicate site, the manual-renewal flag, and (for
-non-free subscriptions) whether the payment method supports scheduled
-payments — with one documented exception, below, for a payment method
-that lacks that support.
-
-## Exception: gateways that don't declare scheduled-payment support
-
-Some payment gateway plugins never declare `gateway_scheduled_payments`
-support at all, even when they can genuinely process an automatic charge
-(confirmed for the WooCommerce Stripe gateway — see
-`atlas/quirks/stripe-gateway-scheduled-payments-gap.md`). WooCommerce
-Subscriptions' own cron path checks that declared support before
-attempting an automatic charge, so on an affected site, subscriptions get
-put on-hold for manual renewal regardless of their actual capability.
-
-This situation — Stripe + WCS + auto-renewal — can be worked around with
-an AutomateWoo workflow that fires the renewal-payment action directly,
-skipping WCS's check entirely (see
-`atlas/quirks/automatewoo-forced-autorenew-workflow.md` for the mechanism
-and a real example). `Autorenew::resolve_status()` detects this
-internally via a private `has_forced_workflow()` check (not part of the
-public API — verify the exception through `resolve_status()`'s output,
-not a direct call): if a **published** AutomateWoo workflow exists with
-the exact title `Wicket: Force Subscription Auto-Renewal`, the
-gateway-support check is skipped and the subscription is treated as
-autorenewing.
-
-The workflow lookup (`get_posts()`) is cached in the
-`wicket_mship_has_forced_autorenew_workflow` transient for 1 hour, since
-`Autorenew::resolve_status()` can run once per membership on an admin
-list/report page. The transient is cleared immediately on any
-`aw_workflow` save or trash (`save_post_aw_workflow`, `trashed_post`), so
-publishing or disabling the workflow takes effect right away rather than
-waiting out the hour.
-
-This is a narrow, intentional exception — it exists only to match this
-one documented workaround, not as a general escape hatch for other
-payment-gateway gaps. See the linked quirk docs before creating this
-workflow on a new site, and use the exact title above; the match is exact,
-not fuzzy.
+non-free subscriptions) whether a payment method is on file.
 
 ## Why local testing needs setup first
 
@@ -93,9 +55,7 @@ the same flag, so it will report `false` locally until this is addressed.
    - Ensure `_requires_manual_renewal` is `false` (via the autorenew toggle,
      or `wcs_get_subscription($id)->update_meta_data('_requires_manual_renewal', 'false')`
      + `->save()`).
-   - Ensure a payment method is set that supports scheduled payments (e.g.
-     Stripe with a saved card; check the gateway's `supports` array if
-     unsure).
+   - Ensure a payment method is on file (e.g. Stripe with a saved card).
 
 5. **Confirm the computed status.**
    ```
@@ -116,5 +76,3 @@ the same flag, so it will report `false` locally until this is addressed.
 - Full WCS staging mechanics: `woocommerce-subscriptions/includes/core/class-wcs-staging.php`
 - Renewal execution path: `WC_Subscriptions_Manager::process_renewal()`,
   `woocommerce-subscriptions/includes/core/class-wc-subscriptions-manager.php:139`
-- Gateway-support exception: `atlas/quirks/stripe-gateway-scheduled-payments-gap.md`,
-  `atlas/quirks/automatewoo-forced-autorenew-workflow.md`

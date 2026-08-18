@@ -11,21 +11,6 @@ defined( 'ABSPATH' ) || exit;
 class Autorenew {
 
   /**
-   * Exact title of the AutomateWoo workflow that bypasses the gateway-support check. See
-   * atlas/quirks/automatewoo-forced-autorenew-workflow.md.
-   *
-   * @var string
-   */
-  const FORCED_WORKFLOW_TITLE = 'Wicket: Force Subscription Auto-Renewal';
-
-  public function __construct() {
-    // Bust the cached forced-autorenew-workflow lookup whenever an aw_workflow post changes,
-    // so a newly published/unpublished workflow is picked up without waiting for cache expiry.
-    add_action( 'save_post_aw_workflow', [ __CLASS__, 'clear_forced_workflow_cache' ] );
-    add_action( 'trashed_post', [ __CLASS__, 'clear_forced_workflow_cache' ] );
-  }
-
-  /**
    * Bool-only wrapper around `resolve_status()`.
    *
    * @param  array $membership  See `resolve_status()`.
@@ -43,10 +28,39 @@ class Autorenew {
    * membership CPT's own status meta, a disabled-but-registered gateway, or a dead payment
    * token.
    *
+   * Runs each gate in order and stops at the first one that fails. Checks the gateway's
+   * `tokenization` support (can it charge a stored payment method with no customer present), not
+   * `gateway_scheduled_payments` (which only means the gateway self-schedules its own renewals
+   * instead of relying on WCS's dispatch hook — both are compatible with automatic charging).
+   *
    * @param  array $membership  Must contain `membership_subscription_id`.
    * @return array{result: bool, reason: string|null}  `reason` is set only when false.
    */
   public static function resolve_status( $membership ) {
+    $subscription = self::check_linked_subscription( $membership );
+    if ( is_array( $subscription ) ) {
+      return $subscription;
+    }
+
+    // One-line-per-check, intentionally: mirrors the real renewal process flow, gate by gate and increases readability.
+    if ( $result = self::check_subscription_active( $subscription ) ) return $result;
+    if ( $result = self::check_not_staging_site( $subscription ) ) return $result;
+    if ( $result = self::check_not_manual_renewal( $subscription ) ) return $result;
+    if ( $result = self::check_free_subscription( $subscription ) ) return $result;
+    if ( $result = self::check_payment_method_on_file( $subscription ) ) return $result;
+    if ( $result = self::check_gateway_can_charge_unattended( $subscription ) ) return $result;
+
+    return [ 'result' => true, 'reason' => null ];
+  }
+
+  /**
+   * Resolves `$membership` to its linked `WC_Subscription`, or a final result if none exists.
+   *
+   * @param  array $membership  Must contain `membership_subscription_id`.
+   * @return \WC_Subscription|array{result: bool, reason: string|null}  The subscription on
+   *         success, or a final `resolve_status()` result when no usable subscription exists.
+   */
+  private static function check_linked_subscription( $membership ) {
     if ( empty( $membership['membership_subscription_id'] ) ) {
       // No linked subscription (e.g. legacy/imported record): nothing can auto-renew it.
       return [ 'result' => false, 'reason' => __( 'No linked subscription.', 'wicket-memberships' ) ];
@@ -57,116 +71,119 @@ class Autorenew {
       return [ 'result' => false, 'reason' => __( 'Linked subscription not found.', 'wicket-memberships' ) ];
     }
 
-    // A subscription that isn't active-like will never renew regardless of its manual-renewal
-    // flag or payment method, so this check comes first.
+    return $subscription;
+  }
+
+  /**
+   * A subscription that isn't active-like will never renew regardless of its manual-renewal
+   * flag or payment method, so this check runs before those.
+   *
+   * @param  \WC_Subscription $subscription  The subscription to check.
+   * @return array{result: bool, reason: string|null}|null  A final result if not active, null to
+   *         continue to the next check.
+   */
+  private static function check_subscription_active( $subscription ) {
     if ( ! $subscription->has_status( 'active' ) ) {
       return [ 'result' => false, 'reason' => __( 'Subscription is not active.', 'wicket-memberships' ) ];
     }
 
-    // A staging/duplicate copy of the site forces manual renewal, to avoid charging real cards
-    // from a clone. Not using WCS's own is_manual() here since it also treats every
-    // non-WooCommerce-Payments gateway as manual, which would be wrong for our gateways.
-    // To allow real auto-payments on a staging copy, hook the
-    // `woocommerce_subscriptions_is_duplicate_site` filter (WCS core, class-wcs-staging.php) and
-    // return false — this check picks that up automatically since it calls WCS's own method
-    // rather than re-deriving the URL comparison. See:
-    // https://woocommerce.com/document/subscriptions/renewals/#staging-sites
+    return null;
+  }
+
+  /**
+   * A staging/duplicate copy of the site forces manual renewal, to avoid charging real cards
+   * from a clone. Not using WCS's own `is_manual()` here since it also treats every
+   * non-WooCommerce-Payments gateway as manual, which would be wrong for our gateways.
+   *
+   * To allow real auto-payments on a staging copy, hook the
+   * `woocommerce_subscriptions_is_duplicate_site` filter (WCS core, class-wcs-staging.php) and
+   * return false — this check picks that up automatically since it calls WCS's own method
+   * rather than re-deriving the URL comparison. See:
+   * https://woocommerce.com/document/subscriptions/renewals/#staging-sites
+   *
+   * @param  \WC_Subscription $subscription  The subscription to check (unused; staging is a
+   *         site-wide flag, not per-subscription — kept as a param for a uniform check signature).
+   * @return array{result: bool, reason: string|null}|null  A final result if staging, null to
+   *         continue to the next check.
+   */
+  private static function check_not_staging_site( $subscription ) {
     if ( class_exists( 'WCS_Staging' ) && \WCS_Staging::is_duplicate_site() ) {
       return [ 'result' => false, 'reason' => __( 'Site is flagged as a staging/duplicate site.', 'wicket-memberships' ) ];
     }
 
+    return null;
+  }
+
+  /**
+   * @param  \WC_Subscription $subscription  The subscription to check.
+   * @return array{result: bool, reason: string|null}|null  A final result if manual renewal is
+   *         required, null to continue to the next check.
+   */
+  private static function check_not_manual_renewal( $subscription ) {
     if ( ! empty( $subscription->get_requires_manual_renewal() ) ) {
       return [ 'result' => false, 'reason' => __( 'Subscription is set to require manual renewal.', 'wicket-memberships' ) ];
     }
 
-    // Free ($0) subscriptions never need a real payment method and are excluded from WC
-    // Subscriptions' own gateway checks, so treat them as a special case rather than asking
-    // the gateway a question it isn't designed to answer.
+    return null;
+  }
+
+  /**
+   * Free ($0) subscriptions never need a real payment method and are excluded from WC
+   * Subscriptions' own gateway checks, so treat them as a special case rather than asking
+   * the gateway a question it isn't designed to answer.
+   *
+   * @param  \WC_Subscription $subscription  The subscription to check.
+   * @return array{result: bool, reason: string|null}|null  A final `true` result if free, null to
+   *         continue to the next check.
+   */
+  private static function check_free_subscription( $subscription ) {
     if ( (float) $subscription->get_total() <= 0 ) {
       return [ 'result' => true, 'reason' => null ];
     }
 
+    return null;
+  }
+
+  /**
+   * @param  \WC_Subscription $subscription  The subscription to check.
+   * @return array{result: bool, reason: string|null}|null  A final result if no payment method is
+   *         on file, null to continue to the next check.
+   */
+  private static function check_payment_method_on_file( $subscription ) {
     if ( '' === $subscription->get_payment_method() ) {
       return [ 'result' => false, 'reason' => __( 'No payment method on file.', 'wicket-memberships' ) ];
     }
 
-    // Some gateways don't declare scheduled-payment support even when they can genuinely
-    // auto-charge. See atlas/quirks/stripe-gateway-scheduled-payments-gap.md.
-    if ( ! $subscription->payment_method_supports( 'gateway_scheduled_payments' ) ) {
-      // EXCEPTION: a documented AutomateWoo workaround bypasses this check for this specific
-      // Stripe/WCS auto-renew situation. See atlas/quirks/automatewoo-forced-autorenew-workflow.md
-      // — do not extend this to cover other gateway gaps.
-      if ( self::has_forced_workflow() ) {
-        return [ 'result' => true, 'reason' => null ];
-      }
-
-      // get_method_title() is the actual gateway name (e.g. "Stripe"); get_title() is the
-      // checkout-facing, merchant-customizable label (e.g. "Credit / Debit Card").
-      $gateway = function_exists( 'wc_get_payment_gateway_by_order' ) ? wc_get_payment_gateway_by_order( $subscription ) : false;
-      $gateway_name = $gateway ? $gateway->get_method_title() : $subscription->get_payment_method();
-
-      return [
-        'result' => false,
-        /* translators: %s: payment gateway name, e.g. "Stripe" */
-        'reason' => sprintf( __( 'Payment gateway (%s) does not support automatic renewal.', 'wicket-memberships' ), $gateway_name ),
-      ];
-    }
-
-    return [ 'result' => true, 'reason' => null ];
+    return null;
   }
 
   /**
-   * Whether a published AutomateWoo workflow named exactly "Wicket: Force Subscription
-   * Auto-Renewal" exists (exact match, not fuzzy). Cached; see atlas/quirks/automatewoo-forced-autorenew-workflow.md.
-   * Public: also read directly by `Autorenew_Sync` to compare against its debounce baseline.
+   * `tokenization` is the flag that means the gateway can charge a stored payment method with
+   * no customer present — the actual capability automatic renewal requires. Gateways that only
+   * work with a live customer (cheque, COD, bank transfer) never declare it. This is distinct
+   * from `gateway_scheduled_payments`, which only means the gateway self-manages its renewal
+   * schedule instead of relying on WCS's own scheduled-payment hook — both are compatible with
+   * automatic charging. See https://woocommerce.com/document/subscriptions/develop/payment-gateway-integration/
    *
-   * @return bool
+   * @param  \WC_Subscription $subscription  The subscription to check.
+   * @return array{result: bool, reason: string|null}|null  A final result if the gateway can't
+   *         charge unattended, null to continue (the last check, so null means autorenewing).
    */
-  public static function has_forced_workflow() {
-    // get_transient() returns false on a miss; stored values are always the strings 'yes'/'no',
-    // so a strict false check unambiguously means "not cached yet".
-    $cached = get_transient( self::forced_workflow_transient_key() );
-    if ( false !== $cached ) {
-      return 'yes' === $cached;
+  private static function check_gateway_can_charge_unattended( $subscription ) {
+    if ( $subscription->payment_method_supports( 'tokenization' ) ) {
+      return null;
     }
 
-    $result = false;
+    // get_method_title() is the actual gateway name (e.g. "Stripe"); get_title() is the
+    // checkout-facing, merchant-customizable label (e.g. "Credit / Debit Card").
+    $gateway = function_exists( 'wc_get_payment_gateway_by_order' ) ? wc_get_payment_gateway_by_order( $subscription ) : false;
+    $gateway_name = $gateway ? $gateway->get_method_title() : $subscription->get_payment_method();
 
-    if ( post_type_exists( 'aw_workflow' ) ) {
-      $workflows = \get_posts( [
-        'post_type' => 'aw_workflow',
-        'post_status' => 'publish',
-        'title' => self::FORCED_WORKFLOW_TITLE,
-        'posts_per_page' => 1,
-        'fields' => 'ids',
-      ] );
-
-      $result = ! empty( $workflows );
-    }
-
-    set_transient( self::forced_workflow_transient_key(), $result ? 'yes' : 'no', HOUR_IN_SECONDS );
-
-    return $result;
-  }
-
-  /**
-   * Clears the cached `has_forced_workflow()` result. Hooked to `save_post_aw_workflow` and
-   * `trashed_post` so a newly published/unpublished workflow is picked up immediately.
-   *
-   * @return void
-   */
-  public static function clear_forced_workflow_cache() {
-    delete_transient( self::forced_workflow_transient_key() );
-  }
-
-  /**
-   * The transient key used to cache `has_forced_workflow()`'s result. Kept as one method
-   * rather than a repeated literal, so the three call sites can't drift out of sync.
-   *
-   * @return string
-   */
-  private static function forced_workflow_transient_key() {
-    return 'wicket_mship_has_forced_autorenew_workflow';
+    return [
+      'result' => false,
+      /* translators: %s: payment gateway name, e.g. "Cheque" */
+      'reason' => sprintf( __( 'Payment gateway (%s) cannot charge automatically without the customer present.', 'wicket-memberships' ), $gateway_name ),
+    ];
   }
 
 }

@@ -191,7 +191,6 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       new Membership_WP_REST_Controller;
       new Membership_Subscription_Controller;
       new Helper;
-      new Autorenew;
       new Autorenew_Sync;
       new Settings;
       new Utilities;

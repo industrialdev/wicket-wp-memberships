@@ -29,8 +29,7 @@ class Autorenew_Sync {
   /**
    * How many `wicket_membership` posts `run_sweep_batch()` processes per Action Scheduler run.
    * Kept small and paired with `SWEEP_BATCH_GAP_SECONDS` so a bulk re-sweep stays paced rather
-   * than hammering downstream systems in one burst — see quirks/autorenew-sync-bulk-resweep-triggers.md
-   * for the open question on what pace is actually safe.
+   * than hammering downstream systems in one burst.
    *
    * @var int
    */
@@ -53,34 +52,6 @@ class Autorenew_Sync {
    * @var int
    */
   const SWEEP_DEBOUNCE_SECONDS = 5 * MINUTE_IN_SECONDS;
-
-  /**
-   * Transient storing the forced-workflow rule's published-state value from before the *first*
-   * trigger in the current debounce window — the baseline a flip-flop needs to revert to for the
-   * window to resolve as a no-op. Set once per window (a later trigger in the same window must
-   * not overwrite it with an intermediate value), cleared when the debounced decision runs.
-   *
-   * @var string
-   */
-  const BASELINE_KEY_WORKFLOW = 'wicket_mship_autorenew_sweep_baseline_workflow';
-
-  /**
-   * Transient storing the gateway-support rule's snapshot from before the *first* trigger in the
-   * current debounce window — same baseline/no-op semantics as `BASELINE_KEY_WORKFLOW`, just
-   * holding a `[gateway_id => bool]` snapshot instead of a single bool.
-   *
-   * @var string
-   */
-  const BASELINE_KEY_GATEWAY_SUPPORT = 'wicket_mship_autorenew_sweep_baseline_gateway_support';
-
-  /**
-   * Option storing the last-seen `[gateway_id => bool enabled]` snapshot, so a WooCommerce
-   * settings save can tell whether any gateway's enabled state actually changed rather than
-   * sweeping on every save. No expiry: a running snapshot, not a debounce window baseline.
-   *
-   * @var string
-   */
-  const GATEWAY_SUPPORT_SNAPSHOT_KEY = 'wicket_mship_autorenew_gateway_support_snapshot';
 
   /**
    * Transient holding `['total' => int, 'processed' => int]` for the sweep currently in flight, so
@@ -111,19 +82,6 @@ class Autorenew_Sync {
     // status stale with nothing left to recompute it. woocommerce_before_delete_order fires from
     // both the legacy post-based store and HPOS, unlike before_delete_post.
     add_action( 'woocommerce_before_delete_order', [ __CLASS__, 'handle_subscription_deleted' ], 10, 2 );
-
-    // Bulk re-sweep triggers: forced-autorenew workflow published/unpublished, or payment gateway
-    // settings changed (three separate save paths — classic form, legacy wc-ajax toggle, and the
-    // newer REST-based Payments screen, which fires neither of the other two hooks). Each is a
-    // rule change, not one subscription's data, so every stored value can go stale at once.
-    add_action( 'transition_post_status', [ __CLASS__, 'handle_aw_workflow_status_transition' ], 10, 3 );
-    add_action( 'woocommerce_update_options', [ __CLASS__, 'handle_woocommerce_settings_updated' ] );
-    add_action( 'updated_option', [ __CLASS__, 'handle_option_updated' ], 10, 1 );
-
-    // A bulk-sweep trigger's debounce window elapsed. Sweep only if the rule's current value
-    // actually differs from the baseline captured before the window opened.
-    add_action( 'wicket_mship_autorenew_sweep_decision_workflow', [ __CLASS__, 'run_sweep_decision_workflow' ], 10, 1 );
-    add_action( 'wicket_mship_autorenew_sweep_decision_gateway_support', [ __CLASS__, 'run_sweep_decision_gateway_support' ], 10, 1 );
 
     // Runs one batch of the sweep per action, then self-re-enqueues the next batch until done.
     add_action( 'wicket_mship_autorenew_sweep_batch', [ __CLASS__, 'run_sweep_batch' ], 10, 1 );
@@ -282,206 +240,6 @@ class Autorenew_Sync {
       update_post_meta( $membership_post_id, self::META_KEY_RESULT, false );
       update_post_meta( $membership_post_id, self::META_KEY_REASON, __( 'Linked subscription not found.', 'wicket-memberships' ) );
     }
-  }
-
-  /**
-   * Hooked to `transition_post_status`. Only the forced-autorenew workflow
-   * (`Autorenew::FORCED_WORKFLOW_TITLE`) affects `Autorenew::resolve_status()`'s answer, and only
-   * when its published-ness actually flips (e.g. publish -> draft/trash, or draft -> publish) —
-   * any other save (editing an unrelated field, a resave with no status change) is a no-op here.
-   *
-   * @param  string   $new_status  The status transitioned to.
-   * @param  string   $old_status  The status transitioned from.
-   * @param  \WP_Post $post        The post transitioning status.
-   * @return void
-   */
-  public static function handle_aw_workflow_status_transition( $new_status, $old_status, $post ) {
-    if ( 'aw_workflow' !== $post->post_type || $post->post_title !== Autorenew::FORCED_WORKFLOW_TITLE ) {
-      return;
-    }
-
-    $was_published = 'publish' === $old_status;
-    $is_published = 'publish' === $new_status;
-
-    if ( $was_published === $is_published ) {
-      return;
-    }
-
-    self::debounce_sweep_decision(
-      self::BASELINE_KEY_WORKFLOW,
-      $was_published,
-      'wicket_mship_autorenew_sweep_decision_workflow'
-    );
-  }
-
-  /**
-   * Hooked to `woocommerce_update_options`. Fires on the classic settings-tab form save and the
-   * legacy wc-ajax gateway enable/disable toggle. Not the only way a gateway can change — see
-   * `handle_option_updated()` for the newer REST-based Payments screen, which fires neither.
-   *
-   * @return void
-   */
-  public static function handle_woocommerce_settings_updated() {
-    self::check_gateway_support_snapshot();
-  }
-
-  /**
-   * Hooked to `updated_option`. WooCommerce's newer REST-based Payments settings screen calls
-   * `update_option()` directly and fires none of this plugin's other hooks — `updated_option` is
-   * the one hook guaranteed to fire regardless of which gateway-settings UI made the change, since
-   * it's WordPress core firing on the actual DB write. Fires for every option on the site, so this
-   * filters to option keys belonging to a currently-registered gateway first.
-   *
-   * @param  string $option  The option name that was just updated.
-   * @return void
-   */
-  public static function handle_option_updated( $option ) {
-    if ( ! self::option_belongs_to_a_gateway( $option ) ) {
-      return;
-    }
-
-    self::check_gateway_support_snapshot();
-  }
-
-  /**
-   * Whether `$option` is a currently-registered payment gateway's own settings option
-   * (`WC_Settings_API::get_option_key()`, e.g. `woocommerce_stripe_settings`) — checked against
-   * live gateway instances rather than a hardcoded naming pattern, since a gateway's `plugin_id`
-   * can vary.
-   *
-   * @param  string $option  The option name to check.
-   * @return bool
-   */
-  private static function option_belongs_to_a_gateway( $option ) {
-    // WC()->payment_gateways must be called as a method: WC()'s magic __get() that resolves the
-    // bare property to this method didn't reliably fire at this hook's point in the request.
-    if ( ! function_exists( 'WC' ) || ! WC()->payment_gateways() ) {
-      return false;
-    }
-
-    foreach ( WC()->payment_gateways()->payment_gateways() as $gateway ) {
-      if ( method_exists( $gateway, 'get_option_key' ) && $gateway->get_option_key() === $option ) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * Shared end of both `handle_woocommerce_settings_updated()` and `handle_option_updated()`:
-   * takes a fresh gateway snapshot and debounces a sweep decision unless it matches the last
-   * stored one.
-   *
-   * An unset previous snapshot (this method's first-ever run on a site) still debounces a
-   * decision rather than treating it as a no-op: being called at all means a gateway option was
-   * just written to, so there's no legitimate "nothing changed" outcome on a first run.
-   *
-   * @return void
-   */
-  private static function check_gateway_support_snapshot() {
-    $current_snapshot = self::current_gateway_support_snapshot();
-    $previous_snapshot = get_option( self::GATEWAY_SUPPORT_SNAPSHOT_KEY, null );
-
-    if ( null !== $previous_snapshot && $current_snapshot === $previous_snapshot ) {
-      return;
-    }
-
-    update_option( self::GATEWAY_SUPPORT_SNAPSHOT_KEY, $current_snapshot, false );
-
-    self::debounce_sweep_decision(
-      self::BASELINE_KEY_GATEWAY_SUPPORT,
-      $previous_snapshot,
-      'wicket_mship_autorenew_sweep_decision_gateway_support'
-    );
-  }
-
-  /**
-   * Builds a `[gateway_id => bool]` map of every registered payment gateway's current enabled
-   * state. Tracks enabled/disabled rather than declared `gateway_scheduled_payments` support:
-   * a gateway's declared support is effectively static (e.g. Stripe never declares it at all,
-   * regardless of enabled state), while enabling/disabling is the real-world event that can force
-   * subscriptions using that gateway toward manual renewal.
-   *
-   * @return array<string, bool>
-   */
-  private static function current_gateway_support_snapshot() {
-    if ( ! function_exists( 'WC' ) || ! WC()->payment_gateways() ) {
-      return [];
-    }
-
-    $snapshot = [];
-    foreach ( WC()->payment_gateways()->payment_gateways() as $gateway_id => $gateway ) {
-      $snapshot[ $gateway_id ] = isset( $gateway->enabled ) ? 'yes' === $gateway->enabled : true;
-    }
-
-    return $snapshot;
-  }
-
-  /**
-   * Hooked to `wicket_mship_autorenew_sweep_decision_gateway_support`, once the gateway-support
-   * trigger's debounce window elapses. Sweeps only if the current snapshot still differs from the
-   * pre-window baseline — a settings save that gets reverted within the window resolves as a
-   * no-op, same as the forced-workflow trigger.
-   *
-   * @return void
-   */
-  public static function run_sweep_decision_gateway_support() {
-    self::resolve_sweep_decision( self::BASELINE_KEY_GATEWAY_SUPPORT, self::current_gateway_support_snapshot() );
-  }
-
-  /**
-   * Schedules (or reschedules) a debounced decision for one rule. Captures `$baseline_value` as
-   * the pre-window baseline only if this is the first trigger in the current window — a second
-   * trigger before the decision has run must not overwrite it with an intermediate value, or a
-   * later revert back to the true original couldn't be recognized as a no-op.
-   *
-   * @param  string $baseline_transient_key  One of the `BASELINE_KEY_*` constants.
-   * @param  mixed  $baseline_value          The rule's value from before this trigger fired.
-   * @param  string $decision_hook           The rule's own `wicket_mship_autorenew_sweep_decision_*` hook.
-   * @return void
-   */
-  private static function debounce_sweep_decision( $baseline_transient_key, $baseline_value, $decision_hook ) {
-    // Wrapped in an array so a legitimately falsy baseline (false, '', '0') is never confused
-    // with get_transient()'s own false-means-miss sentinel.
-    if ( false === get_transient( $baseline_transient_key ) ) {
-      set_transient( $baseline_transient_key, [ 'value' => $baseline_value ], self::SWEEP_DEBOUNCE_SECONDS + MINUTE_IN_SECONDS );
-    }
-
-    as_unschedule_all_actions( $decision_hook, [], 'wicket-memberships' );
-    as_schedule_single_action( time() + self::SWEEP_DEBOUNCE_SECONDS, $decision_hook, [], 'wicket-memberships' );
-  }
-
-  /**
-   * Hooked to `wicket_mship_autorenew_sweep_decision_workflow`, once the forced-workflow
-   * trigger's debounce window elapses. Sweeps only if the workflow's current published state
-   * differs from its pre-window baseline.
-   *
-   * @return void
-   */
-  public static function run_sweep_decision_workflow() {
-    self::resolve_sweep_decision( self::BASELINE_KEY_WORKFLOW, Autorenew::has_forced_workflow() );
-  }
-
-  /**
-   * Shared end of every debounce window: compares the rule's current value (re-read live, not
-   * trusted from whenever the window was scheduled) against its pre-window baseline, sweeps only
-   * if they differ, and always clears the baseline transient to close out the window.
-   *
-   * @param  string $baseline_transient_key  One of the `BASELINE_KEY_*` constants.
-   * @param  mixed  $current_value           The rule's current, freshly-read value.
-   * @return void
-   */
-  private static function resolve_sweep_decision( $baseline_transient_key, $current_value ) {
-    $baseline = get_transient( $baseline_transient_key );
-    delete_transient( $baseline_transient_key );
-
-    if ( is_array( $baseline ) && $baseline['value'] === $current_value ) {
-      // Net no-op over the window (e.g. toggled on, then back off): nothing to sweep.
-      return;
-    }
-
-    self::enqueue_sweep();
   }
 
   /**
