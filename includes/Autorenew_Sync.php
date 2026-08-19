@@ -74,6 +74,11 @@ class Autorenew_Sync {
     // handling on the same hook (priority 10).
     add_action( 'woocommerce_process_shop_order_meta', [ __CLASS__, 'handle_admin_subscription_edit' ], 20 );
 
+    // Catches WCS's native front-end "Auto renew" toggle (My Account view-subscription page),
+    // which calls save() then wp_die() — a listener on its own wp_ajax_* action never runs, since
+    // wp_die() ends the request first. This fires from inside save() itself instead.
+    add_action( 'woocommerce_update_order', [ __CLASS__, 'handle_order_updated' ], 10, 1 );
+
     // Subscription total recalculated. A total crossing zero <-> non-zero (coupon, line-item
     // change) changes resolve_status()'s answer even with no status/payment-method change.
     add_action( 'woocommerce_order_after_calculate_totals', [ __CLASS__, 'handle_subscription_totals_calculated' ], 10, 2 );
@@ -253,6 +258,21 @@ class Autorenew_Sync {
    * @return void
    */
   public static function handle_admin_subscription_edit( $order_id, $order = null ) {
+    if ( ! function_exists( 'wcs_is_subscription' ) || ! wcs_is_subscription( $order_id ) ) {
+      return;
+    }
+
+    self::refresh_for_subscription( $order_id );
+  }
+
+  /**
+   * Hooked to `woocommerce_update_order`. Fires for every order type on every save, so this
+   * filters to subscriptions first.
+   *
+   * @param  int $order_id  The saved order/subscription's post ID.
+   * @return void
+   */
+  public static function handle_order_updated( $order_id ) {
     if ( ! function_exists( 'wcs_is_subscription' ) || ! wcs_is_subscription( $order_id ) ) {
       return;
     }
