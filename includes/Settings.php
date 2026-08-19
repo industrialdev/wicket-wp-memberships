@@ -108,7 +108,18 @@ class Settings {
     $action = as_get_scheduled_actions(['hook' => $hook, 'status' => \ActionScheduler_Store::STATUS_PENDING]);
     if(!empty($action)) {
       foreach($action as $a) {
-        $scheduled_time_site = (date("Y-m-d H:i", strtotime(json_decode(json_encode($a->get_schedule()->get_date()))->date)));  
+        $scheduled_time_site = (date("Y-m-d H:i", strtotime(json_decode(json_encode($a->get_schedule()->get_date()))->date)));
+        return $scheduled_time_site;
+      }
+    }
+  }
+
+  public function get_next_scheduled_membership_autorenew_audit() {
+    $hook = 'wicket_mship_autorenew_audit_hook';
+    $action = as_get_scheduled_actions(['hook' => $hook, 'group' => 'wicket-memberships', 'status' => \ActionScheduler_Store::STATUS_PENDING]);
+    if(!empty($action)) {
+      foreach($action as $a) {
+        $scheduled_time_site = (date("Y-m-d H:i", strtotime(json_decode(json_encode($a->get_schedule()->get_date()))->date)));
         return $scheduled_time_site;
       }
     }
@@ -126,6 +137,7 @@ class Settings {
     //add_settings_field( 'wicket_mship_subscription_renew', '<p>Use Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_subscription_renew'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_autorenew_toggle', '<p>Enable User Autorenew Subscription Toggle</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_toggle'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_autorenew_override', '<p>Enable Auto-Renew Override on Order Processing</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_override'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_autorenew_audit', '<p>Enable Nightly Autorenew Drift Audit</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_audit'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field('wicket_mship_mdp_timezone', '<p>MDP Timezone</p>', [__NAMESPACE__ . '\\Settings', 'wicket_mship_mdp_timezone'], 'wicket_membership_plugin', 'functional_settings');
     
     //debug
@@ -226,6 +238,26 @@ class Settings {
     $value = isset( $options['wicket_mship_autorenew_override'] ) ? $options['wicket_mship_autorenew_override'] : 1;
     echo "<input id='wicket_mship_autorenew_override' name='wicket_membership_plugin_options[wicket_mship_autorenew_override]' type='checkbox' value='1' " . checked( 1, $value, false ) . " />"
       . 'When enabled, order processing reads the <code>subscription_autopay_enabled</code> user meta and sets <code>_requires_manual_renewal</code> on the subscription. Disable to stop auto-renew from being overridden on every order, including renewal orders.';
+  }
+
+  /**
+   * Renders the autorenew drift-audit setting checkbox.
+   *
+   * When enabled, a nightly Action Scheduler job compares 100 memberships' stored autorenew
+   * meta against a fresh Autorenew::resolve_status() recompute and logs any disagreement.
+   * Report-only: this never corrects the stored value, since it exists to catch cases where
+   * an Autorenew_Sync trigger should have refreshed a membership but didn't.
+   *
+   * Defaults to disabled: unlike the override setting above, there's no legacy behaviour to
+   * preserve here, and running the audit costs a nightly batch of ~2 queries per membership.
+   *
+   * @return void
+   */
+  public static function wicket_mship_autorenew_audit() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    $value = isset( $options['wicket_mship_autorenew_audit'] ) ? $options['wicket_mship_autorenew_audit'] : 0;
+    echo "<input id='wicket_mship_autorenew_audit' name='wicket_membership_plugin_options[wicket_mship_autorenew_audit]' type='checkbox' value='1' " . checked( 1, $value, false ) . " />"
+      . 'When enabled, runs a nightly job that compares 100 memberships\' stored auto-renew status against a fresh calculation and logs any mismatch (WooCommerce &gt; Status &gt; Logs, source starting <code>wicket-membership-autorenew-drift-</code>). Report-only: never corrects the stored value.';
   }
 
   public static function wicket_mship_mdp_timezone()
@@ -383,6 +415,7 @@ class Settings {
     $newinput['wicket_mship_assign_subscription'] = trim($input['wicket_mship_assign_subscription']);
     $newinput['wicket_mship_autorenew_toggle'] = trim($input['wicket_mship_autorenew_toggle']);
     $newinput['wicket_mship_autorenew_override'] = trim($input['wicket_mship_autorenew_override']);
+    $newinput['wicket_mship_autorenew_audit'] = trim($input['wicket_mship_autorenew_audit']);
     $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
     $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
     $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);
@@ -423,6 +456,13 @@ class Settings {
       echo "<p>Next <strong>membership expiry</strong> (Active/Grace Period → Expired) will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_expiry_hook=1'>Run Now</a></p>";
     }
 
+    $schedule = $self->get_next_scheduled_membership_autorenew_audit();
+    if ( ! empty( $schedule ) ) {
+      echo "<p>Next <strong>autorenew drift audit</strong> (100 memberships, cached vs. calculated) will run at: $schedule ( AS Hook: wicket_mship_autorenew_audit_hook ) <a href='options-general.php?page=wicket-membership-settings&wicket_mship_run_autorenew_audit=1'>Run Now</a></p>";
+    } elseif ( ! empty( $_ENV['WICKET_MSHIP_AUTORENEW_AUDIT'] ) ) {
+      echo "<p><strong>Autorenew drift audit</strong> is enabled but not yet scheduled — it schedules itself on the next page load. <a href='options-general.php?page=wicket-membership-settings&wicket_mship_run_autorenew_audit=1'>Run Now</a></p>";
+    }
+
     if ( as_has_scheduled_action( 'wicket_mship_autorenew_sweep_batch', null, 'wicket-memberships' ) ) {
       $progress = Autorenew_Sync::get_sweep_progress();
       // The transient can be missing even mid-sweep (e.g. expired, or cleared out of band) —
@@ -448,6 +488,7 @@ class Settings {
     'schedule_daily_membership_grace_period_hook',
     'schedule_daily_membership_activation_hook',
     'wicket_mship_refresh_autorenew_status',
+    'wicket_mship_run_autorenew_audit',
   ];
 
   /**
@@ -506,6 +547,11 @@ class Settings {
       // manual sweep can cover thousands of memberships and must not risk timing out this request.
       Autorenew_Sync::enqueue_sweep();
       Utilities::wc_log_mship_error( [ 'wicket_mship_refresh_autorenew_status', 'Autorenew status sweep enqueued' ] );
+    }
+    if ( ! empty( $_GET['wicket_mship_run_autorenew_audit'] ) ) {
+      // Runs inline: a single audit batch is capped at Autorenew_Audit::BATCH_SIZE (100)
+      // memberships, well within one request's execution time, unlike the full sweep above.
+      Autorenew_Audit::run_batch();
     }
 
     return true;
