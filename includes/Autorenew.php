@@ -76,18 +76,42 @@ class Autorenew {
 
   /**
    * A subscription that isn't active-like will never renew regardless of its manual-renewal
-   * flag or payment method, so this check runs before those.
+   * flag or payment method, so this check runs before those. `on-hold` is a special case: WCS
+   * puts every subscription on hold at the start of each renewal attempt (before the gateway is
+   * even charged), and reuses `on-hold` for every automatic retry attempt afterward if a payment
+   * fails — see `WC_Subscriptions_Manager::process_renewal()` and `WCS_Retry_Manager`. A stuck
+   * `on-hold` with a live `payment_retry` date means WCS itself is still going to attempt another
+   * automatic charge, so treat that as still autorenewing rather than a hard "no."
    *
    * @param  \WC_Subscription $subscription  The subscription to check.
-   * @return array{result: bool, reason: string|null}|null  A final result if not active, null to
-   *         continue to the next check.
+   * @return array{result: bool, reason: string|null}|null  A final result if not active (and not
+   *         mid-automatic-retry), null to continue to the next check.
    */
   private static function check_subscription_active( $subscription ) {
-    if ( ! $subscription->has_status( 'active' ) ) {
-      return [ 'result' => false, 'reason' => __( 'Subscription is not active.', 'wicket-memberships' ) ];
+    if ( $subscription->has_status( 'active' ) ) {
+      return null;
     }
 
-    return null;
+    if ( $subscription->has_status( 'on-hold' ) && self::has_pending_automatic_retry( $subscription ) ) {
+      return null;
+    }
+
+    return [ 'result' => false, 'reason' => __( 'Subscription is not active.', 'wicket-memberships' ) ];
+  }
+
+  /**
+   * Whether WCS's automatic payment retry system has a future retry attempt scheduled for this
+   * subscription. `payment_retry` is a WCS-managed date: it only exists while a retry is actually
+   * pending, and WCS deletes it once retries are exhausted, disabled, or not applicable — so this
+   * is an exact signal, not a time-based guess. See `WCS_Retry_Manager::maybe_apply_retry_rule()`.
+   *
+   * @param  \WC_Subscription $subscription  The subscription to check.
+   * @return bool  True if a real, future automatic retry is scheduled.
+   */
+  private static function has_pending_automatic_retry( $subscription ) {
+    $retry_timestamp = $subscription->get_time( 'payment_retry', 'gmt' );
+
+    return ! empty( $retry_timestamp ) && $retry_timestamp > time();
   }
 
   /**
