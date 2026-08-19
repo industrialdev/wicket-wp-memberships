@@ -50,7 +50,10 @@ class Subscription_Manager {
 
     if ( $next_payment_ts >= $end_ts ) {
       $adjusted_ts = $end_ts - self::NEXT_PAYMENT_COLLISION_OFFSET;
-      Utilities::wicket_logger( 'Adjusted NEXT_PAYMENT date -1h to avoid end date collision', date( 'Y-m-d H:i:s', $adjusted_ts ) );
+      Utilities::wicket_logger(
+        sprintf( 'Adjusted NEXT_PAYMENT date -%ds to avoid end date collision', self::NEXT_PAYMENT_COLLISION_OFFSET ),
+        date( 'Y-m-d H:i:s', $adjusted_ts )
+      );
       return $adjusted_ts;
     }
 
