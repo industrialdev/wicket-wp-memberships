@@ -45,8 +45,11 @@ class Autorenew {
     // One-line-per-check, intentionally: mirrors the real renewal process flow, gate by gate and increases readability.
     if ( $result = self::check_subscription_active( $subscription ) ) return $result;
     if ( $result = self::check_not_staging_site( $subscription ) ) return $result;
-    if ( $result = self::check_not_manual_renewal( $subscription ) ) return $result;
+    // Must run before check_not_manual_renewal(): WCS's own process_renewal() auto-completes a
+    // $0 renewal order unconditionally (payment_complete()), never consulting is_manual() at
+    // completion time — a free subscription still renews even when flagged manual.
     if ( $result = self::check_free_subscription( $subscription ) ) return $result;
+    if ( $result = self::check_not_manual_renewal( $subscription ) ) return $result;
     if ( $result = self::check_payment_method_on_file( $subscription ) ) return $result;
     if ( $result = self::check_gateway_can_charge_unattended( $subscription ) ) return $result;
 
