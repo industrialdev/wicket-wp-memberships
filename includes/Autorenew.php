@@ -75,13 +75,9 @@ class Autorenew {
   }
 
   /**
-   * A subscription that isn't active-like will never renew regardless of its manual-renewal
-   * flag or payment method, so this check runs before those. `on-hold` is a special case: WCS
-   * puts every subscription on hold at the start of each renewal attempt (before the gateway is
-   * even charged), and reuses `on-hold` for every automatic retry attempt afterward if a payment
-   * fails — see `WC_Subscriptions_Manager::process_renewal()` and `WCS_Retry_Manager`. A stuck
-   * `on-hold` with a live `payment_retry` date means WCS itself is still going to attempt another
-   * automatic charge, so treat that as still autorenewing rather than a hard "no."
+   * WCS puts a subscription `on-hold` for every renewal attempt, including automatic retries
+   * (`WC_Subscriptions_Manager::process_renewal()`, `WCS_Retry_Manager`) — a live `payment_retry`
+   * date means it's still trying, not a hard failure.
    *
    * @param  \WC_Subscription $subscription  The subscription to check.
    * @return array{result: bool, reason: string|null}|null  A final result if not active (and not
@@ -100,10 +96,8 @@ class Autorenew {
   }
 
   /**
-   * Whether WCS's automatic payment retry system has a future retry attempt scheduled for this
-   * subscription. `payment_retry` is a WCS-managed date: it only exists while a retry is actually
-   * pending, and WCS deletes it once retries are exhausted, disabled, or not applicable — so this
-   * is an exact signal, not a time-based guess. See `WCS_Retry_Manager::maybe_apply_retry_rule()`.
+   * `payment_retry` only exists while WCS has a retry actually pending (`WCS_Retry_Manager`) — an
+   * exact signal, not a time-based guess.
    *
    * @param  \WC_Subscription $subscription  The subscription to check.
    * @return bool  True if a real, future automatic retry is scheduled.
@@ -189,19 +183,36 @@ class Autorenew {
    * schedule instead of relying on WCS's own scheduled-payment hook — both are compatible with
    * automatic charging. See https://woocommerce.com/document/subscriptions/develop/payment-gateway-integration/
    *
+   * Resolves the gateway directly rather than calling `$subscription->payment_method_supports()`:
+   * that method returns `true` whenever `is_manual()` is true, for ANY reason `is_manual()` can be
+   * true — including a gateway that's no longer registered at all (deactivated/deleted plugin).
+   * Confirmed live: a subscription left manual by a deactivated Stripe still had
+   * `payment_method_supports('tokenization')` return `true`, which is backwards.
+   *
    * @param  \WC_Subscription $subscription  The subscription to check.
    * @return array{result: bool, reason: string|null}|null  A final result if the gateway can't
    *         charge unattended, null to continue (the last check, so null means autorenewing).
    */
   private static function check_gateway_can_charge_unattended( $subscription ) {
-    if ( $subscription->payment_method_supports( 'tokenization' ) ) {
+    $gateway = function_exists( 'wc_get_payment_gateway_by_order' ) ? wc_get_payment_gateway_by_order( $subscription ) : false;
+
+    if ( $gateway && $gateway->supports( 'tokenization' ) ) {
       return null;
+    }
+
+    // No gateway resolves at all (plugin deactivated/deleted) is a different, more specific
+    // problem than a gateway that exists but lacks the capability — worth its own reason.
+    if ( ! $gateway ) {
+      return [
+        'result' => false,
+        /* translators: %s: payment gateway ID stored on the subscription, e.g. "stripe" */
+        'reason' => sprintf( __( 'Payment gateway (%s) is no longer installed or active.', 'wicket-memberships' ), $subscription->get_payment_method() ),
+      ];
     }
 
     // get_method_title() is the actual gateway name (e.g. "Stripe"); get_title() is the
     // checkout-facing, merchant-customizable label (e.g. "Credit / Debit Card").
-    $gateway = function_exists( 'wc_get_payment_gateway_by_order' ) ? wc_get_payment_gateway_by_order( $subscription ) : false;
-    $gateway_name = $gateway ? $gateway->get_method_title() : $subscription->get_payment_method();
+    $gateway_name = $gateway->get_method_title();
 
     return [
       'result' => false,

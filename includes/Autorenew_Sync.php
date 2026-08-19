@@ -85,6 +85,13 @@ class Autorenew_Sync {
 
     // Runs one batch of the sweep per action, then self-re-enqueues the next batch until done.
     add_action( 'wicket_mship_autorenew_sweep_batch', [ __CLASS__, 'run_sweep_batch' ], 10, 1 );
+
+    // A gateway plugin being activated, deactivated, or deleted adds/removes it from the registry
+    // entirely — unlike merely disabling it in its own settings, which WCS's renewal dispatch
+    // ignores. Both directions share the same debounced follow-up.
+    add_action( 'activated_plugin', [ __CLASS__, 'handle_plugin_activation_changed' ] );
+    add_action( 'deactivated_plugin', [ __CLASS__, 'handle_plugin_activation_changed' ] );
+    add_action( 'wicket_mship_autorenew_sweep_after_plugin_deactivation', [ __CLASS__, 'run_sweep_after_plugin_deactivation' ] );
   }
 
   /**
@@ -306,6 +313,34 @@ class Autorenew_Sync {
         self::push_to_mdp( $membership_post_id, Helper::get_post_meta( $membership_post_id ), false );
       }
     }
+  }
+
+  /**
+   * Hooked to `activated_plugin` and `deactivated_plugin`. `WC()->payment_gateways()` is built
+   * once early in the request, so it still reflects the pre-change registry for the rest of this
+   * request — schedules a debounced follow-up instead of sweeping immediately, so the actual check
+   * runs on a fresh request once the registry has caught up. Debounced (not just delayed) since a
+   * bulk activate/deactivate of several plugins fires this once per plugin — each new trigger
+   * pushes the follow-up back out rather than queuing a separate one per plugin.
+   *
+   * @param  string $plugin  Path to the plugin file, relative to the plugins directory.
+   * @return void
+   */
+  public static function handle_plugin_activation_changed( $plugin ) {
+    as_unschedule_all_actions( 'wicket_mship_autorenew_sweep_after_plugin_deactivation', [], 'wicket-memberships' );
+    as_schedule_single_action( time() + self::SWEEP_DEBOUNCE_SECONDS, 'wicket_mship_autorenew_sweep_after_plugin_deactivation', [], 'wicket-memberships' );
+  }
+
+  /**
+   * Hooked to `wicket_mship_autorenew_sweep_after_plugin_deactivation`, on a fresh request where
+   * the gateway registry has caught up. Unconditional: no cheap way to tell in advance whether the
+   * plugin was a gateway, so this just sweeps — a subscription whose gateway is unaffected
+   * resolves to the same answer it already had.
+   *
+   * @return void
+   */
+  public static function run_sweep_after_plugin_deactivation() {
+    self::enqueue_sweep();
   }
 
   /**
