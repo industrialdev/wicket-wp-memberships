@@ -555,6 +555,8 @@ function get_item_data ( $other_data, $cart_item ) {
     }
     $sub = \wcs_get_subscription( $sub_id );
     if(! empty($sub) && !empty($next_payment_date)) {
+      $forced_dates = Subscription_Manager::prepare_dates( ['next_payment' => $next_payment_date], $sub );
+      $next_payment_date = $forced_dates['next_payment'];
       $sub->update_dates(['next_payment' => $next_payment_date]);
       $sub->add_order_note( 'Wicket forced next payment date to: ' . $next_payment_date );
     }
@@ -924,6 +926,7 @@ function get_item_data ( $other_data, $cart_item ) {
           //we need to add the hook after the status update to ensure the dates are set correctly
           //when the subscription status is set to active after this code runs it changes subscription dates
           if(!empty($dates_to_update)) {
+            $dates_to_update = Subscription_Manager::prepare_dates( $dates_to_update, $sub );
             $sub->update_dates($dates_to_update);
             Utilities::wicket_logger( 'SUBSCRIPTION DATES BEING UPDATED MANUALLY: dates_to_update', $dates_to_update);
             add_action('woocommerce_subscription_status_updated', function( $subscription_id ) use ( $dates_to_update ) {
@@ -1221,13 +1224,125 @@ function get_item_data ( $other_data, $cart_item ) {
       }
       if( is_wp_error( $response ) ) {
         $this->error_message = $response->get_error_message( 'wicket_api_error' );
-        //$this->surface_error();
+        // WWID-2199: surface the real MDP error so callers that do not run in a
+        // checkout context (the bulk importer, admin tools) can see WHY the
+        // assign failed instead of only observing an empty UUID. The importer's
+        // adapter reads this via get_error_message(); wc_log_mship_error() also
+        // lands it in wc-logs for QA (wc_add_notice never fires here).
+        Utilities::wc_log_mship_error( [
+          'Membership_Controller::create_mdp_record MDP assign failed',
+          [
+            'person_uuid'          => $membership['person_uuid'] ?? '',
+            'membership_type'      => $membership['membership_type'] ?? '',
+            'membership_tier_uuid' => $membership['membership_tier_uuid'] ?? '',
+            'membership_starts_at' => $membership['membership_starts_at'] ?? '',
+            'membership_ends_at'   => $membership['membership_ends_at'] ?? '',
+            'error'                => $this->error_message,
+          ],
+        ] );
         $membership_wicket_uuid = '';
       } else {
         $membership_wicket_uuid = $response['data']['id'];
       }
     }
     return $membership_wicket_uuid;
+  }
+
+  /**
+   * The last MDP error message stashed by create_mdp_record() / update_mdp_record().
+   *
+   * WWID-2199: create_mdp_record() returns '' on failure and previously had no
+   * way for a non-checkout caller (the bulk importer, admin tools) to read WHY
+   * the MDP rejected the assign. Public read-only accessor so the importer can
+   * surface the real validation error (e.g. a 422 for ends_at <= starts_at)
+   * instead of a generic "returned no UUID". The value is also wc_log_mship_
+   * error()d inside create_mdp_record() so it is visible in wc-logs regardless.
+   *
+   * @return string
+   */
+  public function get_error_message() {
+    return $this->error_message;
+  }
+
+  /**
+   * Assign the WP membership post ID as the MDP external_id, with a pre-flight
+   * collision check.
+   *
+   * external_id is the WP post ID and the MDP holds a unique index on it per
+   * membership type. When another membership already owns that ID, the PATCH
+   * returns an opaque 409 and external_id stays NULL silently. This method
+   * detects the collision before the PATCH when the base plugin helper is
+   * available, reports it with the owning record, and flags the post either way
+   * so the broken state is visible in WP admin and wc-logs instead of silent.
+   *
+   * @param string $membership_wicket_uuid MDP membership id.
+   * @param string $wicket_membership_type person_memberships|organization_memberships.
+   * @param int    $membership_post_id     WP membership post ID (the external_id).
+   * @return bool True on success, false on collision or failure.
+   */
+  public function assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post_id ) {
+    $logger = wc_get_logger();
+    $log_context = [ 'source' => 'wicket-memberships' ];
+
+    // Pre-flight: detect an external_id already owned by a different membership.
+    // The helper ships in wicket-wp-base-plugin; guard with function_exists so
+    // this plugin stays safe if a site runs an older base plugin.
+    if ( function_exists( 'wicket_get_membership_by_external_id' ) ) {
+      $owner = wicket_get_membership_by_external_id( $membership_post_id, $wicket_membership_type );
+
+      if ( ! is_wp_error( $owner ) && ! empty( $owner['id'] ) && $owner['id'] !== $membership_wicket_uuid ) {
+        $owner_id = $owner['id'];
+        $logger->error(
+          sprintf(
+            'Membership external_id collision: WP post %1$s already owned by %2$s/%3$s (target %4$s). Skipping external_id PATCH; post %1$s left without an MDP link.',
+            $membership_post_id,
+            $wicket_membership_type,
+            $owner_id,
+            $membership_wicket_uuid
+          ),
+          $log_context
+        );
+        update_post_meta( $membership_post_id, '_wicket_membership_external_id_collision', [
+          'external_id' => $membership_post_id,
+          'type'        => $wicket_membership_type,
+          'owner'       => $owner_id,
+          'target'      => $membership_wicket_uuid,
+          'time'        => current_time( 'mysql', true ),
+        ] );
+        return false;
+      }
+    }
+
+    // No collision (or pre-flight unavailable): PATCH and act on the result.
+    $result = wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post_id );
+
+    if ( is_wp_error( $result ) ) {
+      // The base helper already logged the API error; flag the post too so the
+      // broken state is visible at the WP layer, not only in wc-logs.
+      $logger->error(
+        sprintf(
+          'Membership external_id PATCH failed for WP post %1$s (target %2$s/%3$s): %4$s',
+          $membership_post_id,
+          $wicket_membership_type,
+          $membership_wicket_uuid,
+          $result->get_error_message()
+        ),
+        $log_context
+      );
+      update_post_meta( $membership_post_id, '_wicket_membership_external_id_failed', [
+        'external_id' => $membership_post_id,
+        'type'        => $wicket_membership_type,
+        'target'      => $membership_wicket_uuid,
+        'error'       => $result->get_error_message(),
+        'time'        => current_time( 'mysql', true ),
+      ] );
+      return false;
+    }
+
+    // Success: clear stale flags from a prior failed attempt.
+    delete_post_meta( $membership_post_id, '_wicket_membership_external_id_failed' );
+    delete_post_meta( $membership_post_id, '_wicket_membership_external_id_collision' );
+    return true;
   }
 
   /**
@@ -1414,7 +1529,9 @@ function get_item_data ( $other_data, $cart_item ) {
         ]);
       }
       //moved outside of conditional for merge membership functionality to work on update membership post meta
-      wicket_update_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
+      // Return value ignored on purpose: failures are flagged via post meta
+      // (_collision/_failed) and wc-logs; local record creation must complete.
+      $this->assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
 
       // Refresh the stored autorenew status now that the subscription link (and its status/
       // manual-renewal flag) is known to be current on this post. See A0007.
