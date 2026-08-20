@@ -79,6 +79,24 @@ const RecordTopInfo = styled.div`
   font-size: 14px;
 `;
 
+// Shimmering placeholder bar shown while memberInfo (and any filtered label/value) is still loading,
+// so the header doesn't flash default text before the real, possibly-filtered content arrives.
+const SkeletonText = styled.span`
+  display: inline-block;
+  width: ${(props) => props.width || '80px'};
+  height: 1em;
+  vertical-align: middle;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #e0e0e0 25%, #eeeeee 50%, #e0e0e0 75%);
+  background-size: 200% 100%;
+  animation: wicket-mship-skeleton-loading 1.2s ease-in-out infinite;
+
+  @keyframes wicket-mship-skeleton-loading {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+`;
+
 const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
 	const renewalTypeOptions = [
@@ -539,7 +557,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 <Heading
                   level={3}
                 >
-                  {memberType === 'individual' ? getIndividualName() : memberInfo === null ? '' : memberInfo.org_name}
+                  {memberType === 'individual' ? getIndividualName() : memberInfo === null ? <SkeletonText width="200px" /> : memberInfo.org_name}
                 </Heading>
               </FlexBlock>
               <FlexItem>
@@ -585,20 +603,20 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 {memberType === 'individual' &&
                   <>
                     <FlexItem>
-                      <strong>{__('Email:', 'wicket-memberships')}</strong> {memberInfo === null ? '-' : memberInfo.data}
+                      <strong>{__('Email:', 'wicket-memberships')}</strong> {memberInfo === null ? <SkeletonText /> : memberInfo.data}
                     </FlexItem>
                     <FlexItem>
-                      <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> {memberInfo === null ? '-' : memberInfo.identifying_number}
+                      <strong>{memberInfo === null ? <SkeletonText width="140px" /> : memberInfo.identifying_number_label}</strong> {memberInfo === null ? <SkeletonText width="40px" /> : memberInfo.identifying_number}
                     </FlexItem>
                   </>
                 }
                 {memberType === 'organization' &&
                   <>
                     <FlexItem>
-                      <strong>{__('Location:', 'wicket-memberships')}</strong> {memberInfo === null ? '-' : memberInfo.data}
+                      <strong>{__('Location:', 'wicket-memberships')}</strong> {memberInfo === null ? <SkeletonText /> : memberInfo.data}
                     </FlexItem>
                     <FlexItem>
-                      <strong>{__('Identifying Number:', 'wicket-memberships')}</strong> {memberInfo === null ? '-' : memberInfo.identifying_number}
+                      <strong>{memberInfo === null ? <SkeletonText width="140px" /> : memberInfo.identifying_number_label}</strong> {memberInfo === null ? <SkeletonText width="40px" /> : memberInfo.identifying_number}
                     </FlexItem>
                   </>
                 }
