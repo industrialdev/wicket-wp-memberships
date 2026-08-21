@@ -417,8 +417,9 @@ class Admin_Controller {
 
     $identifying_number = apply_filters( 'wicket_mship_edit_page_identifying_number', $defaults, $id, $type );
 
-    // Guard against a misbehaving client filter: fall back to defaults if the shape is wrong, and always sanitize the label since it now comes from third-party code.
-    if ( ! is_array( $identifying_number ) || ! isset( $identifying_number['value'], $identifying_number['label'] ) ) {
+    // Guard against a misbehaving client filter: fall back to defaults if the shape is wrong. `value` must be
+    // scalar (not an array/object) since it round-trips through the REST response straight into a React child.
+    if ( ! is_array( $identifying_number ) || ! isset( $identifying_number['value'], $identifying_number['label'] ) || ! is_scalar( $identifying_number['value'] ) ) {
       return $defaults;
     }
 
