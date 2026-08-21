@@ -37,6 +37,7 @@ class Membership_CPT_Hooks {
     if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
       add_action( 'admin_menu', [ $this, 'edit_bundle_member_page' ] );
       add_action( 'admin_menu', [ $this, 'create_bundle_member_page' ] );
+      add_action( 'load-post.php', [ $this, 'create_bundle_edit_page_redirect' ] );
     }
 
     add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_scripts' ] );
@@ -162,6 +163,39 @@ class Membership_CPT_Hooks {
       self::EDIT_BUNDLE_MEMBER_PAGE_SLUG,
       [ $this, 'render_edit_bundle_member_page' ]
     );
+  }
+
+  /**
+   * Redirect the native post.php edit screen for a wicket_mship_bundle post to the
+   * React bundle-member edit page, keyed by the bundle's renewal-series group UUID
+   * rather than its post ID. Legacy bundle posts with no group UUID fall back to the
+   * bundle list page since there is no reliable id to deep-link to.
+   *
+   * MDP has no concept of a renewal series — each bundle term is its own record there.
+   * The group UUID is a WordPress-only construct so the admin UI can group renewal
+   * terms together instead of showing them as unrelated, detached bundle posts.
+   */
+  public function create_bundle_edit_page_redirect() {
+    if (
+      ! isset( $_GET['post'] ) ||
+      ! isset( $_GET['action'] ) || $_GET['action'] !== 'edit'
+    ) {
+      return;
+    }
+
+    $post_id = intval( $_GET['post'] );
+    if ( get_post_type( $post_id ) !== Helper::get_membership_bundle_cpt_slug() ) {
+      return;
+    }
+
+    $bundle_group_uuid = ( new Membership_Bundle( $post_id ) )->get_bundle_group_uuid();
+
+    if ( $bundle_group_uuid ) {
+      wp_safe_redirect( admin_url( 'admin.php?page=' . self::EDIT_BUNDLE_MEMBER_PAGE_SLUG . '&id=' . $bundle_group_uuid ) );
+    } else {
+      wp_safe_redirect( admin_url( 'admin.php?page=' . self::LIST_BUNDLE_MEMBER_PAGE_SLUG ) );
+    }
+    exit;
   }
 
   function create_bundle_member_page() {
