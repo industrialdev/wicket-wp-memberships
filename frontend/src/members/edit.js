@@ -122,6 +122,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const [wpPagesOptions, setWpPagesOptions] = useState([]); // { id, name }
   const [wpTierOptions, setWpTierOptions] = useState([]); // { id, name }
   const [memberInfo, setMemberInfo] = useState(null);
+  const [memberInfoError, setMemberInfoError] = useState(false);
   const [memberships, setMemberships] = useState([]);
   const [membershipOwnerOptions, setMembershipOwnerOptions] = useState([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
@@ -480,12 +481,12 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const getMemberInfo = () => {
     fetchMemberInfo(recordId)
       .then((response) => {
-        console.log('memberInfo');
-        console.log(response);
         setMemberInfo(response);
       })
       .catch((error) => {
         console.error(error);
+        // memberInfo stays null on failure, so mark the error explicitly to stop the skeletons rendering forever.
+        setMemberInfoError(true);
       });
   }
 
@@ -557,7 +558,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 <Heading
                   level={3}
                 >
-                  {memberType === 'individual' ? getIndividualName() : memberInfo === null ? <SkeletonText width="200px" /> : memberInfo.org_name}
+                  {memberType === 'individual' ? getIndividualName() : memberInfo === null ? (memberInfoError ? '-' : <SkeletonText width="200px" />) : memberInfo.org_name}
                 </Heading>
               </FlexBlock>
               <FlexItem>
@@ -603,20 +604,20 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                 {memberType === 'individual' &&
                   <>
                     <FlexItem>
-                      <strong>{__('Email:', 'wicket-memberships')}</strong> {memberInfo === null ? <SkeletonText /> : memberInfo.data}
+                      <strong>{__('Email:', 'wicket-memberships')}</strong> {memberInfo === null ? (memberInfoError ? '-' : <SkeletonText />) : memberInfo.data}
                     </FlexItem>
                     <FlexItem>
-                      <strong>{memberInfo === null ? <SkeletonText width="140px" /> : memberInfo.identifying_number_label}</strong> {memberInfo === null ? <SkeletonText width="40px" /> : memberInfo.identifying_number}
+                      <strong>{memberInfo === null ? (memberInfoError ? '-' : <SkeletonText width="140px" />) : memberInfo.identifying_number_label}</strong> {memberInfo === null ? (memberInfoError ? '-' : <SkeletonText width="40px" />) : memberInfo.identifying_number}
                     </FlexItem>
                   </>
                 }
                 {memberType === 'organization' &&
                   <>
                     <FlexItem>
-                      <strong>{__('Location:', 'wicket-memberships')}</strong> {memberInfo === null ? <SkeletonText /> : memberInfo.data}
+                      <strong>{__('Location:', 'wicket-memberships')}</strong> {memberInfo === null ? (memberInfoError ? '-' : <SkeletonText />) : memberInfo.data}
                     </FlexItem>
                     <FlexItem>
-                      <strong>{memberInfo === null ? <SkeletonText width="140px" /> : memberInfo.identifying_number_label}</strong> {memberInfo === null ? <SkeletonText width="40px" /> : memberInfo.identifying_number}
+                      <strong>{memberInfo === null ? (memberInfoError ? '-' : <SkeletonText width="140px" />) : memberInfo.identifying_number_label}</strong> {memberInfo === null ? (memberInfoError ? '-' : <SkeletonText width="40px" />) : memberInfo.identifying_number}
                     </FlexItem>
                   </>
                 }
