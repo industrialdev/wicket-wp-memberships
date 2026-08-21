@@ -102,33 +102,49 @@ class Autorenew_Audit {
     $lines = [];
     $drift_count = 0;
 
+    // A single membership's resolve_status() blowing up (e.g. corrupt subscription meta — exactly
+    // the kind of row this audit exists to visit) must not abort the batch: the cursor advances
+    // per row in the finally block below, so a poison row is logged and skipped rather than
+    // pinning every future run at the same cursor position. Mirrors
+    // Autorenew_Sync::run_sweep_batch()'s identical guard.
     foreach ( $membership_post_ids as $membership_post_id ) {
-      $cached_result = (bool) get_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_RESULT, true );
-      $cached_reason = get_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_REASON, true ) ?: null;
+      try {
+        $cached_result = (bool) get_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_RESULT, true );
+        $cached_reason = get_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_REASON, true ) ?: null;
 
-      $membership_meta = Helper::get_post_meta( $membership_post_id );
-      $calculated = Autorenew::resolve_status( $membership_meta );
+        $membership_meta = Helper::get_post_meta( $membership_post_id );
+        $calculated = Autorenew::resolve_status( $membership_meta );
 
-      $line = sprintf(
-        'Membership %d: cached=%s, calculated=%s',
-        $membership_post_id,
-        $cached_result ? 'true' : 'false',
-        $calculated['result'] ? 'true' : 'false'
-      );
-
-      if ( $cached_result !== $calculated['result'] ) {
-        $drift_count++;
-        $line .= sprintf(
-          "\n  cached reason: %s\n  calculated reason: %s",
-          $cached_reason ?: '(none)',
-          $calculated['reason'] ?: '(none)'
+        $line = sprintf(
+          'Membership %d: cached=%s, calculated=%s',
+          $membership_post_id,
+          $cached_result ? 'true' : 'false',
+          $calculated['result'] ? 'true' : 'false'
         );
+
+        if ( $cached_result !== $calculated['result'] ) {
+          $drift_count++;
+          $line .= sprintf(
+            "\n  cached reason: %s\n  calculated reason: %s",
+            $cached_reason ?: '(none)',
+            $calculated['reason'] ?: '(none)'
+          );
+        }
+
+        $lines[] = $line;
+      } catch ( \Throwable $e ) {
+        $lines[] = sprintf( 'Membership %d: audit failed: %s', $membership_post_id, $e->getMessage() );
+        Utilities::wc_log_mship_error( sprintf(
+          'Autorenew audit: failed to check membership #%d: %s',
+          $membership_post_id,
+          $e->getMessage()
+        ) );
+      } finally {
+        // Advances past this row whether it succeeded or threw, so a poison row can never pin the
+        // cursor: it's skipped on all future runs instead of re-fataling this action forever.
+        update_option( self::CURSOR_OPTION, $membership_post_id );
       }
-
-      $lines[] = $line;
     }
-
-    update_option( self::CURSOR_OPTION, (int) end( $membership_post_ids ) );
 
     $checked = count( $membership_post_ids );
     $correct = $checked - $drift_count;
