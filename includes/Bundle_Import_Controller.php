@@ -102,8 +102,18 @@ class Bundle_Import_Controller {
 
     $this->resync_bundle_subscription( $bundle, $date_window, $expires_at, $status );
 
+    $external_id_note = '';
     if ( ! empty( $record['External_ID'] ) ) {
       update_post_meta( $bundle->post_id, 'membership_bundle_external_id', $record['External_ID'] );
+
+      // Best-effort MDP sync — a missing/invalid bundle UUID on MDP's side shouldn't
+      // stop the import; the local post meta above is already the source of truth.
+      if ( function_exists( 'wicket_update_bundle_membership_external_id' ) ) {
+        $external_id_response = wicket_update_bundle_membership_external_id( $mdp_uuid, $record['External_ID'] );
+        if ( is_wp_error( $external_id_response ) ) {
+          $external_id_note = ' (MDP external_id sync failed, saved locally only)';
+        }
+      }
     }
 
     // Seed the MDP UUID last, only after every prior step succeeded — this is what
@@ -111,7 +121,7 @@ class Bundle_Import_Controller {
     // before this point never reached MDP linkage and will retry as a fresh post.
     update_post_meta( $bundle->post_id, 'membership_bundle_mdp_uuid', $mdp_uuid );
 
-    return $this->log_and_respond( 'created', "Membership Bundle created: post#{$bundle->post_id}, Membership Bundle UUID#{$mdp_uuid}", $record, $bundle->post_id );
+    return $this->log_and_respond( 'created', "Membership Bundle created: post#{$bundle->post_id}, Membership Bundle UUID#{$mdp_uuid}{$external_id_note}", $record, $bundle->post_id );
   }
 
   /**
