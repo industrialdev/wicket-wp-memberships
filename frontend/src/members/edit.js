@@ -95,6 +95,10 @@ const SkeletonText = styled.span`
     0% { background-position: 200% 0; }
     100% { background-position: -200% 0; }
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 `;
 
 const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
