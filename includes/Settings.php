@@ -445,22 +445,22 @@ class Settings {
     $self = new self();
     $schedule = $self->get_next_scheduled_membership_activation();
     if(!empty($schedule)) {
-      echo "<p>Next <strong>membership activation</strong> (Delayed → Active) will run at: $schedule ( AS Hook: schedule_daily_membership_activation_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_activation_hook=1'>Run Now</a></p>";
+      echo "<p>Next <strong>membership activation</strong> (Delayed → Active) will run at: $schedule ( AS Hook: schedule_daily_membership_activation_hook ) <a href='" . esc_url( self::get_manual_action_link( 'schedule_daily_membership_activation_hook' ) ) . "'>Run Now</a></p>";
     }
     $schedule = $self->get_next_scheduled_membership_grace_period();
     if(!empty($schedule)) {
-      echo "<p>Next <strong>membership grace period</strong> (Active → Grace Period) will run at: $schedule ( AS Hook: schedule_daily_membership_grace_period_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_grace_period_hook=1'>Run Now</a></p>";
+      echo "<p>Next <strong>membership grace period</strong> (Active → Grace Period) will run at: $schedule ( AS Hook: schedule_daily_membership_grace_period_hook ) <a href='" . esc_url( self::get_manual_action_link( 'schedule_daily_membership_grace_period_hook' ) ) . "'>Run Now</a></p>";
     }
     $schedule = $self->get_next_scheduled_membership_expiry();
     if(!empty($schedule)) {
-      echo "<p>Next <strong>membership expiry</strong> (Active/Grace Period → Expired) will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_expiry_hook=1'>Run Now</a></p>";
+      echo "<p>Next <strong>membership expiry</strong> (Active/Grace Period → Expired) will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook ) <a href='" . esc_url( self::get_manual_action_link( 'schedule_daily_membership_expiry_hook' ) ) . "'>Run Now</a></p>";
     }
 
     $schedule = $self->get_next_scheduled_membership_autorenew_audit();
     if ( ! empty( $schedule ) ) {
-      echo "<p>Next <strong>autorenew drift audit</strong> (100 memberships, cached vs. calculated) will run at: $schedule ( AS Hook: wicket_mship_autorenew_audit_hook ) <a href='options-general.php?page=wicket-membership-settings&wicket_mship_run_autorenew_audit=1'>Run Now</a></p>";
+      echo "<p>Next <strong>autorenew drift audit</strong> (100 memberships, cached vs. calculated) will run at: $schedule ( AS Hook: wicket_mship_autorenew_audit_hook ) <a href='" . esc_url( self::get_manual_action_link( 'wicket_mship_run_autorenew_audit' ) ) . "'>Run Now</a></p>";
     } elseif ( ! empty( $_ENV['WICKET_MSHIP_AUTORENEW_AUDIT'] ) ) {
-      echo "<p><strong>Autorenew drift audit</strong> is enabled but not yet scheduled — it schedules itself on the next page load. <a href='options-general.php?page=wicket-membership-settings&wicket_mship_run_autorenew_audit=1'>Run Now</a></p>";
+      echo "<p><strong>Autorenew drift audit</strong> is enabled but not yet scheduled — it schedules itself on the next page load. <a href='" . esc_url( self::get_manual_action_link( 'wicket_mship_run_autorenew_audit' ) ) . "'>Run Now</a></p>";
     }
 
     if ( as_has_scheduled_action( 'wicket_mship_autorenew_sweep_batch', null, 'wicket-memberships' ) ) {
@@ -470,10 +470,23 @@ class Settings {
       // stays clickable during a sweep: clicking it restarts from offset 0 via enqueue_sweep(),
       // same as starting a fresh one, so there's no separate "cancel" state to build.
       $progress_text = $progress ? " (In Progress: {$progress['processed']} of {$progress['total']} membership records processed)" : ' (In Progress)';
-      echo "<p><strong>Autorenew status</strong>: recompute and recache the auto-renew status for every membership. Runs in the background via Action Scheduler, in batches of ".Autorenew_Sync::SWEEP_BATCH_SIZE.". ( AS Hook: wicket_mship_autorenew_sweep_batch ) <a href='options-general.php?page=wicket-membership-settings&wicket_mship_refresh_autorenew_status=1'>Refresh All Now</a>{$progress_text}</p>";
+      echo "<p><strong>Autorenew status</strong>: recompute and recache the auto-renew status for every membership. Runs in the background via Action Scheduler, in batches of ".Autorenew_Sync::SWEEP_BATCH_SIZE.". ( AS Hook: wicket_mship_autorenew_sweep_batch ) <a href='" . esc_url( self::get_manual_action_link( 'wicket_mship_refresh_autorenew_status' ) ) . "'>Refresh All Now</a>{$progress_text}</p>";
     } else {
-      echo "<p><strong>Autorenew status</strong>: recompute and recache the auto-renew status for every membership. Runs in the background via Action Scheduler, in batches of ".Autorenew_Sync::SWEEP_BATCH_SIZE.". ( AS Hook: wicket_mship_autorenew_sweep_batch ) <a href='options-general.php?page=wicket-membership-settings&wicket_mship_refresh_autorenew_status=1'>Refresh All Now</a></p>";
+      echo "<p><strong>Autorenew status</strong>: recompute and recache the auto-renew status for every membership. Runs in the background via Action Scheduler, in batches of ".Autorenew_Sync::SWEEP_BATCH_SIZE.". ( AS Hook: wicket_mship_autorenew_sweep_batch ) <a href='" . esc_url( self::get_manual_action_link( 'wicket_mship_refresh_autorenew_status' ) ) . "'>Refresh All Now</a></p>";
     }
+  }
+
+  /**
+   * Builds a nonced settings-page URL for one manual "Run Now" / "Refresh All Now" trigger link.
+   *
+   * @param  string $trigger_param  One of `MANUAL_ACTION_TRIGGER_PARAMS`.
+   * @return string  Nonced URL; verified by `run_triggered_actions()` via `check_admin_referer()`.
+   */
+  private static function get_manual_action_link( $trigger_param ) {
+    return wp_nonce_url(
+      "options-general.php?page=wicket-membership-settings&{$trigger_param}=1",
+      'wicket_mship_manual_action'
+    );
   }
 
   /**
@@ -520,7 +533,12 @@ class Settings {
   }
 
   /**
-   * Runs whichever of this page's manual triggers are present in `$_GET`, if any.
+   * Runs whichever of this page's manual triggers are present in `$_GET`, if any. These triggers
+   * start real background jobs (or run one inline), so both a capability check and nonce
+   * verification gate every branch below, not just the outer "is a trigger present" check — a
+   * capability-only guard would still let an attacker-crafted link ride an admin's session via a
+   * plain GET (CSRF), since GET requests carry no proof the admin actually clicked "Run Now" on
+   * this page.
    *
    * @return bool  True if at least one trigger ran (caller should redirect to clear the query
    *               string), false if none were present.
@@ -529,6 +547,12 @@ class Settings {
     if ( empty( array_filter( self::MANUAL_ACTION_TRIGGER_PARAMS, fn( $param ) => ! empty( $_GET[ $param ] ) ) ) ) {
       return false;
     }
+
+    if ( ! current_user_can( 'manage_options' ) ) {
+      return false;
+    }
+
+    check_admin_referer( 'wicket_mship_manual_action' );
 
     if ( ! empty( $_GET['schedule_daily_membership_expiry_hook'] ) ) {
       $count = Membership_Controller::daily_membership_expiry_hook();
