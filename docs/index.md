@@ -20,9 +20,11 @@ audience: [implementer, support, developer, end-user]
 
 ### Tools
 - [Subscription Sync Tool — Engineering Reference](engineering/memberships_sync.md) — How `custom/memberships-sync.php` links subscriptions to memberships and syncs per-seat MDP seat counts
+- [Autorenew Status](engineering/autorenew-status.md) — `Autorenew::is_autorenewing()` reference and steps to test auto-renew locally (staging-site override required)
 
 ### Class Reference
 - [Admin_Controller](engineering/Class-Admin_Controller.md) — Admin menu pages, status transition validation, React app mounting
+- [Autorenew](engineering/Class-Autorenew.md) — Single source of truth for whether a membership's linked subscription will actually auto-renew, and why
 - [Helper](engineering/Class-Helper.md) — Static utilities: CPT slugs, status names, allowed transitions, logging
 - [Import_Controller](engineering/Class-Import_Controller.md) — CSV import for individual and organization memberships
 - [Membership_Config](engineering/Class-Membership_Config.md) — Model for config posts: renewal windows, grace periods, cycle calculations

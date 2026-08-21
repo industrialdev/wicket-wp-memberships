@@ -3,6 +3,8 @@
 namespace Wicket_Memberships;
 
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Autorenew;
+use Wicket_Memberships\Autorenew_Sync;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -162,6 +164,19 @@ class Utilities {
    * Show error notice for bulk product trash protection on the product list page.
    */
 
+  /**
+   * Displays the raw manual-renewal flag and the computed autorenew status for a subscription
+   * in the admin order/subscription details screen.
+   *
+   * Split into two separate rows deliberately: the raw flag and the computed answer can
+   * disagree (e.g. the flag says autopay is on, but the payment gateway on file doesn't
+   * actually support scheduled payments), so showing only one of them can mislead an admin
+   * into thinking a subscription will renew when it won't, or vice versa.
+   *
+   * @param  \WC_Order $order  The order or subscription object being viewed.
+   *
+   * @return void
+   */
   public function display_autopay_status_row_admin($order) {
     if (!is_object($order) || !method_exists($order, 'get_type')) {
       return;
@@ -172,11 +187,51 @@ class Utilities {
     if (!method_exists($order, 'get_requires_manual_renewal')) {
       return;
     }
-    $is_manual = $order->get_requires_manual_renewal();
-    $autopay_status = $is_manual ? __('Off', 'wicket-memberships') : __('On', 'wicket-memberships');
+
+    $requires_manual_renewal = $order->get_requires_manual_renewal();
+    $manual_renewal_state = $requires_manual_renewal ? __('Yes', 'wicket-memberships') : __('No', 'wicket-memberships');
+
+    // Read the stored value Autorenew_Sync keeps refreshed, rather than recomputing live on every
+    // render. A subscription can be tied to more than one wicket_membership post (bundle line
+    // items), but resolve_status() only ever looks at the subscription itself, so every
+    // membership on the same subscription always resolves to the same stored status — reading
+    // whichever one comes back first is correct, not a lossy shortcut.
+    $membership_post_ids = get_posts([
+      'post_type' => 'wicket_membership',
+      'post_status' => 'publish',
+      'numberposts' => 1,
+      'meta_query' => [
+        [ 'key' => 'membership_subscription_id', 'value' => $order->get_id(), 'compare' => '=' ],
+      ],
+      'fields' => 'ids',
+    ]);
+
+    // No linked membership post at all (e.g. a subscription with no membership yet) — nothing to
+    // read or compute, so skip this row entirely rather than rendering a synthetic guess.
+    if (empty($membership_post_ids)) {
+      echo '<div class="order_data_column">
+        <p><strong>' . esc_html__('Requires Manual Renewal', 'wicket-memberships') . '</strong> '
+          . wc_help_tip(esc_html__('Whether this subscription is forced to renew manually, blocking automatic payment. Usually set by the customer using the autorenew toggle on the front end.', 'wicket-memberships'))
+        . '<br />' . esc_html($manual_renewal_state) . '</p>
+      </div>';
+      return;
+    }
+
+    // get_stored_status() computes and stores the value once if it's never been computed (e.g. a
+    // membership created before this cache existed) — a one-time cost, not a live recompute on
+    // every render.
+    $autorenew_status = Autorenew_Sync::get_stored_status($membership_post_ids[0]);
+    $autorenew_state = $autorenew_status['result'] ? __('Automatic Payment', 'wicket-memberships') : __('Manual Payment', 'wicket-memberships');
+    $autorenew_reason = $autorenew_status['reason'];
+
     echo '<div class="order_data_column">
-      <h4>' . esc_html__('Autopay Enabled', 'wicket-memberships') . '</h4>
-      <p><strong>' . esc_html($autopay_status) . '</strong></p>
+      <p><strong>' . esc_html__('Requires Manual Renewal', 'wicket-memberships') . '</strong> '
+        . wc_help_tip(esc_html__('Whether this subscription is forced to renew manually, blocking automatic payment. Usually set by the customer using the autorenew toggle on the front end.', 'wicket-memberships'))
+      . '<br />' . esc_html($manual_renewal_state) . '</p>
+      <p><strong>' . esc_html__('Auto-Renew State', 'wicket-memberships') . '</strong> '
+        . wc_help_tip(esc_html__('Whether this subscription will renew by automatic or manual payment. This value is cached and may take a few minutes to update after a change.', 'wicket-memberships'))
+      . '<br />' . esc_html($autorenew_state)
+      . ( $autorenew_reason ? ' ' . wc_help_tip(esc_html($autorenew_reason)) : '' ) . '</p>
     </div>';
   }
 
@@ -983,10 +1038,9 @@ function wicket_sub_org_select_callback( $subscription ) {
       $subscription_id = get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true );
     }
     if(!empty($subscription_id)) {
-      $sub = wcs_get_subscription( $subscription_id );
-      if(!empty($sub)) {
-        $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
-      }
+      // Use the single source of truth for autorenew status rather than the raw manual-renewal
+      // flag, so the checkbox reflects whether the subscription will really auto-renew.
+      $is_autopay_enabled = Autorenew::is_autorenewing( ['membership_subscription_id' => $subscription_id] );
       $checked = !empty($is_autopay_enabled) ? 'checked' : '';
     } else {
       $user_autopay_enabled = get_user_meta( get_current_user_id(), 'subscription_autopay_enabled', true);
@@ -1134,6 +1188,11 @@ function wicket_sub_org_select_callback( $subscription ) {
       $subscription->update_meta_data('_requires_manual_renewal', $subscription_renewal_boolean);
       $subscription->save();
       $subscription->add_order_note('Customer turned '.($enabled == 'yes' ? 'on' : 'off').' automatic renewals via the Wicket Toggle. Manual renewal flag set to '.$subscription_renewal_boolean);
+
+      // The manual-renewal flag isn't a status change, so it doesn't fire
+      // woocommerce_subscription_status_updated (Autorenew_Sync's other listener) — refresh
+      // directly here instead. See A0007.
+      Autorenew_Sync::refresh_for_subscription( $subscription_id );
     }
     update_user_meta($user_id, 'subscription_autopay_enabled', $enabled);
     wp_send_json_success(['message' => 'Auto-renew status updated for '.$user_id, 'status' => $enabled]);
