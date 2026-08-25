@@ -1269,6 +1269,28 @@ function get_item_data ( $other_data, $cart_item ) {
     // Fires only when the bundle has already been synced (membership_bundle_mdp_uuid present).
     // Falls through to the individual path when the UUID is absent — safe degradation.
     if ( ! empty( $membership['membership_bundle_mdp_uuid'] ) && function_exists( 'wicket_assign_person_to_bundle_membership' ) ) {
+      // Reuse an existing MDP assignment under this bundle when one already exists
+      // (e.g. re-importing a person already linked in MDP) instead of creating a
+      // duplicate — matches the existence check the individual path already does.
+      $existing_bundle_membership_uuid = '';
+      if ( function_exists( 'wicket_get_person_bundle_membership_exists' ) ) {
+        $existing_bundle_membership_uuid = wicket_get_person_bundle_membership_exists(
+          $membership['membership_bundle_mdp_uuid'],
+          $membership['person_uuid'],
+          $membership['membership_tier_uuid']
+        );
+      }
+
+      if ( is_wp_error( $existing_bundle_membership_uuid ) ) {
+        $this->error_message = $existing_bundle_membership_uuid->get_error_message( 'wicket_api_error' );
+        return '';
+      }
+
+      if ( ! empty( $existing_bundle_membership_uuid ) ) {
+        Utilities::wc_log_mship_error( ['create_mdp_record: bundle path, reusing existing MDP assignment', 'bundle_mdp_uuid' => $membership['membership_bundle_mdp_uuid'], 'person_uuid' => $membership['person_uuid'], 'tier_uuid' => $membership['membership_tier_uuid'], 'existing_uuid' => $existing_bundle_membership_uuid] );
+        return $existing_bundle_membership_uuid;
+      }
+
       Utilities::wc_log_mship_error( ['create_mdp_record: bundle path', 'bundle_mdp_uuid' => $membership['membership_bundle_mdp_uuid'], 'person_uuid' => $membership['person_uuid'], 'tier_uuid' => $membership['membership_tier_uuid']] );
       $response = wicket_assign_person_to_bundle_membership(
         $membership['person_uuid'],

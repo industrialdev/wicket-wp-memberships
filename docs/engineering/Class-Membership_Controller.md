@@ -164,7 +164,7 @@ Updates the subscription dates for a membership, handling WooCommerce Subscripti
 Updates the membership record in the external MDP system, handling both individual and organization memberships.
 
 **create_mdp_record($membership)**
-Creates a new membership record in the external MDP system, handling both individual and organization memberships, and supporting version-specific features.
+Creates a new membership record in the external MDP system, handling both individual and organization memberships, and supporting version-specific features. For bundle members (`membership_bundle_mdp_uuid` present), first checks via `wicket_get_person_bundle_membership_exists()` whether the person already has an MDP assignment under that bundle for the tier, and reuses it instead of creating a duplicate.
 
 **check_mdp_membership_record_exists($membership)** (private)
 Checks if a membership record already exists in the MDP system for the given person, tier, and dates.

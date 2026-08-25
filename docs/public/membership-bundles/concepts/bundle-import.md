@@ -57,6 +57,8 @@ This means a bundle that was manually cancelled before its natural end date will
 
 Bundle members are imported through the **individual membership import**, not this one. Add the optional `Membership_Bundle_UUID` column to a member's row in the individual membership CSV — when present, that member is created through the matching bundle (inheriting its dates and status) instead of as a standalone membership.
 
+Before assigning the member in MDP, the import checks whether the person already has an MDP assignment under that bundle for the tier (`wicket_get_person_bundle_membership_exists()`) and reuses it instead of creating a duplicate MDP record — mirroring the existing-record check the individual (non-bundle) import already does.
+
 ::: danger Import bundles before members
 The individual import's duplicate check runs before bundle-link logic, so a member row processed before its bundle exists cannot be linked afterward on a re-run. Always import all bundles, then import members.
 :::
