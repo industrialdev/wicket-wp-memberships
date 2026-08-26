@@ -892,66 +892,54 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Terminate the previous membership's subscription after a monthly autopay Form Flow renewal.
+   * Stop the previous membership's subscription taking payment after a Form Flow renewal.
    *
    * A Form Flow renewal is a fresh cart purchase, so it creates a NEW subscription and leaves the
-   * old one running: for this flow the old subscription's 'end' is the previous membership's
-   * membership_expires_at, and its next_payment keeps rolling monthly, so it bills past the term
-   * it was paying for. Nothing else cancels it - only the admin cancel/expire endpoints do
-   * (Admin_Controller::admin_manage_status(), lines 240 and 270). Expiring the previous membership
-   * does not touch the subscription.
+   * old one with a live payment date. Nothing else stops it - only the admin cancel/expire endpoints
+   * cancel a subscription (Admin_Controller::admin_manage_status(), lines 240 and 270), and expiring
+   * the previous membership record does not touch it.
    *
-   * Scoped deliberately to the population the early-renewal callout was opened up for: Form Flow
-   * renewal destination, monthly billing interval, autopay on, and a different subscription from
-   * the one the new membership landed on. Anything else is left exactly as it was.
+   * Scoped to the population the early-renewal callout was opened up for: Form Flow renewal
+   * destination, autopay on, and a different subscription from the one the new membership landed on.
+   * Anything else is left exactly as it was. Whether the payment date is actually removed is decided
+   * by Subscription_Manager, which keeps monthly instalments.
    *
    * @param  array $membership  The newly created membership, carrying previous_membership_post_id.
    *
    * @return void
+   *
+   * @see Subscription_Manager::drop_superseded_next_payment()
    */
   private function terminate_previous_form_flow_subscription( $membership ) {
     if ( ! function_exists( 'wcs_get_subscription' ) ) {
       return;
     }
 
-    $previous_membership_post_id = $membership['previous_membership_post_id'];
+    $previous_id = $membership['previous_membership_post_id'];
 
     // Form Flow only: a form page destination and no subscription-renewal flag. Read from the
     // previous membership record, not the tier, so this matches the flow that record actually ran.
-    $previous_form_page_id = get_post_meta( $previous_membership_post_id, 'membership_next_tier_form_page_id', true );
-    $previous_subscription_renewal = get_post_meta( $previous_membership_post_id, 'membership_next_tier_subscription_renewal', true );
-    if ( empty( $previous_form_page_id ) || ! empty( $previous_subscription_renewal ) ) {
+    if ( empty( get_post_meta( $previous_id, 'membership_next_tier_form_page_id', true ) )
+      || ! empty( get_post_meta( $previous_id, 'membership_next_tier_subscription_renewal', true ) ) ) {
       return;
     }
 
-    $previous_subscription_id = get_post_meta( $previous_membership_post_id, 'membership_subscription_id', true );
-    if ( empty( $previous_subscription_id ) ) {
+    // Nothing to do without a subscription, or when the renewal landed on the same one - that is
+    // the live subscription now, so its payment date must stay.
+    $previous_subscription_id = get_post_meta( $previous_id, 'membership_subscription_id', true );
+    if ( empty( $previous_subscription_id )
+      || $previous_subscription_id == ( $membership['membership_subscription_id'] ?? '' ) ) {
       return;
     }
 
-    // Renewed onto the same subscription - it is the live one now, leave its dates alone.
-    if ( $previous_subscription_id == ( $membership['membership_subscription_id'] ?? '' ) ) {
-      return;
-    }
-
+    // Autopay only - a manual-renewal subscription takes no payment on its own, so there is
+    // nothing to stop.
     $previous_sub = \wcs_get_subscription( $previous_subscription_id );
-    if ( empty( $previous_sub ) ) {
+    if ( empty( $previous_sub ) || $previous_sub->get_requires_manual_renewal() ) {
       return;
     }
 
-    // Monthly autopay only.
-    if ( $previous_sub->get_requires_manual_renewal()
-      || $previous_sub->get_billing_period() != 'month'
-      || $previous_sub->get_billing_interval() != 1 ) {
-      return;
-    }
-
-    $previous_ends_at = get_post_meta( $previous_membership_post_id, 'membership_ends_at', true );
-    if ( empty( $previous_ends_at ) ) {
-      return;
-    }
-
-    Subscription_Manager::terminate_at_membership_end( $previous_sub, strtotime( $previous_ends_at ) );
+    Subscription_Manager::drop_superseded_next_payment( $previous_sub );
   }
 
   public static function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
@@ -2301,10 +2289,10 @@ function get_item_data ( $other_data, $cart_item ) {
        * checks below consult this: the skip immediately after, and the early_renewal one further
        * down, which would otherwise suppress the entry on its own.
        *
-       * Held to the narrowest population deliberately: inside the early renewal window only, Form
-       * Flow destination only (a form page and no subscription-renewal flag), and - tested at each
-       * use site, where the subscription is in scope - monthly billing only. Every other flow,
-       * billing period and date range behaves exactly as before.
+       * Scoped to Form Flow inside the early renewal window, and nothing else: a form page
+       * destination, no subscription-renewal flag. Billing period is deliberately NOT part of this -
+       * the reason autopay cannot serve this renewal is the form, which holds whatever the billing
+       * period is. Every other renewal flow and date range behaves exactly as before.
        */
       $allow_form_flow_early_callout =
            ( $current_time >= $membership_early_renew_at && $current_time < $membership_ends_at )
@@ -2319,12 +2307,7 @@ function get_item_data ( $other_data, $cart_item ) {
           $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
           $subscription_status = $sub->get_status();
           $next_payment_date = $sub->get_time( 'next_payment' );
-          // Monthly is tested here rather than alongside the flow checks above so the subscription
-          // read stays inside this guard, out of reach of the $sub value left by a previous
-          // membership in this same loop.
-          $is_monthly_form_flow_exception = $allow_form_flow_early_callout
-            && $sub->get_billing_period() == 'month' && $sub->get_billing_interval() == 1;
-          if( $is_autopay_enabled && !empty($next_payment_date) && $subscription_status != 'on-hold' && $subscription_status != 'expired' && $subscription_status != 'cancelled' && $subscription_status != 'switched' && $subscription_status != 'trash' && (current_time( 'timestamp' ) < $next_payment_date) && ! $is_monthly_form_flow_exception) {
+          if( $is_autopay_enabled && !empty($next_payment_date) && $subscription_status != 'on-hold' && $subscription_status != 'expired' && $subscription_status != 'cancelled' && $subscription_status != 'switched' && $subscription_status != 'trash' && (current_time( 'timestamp' ) < $next_payment_date) && ! $allow_form_flow_early_callout) {
             echo "<$debug_comment_hide--";
             echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
             echo '|'.( strtotime($next_payment_date) - current_time( 'timestamp' ) );
@@ -2449,11 +2432,9 @@ function get_item_data ( $other_data, $cart_item ) {
             if(empty($next_payment_date) || $subscription_status == 'on-hold' || $subscription_status == 'expired' || $subscription_status == 'cancelled' || $subscription_status == 'switched' || $subscription_status == 'trash' || (current_time( 'timestamp' ) > $next_payment_date)) {
               $is_autopay_enabled = false;
             }
-            // Monthly autopay Form Flow: autopay cannot complete a form, so it must not stand in
-            // for the renewal here either. Reuses the existing flag so the emit condition below is
-            // untouched, and stays inside this guard for the same reason as the skip above.
-            if( $allow_form_flow_early_callout
-              && $sub->get_billing_period() == 'month' && $sub->get_billing_interval() == 1 ) {
+            // Form Flow: autopay cannot complete a form, so it must not stand in for the renewal
+            // here either. Reuses the existing flag so the emit condition below is untouched.
+            if( $allow_form_flow_early_callout ) {
               $is_autopay_enabled = false;
             }
           }
