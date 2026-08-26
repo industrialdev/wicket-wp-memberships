@@ -44,11 +44,13 @@ audience: [implementer, support, developer, end-user]
 - [Membership_Bundle_Cron_Controller](engineering/Membership_Bundle_Cron_Controller.md) — Daily Action Scheduler handlers for bundle grace-period, expiry, activation, and renewal batch processing
 - [Membership_Bundle_WP_REST_Controller](engineering/Membership_Bundle_WP_REST_Controller.md) — REST endpoints for all membership bundle operations
 - [Settings](engineering/Class-Settings.md) — Plugin options page: feature flags, debug toggles, scheduled action status
+- [Subscription_Manager](engineering/Class-Subscription_Manager.md) — Intended eventual home for all WC_Subscription-touching logic; currently holds end-date/next-payment collision guards
 - [Utilities](engineering/Class-Utilities.md) — WooCommerce integration hooks: cart/checkout modifications, product protection, timezone date helpers
 
 ## Bug Fix Docs (Developers)
 Repair work only — kept separate from Engineering Docs so novel feature work is distinguishable from fixes to discovered issues. See [scope & required sections](bugfix/README.md).
 
+- [Monthly Autopay Form Flow — Hidden Renewal Callout & Orphaned Subscription](bugfix/monthly-autopay-form-flow-renewal-callout.md) — Why the renewal callout was hidden for the whole renewal window on monthly autopay Form Flow tiers, and why the old subscription kept billing past the term after a renewal. Both autopay checks in `get_membership_callouts()`, and the new `Subscription_Manager::terminate_at_membership_end()` clamp
 - [WP Private Content Plus Collision — Admin Product & Page Pickers](bugfix/wppcp-product-picker-collision.md) — Why product/variation/page lookups use plugin endpoints instead of `/wc/v3/products` and `/wp/v2/pages`; WPCP filters every REST query and clobbers `post__not_in`. Includes regression coverage, the three harness prerequisites, and proposed coverage for the pages endpoint (WWID-1763)
 
 ## Public Docs (External Developers & New Team Members)
