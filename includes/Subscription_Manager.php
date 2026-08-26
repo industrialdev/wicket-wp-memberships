@@ -97,74 +97,38 @@ class Subscription_Manager {
   }
 
   /**
-   * Clamps a subscription's 'end' to a membership's end date, dropping a 'next_payment' that
-   * would fall on or after it.
+   * Removes the pending payment from a subscription whose membership has been renewed elsewhere.
    *
-   * For a membership renewed into a NEW subscription, the old one is left billing to its own end
-   * date with nothing to stop it. This terminates it with the term it was actually paying for.
+   * A renewal that creates a NEW subscription leaves the old one with a live payment date and
+   * nothing to stop it, so it keeps taking money for a term that is over. Clearing the date leaves
+   * it inert: it takes no further payment and expires on its own end date without renewing.
    *
-   * Deliberately does NOT route through prepare_dates(): that guard PRESERVES a colliding
-   * next_payment by nudging it an hour before 'end', which here would take one more monthly
-   * payment the member no longer owes. The intent is the opposite - remove it.
+   * Monthly billing is the exception. Those payments are instalments against the term the member
+   * has already taken, so they are still owed and the date is left in place.
    *
-   * WooCommerce treats a 0 date as a delete and excludes it from the end > next_payment
-   * comparison (WC_Subscription::prepare_dates_for_update()), so both changes go in one call.
+   * Deliberately does NOT route through prepare_dates(), which exists to PRESERVE a colliding
+   * next_payment by nudging it earlier. Here the payment is the thing being removed.
    *
-   * @param  \WC_Subscription  $sub     Subscription to terminate.
-   * @param  int               $end_ts  Membership end timestamp (UTC) to terminate on.
+   * @param  \WC_Subscription  $sub  Superseded subscription to stop taking payment on.
    *
-   * @return bool  True if the dates were written; false if the clamp was skipped or rejected.
-   *
-   * @since 1.0.123
+   * @return bool  True if the date was removed; false if there was nothing to remove, the billing
+   *               period is monthly, or WooCommerce rejected the write.
    */
-  public static function terminate_at_membership_end( \WC_Subscription $sub, int $end_ts ): bool {
-    if ( empty( $end_ts ) ) {
+  public static function drop_superseded_next_payment( \WC_Subscription $sub ): bool {
+    if ( ( $sub->get_billing_period() == 'month' && $sub->get_billing_interval() == 1 )
+      || empty( $sub->get_time( 'next_payment' ) ) ) {
       return false;
-    }
-
-    if ( ! $sub->can_date_be_updated( 'end' ) ) {
-      Utilities::wc_log_mship_error( [ 'Subscription end date not updatable, termination clamp skipped', [ $sub->get_id(), $sub->get_status() ] ] );
-      return false;
-    }
-
-    // Only ever shorten. A subscription already ending on or before the term end needs nothing,
-    // and extending one here would be the opposite of the intent.
-    $current_end_ts = $sub->get_time( 'end' );
-    if ( ! empty( $current_end_ts ) && $end_ts >= $current_end_ts ) {
-      return false;
-    }
-
-    // WooCommerce rejects an 'end' that precedes the last payment. Renewing late enough that a
-    // monthly charge already landed past the term end is the case that reaches this.
-    $last_payment_ts = $sub->get_time( 'last_order_date_created' );
-    if ( ! empty( $last_payment_ts ) && $end_ts <= $last_payment_ts ) {
-      Utilities::wc_log_mship_error( [ 'Membership end precedes last subscription payment, termination clamp skipped', [ $sub->get_id(), gmdate( 'Y-m-d H:i:s', $end_ts ), gmdate( 'Y-m-d H:i:s', $last_payment_ts ) ] ] );
-      return false;
-    }
-
-    // gmdate(), not date(): WooCommerce reads these as UTC. WordPress pins PHP's default timezone
-    // to UTC so the two agree today, but this value has no reason to depend on that.
-    $dates_to_update = [ 'end' => gmdate( 'Y-m-d H:i:s', $end_ts ) ];
-
-    $next_payment_ts = $sub->get_time( 'next_payment' );
-    $drop_next_payment = ! empty( $next_payment_ts ) && $next_payment_ts >= $end_ts;
-    if ( $drop_next_payment ) {
-      $dates_to_update['next_payment'] = 0;
     }
 
     try {
-      $sub->update_dates( $dates_to_update );
+      // WooCommerce reads a 0 date as a delete.
+      $sub->update_dates( [ 'next_payment' => 0 ] );
     } catch ( \Exception $e ) {
-      Utilities::wc_log_mship_error( [ 'Failed to terminate subscription at membership end', [ $sub->get_id(), $dates_to_update, $e->getMessage() ] ] );
+      Utilities::wc_log_mship_error( [ 'Failed to remove next payment date from superseded subscription', [ $sub->get_id(), $e->getMessage() ] ] );
       return false;
     }
 
-    $sub->add_order_note(
-      $drop_next_payment
-        ? 'Wicket set this subscription to end ' . $dates_to_update['end'] . ' with the membership term it was paying for, and removed the next payment date, which fell after that.'
-        : 'Wicket set this subscription to end ' . $dates_to_update['end'] . ' with the membership term it was paying for. Next payment date kept, it falls before that.'
-    );
-    Utilities::wicket_logger( 'Terminated subscription at membership end', [ $sub->get_id(), $dates_to_update ] );
+    $sub->add_order_note( 'Wicket removed the next payment date: the membership this subscription was paying for has been renewed.' );
 
     return true;
   }

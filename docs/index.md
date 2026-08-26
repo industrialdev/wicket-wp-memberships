@@ -42,6 +42,7 @@ audience: [implementer, support, developer, end-user]
 Repair work only — kept separate from Engineering Docs so novel feature work is distinguishable from fixes to discovered issues. See [scope & required sections](bugfix/README.md).
 
 - [Monthly Autopay Form Flow — Hidden Renewal Callout & Orphaned Subscription](bugfix/monthly-autopay-form-flow-renewal-callout.md) — Why the renewal callout was hidden for the whole renewal window on monthly autopay Form Flow tiers, and why the old subscription kept billing past the term after a renewal. Both autopay checks in `get_membership_callouts()`, and the new `Subscription_Manager::terminate_at_membership_end()` clamp
+- [Annual Autopay Form Flow — Callout Still Hidden & Term-End Auto Payment](bugfix/annual-autopay-form-flow-renewal-callout.md) — Why the monthly repair did not reach annual subscriptions, and why those carry an armed term-end payment that auto-creates a membership with the renewal form bypassed. Drops the billing-period test from both autopay gates and removes the superseded subscription's `next_payment` so no renewal order is generated
 - [WP Private Content Plus Collision — Admin Product & Page Pickers](bugfix/wppcp-product-picker-collision.md) — Why product/variation/page lookups use plugin endpoints instead of `/wc/v3/products` and `/wp/v2/pages`; WPCP filters every REST query and clobbers `post__not_in`. Includes regression coverage, the three harness prerequisites, and proposed coverage for the pages endpoint (WWID-1763)
 
 ## Guides (End Users)
