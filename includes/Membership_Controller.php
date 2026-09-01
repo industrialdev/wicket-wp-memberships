@@ -856,8 +856,11 @@ function get_item_data ( $other_data, $cart_item ) {
       // WWID-2384: the hook's documented contract is "fired when the MDP record
       // and local post are successfully synchronized". create_mdp_record()
       // returns '' on failure (WWID-2199); firing anyway let listeners act on a
-      // membership that does not exist in MDP. Skip and log; a later renewal or
-      // re-run of this flow re-runs create_mdp_record().
+      // membership that does not exist in MDP. Skip and log. Note: no automatic
+      // path revisits this record for non-approval tiers - a renewal creates a
+      // NEW membership record rather than repairing this one. Repair is manual:
+      // re-run the flow from the order, or use the approval-activation flow,
+      // which does re-attempt create_mdp_record().
       if ( ! empty( $membership_wicket_uuid ) ) {
         do_action('wicket_membership_created_mdp', $membership_post_data);
       } else {
@@ -1554,7 +1557,17 @@ function get_item_data ( $other_data, $cart_item ) {
       //moved outside of conditional for merge membership functionality to work on update membership post meta
       // Return value ignored on purpose: failures are flagged via post meta
       // (_collision/_failed) and wc-logs; local record creation must complete.
-      $this->assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
+      // WWID-2384: with an empty uuid this PATCHes person_memberships/ or
+      // organization_memberships/ with no id segment. Skip; the id gets assigned
+      // by whichever flow later succeeds at create_mdp_record().
+      if ( ! empty( $membership_wicket_uuid ) ) {
+        $this->assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
+      } else {
+        Utilities::wc_log_mship_error([
+          'SKIPPED assign_membership_external_id: MDP record missing (empty uuid)',
+          ['membership_post' => $membership_post],
+        ]);
+      }
 
     if( !empty( $membership['membership_parent_order_id'] )) {
       $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
