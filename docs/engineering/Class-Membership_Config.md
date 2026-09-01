@@ -115,3 +115,13 @@ Calculates the start date for a seasonal (calendar) membership cycle.
 
 **get_seasonal_end_date($membership = [])**
 Calculates the end date for a seasonal (calendar) membership cycle, considering active seasons.
+
+## See also
+
+- [WWID-2212 — Membership Dates Off By One Day (pending)](../bugfix-pending/WWID-2212-membership-timestamp-date-offset-problems/WWID-2212-membership-dates-off-by-one-day.md) — the calendar-season /
+  grace / early-renewal off-by-one family. Read it before touching `get_calendar_seasons()`,
+  `get_seasonal_end_date()`, `get_membership_dates()`, `mdp_local_ymd()` or the anniversary `+period`
+  arithmetic: several of those expressions truncate a stored instant in the wrong timezone, and the
+  direction of the error depends on the customer's MDP timezone.
+- [WWID-2212 — Membership Date Shift: Data Healing Instructions (pending)](../bugfix-pending/WWID-2212-membership-timestamp-date-offset-problems/WWID-2212-membership-dates-day-shift-data-healing.md) —
+  correcting `cycle_data` season boundaries that already carry a shifted instant, which no code change can recover.

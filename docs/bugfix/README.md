@@ -16,6 +16,11 @@ novel feature work versus what was done to fix a discovered issue.
 
 ## What does not
 
+- A repair that has not been applied to the code. Those go in
+  [`docs/bugfix-pending/`](../bugfix-pending/README.md) and move here when they ship, so a proposed
+  fix is never read as a shipped one.
+
+
 - New features, new endpoints added for new capability, refactors. Those are
   `docs/engineering/`.
 - An endpoint added *solely* to route around someone else's bug is a repair, not a feature,

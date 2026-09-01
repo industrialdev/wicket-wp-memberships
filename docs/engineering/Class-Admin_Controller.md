@@ -61,3 +61,12 @@ Changes the owner of a membership, updating user meta, post meta, and associated
 
 **create_renewal_order($request)** (static)
 Creates a new WooCommerce order and subscription for renewing a membership. Associates the new order/subscription with the membership, ensures user existence, and returns the order URL in a WP REST response.
+
+## See also
+
+- [WWID-2212 — Membership Dates Off By One Day: Code Fixes (pending)](../bugfix-pending/WWID-2212-membership-timestamp-date-offset-problems/WWID-2212-membership-dates-off-by-one-day.md) — two open
+  off-by-one-day defects live in this class: `derive_switch_expiry()` and the early-renewal recompute in
+  `update_membership_entity_record()`. Both truncate a stored instant in UTC instead of the MDP timezone.
+- [WWID-2212 — Membership Date Shift: Data Healing Instructions (pending)](../bugfix-pending/WWID-2212-membership-timestamp-date-offset-problems/WWID-2212-membership-dates-day-shift-data-healing.md) —
+  `update_membership_entity_record()` is the entry point the data team uses to correct shifted dates; the
+  runbook documents its payload, its 200-on-error responses, and everything one call rewrites.

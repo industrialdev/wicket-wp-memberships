@@ -129,3 +129,12 @@ Handles AJAX requests to update a user's autorenew status and updates subscripti
 
 **enqueue_mship_ajax_script()** (static)
 Enqueues a custom AJAX script for membership actions if present in the theme, or registers a dummy script for localization.
+
+## See also
+
+- [WWID-2212 — Membership Dates Off By One Day (pending)](../bugfix-pending/WWID-2212-membership-timestamp-date-offset-problems/WWID-2212-membership-dates-off-by-one-day.md) — `get_mdp_day_start()`,
+  `get_mdp_day_end()` and `parse_as_mdp_date()` are the centre of this bug family. A bare `Y-m-d` and a
+  stored instant must be handled differently, and callers that truncate the returned value with
+  `format('Y-m-d')` reintroduce the day shift.
+- [WWID-2212 — Membership Date Shift: Data Healing Instructions (pending)](../bugfix-pending/WWID-2212-membership-timestamp-date-offset-problems/WWID-2212-membership-dates-day-shift-data-healing.md) —
+  the runbook that relies on these helpers parsing a bare `Y-m-d` as an MDP calendar day.
