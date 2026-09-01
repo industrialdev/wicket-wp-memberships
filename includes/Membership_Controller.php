@@ -852,7 +852,20 @@ function get_item_data ( $other_data, $cart_item ) {
       $self->update_membership_subscription( $membership, $date_flags_array, true );
 
       $membership_post_data = Helper::get_post_meta( $membership['membership_post_id'] );
-      do_action('wicket_membership_created_mdp', $membership_post_data);
+
+      // WWID-2384: the hook's documented contract is "fired when the MDP record
+      // and local post are successfully synchronized". create_mdp_record()
+      // returns '' on failure (WWID-2199); firing anyway let listeners act on a
+      // membership that does not exist in MDP. Skip and log; a later renewal or
+      // re-run of this flow re-runs create_mdp_record().
+      if ( ! empty( $membership_wicket_uuid ) ) {
+        do_action('wicket_membership_created_mdp', $membership_post_data);
+      } else {
+        Utilities::wc_log_mship_error([
+          'SKIPPED wicket_membership_created_mdp: MDP record missing (create_mdp_record returned no uuid)',
+          ['membership_post_id' => $membership['membership_post_id']],
+        ]);
+      }
     }
     return $membership;
   }

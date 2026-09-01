@@ -186,7 +186,18 @@ class Admin_Controller {
       }
       $Membership_Controller->assign_membership_external_id( $membership['membership_wicket_uuid'], $wicket_membership_type, $membership_post_id );
 
-      do_action('wicket_membership_created_mdp', $membership_post_data);
+      // WWID-2384: same gate as Membership_Controller. Approval activated the
+      // local record, but create_mdp_record() above returns '' when the MDP API
+      // call fails. Listeners must not act on a membership that has no MDP
+      // record; retry the activation once the API recovers.
+      if ( ! empty( $membership['membership_wicket_uuid'] ) ) {
+        do_action('wicket_membership_created_mdp', $membership_post_data);
+      } else {
+        Utilities::wc_log_mship_error([
+          'SKIPPED wicket_membership_created_mdp: MDP record missing (create_mdp_record returned no uuid)',
+          ['membership_post_id' => $membership_post_id],
+        ]);
+      }
       $response_array['success'] = 'Pending membership activated successfully.';
       $response_array['response'] = $membership_post_data;
       $response_code = 200;
