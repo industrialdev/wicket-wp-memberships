@@ -5,6 +5,7 @@ import apiFetch from "@wordpress/api-fetch";
 import WicketModal from "../shared/components/WicketModal";
 import ModalPostSelector from "../shared/components/ModalPostSelector";
 import Alert from "../shared/components/Alert";
+import AddMemberErrorMessage from "../shared/components/AddMemberErrorMessage";
 import styled from "styled-components";
 import { API_URL, TIER_CPT_SLUG } from "../shared/constants";
 import {
@@ -141,7 +142,7 @@ const AddToMembershipBundleModal = ({
         loadProductOptionsForAmbiguousTier();
         return;
       }
-      setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));
+      setError(err);
       setSubmitting(false);
     }
   };
@@ -155,7 +156,7 @@ const AddToMembershipBundleModal = ({
     >
       {error && (
         <Alert
-          saveResult={{ type: "error", message: error }}
+          saveResult={{ type: "error", message: <AddMemberErrorMessage error={error} /> }}
           onDismiss={() => setError(null)}
         />
       )}

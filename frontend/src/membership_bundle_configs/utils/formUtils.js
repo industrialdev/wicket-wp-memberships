@@ -59,6 +59,7 @@ export const createDefaultForm = (languageCodes = []) => {
       approval_callout_data: {
         locales: createDefaultLocales(languageCodes),
       },
+      eligible_tier_ids: [],
     },
   };
 };
@@ -106,6 +107,9 @@ export const normalizeBundleConfigPostToForm = (post, languageCodes = []) => {
         defaultLocales,
         groupConfigData.approval_callout_data || {},
       ),
+      eligible_tier_ids: Array.isArray(groupConfigData.eligible_tier_ids)
+        ? groupConfigData.eligible_tier_ids.map((id) => parseInt(id, 10))
+        : [],
     },
   };
 };
@@ -124,6 +128,9 @@ export const buildBundleConfigPayload = (form) => ({
         : 0,
     approval_required: !!form.bundle_config_data.approval_required,
     grant_owner_assignment: !!form.bundle_config_data.grant_owner_assignment,
+    eligible_tier_ids: (form.bundle_config_data.eligible_tier_ids || []).map(
+      (id) => parseInt(id, 10),
+    ),
   },
 });
 

@@ -3,7 +3,7 @@ import { __ } from "@wordpress/i18n";
 import apiFetch from "@wordpress/api-fetch";
 import AdminNoticeStack from "../../shared/components/AdminNoticeStack";
 import AdminPageErrorBoundary from "../../shared/components/AdminPageErrorBoundary";
-import { Wrap } from "../../shared/styled_elements";
+import { GlobalSelectMenuStyle, Wrap } from "../../shared/styled_elements";
 import { API_URL } from "../../shared/constants";
 import {
   buildBundleConfigPayload,
@@ -43,6 +43,8 @@ const BundleConfigPageContent = ({
     recordRequest,
     wpPostsOptions,
     wcProductOptions,
+    tierOptions,
+    tiersRequest,
     retryRecord,
     loadPostOptions,
     loadProductOptions,
@@ -129,6 +131,7 @@ const BundleConfigPageContent = ({
 
   return (
     <Wrap>
+      <GlobalSelectMenuStyle />
       <AdminNoticeStack notices={notices} />
       <BundleConfigForm
         form={form}
@@ -142,6 +145,8 @@ const BundleConfigPageContent = ({
         onSubmit={handleSubmit}
         postId={postId}
         setForm={setForm}
+        tierOptions={tierOptions}
+        tiersRequest={tiersRequest}
         wcProductOptions={wcProductOptions}
         wpPostsOptions={wpPostsOptions}
       />

@@ -7,6 +7,7 @@ import styled from "styled-components";
 import WicketModal from "../../shared/components/WicketModal";
 import ModalPostSelector from "../../shared/components/ModalPostSelector";
 import Alert from "../../shared/components/Alert";
+import AddMemberErrorMessage from "../../shared/components/AddMemberErrorMessage";
 import { AsyncSelectWpStyled, LabelWpStyled } from "../../shared/styled_elements";
 import { API_URL, TIER_CPT_SLUG } from "../../shared/constants";
 import { fetchMdpPersons, fetchMembershipProducts, addMemberToBundle } from "../../shared/services/api";
@@ -172,7 +173,7 @@ const AddMemberToBundleModal = ({
       onSuccess();
     } catch (err) {
       console.error("[AddMemberToBundleModal] add member failed", err);
-      setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));
+      setError(err);
       setSubmitting(false);
     }
   };
@@ -186,7 +187,7 @@ const AddMemberToBundleModal = ({
     >
       {error && (
         <Alert
-          saveResult={{ type: "error", message: error }}
+          saveResult={{ type: "error", message: <AddMemberErrorMessage error={error} /> }}
           onDismiss={() => setError(null)}
         />
       )}

@@ -1223,6 +1223,10 @@ class Membership_Post_Types {
                 }
               }
 
+              if ( isset( $value['eligible_tier_ids'] ) && ! is_array( $value['eligible_tier_ids'] ) ) {
+                $errors->add( 'rest_invalid_param_eligible_tier_ids', __( 'The eligible tier IDs must be an array.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              }
+
               if ( $errors->has_errors() ) {
                 return $errors;
               }
@@ -1234,6 +1238,13 @@ class Membership_Post_Types {
             'renewal_type'             => array(
               'type'        => 'string',
               'description' => 'Renewal Type: subscription | form_page',
+            ),
+            'eligible_tier_ids'        => array(
+              'type'        => 'array',
+              'items'       => array(
+                'type' => 'integer',
+              ),
+              'description' => 'Post IDs of individual Membership_Tier posts eligible for this bundle config. Empty means all active individual tiers are eligible.',
             ),
             'renewal_form_page_id'     => array(
               'type'        => 'integer',
