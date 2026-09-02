@@ -10,11 +10,21 @@ import { __ } from "@wordpress/i18n";
  * scannable answer to "what tier should I use instead" rather than a wall of
  * text they have to parse themselves.
  *
+ * Accepts either the API's error response object ({ error, code,
+ * eligible_tier_names? }) or a plain string — several existing setError()
+ * call sites in these modals predate this component and still pass a
+ * hand-written string for errors that never reach the API (e.g. a failed
+ * follow-up fetch for product options), not just API failures.
+ *
  * Falls back to the plain error string for every other error shape.
  */
 const AddMemberErrorMessage = ({ error }) => {
   if (!error) {
     return null;
+  }
+
+  if (typeof error === "string") {
+    return error;
   }
 
   const message =

@@ -70,6 +70,15 @@ const AddToMembershipBundleModal = ({
       const groups = response?.results ?? response ?? [];
       return groups
         .filter((bundle) => VALID_STATUSES.includes(bundle.status?.slug))
+        // A config with no eligible_tier_ids is all-tiers-eligible (the
+        // config field's own fallback rule) — those bundles are always
+        // shown. Otherwise, only show bundles whose config lists this
+        // membership's own tier as eligible.
+        .filter(
+          (bundle) =>
+            !bundle.eligible_tier_ids?.length ||
+            bundle.eligible_tier_ids.includes(tierPostId),
+        )
         .map((bundle) => ({
           value: bundle.post_id,
           title: bundle.bundle_name,
@@ -175,6 +184,7 @@ const AddToMembershipBundleModal = ({
         value={selectedBundle}
         onChange={setSelectedGroup}
         loadOptions={loadGroupOptions}
+        emptyMessage={__("No eligible options available.", "wicket-memberships")}
         columns={[
           { key: "title",    label: __("Bundle Name",    "wicket-memberships"), width: 250, searchable: true },
           { key: "org_name", label: __("Organization",  "wicket-memberships"), width: 250, searchable: true },

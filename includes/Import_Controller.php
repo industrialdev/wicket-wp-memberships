@@ -269,6 +269,28 @@ class Import_Controller {
       return new \WP_REST_Response( [ 'error' => 'Membership Bundle not found for Membership_Bundle_UUID#' . $record['Membership_Bundle_UUID'] . '. Import bundles before members.' ] );
     }
 
+    $bundle = new Membership_Bundle( $bundle_post_id );
+
+    // Same eligibility gate as the admin add-member flow
+    // (Membership_Bundle_Admin_Controller::add_member()), applied here since
+    // this import path calls Membership_Bundle::add_member() directly and
+    // never goes through that controller. A bundle with no config linked
+    // (or an invalid config) is treated as all-tiers-eligible by the
+    // null-safe wrapper, not rejected — matches the config field's own
+    // fallback rule.
+    if ( ! Membership_Bundle_Config::is_tier_eligible_for_bundle( $bundle, $membership_tier_post_id ) ) {
+      // 'success'/'outcome' here, not 'error' — matches the existing skip/error
+      // vocabulary the rest of this plugin's row-level import responses already
+      // use (see Bundle_Import_Controller::log_and_respond()), so this reads as
+      // a graceful skip rather than a hard failure to any consumer that
+      // branches on the presence of an 'error' key.
+      return new \WP_REST_Response( [
+        'success' => 'Skipped: membership tier is not eligible for this bundle configuration. Membership_Bundle_UUID#' . $record['Membership_Bundle_UUID'],
+        'outcome' => 'skipped',
+        'reason'  => 'tier_not_eligible',
+      ] );
+    }
+
     $tier = new Membership_Tier( $membership_tier_post_id );
     $products = $tier->get_products_data();
     if ( empty( $products ) ) {
@@ -279,7 +301,6 @@ class Import_Controller {
     // stricter ambiguous_product error on tiers with more than one product.
     $product_id = ! empty( $products[0]['variation_id'] ) ? $products[0]['variation_id'] : $products[0]['product_id'];
 
-    $bundle = new Membership_Bundle( $bundle_post_id );
     $result = $bundle->add_member(
       user_id: $user->ID,
       tier_post_id: $membership_tier_post_id,

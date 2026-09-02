@@ -325,6 +325,7 @@ class Membership_Bundle_Admin_Controller {
     $bundle_mdp_link    = ( $org_uuid && $bundle_mdp_uuid && $wicket_admin )
       ? $wicket_admin . '/organizations/' . $org_uuid . '/bundles/' . $bundle_mdp_uuid
       : '';
+    $config             = $bundle->get_config();
 
     return [
       'id'             => $bundle->get_bundle_group_uuid(),
@@ -341,6 +342,7 @@ class Membership_Bundle_Admin_Controller {
       'org_uuid'       => $org_uuid,
       'mdp_link'       => $mdp_link,
       'bundle_mdp_link' => $bundle_mdp_link,
+      'eligible_tier_ids' => $config ? $config->get_eligible_tier_ids() : [],
     ];
   }
 
@@ -773,6 +775,7 @@ class Membership_Bundle_Admin_Controller {
       'config_id'           => $config ? $config->get_post_id() : null,
       'config_title'        => $config ? get_the_title( $config->get_post_id() ) : '',
       'config_renewal_type' => $config ? $config->get_renewal_type() : '',
+      'config_eligible_tier_ids' => $config ? $config->get_eligible_tier_ids() : [],
       'subscription_id'     => $bundle->get_subscription_id(),
       'subscription'        => $subscription_payload,
       'order'               => $order_payload,
