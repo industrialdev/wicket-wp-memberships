@@ -144,7 +144,7 @@ Updates the status of a WooCommerce subscription, with error handling.
 Generates a version 4 UUID.
 
 **update_membership_subscription($membership, $fields, $subcription_created)**
-Updates the subscription dates for a membership, handling WooCommerce Subscriptions quirks and adding order notes.
+Updates the subscription dates for a membership, handling WooCommerce Subscriptions quirks and adding order notes. Registers a deferred `woocommerce_subscription_status_updated` closure to re-apply the dates after WCS's activation recalculation, because WCS overwrites `next_payment` when a subscription with an end date goes `active`. **That hook is global** — it fires for every subscription transitioning in the request, and a closure is registered per membership — so both closures here (the date write, and the final-stage `next_payment` clear) capture their target subscription id and return early for any other. Removing either guard reintroduces WWID-2425, where a monthly subscription inherited a sibling annual subscription's term-end payment date: [Monthly Subscription Inherits a Sibling Annual Subscription's Next Payment Date](../bugfix/monthly-subscription-inherits-annual-next-payment-date.md).
 
 **update_mdp_record($membership, $meta_data)**
 Updates the membership record in the external MDP system, handling both individual and organization memberships.
@@ -211,3 +211,9 @@ Daily cron hook to expire memberships whose expiration date was yesterday.
 
 **daily_membership_grace_period_hook()** (static)
 Daily cron hook to move memberships to grace period whose end date was yesterday.
+
+## See Also
+
+- [Subscription_Manager](Class-Subscription_Manager.md) — intended home for subscription-touching logic; owns the `end`/`next_payment` collision guards this class calls
+- [Helper](Class-Helper.md) — `has_next_payment_date()`, which decides whether `update_membership_subscription()` writes a `next_payment` at all
+- [Monthly Subscription Inherits a Sibling Annual Subscription's Next Payment Date](../bugfix/monthly-subscription-inherits-annual-next-payment-date.md) — WWID-2425, the unbound deferred date-write closures in `update_membership_subscription()`

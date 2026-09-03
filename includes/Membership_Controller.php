@@ -987,9 +987,16 @@ function get_item_data ( $other_data, $cart_item ) {
             $dates_to_update = Subscription_Manager::prepare_dates( $dates_to_update, $sub );
             $sub->update_dates($dates_to_update);
             Utilities::wicket_logger( 'SUBSCRIPTION DATES BEING UPDATED MANUALLY: dates_to_update', $dates_to_update);
-            add_action('woocommerce_subscription_status_updated', function( $subscription_id ) use ( $dates_to_update ) {
-              $sub = \wcs_get_subscription( $subscription_id );
+            //the hook below is global: it fires for EVERY subscription that transitions in this request,
+            //not just this one. One order can carry several subscriptions and a closure is registered per
+            //membership, so without the id test a sibling subscription inherits these dates (WWID-2425).
+            $target_subscription_id = (int) $sub->get_id();
+            add_action('woocommerce_subscription_status_updated', function( $updated_subscription ) use ( $dates_to_update, $target_subscription_id ) {
+              $sub = \wcs_get_subscription( $updated_subscription );
               if( empty( $sub ) ) {
+                return;
+              }
+              if( (int) $sub->get_id() !== $target_subscription_id ) {
                 return;
               }
               $sub->update_dates($dates_to_update);
@@ -1028,8 +1035,14 @@ function get_item_data ( $other_data, $cart_item ) {
             || (!empty($fields['next_payment_date']) && ( !is_bool($fields['next_payment_date']) && $fields['next_payment_date'] == 'clear'))
           ) {
           Utilities::wc_log_mship_error( ['FINAL STAGE CLEARING of NEXT_PAYMENT:', [$subscription_id, $is_autopay_enabled, $autorenew_user_meta, (! $is_autopay_enabled && $autorenew_user_meta == 'no')]]);
-          add_action('woocommerce_subscription_status_updated', function( $subscription_id )  {
-            $sub = \wcs_get_subscription( $subscription_id );
+          //same global-hook caveat as the date write above: clear the date only on the subscription this
+          //call is about, or a sibling subscription in the same order loses its own next payment (WWID-2425).
+          $clear_target_subscription_id = (int) $sub->get_id();
+          add_action('woocommerce_subscription_status_updated', function( $updated_subscription ) use ( $clear_target_subscription_id ) {
+            $sub = \wcs_get_subscription( $updated_subscription );
+            if( empty( $sub ) || (int) $sub->get_id() !== $clear_target_subscription_id ) {
+              return;
+            }
             $sub->update_dates(['next_payment' => 0]);
           }, 10, 2 );
         }
