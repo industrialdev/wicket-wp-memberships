@@ -165,3 +165,37 @@ The renewal types above govern the **bundle container's** own renewal mechanics.
 - **`form_flow`** — treated identically to `current_tier` for bundle renewal: the member renews into the same tier/product unchanged. This is a deliberate divergence from what `form_flow` means for a standalone individual membership (an external form gates the renewal). Bundle renewal is a batch, hands-off cron process with no per-member interruption point, so that gating is not enforced here. Avoid assigning `form_flow` tiers to bundle members if that gating behavior matters for the tier.
 
 `next_tier_id` is re-evaluated fresh on every renewal cycle from whichever tier the member currently holds — it is not a pre-resolved multi-hop chain. Editing a tier's `next_tier_id` between renewal cycles is picked up automatically on the member's next renewal.
+
+## Per-member price/fee adjustment on renewal
+
+A `wicket_mship_bundle_renewal_line_item_price` filter fires once per member's line item as a bundle's renewal order is built, letting a child theme apply a per-member price adjustment, discount, or fee — for example, a late fee for a member who missed their individual renewal window, or a promo-code-style discount.
+
+```php
+add_filter( 'wicket_mship_bundle_renewal_line_item_price', function ( $unused, $item, $item_id, $membership_post_id, $user_id, $renewal_order ) {
+    $adjustment = my_client_lookup_adjustment( $user_id, $membership_post_id );
+    if ( empty( $adjustment ) ) {
+        return null; // not eligible: leave the item untouched
+    }
+
+    // Adjust this line item's own price directly:
+    $item->set_total( $item->get_total() + $adjustment['amount'] );
+    $item->set_subtotal( $item->get_subtotal() + $adjustment['amount'] );
+
+    // Or add a separate line instead of adjusting this item's own price:
+    // $renewal_order->add_fee( [ 'name' => 'Late fee', 'total' => $adjustment['amount'] ] );
+
+    return null; // return value is not read by core — see below
+}, 10, 6 );
+```
+
+**Return value is never read or applied by core.** A callback communicates every change — price/subtotal adjustment, a separate fee or product line, or any other order-level effect — by mutating the passed `$item` and/or `$renewal_order` directly, using the normal WooCommerce API (`$item->set_total()`/`set_subtotal()`, `$renewal_order->add_fee()`, `add_product()`, etc.).
+
+**Fires per member/line-item, not once for the whole order**, so one member's callback throwing is logged and skipped without aborting the rest of the renewal order. `calculate_totals()` is called once after every item's callback has run.
+
+**Fires on the actual renewal order WCS bills the customer on** (WCS's own `wcs_renewal_order_created`), not on this plugin's own renewal batch cron (`process_bundle_renewal_members()`), which re-provisions membership records on a decoupled cadence and does not reliably correspond to the order actually being charged.
+
+**Idempotency across renewal cycles is the callback's own responsibility.** Core does not detect or prevent a callback from adding the same fee/product line on every cycle — if a callback should only apply a fee once, it must check for an existing line itself (e.g. via order-item meta linking back to the membership post).
+
+::: tip Not doing
+There is no native rule-based pricing engine or promo-code support in core, and none is planned — this filter is the only mechanism, and any pricing/eligibility logic lives entirely in whatever answers it.
+:::

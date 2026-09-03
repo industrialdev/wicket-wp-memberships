@@ -34,6 +34,7 @@ AS single-action hooks (`wicket_bundle_early_renew_at`, `wicket_bundle_ends_at`,
 | `wicket_bundle_renewal_process_members` | `process_bundle_renewal_members()` | dispatched by `Membership_Controller::handle_bundle_renewal()` |
 | `wicket_memberships_bundle_renewal_complete` | `cancel_old_bundle_after_renewal()` | dispatched when `process_bundle_renewal_members()` final batch completes |
 | `wicket_memberships_bundle_cancel_old_on_starts_at` | `cancel_old_bundle_on_new_starts_at()` | scheduled AS single action |
+| `wcs_renewal_order_created` (WCS native filter) | `apply_bundle_renewal_line_item_price_filter()` | fired by WCS's own `wcs_create_renewal_order()`, once per renewal order — independent of this plugin's own batch cron |
 
 Daily handlers are registered as recurring daily actions starting tomorrow (midnight, site timezone). The renewal batch handler is a single-action job dispatched on each renewal order.
 
@@ -87,6 +88,25 @@ Batch handler for membership renewal provisioning. Dispatched by `Membership_Con
 **Error handling:** items with missing `user_id` or `tier_post_id` are skipped and logged. A `sequential_logic` tier with no `next_tier_id` configured, or a next tier with no products configured, is also skipped and logged. Failed `add_member()` calls are logged and recorded in the `errors` array in the completion meta.
 
 **MDP note:** No per-member MDP calls are made. `add_member(is_renewal: true)` bypasses the MDP create path. MDP is updated at the bundle/org level by the higher-level orchestration.
+
+---
+
+### `apply_bundle_renewal_line_item_price_filter( \WC_Order $renewal_order, \WC_Subscription $subscription ): \WC_Order`
+
+Hooked to WooCommerce Subscriptions' own `wcs_renewal_order_created` filter (fired from `wcs_create_renewal_order()` — a WCS-native filter, not this plugin's own hook). This is the actual order WCS bills the customer on, independent of and on a different cadence from `process_bundle_renewal_members()`'s own batch cron, which only re-provisions membership records.
+
+**Flow:**
+
+1. Scopes to bundle subscriptions only — a subscription is linked to a bundle when some `wicket_mship_bundle` post's `membership_subscription_id` meta points to it. Non-bundle renewal orders pass through untouched.
+2. Loops the renewal order's line items, resolving each to its member via `_membership_post_id` order-item meta, then to `user_id` post meta.
+3. Fires `wicket_mship_bundle_renewal_line_item_price` once per member/line-item, inside its own try/catch (log-and-continue on failure — a single bad member's callback must not abort the rest of the order or skip `calculate_totals()`).
+4. Calls `$renewal_order->calculate_totals()` once after the full loop, regardless of any item's failure.
+
+**Return contract:** the filter's own return value is discarded. A callback communicates any change — price adjustment, added fee/product line, whole-order effect — by mutating the passed `$item`/`$renewal_order` directly via the normal WC API (`$item->set_total()`, `$renewal_order->add_fee()`, `add_product()`, etc.). Default behavior with no callback attached: the loop runs but no mutation occurs, so price stands carried forward unchanged — zero behavior change for callers not using this.
+
+**Return value:** always returns `$renewal_order` (or whatever non-`WC_Order` value was passed in, unchanged) — required because `wcs_renewal_order_created` is a WCS filter, not an action; WCS substitutes whatever this callback returns for the renewal order if it is a `WC_Order` instance.
+
+**Not doing:** no native rule-based pricing engine or promo-code support — this method only fires the filter and recalculates totals; all pricing decisions live in whatever answers the filter.
 
 ---
 

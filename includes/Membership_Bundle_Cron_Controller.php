@@ -42,6 +42,11 @@ class Membership_Bundle_Cron_Controller {
 
     // Early renewal transition — cancel old bundle + activate new bundle at new term start date.
     add_action( 'wicket_bundle_cancel_old_on_new_starts_at', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'cancel_old_bundle_on_new_starts_at' ], 10, 2 );
+
+    // Client-specific extension point: per-member price/fee adjustment on the actual
+    // renewal order WCS bills the customer on (distinct from this plugin's own batch
+    // cron, which re-provisions membership records on a decoupled cadence).
+    add_filter( 'wcs_renewal_order_created', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'apply_bundle_renewal_line_item_price_filter' ], 10, 2 );
   }
 
   // ---------------------------------------------------------------------------
@@ -520,6 +525,88 @@ class Membership_Bundle_Cron_Controller {
       'errors'             => $errors,
       'has_more'           => $has_more,
     ] ] );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Per-member renewal-order price/fee extension point
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fire wicket_mship_bundle_renewal_line_item_price once per member/line-item as a
+   * bundle's renewal order is built, then recalculate totals once for the whole order.
+   *
+   * Hooked to WCS's native `wcs_renewal_order_created` filter (always return
+   * $renewal_order — WCS requires a WC_Order back). Fires on WCS's own per-subscription
+   * renewal schedule, not this plugin's process_bundle_renewal_members() batch cron,
+   * which re-provisions membership records on a decoupled cadence and would not
+   * reliably affect the order actually being charged.
+   *
+   * The filter's return value is discarded; a callback communicates any change (price
+   * adjustment, added fee/product line, whole-order effect) by mutating
+   * $item/$renewal_order directly via the normal WC API.
+   *
+   * @param \WC_Order        $renewal_order The freshly created renewal order.
+   * @param \WC_Subscription $subscription  The subscription the renewal is related to.
+   * @return \WC_Order The same renewal order.
+   */
+  public static function apply_bundle_renewal_line_item_price_filter( $renewal_order, $subscription ) {
+    if ( ! $renewal_order instanceof \WC_Order ) {
+      return $renewal_order;
+    }
+
+    // Scope to bundle subscriptions only — a subscription is linked to a bundle when some
+    // bundle post's membership_subscription_id meta points back to it.
+    $bundle_posts = get_posts( [
+      'post_type'      => Helper::get_membership_bundle_cpt_slug(),
+      'post_status'    => 'any',
+      'posts_per_page' => 1,
+      'fields'         => 'ids',
+      'meta_query'     => [
+        [ 'key' => 'membership_subscription_id', 'value' => $subscription->get_id() ],
+      ],
+    ] );
+
+    if ( empty( $bundle_posts ) ) {
+      return $renewal_order;
+    }
+
+    foreach ( $renewal_order->get_items() as $item_id => $item ) {
+      $membership_post_id = (int) wc_get_order_item_meta( $item_id, '_membership_post_id', true );
+      if ( ! $membership_post_id ) {
+        continue;
+      }
+      $user_id = (int) get_post_meta( $membership_post_id, 'user_id', true );
+
+      try {
+        // The callback mutates $item and/or $renewal_order directly — e.g.
+        // $item->set_total()/set_subtotal() for a price adjustment,
+        // $renewal_order->add_fee()/add_product() for a separate line. The return
+        // value is intentionally discarded.
+        apply_filters(
+          'wicket_mship_bundle_renewal_line_item_price',
+          null,
+          $item,
+          $item_id,
+          $membership_post_id,
+          $user_id,
+          $renewal_order
+        );
+        $item->save();
+      } catch ( \Throwable $e ) {
+        // A single member's callback failing (e.g. an external lookup throwing) must not
+        // abort processing for the rest of the order's members, and must not skip the
+        // calculate_totals() call below.
+        Utilities::wc_log_mship_error( [ 'wicket_mship_bundle_renewal_line_item_price filter failed', [
+          'item_id'            => $item_id,
+          'membership_post_id' => $membership_post_id,
+          'error'              => $e->getMessage(),
+        ] ] );
+      }
+    }
+
+    $renewal_order->calculate_totals();
+
+    return $renewal_order;
   }
 
   // ---------------------------------------------------------------------------
