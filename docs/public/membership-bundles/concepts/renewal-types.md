@@ -166,6 +166,33 @@ The renewal types above govern the **bundle container's** own renewal mechanics.
 
 `next_tier_id` is re-evaluated fresh on every renewal cycle from whichever tier the member currently holds — it is not a pre-resolved multi-hop chain. Editing a tier's `next_tier_id` between renewal cycles is picked up automatically on the member's next renewal.
 
+## Overriding which tier/product a member renews into
+
+A `wicket_mship_bundle_renewal_member_tier_product` filter lets a child theme fully override the tier/product decision above — for example, when a client's own succession logic (not the built-in `renewal_type`/`next_tier_id` config) should decide instead.
+
+```php
+add_filter( 'wicket_mship_bundle_renewal_member_tier_product', function ( $override, $old_membership_post_id, $user_id, $new_bundle_post_id, $old_bundle_post_id, $core_default ) {
+    $my_result = my_client_succession_lookup( $user_id, $old_membership_post_id, $old_bundle_post_id );
+
+    if ( ! empty( $my_result ) ) {
+        return [
+            'tier_post_id' => $my_result['tier_post_id'],
+            'product_id'   => $my_result['product_id'],
+        ];
+    }
+
+    return null; // not eligible / no answer: the default above stands
+}, 10, 6 );
+```
+
+**Full override, not a merge — null-or-array contract.** The filter's default value is `null`, never the core default. A **non-null** return (`['tier_post_id' => ..., 'product_id' => ...]`) fully replaces the tier/product resolved above for that member. A **null** return means "no override — the resolution above stands." This is stricter than an always-populated array: core never has to guess whether an unchanged value means "confirmed" or "didn't answer" — only non-null counts as an answer.
+
+**Fires unconditionally for every renewing member, regardless of `renewal_type`** — not gated to only `sequential_logic` members. The above resolution always runs first; this filter then runs on top for every member, every time, with no exceptions.
+
+**No validation on the override's return value.** If a callback returns an invalid `tier_post_id`/`product_id` pair (tier doesn't exist, product not on that tier), it is passed straight into the same `add_member()` call every other renewal uses. Whatever error results (`invalid_tier`, `ambiguous_product`, `product_not_found`, etc.) surfaces as a normal renewal failure in the batch's error tracking — the same as any other renewal error. This is deliberate: a buggy override fails loud and visible rather than being silently caught or falling back to the default.
+
+**Scope: bundle renewal only** — not added to the standalone individual-membership renewal path, which already derives its tier/product from an actual purchase event.
+
 ## Per-member price/fee adjustment on renewal
 
 A `wicket_mship_bundle_renewal_line_item_price` filter fires once per member's line item as a bundle's renewal order is built, letting a child theme apply a per-member price adjustment, discount, or fee — for example, a late fee for a member who missed their individual renewal window, or a promo-code-style discount.

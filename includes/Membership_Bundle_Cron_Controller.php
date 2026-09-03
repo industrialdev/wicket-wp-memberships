@@ -395,6 +395,27 @@ class Membership_Bundle_Cron_Controller {
       $tier_post_id = $resolved['tier_post_id'];
       $product_id   = $resolved['product_id'];
 
+      // Client-specific extension point: full override of the tier/product a member
+      // renews into, bypassing the default resolution above entirely. Fires
+      // unconditionally for every renewing member, regardless of renewal_type. Default
+      // (null) means "no override — the resolution above stands." A non-null return is
+      // passed straight into add_member() below with no further validation — an invalid
+      // tier/product pair surfaces as a normal add_member() batch error, same as any
+      // other renewal failure, rather than being silently caught or falling back.
+      $override = apply_filters(
+        'wicket_mship_bundle_renewal_member_tier_product',
+        null,
+        $old_membership_post_id,
+        $user_id,
+        $new_bundle_post_id,
+        $old_bundle_post_id,
+        [ 'tier_post_id' => $tier_post_id, 'product_id' => $product_id ]
+      );
+      if ( is_array( $override ) ) {
+        $tier_post_id = $override['tier_post_id'];
+        $product_id   = $override['product_id'];
+      }
+
       // add_member() with is_renewal=true skips MDP create and subscription line item
       // creation. start_date_override anchors all new memberships to the bundle's
       // starts_at — not the current timestamp when the AS job happens to run.

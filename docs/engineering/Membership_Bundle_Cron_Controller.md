@@ -22,6 +22,13 @@ Each handler uses Action Scheduler (`as_schedule_recurring_action`) to run once 
 | `wicket_memberships_bundle_grace_period_expired` | `catch_bundle_expires_at()` | `int $bundle_post_id` | `expires_at` date reached |
 | `wicket_memberships_bundle_renewal_complete` | `process_bundle_renewal_members()` | `int $new_bundle_post_id, int $old_bundle_post_id, int $renewal_order_id` | Final renewal batch completes |
 
+## `apply_filters` Hooks Fired (client extensibility)
+
+| Filter | Fired by | Args | Default / no-op behavior |
+|---|---|---|---|
+| `wicket_mship_bundle_renewal_member_tier_product` | `process_bundle_renewal_members()` | `mixed $override, int $old_membership_post_id, int $user_id, int $new_bundle_post_id, int $old_bundle_post_id, array $core_default` | Default `null` — the tier/product resolution described above stands unchanged |
+| `wicket_mship_bundle_renewal_line_item_price` | `apply_bundle_renewal_line_item_price_filter()` | `mixed $override, \WC_Order_Item $item, int $item_id, int $membership_post_id, int $user_id, \WC_Order $renewal_order` | Default `null`, single-channel — return value ignored either way; no callback means no price/fee mutation occurs |
+
 AS single-action hooks (`wicket_bundle_early_renew_at`, `wicket_bundle_ends_at`, `wicket_bundle_expires_at`) are scheduled by `Membership_Bundle::schedule_date_trigger_jobs()` — this class provides the handlers that catch them and re-fire the AutomateWoo-facing `do_action` names above.
 
 ## Registered Actions
@@ -80,7 +87,7 @@ Batch handler for membership renewal provisioning. Dispatched by `Membership_Con
 
 1. Loads the renewal WC order and collects eligible line items — items where `_membership_post_id` is set. This is the authoritative member list for the renewal (not the full old bundle member list).
 2. Slices `$batch_size` items starting at `$offset`.
-3. For each item: resolves `user_id`, `tier_post_id`, and `product_id` from the old membership post meta. Loads the old tier and checks `get_tier_renewal_type()`: if `sequential_logic`, resolves `get_next_tier_id()` and overrides `tier_post_id`/`product_id` to the next tier and its first product (variation preferred) before calling `add_member()` — see [Renewal Types](../public/membership-bundles/concepts/renewal-types.md#per-member-tier-succession-on-renewal). `current_tier` and `form_flow` renew unchanged. Then calls `$new_bundle->add_member(..., is_renewal: true)`.
+3. For each item: resolves `user_id`, `tier_post_id`, and `product_id` from the old membership post meta. Loads the old tier and checks `get_tier_renewal_type()`: if `sequential_logic`, resolves `get_next_tier_id()` and overrides `tier_post_id`/`product_id` to the next tier and its first product (variation preferred) before calling `add_member()` — see [Renewal Types](../public/membership-bundles/concepts/renewal-types.md#per-member-tier-succession-on-renewal). `current_tier` and `form_flow` renew unchanged. Fires `wicket_mship_bundle_renewal_member_tier_product` next, unconditionally for every member — a non-null return fully overrides `tier_post_id`/`product_id` in place of the resolution just described; see [Renewal Types](../public/membership-bundles/concepts/renewal-types.md#overriding-which-tierproduct-a-member-renews-into). Then calls `$new_bundle->add_member(..., is_renewal: true)`.
 4. `is_renewal: true` sets the `processing_renewal` flag on `Membership_Controller`, causing `create_membership_record()` to skip the MDP create call — MDP handles bundle members at the org level, not per-member.
 5. If more items remain beyond `$offset + $batch_size`, dispatches itself again with the next offset.
 6. On the final batch: stamps `completed_at` on `membership_renewal_processing` meta for both old and new bundle posts (meta is **not** deleted — presence of `completed_at` key indicates completion), adds an order note **and a subscription note**, and fires `wicket_memberships_bundle_renewal_complete`.
