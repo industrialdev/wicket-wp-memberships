@@ -88,37 +88,6 @@ class Membership_Tier {
   }
 
   /**
-   * Get all active (published) individual membership tiers.
-   *
-   * Delegates the individual-vs-organization check to is_individual_tier()
-   * per candidate, rather than re-checking tier_data['type'] inline, so this
-   * stays the single source of truth for "what counts as an individual tier".
-   *
-   * @return Membership_Tier[] Array of individual Membership_Tier objects.
-   */
-  public static function get_active_individual_tiers() {
-    $args = array(
-      'post_type' => Helper::get_membership_tier_cpt_slug(),
-      'posts_per_page' => -1,
-      'post_status' => 'publish',
-    );
-
-    $tiers = get_posts( $args );
-
-    $individual_tiers = [];
-
-    foreach ( $tiers as $tier ) {
-      $tier_obj = new Membership_Tier( $tier->ID );
-
-      if ( $tier_obj->is_individual_tier() ) {
-        $individual_tiers[] = $tier_obj;
-      }
-    }
-
-    return $individual_tiers;
-  }
-
-  /**
    * Get the tier by product ID
    *
    * @param int $product_id

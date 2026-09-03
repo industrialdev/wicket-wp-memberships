@@ -70,14 +70,12 @@ const AddToMembershipBundleModal = ({
       const groups = response?.results ?? response ?? [];
       return groups
         .filter((bundle) => VALID_STATUSES.includes(bundle.status?.slug))
-        // A config with no eligible_tier_ids is all-tiers-eligible (the
-        // config field's own fallback rule) — those bundles are always
-        // shown. Otherwise, only show bundles whose config lists this
-        // membership's own tier as eligible.
+        // Empty eligible_tier_ids means all tiers eligible. tierPostId can
+        // arrive as a string on legacy memberships, so coerce before compare.
         .filter(
           (bundle) =>
             !bundle.eligible_tier_ids?.length ||
-            bundle.eligible_tier_ids.includes(tierPostId),
+            bundle.eligible_tier_ids.includes(Number(tierPostId)),
         )
         .map((bundle) => ({
           value: bundle.post_id,

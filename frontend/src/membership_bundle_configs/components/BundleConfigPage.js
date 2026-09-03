@@ -46,6 +46,7 @@ const BundleConfigPageContent = ({
     tierOptions,
     tiersRequest,
     retryRecord,
+    retryTiers,
     loadPostOptions,
     loadProductOptions,
     isRecordReady,
@@ -118,6 +119,25 @@ const BundleConfigPageContent = ({
             action: {
               label: __("Retry loading", "wicket-memberships"),
               onClick: retryRecord,
+            },
+          },
+        ]
+      : []),
+    ...(tiersRequest.status === "error"
+      ? [
+          {
+            id: "tiers-error",
+            status: "warning",
+            message: getPrimaryErrorMessage(
+              tiersRequest.error,
+              __(
+                "The list of membership tiers could not be loaded. Retry to select eligible tiers.",
+                "wicket-memberships",
+              ),
+            ),
+            action: {
+              label: __("Retry loading", "wicket-memberships"),
+              onClick: retryTiers,
             },
           },
         ]

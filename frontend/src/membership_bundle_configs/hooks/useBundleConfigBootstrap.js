@@ -162,7 +162,9 @@ export const useBundleConfigBootstrap = ({
   }, [defaultForm, hasPostId, loadRecord]);
 
   useEffect(() => {
-    loadTiers();
+    // loadTiers() rethrows on failure; catch here so this eager call doesn't
+    // produce an unhandled rejection (setTiersRequest already records the error).
+    loadTiers().catch(() => {});
   }, [loadTiers]);
 
   return {
