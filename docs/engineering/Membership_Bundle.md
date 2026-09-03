@@ -115,7 +115,7 @@ Initial membership status: if `start_date` is in the future → `delayed`; other
 Instance method. Creates a new bundle post for a renewal term of the current bundle. **Use this instead of `create()` for all renewal flows.**
 
 Key differences from `create()`:
-- Reuses the existing WC subscription (updates its `next_payment` and `end` dates to the new term) — no new subscription created.
+- Reuses the existing WC subscription (updates its `end` date, and its `next_payment` date only when the config's `renewal_type` is `'subscription'` — otherwise `next_payment` is explicitly deleted) — no new subscription created.
 - Carries the existing `membership_bundle_group_uuid` forward so all renewal posts share a series link.
 - Accepts pre-calculated `$new_dates` from `Membership_Bundle_Config::get_membership_dates()` rather than deriving internally.
 - Does **not** cancel the old bundle — that is handled by the caller (`handle_bundle_renewal`).

@@ -4,7 +4,7 @@ title: Renewal Types
 
 # Renewal Types
 
-A bundle config defines how the bundle is renewed when its membership period ends. There are two renewal types, plus two time windows that govern when renewal activity is permitted or promoted.
+A bundle config defines how the bundle is renewed when its membership period ends. There are three renewal types, plus two time windows that govern when renewal activity is permitted or promoted.
 
 ## Renewal type: `subscription`
 
@@ -49,6 +49,20 @@ add_action( 'wicket_memberships_bundle_renewal_period_open', function( int $bund
     // send notification to $bundle->get_owner()['email'] with $renewal_url
 } );
 ```
+
+## Renewal type: `confirmation_renewal`
+
+Renewal order creation is suppressed automatically, just like `form_page`. Instead of directing the owner to an external form, the bundle owner confirms renewal directly through the Account Center's renewal-window callout — the same callout UI `subscription` and `form_page` bundles already show, reusing its existing copy (header/content/button label) with no new fields on the config. The renewal order is only created when the owner explicitly confirms via `POST /bundle/{bundle_post_id}/confirm_renewal` (see [Confirm a renewal](../endpoints/bundle-status.md#confirm-a-renewal-confirmation-renewal-bundles)).
+
+```php
+if ( $config->is_renewal_confirmation() ) {
+    // Bundle owner must explicitly confirm via the confirm_renewal endpoint
+}
+```
+
+**Mechanics:** like `form_page`, the bundle's `next_payment` date is suppressed — set on activation (`activate_subscription_for_dates()`), each subsequent renewal term (`renew_bundle()`), and any admin date edit (`sync_subscription_dates()`) — so WooCommerce Subscriptions never auto-fires the renewal payment on its own schedule. The confirm endpoint calls the exact same `wcs_create_renewal_order()` the admin's manual "create renewal order" tool uses; from there, everything downstream (`catch_order_completed()` → `handle_bundle_renewal()`) is identical to any other bundle renewal.
+
+**Confirm window:** the confirm action is only accepted between `early_renew_at` and `ends_at` — the same window that governs the renewal-window callout itself. A confirm attempt outside that window, by anyone other than the bundle's owner, or on a bundle not configured with `confirmation_renewal`, is rejected. A second confirm once a renewal order already exists for the current cycle is rejected as already-renewed rather than creating a duplicate order.
 
 ## Renewal window
 

@@ -1,5 +1,13 @@
+import { __ } from "@wordpress/i18n";
 import SharedRenewalTypeSection from "../../shared/components/RenewalTypeSection";
 import useResolvedOption from "../../shared/hooks/useResolvedOption";
+
+// confirmation_renewal is bundle-config-only — not a valid Membership_Tier
+// renewal_type — so it's added here rather than to the shared component's
+// base options list.
+const BUNDLE_ONLY_RENEWAL_TYPE_OPTIONS = [
+  { label: __("Confirmation Renewal", "wicket-memberships"), value: "confirmation_renewal" },
+];
 
 const RenewalTypeSection = ({
   form,
@@ -42,6 +50,7 @@ const RenewalTypeSection = ({
       }
       renewalType={form.bundle_config_data.renewal_type}
       selectedPostOption={selectedPostOption}
+      extraOptions={BUNDLE_ONLY_RENEWAL_TYPE_OPTIONS}
     />
   );
 };

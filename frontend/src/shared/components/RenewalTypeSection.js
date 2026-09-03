@@ -19,7 +19,11 @@ const RenewalTypeSection = ({
   onRenewalFormPostIdChange,
   loadPostOptions,
   postTypeLabel = "Post",
+  // Extra options appended to the base list — e.g. bundle configs add
+  // "confirmation_renewal", which is not a valid Membership_Tier renewal_type.
+  extraOptions = [],
 }) => {
+  const options = [...RENEWAL_TYPE_OPTIONS, ...extraOptions];
   if (isLoading) {
     return (
       <div style={{ marginTop: "15px" }}>
@@ -44,8 +48,8 @@ const RenewalTypeSection = ({
             isDisabled={disabled}
             isSearchable={false}
             onChange={(selected) => onRenewalTypeChange(selected.value)}
-            options={RENEWAL_TYPE_OPTIONS}
-            value={RENEWAL_TYPE_OPTIONS.find((o) => o.value === renewalType) ?? null}
+            options={options}
+            value={options.find((o) => o.value === renewalType) ?? null}
           />
         </FlexBlock>
       </div>

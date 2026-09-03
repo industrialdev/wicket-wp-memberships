@@ -6,7 +6,8 @@ namespace Wicket_Memberships;
  *
  * Combines the date/cycle/renewal-window logic of Membership_Config with the
  * approval and renewal-type logic of Membership_Tier, scoped specifically for
- * Membership Bundles. Renewal type is limited to 'subscription' and 'form_page'.
+ * Membership Bundles. Renewal type is limited to 'subscription', 'form_page',
+ * and 'confirmation_renewal'.
  *
  * Meta layout
  * -----------
@@ -17,7 +18,7 @@ namespace Wicket_Memberships;
  *
  * Single serialised meta key (matching Membership_Tier pattern):
  *   bundle_config_data   — array containing:
- *     renewal_type           string  'subscription' | 'form_page'
+ *     renewal_type           string  'subscription' | 'form_page' | 'confirmation_renewal'
  *     renewal_form_page_id   int
  *     approval_required      int     1 | 0
  *     grant_owner_assignment int     1 | 0
@@ -435,7 +436,7 @@ class Membership_Bundle_Config {
   /**
    * Get the renewal type.
    *
-   * @return string|false 'subscription' | 'form_page', or false if not set.
+   * @return string|false 'subscription' | 'form_page' | 'confirmation_renewal', or false if not set.
    */
   public function get_renewal_type() {
     if ( ! empty( $this->bundle_config_data['renewal_type'] ) ) {
@@ -461,6 +462,17 @@ class Membership_Bundle_Config {
    */
   public function is_renewal_form_page() {
     return $this->get_renewal_form_page_id() !== false;
+  }
+
+  /**
+   * Check whether the renewal type is confirmation_renewal — auto-creation of the
+   * renewal order is suppressed, and the bundle owner must explicitly confirm via
+   * the confirm_renewal endpoint before one is created.
+   *
+   * @return bool
+   */
+  public function is_renewal_confirmation() {
+    return $this->get_renewal_type() === 'confirmation_renewal';
   }
 
   /**
