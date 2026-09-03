@@ -592,6 +592,7 @@ Returns the `membership_bundle_group_uuid` meta value. This UUID is shared acros
 | Hook | Type | When fired | Args |
 |---|---|---|---|
 | `wicket_memberships_individual_membership_created_for_bundle` | filter | After a new member seat is created by `add_member()` | `array $result` |
+| `wicket_mship_bundle_line_item_extra_meta` | filter | When the member's WC subscription line item is created (not on renewal — see below) | `array $extra_meta, int $item_id, WP_User $user, int $membership_post_id, int $product_id` |
 | `wicket_memberships_bundle_renewal_period_open` | action | `early_renew_at` date reached | `int $bundle_post_id` |
 | `wicket_memberships_bundle_end_date_reached` | action | `ends_at` date reached | `int $bundle_post_id` |
 | `wicket_memberships_bundle_grace_period_expired` | action | `expires_at` date reached | `int $bundle_post_id` |
@@ -604,3 +605,5 @@ add_filter( 'wicket_memberships_individual_membership_created_for_bundle', funct
     return $result;
 } );
 ```
+
+The `wicket_mship_bundle_line_item_extra_meta` filter lets a child theme inject custom meta onto a member's WC subscription line item at add-time. Default is an empty array (no-op). See [Member Handling](../concepts/member-handling.md#extending-the-line-item-with-custom-meta) for the full contract, including the "does not refresh on renewal" caveat.

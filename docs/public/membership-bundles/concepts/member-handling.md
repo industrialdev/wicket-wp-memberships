@@ -79,6 +79,26 @@ Adding a member creates:
 
 The line item carries `_membership_post_id` and `_member_name` meta so it can be traced back to the individual membership.
 
+### Extending the line item with custom meta
+
+A `wicket_mship_bundle_line_item_extra_meta` filter fires when the line item is created, letting a child theme inject its own meta onto it. Core has no knowledge of what gets written — an empty array (the default) is a no-op.
+
+```php
+add_filter( 'wicket_mship_bundle_line_item_extra_meta', function ( $extra_meta, $item_id, $user, $membership_post_id, $product_id ) {
+    $bar_id = get_user_meta( $user->ID, '_bar_id', true );
+    if ( $bar_id ) {
+        $extra_meta['_bar_id'] = $bar_id;
+    }
+    return $extra_meta;
+}, 10, 5 );
+```
+
+The filter fires for every member-add-shaped flow — new add, individual-to-bundle transition, and CSV import — since they all funnel through the same line-item creation call. Its args are whatever is already in scope at that point (`$item_id`, the already-loaded `$user`, `$membership_post_id`, `$product_id`); no extra DB fetch is made just to serve this filter. Fetch anything further yourself in the callback.
+
+::: warning Does not refresh on renewal
+On renewal, the line item is never recreated — the batch processor swaps only the `_membership_post_id` pointer meta on the same physical item (see [Bundle Lifecycle](./bundle-lifecycle.md)). Any meta this filter wrote on first add persists untouched across renewal terms. If the source value your callback read has since changed, the line item's copy goes stale — nothing refreshes it automatically. This is accepted, expected behavior, not a bug.
+:::
+
 ### Initial membership status
 
 A new seat's status is seeded from the bundle's own status, then adjusted:

@@ -167,6 +167,9 @@ Adds a WooCommerce subscription line item to the group subscription for an indiv
 |---|---|
 | `_membership_post_id` | Individual membership post ID |
 | `_member_name` | Member's `display_name` (omitted if user cannot be resolved) |
+| _(filter-injected)_ | Whatever `wicket_mship_bundle_line_item_extra_meta` returns — see below |
+
+After the two meta keys above are written, fires `apply_filters( 'wicket_mship_bundle_line_item_extra_meta', [], $item_id, $user, $membership_post_id, $product_id )` and writes each `meta_key => meta_value` pair of the returned array via `wc_add_order_item_meta()`. Default (empty array) is a no-op. `$user` is the already-loaded `WP_User` (may be omitted from the array write if not resolved, same as `_member_name`). Does not re-fire on renewal — see `Membership_Bundle_Cron_Controller::process_bundle_renewal_members()`, which reuses this same physical line item across terms and only swaps `_membership_post_id`.
 
 `$product_id` must be the variation ID when a variation is in use (caller passes `$variation_id ?? $product_id`, matching the precedence rule used for `membership_product_id`). Price comes from the WC product — no custom pricing logic. Calls `$sub->calculate_totals()` and `$sub->save()` after adding the item.
 

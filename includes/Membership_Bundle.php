@@ -1335,6 +1335,21 @@ class Membership_Bundle {
       wc_add_order_item_meta( $item_id, '_member_name', $user->display_name );
     }
 
+    // Client-specific extension point: a child theme can inject additional line-item
+    // meta (e.g. a client-specific ID sourced from user meta). Core has no knowledge of
+    // what gets written here — empty array in, no-op, zero cost for callers not using it.
+    $extra_meta = apply_filters(
+      'wicket_mship_bundle_line_item_extra_meta',
+      [],
+      $item_id,
+      $user,
+      $membership_post_id,
+      $product_id
+    );
+    foreach ( $extra_meta as $meta_key => $meta_value ) {
+      wc_add_order_item_meta( $item_id, $meta_key, $meta_value );
+    }
+
     if ( $recalculate_totals ) {
       $sub->calculate_totals();
     }

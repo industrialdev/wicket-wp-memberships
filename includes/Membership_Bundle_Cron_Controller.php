@@ -419,6 +419,12 @@ class Membership_Bundle_Cron_Controller {
         // from the old membership post ID to the new one. The subscription is shared across
         // renewals so we never add or remove line items here; only the pointer changes.
         // This prevents duplicate line items building up across renewal terms.
+        //
+        // Only this one meta key is touched. Any other line-item meta — including whatever
+        // a child theme wrote via the wicket_mship_bundle_line_item_extra_meta filter on
+        // first add — persists on the same physical item untouched. If the source value a
+        // child theme's callback read has since changed, the line item's copy is now stale;
+        // nothing here refreshes it. Accepted as-is, not a bug.
         if ( function_exists( 'wcs_get_subscription' ) ) {
           $sub_id = (int) get_post_meta( $new_bundle_post_id, 'membership_subscription_id', true );
           $sub    = $sub_id ? wcs_get_subscription( $sub_id ) : null;
