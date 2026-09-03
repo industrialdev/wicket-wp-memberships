@@ -5,6 +5,7 @@ import apiFetch from "@wordpress/api-fetch";
 import WicketModal from "../shared/components/WicketModal";
 import ModalPostSelector from "../shared/components/ModalPostSelector";
 import Alert from "../shared/components/Alert";
+import AddMemberErrorMessage from "../shared/components/AddMemberErrorMessage";
 import styled from "styled-components";
 import { API_URL, TIER_CPT_SLUG } from "../shared/constants";
 import {
@@ -69,6 +70,13 @@ const AddToMembershipBundleModal = ({
       const groups = response?.results ?? response ?? [];
       return groups
         .filter((bundle) => VALID_STATUSES.includes(bundle.status?.slug))
+        // Empty eligible_tier_ids means all tiers eligible. tierPostId can
+        // arrive as a string on legacy memberships, so coerce before compare.
+        .filter(
+          (bundle) =>
+            !bundle.eligible_tier_ids?.length ||
+            bundle.eligible_tier_ids.includes(Number(tierPostId)),
+        )
         .map((bundle) => ({
           value: bundle.post_id,
           title: bundle.bundle_name,
@@ -141,7 +149,7 @@ const AddToMembershipBundleModal = ({
         loadProductOptionsForAmbiguousTier();
         return;
       }
-      setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));
+      setError(err);
       setSubmitting(false);
     }
   };
@@ -155,7 +163,7 @@ const AddToMembershipBundleModal = ({
     >
       {error && (
         <Alert
-          saveResult={{ type: "error", message: error }}
+          saveResult={{ type: "error", message: <AddMemberErrorMessage error={error} /> }}
           onDismiss={() => setError(null)}
         />
       )}
@@ -174,6 +182,7 @@ const AddToMembershipBundleModal = ({
         value={selectedBundle}
         onChange={setSelectedGroup}
         loadOptions={loadGroupOptions}
+        emptyMessage={__("No eligible options available.", "wicket-memberships")}
         columns={[
           { key: "title",    label: __("Bundle Name",    "wicket-memberships"), width: 250, searchable: true },
           { key: "org_name", label: __("Organization",  "wicket-memberships"), width: 250, searchable: true },

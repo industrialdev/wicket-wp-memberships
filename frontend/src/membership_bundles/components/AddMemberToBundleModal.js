@@ -7,6 +7,7 @@ import styled from "styled-components";
 import WicketModal from "../../shared/components/WicketModal";
 import ModalPostSelector from "../../shared/components/ModalPostSelector";
 import Alert from "../../shared/components/Alert";
+import AddMemberErrorMessage from "../../shared/components/AddMemberErrorMessage";
 import { AsyncSelectWpStyled, LabelWpStyled } from "../../shared/styled_elements";
 import { API_URL, TIER_CPT_SLUG } from "../../shared/constants";
 import { fetchMdpPersons, fetchMembershipProducts, addMemberToBundle } from "../../shared/services/api";
@@ -29,12 +30,16 @@ const ModalFooter = styled.div`
  *
  * @param {bool}     props.isOpen
  * @param {number}   props.bundlePostId
+ * @param {number[]} props.eligibleTierIds - Bundle config's eligible_tier_ids.
+ *   Empty means all active individual tiers are eligible (fallback rule) —
+ *   the tier dropdown is unfiltered in that case, not empty.
  * @param {Function} props.onRequestClose
  * @param {Function} props.onSuccess       - Called after successful add; parent should refresh.
  */
 const AddMemberToBundleModal = ({
   isOpen,
   bundlePostId,
+  eligibleTierIds = [],
   onRequestClose,
   onSuccess,
 }) => {
@@ -88,6 +93,13 @@ const AddMemberToBundleModal = ({
     }).then(async (posts) => {
       const tiers = posts
         .filter((post) => post.tier_data?.type === "individual")
+        // Empty eligibleTierIds means all active individual tiers are
+        // eligible (the config field's own fallback rule) — this filter
+        // is a no-op in that case, not an empty result.
+        .filter(
+          (post) =>
+            eligibleTierIds.length === 0 || eligibleTierIds.includes(post.id),
+        )
         .map((post) => ({
           value: post.id,
           title: post.title.rendered,
@@ -172,7 +184,7 @@ const AddMemberToBundleModal = ({
       onSuccess();
     } catch (err) {
       console.error("[AddMemberToBundleModal] add member failed", err);
-      setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));
+      setError(err);
       setSubmitting(false);
     }
   };
@@ -186,7 +198,7 @@ const AddMemberToBundleModal = ({
     >
       {error && (
         <Alert
-          saveResult={{ type: "error", message: error }}
+          saveResult={{ type: "error", message: <AddMemberErrorMessage error={error} /> }}
           onDismiss={() => setError(null)}
         />
       )}
@@ -220,6 +232,7 @@ const AddMemberToBundleModal = ({
           onChange={handleTierChange}
           disabled={!selectedUser}
           loadOptions={loadTierOptions}
+          emptyMessage={__("No eligible options available.", "wicket-memberships")}
           columns={[
             { key: "title", label: __("Tier Name", "wicket-memberships"), flex: 1, searchable: true },
           ]}

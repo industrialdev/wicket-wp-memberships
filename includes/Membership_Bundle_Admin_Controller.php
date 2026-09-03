@@ -325,6 +325,7 @@ class Membership_Bundle_Admin_Controller {
     $bundle_mdp_link    = ( $org_uuid && $bundle_mdp_uuid && $wicket_admin )
       ? $wicket_admin . '/organizations/' . $org_uuid . '/bundles/' . $bundle_mdp_uuid
       : '';
+    $config             = $bundle->get_config();
 
     return [
       'id'             => $bundle->get_bundle_group_uuid(),
@@ -341,6 +342,7 @@ class Membership_Bundle_Admin_Controller {
       'org_uuid'       => $org_uuid,
       'mdp_link'       => $mdp_link,
       'bundle_mdp_link' => $bundle_mdp_link,
+      'eligible_tier_ids' => $config ? $config->get_eligible_tier_ids() : [],
     ];
   }
 
@@ -773,6 +775,7 @@ class Membership_Bundle_Admin_Controller {
       'config_id'           => $config ? $config->get_post_id() : null,
       'config_title'        => $config ? get_the_title( $config->get_post_id() ) : '',
       'config_renewal_type' => $config ? $config->get_renewal_type() : '',
+      'config_eligible_tier_ids' => $config ? $config->get_eligible_tier_ids() : [],
       'subscription_id'     => $bundle->get_subscription_id(),
       'subscription'        => $subscription_payload,
       'order'               => $order_payload,
@@ -918,6 +921,19 @@ class Membership_Bundle_Admin_Controller {
       return [ 'error' => 'Membership bundle not found.', 'code' => 'bundle_not_found' ];
     }
 
+    // Gate both 'new' and 'existing' modes against the bundle config's eligible
+    // tiers before any product resolution or user creation runs. A bundle with
+    // no config linked (or an invalid config) is treated as all-tiers-eligible
+    // by the null-safe wrapper, not rejected.
+    if ( ! Membership_Bundle_Config::is_tier_eligible_for_bundle( $bundle, $tier_post_id ) ) {
+      $eligible_tier_names = self::get_eligible_tier_names( $bundle );
+      return [
+        'error'               => self::build_tier_not_eligible_message( $eligible_tier_names ),
+        'code'                => 'tier_not_eligible',
+        'eligible_tier_names' => $eligible_tier_names,
+      ];
+    }
+
     // For existing mode, derive product/variation from the existing membership
     // when the caller doesn't supply them — avoids requiring the frontend to
     // know whether membership_product_id is a parent or variation ID.
@@ -958,6 +974,51 @@ class Membership_Bundle_Admin_Controller {
     }
 
     return [ 'success' => 'Member added to bundle.', 'membership_post_id' => $result ];
+  }
+
+  /**
+   * Resolve the display names of a bundle's config's eligible tiers.
+   *
+   * @param Membership_Bundle $bundle Bundle whose config's eligible tiers to list.
+   * @return string[] Tier titles; empty if the config has no config, or no
+   *   eligible tiers resolve to real posts.
+   */
+  private static function get_eligible_tier_names( Membership_Bundle $bundle ): array {
+    $config = $bundle->get_config();
+
+    if ( ! $config instanceof Membership_Bundle_Config ) {
+      // Should not happen: is_tier_eligible_for_bundle() already treats a
+      // missing config as all-tiers-eligible, so this gate only fires when a
+      // config exists and actually restricts tiers.
+      return [];
+    }
+
+    return array_values( array_filter( array_map(
+      function ( $tier_post_id ) {
+        return get_the_title( $tier_post_id );
+      },
+      $config->get_eligible_tier_ids()
+    ) ) );
+  }
+
+  /**
+   * Build the tier_not_eligible plain-text error message (client-rendered
+   * bundle_member modals present the eligible_tier_names list themselves,
+   * as a bulleted list; this string is the fallback for any consumer that
+   * only reads `error`).
+   *
+   * @param string[] $eligible_tier_names Resolved tier titles, from get_eligible_tier_names().
+   * @return string
+   */
+  private static function build_tier_not_eligible_message( array $eligible_tier_names ): string {
+    if ( empty( $eligible_tier_names ) ) {
+      return 'This membership tier is not eligible for this bundle configuration.';
+    }
+
+    return sprintf(
+      'This membership tier is not eligible for this bundle configuration. Eligible tiers: %s.',
+      implode( ', ', $eligible_tier_names )
+    );
   }
 
   /**

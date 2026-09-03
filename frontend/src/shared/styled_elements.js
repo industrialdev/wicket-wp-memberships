@@ -43,6 +43,18 @@ export const CustomDisabled = styled(Disabled)`
   opacity: 0.5;
 `;
 
+// react-select's menu (SelectWpStyled/MultiSelectWpStyled/AsyncSelectWpStyled,
+// all via menuPortalTarget: document.body) renders outside any styled
+// component's own DOM subtree, so option-row rules scoped inside those
+// components' template literals never reach it — same portal-escape problem
+// GlobalDatePickerStyle solves for the date picker's popper above. Mount
+// once on any page/modal using one of the Select* components.
+export const GlobalSelectMenuStyle = createGlobalStyle`
+  .select__option {
+    cursor: pointer;
+  }
+`;
+
 export const Wrap = styled.div`
   max-width: 600px;
 `;
@@ -72,6 +84,14 @@ export const BorderedBox = styled.div`
   border: 1px solid #c3c4c7;
   padding: 15px;
   margin-top: 15px;
+`;
+
+export const SectionTitle = styled.h3`
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  padding: 0;
+  line-height: 1.4;
 `;
 
 // menuPortalTarget renders the option list into document.body via a portal, so it
@@ -109,9 +129,77 @@ export const SelectWpStyled = styled(Select).attrs(selectPortalProps)`
   .select__value-container {
     padding: 0 8px;
   }
+`;
 
-  .select__value-container--is-multi {
-    padding: 6px 8px;
+// Single-select and multi-select need different .select__control/
+// __value-container/__input sizing (a multi-select's control must grow to
+// fit wrapped tag pills; a fixed 30px height clips them), so this is a
+// dedicated styled component rather than a shared class toggled by isMulti
+// on SelectWpStyled — every current SelectWpStyled usage in this plugin is
+// single-select only, so keeping it single-purpose avoids new dead CSS
+// paths on every existing picker.
+export const MultiSelectWpStyled = styled(Select).attrs({
+  ...selectPortalProps,
+  isMulti: true,
+})`
+  .select__input-container {
+    margin: 0;
+    padding: 0;
+  }
+
+  .select__dropdown-indicator {
+    padding: 0 4px;
+  }
+
+  .select__control {
+    border: 1px solid #949494;
+    border-radius: 2px;
+    min-height: 30px;
+    cursor: pointer;
+  }
+
+  .select__input {
+    min-height: 22px;
+    box-shadow: none !important;
+  }
+
+  .select__value-container {
+    padding: 3px 8px;
+    gap: 4px;
+  }
+
+  // react-select's default multi-value pill, restyled to match this admin's
+  // grey/blue palette instead of the library's default light-blue theme.
+  .select__multi-value {
+    background: #f0f0f1;
+    border: 1px solid #c3c4c7;
+    border-radius: 3px;
+    margin: 2px 0;
+  }
+
+  .select__multi-value__label {
+    padding: 3px 6px;
+    font-size: 13px;
+    line-height: 1;
+    cursor: default;
+  }
+
+  .select__multi-value__remove {
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    border-radius: 0 3px 3px 0;
+    cursor: pointer;
+
+    &:hover {
+      background: #d63638;
+      color: #fff;
+    }
+  }
+
+  .select__dropdown-indicator,
+  .select__clear-indicator {
+    cursor: pointer;
   }
 `;
 

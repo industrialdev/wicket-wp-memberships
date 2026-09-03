@@ -248,6 +248,15 @@ class Membership_Bundle_Cron_Controller {
    * which sets processing_renewal=true on Membership_Controller so the MDP create
    * call is skipped during bundle-level ops — MDP handles the org at the bundle level.
    *
+   * Eligible-tiers note: this batch loop calls Membership_Bundle::add_member()
+   * directly and does NOT check Membership_Bundle_Config::is_tier_eligible_for_bundle()
+   * before doing so. This is deliberate, not an oversight — see the "Decisions"
+   * section of atlas/plans/feature-membership-bundle-eligible-tiers.md (WWID-2369):
+   * eligible_tier_ids gates enrollment only (admin add-member, CSV import). A
+   * member already in a bundle keeps renewing on their existing tier indefinitely,
+   * even after an admin removes that tier from the bundle config's eligible list.
+   * Do not add a gate here without revisiting that decision first.
+   *
    * @param int $old_bundle_post_id Bundle post that was cancelled in step 4.
    * @param int $new_bundle_post_id Newly created bundle post for this renewal term.
    * @param int $renewal_order_id   WC order ID whose line items define eligible members.

@@ -23,6 +23,9 @@ namespace Wicket_Memberships;
  *     grant_owner_assignment int     1 | 0
  *     approval_email_recipient string
  *     approval_callout_data  array
+ *     eligible_tier_ids      int[]   Post IDs of eligible Membership_Tier posts.
+ *                                    Empty (default) = all active individual
+ *                                    tiers eligible.
  */
 class Membership_Bundle_Config {
 
@@ -574,6 +577,56 @@ class Membership_Bundle_Config {
     }
 
     return false;
+  }
+
+  // -------------------------------------------------------------------------
+  // Eligible tiers
+  // -------------------------------------------------------------------------
+
+  /**
+   * Get the post IDs of individual membership tiers eligible for this bundle config.
+   *
+   * @return int[] Empty array means all active individual tiers are eligible (fallback rule).
+   */
+  public function get_eligible_tier_ids() {
+    if ( isset( $this->bundle_config_data['eligible_tier_ids'] ) && is_array( $this->bundle_config_data['eligible_tier_ids'] ) ) {
+      return array_map( 'intval', $this->bundle_config_data['eligible_tier_ids'] );
+    }
+
+    return [];
+  }
+
+  /**
+   * Check whether the given tier is eligible for this bundle config.
+   *
+   * An empty eligible-tiers list means every active individual tier is eligible
+   * (the field's own help text: "If no tiers are selected, all membership tiers
+   * are eligible for this configuration.").
+   *
+   * @param int $tier_post_id Post ID of the individual Membership_Tier to check.
+   * @return bool
+   */
+  public function is_tier_eligible( $tier_post_id ) {
+    $eligible_tier_ids = $this->get_eligible_tier_ids();
+
+    return empty( $eligible_tier_ids ) || in_array( (int) $tier_post_id, $eligible_tier_ids, true );
+  }
+
+  /**
+   * Null-safe eligibility check against a bundle's linked config.
+   *
+   * Membership_Bundle::get_config() returns false when a bundle has no config
+   * linked, or the linked config post is invalid — treat that as "all tiers
+   * eligible" rather than calling is_tier_eligible() on a non-object.
+   *
+   * @param Membership_Bundle $bundle       Bundle to resolve the config from.
+   * @param int               $tier_post_id Post ID of the individual Membership_Tier to check.
+   * @return bool
+   */
+  public static function is_tier_eligible_for_bundle( Membership_Bundle $bundle, $tier_post_id ) {
+    $config = $bundle->get_config();
+
+    return ! $config instanceof self || $config->is_tier_eligible( $tier_post_id );
   }
 
   // -------------------------------------------------------------------------

@@ -586,7 +586,13 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     $result = Membership_Bundle_Admin_Controller::add_member( $params );
 
     if ( isset( $result['error'] ) ) {
-      return new WP_REST_Response( [ 'error' => $result['error'], 'code' => $result['code'] ?? '' ], 400 );
+      $error_response = [ 'error' => $result['error'], 'code' => $result['code'] ?? '' ];
+
+      if ( isset( $result['eligible_tier_names'] ) ) {
+        $error_response['eligible_tier_names'] = $result['eligible_tier_names'];
+      }
+
+      return new WP_REST_Response( $error_response, 400 );
     }
 
     return new WP_REST_Response( $result, 200 );

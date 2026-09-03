@@ -1223,6 +1223,23 @@ class Membership_Post_Types {
                 }
               }
 
+              if ( isset( $value['eligible_tier_ids'] ) ) {
+                if ( ! is_array( $value['eligible_tier_ids'] ) ) {
+                  $errors->add( 'rest_invalid_param_eligible_tier_ids', __( 'The eligible tier IDs must be an array.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                } else {
+                  // Reject non-integer entries outright rather than silently coercing them
+                  // (e.g. "foo" -> 0) — a phantom tier ID 0 in the stored config is worse
+                  // than a rejected save, since it would silently restrict eligibility to
+                  // a tier that doesn't exist.
+                  foreach ( $value['eligible_tier_ids'] as $tier_id ) {
+                    if ( ! is_numeric( $tier_id ) || (string) (int) $tier_id !== (string) $tier_id ) {
+                      $errors->add( 'rest_invalid_param_eligible_tier_ids', __( 'Each eligible tier ID must be an integer post ID.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                      break;
+                    }
+                  }
+                }
+              }
+
               if ( $errors->has_errors() ) {
                 return $errors;
               }
@@ -1234,6 +1251,13 @@ class Membership_Post_Types {
             'renewal_type'             => array(
               'type'        => 'string',
               'description' => 'Renewal Type: subscription | form_page',
+            ),
+            'eligible_tier_ids'        => array(
+              'type'        => 'array',
+              'items'       => array(
+                'type' => 'integer',
+              ),
+              'description' => 'Post IDs of individual Membership_Tier posts eligible for this bundle config. Empty means all active individual tiers are eligible.',
             ),
             'renewal_form_page_id'     => array(
               'type'        => 'integer',
