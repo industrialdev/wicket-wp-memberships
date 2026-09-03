@@ -2925,6 +2925,11 @@ class Membership_Bundle {
         'next_tier'       => false,
         'form_page'       => false,
         'subscription_renewal' => false,
+        // Fourth button-type flag, alongside the three above: the Account Center's
+        // ac-callout block dispatches on these to decide what the callout's button
+        // does. confirmation_renewal has no link target (product/form/checkout) —
+        // it renders a real button that POSTs to confirm_renewal instead.
+        'confirmation_renewal' => $config->is_renewal_confirmation(),
         'multi_tier_renewal'   => false,
         'meta'            => [
           'membership_status'         => $status,

@@ -515,6 +515,14 @@ Writes `membership_bundle_group_uuid` post meta. Returns `true` on success, `fal
 
 Cancels the bundle post as part of a renewal without cascading the cancellation status to child individual memberships. Child memberships are historical records of the old term and must remain accessible for per-bundle member count queries; the new term's members already exist on the new bundle post. When `$preserve_end_date` is `true` (early renewal path), the existing `ends_at` is preserved so the bundle record reflects the full paid term. When `false` (same-day renewal), `ends_at` is collapsed to now. Returns `true` on success, `false` if the status write failed.
 
+### `get_owner_callouts( int $user_id ): array{early_renewal: array, grace_period: array, pending_approval: array, group_owner: array, debug: array}` _(static)_
+
+Builds renewal/grace/pending callout arrays for every membership bundle owned by `$user_id`. Called from `Membership_Controller::get_membership_callouts()` (its results are merged into that method's `early_renewal`/`grace_period`/`pending_approval` arrays) — the REST-exposed source of the Account Center's `ac-callout` renewal nudges.
+
+Each bundle's `membership_data` entry is shaped to match the individual-membership format `Membership_Controller::get_membership_callouts()` already produces, specifically so the `ac-callout` block's rendering can dispatch on the same flags for both: `next_tier`, `form_page`, `subscription_renewal` (always `false` for bundles today), and `confirmation_renewal` — set from `$config->is_renewal_confirmation()`. The block uses these flags to decide what a callout's button does; `confirmation_renewal` is the only one of the four that renders a real `<button>` (POSTs to `confirm_renewal`) instead of an `<a href>` link, since there is no link target to build.
+
+Evaluates three callout types per bundle, using the same window rules as [Renewal Types](../public/membership-bundles/concepts/renewal-types.md): `pending_approval` (status is `pending`), `early_renewal` (`early_renew_at <= now < ends_at`), `grace_period` (`ends_at < now <= expires_at`). Skips bundles with no config. `group_owner` in the return value is reserved for future nested bundle-within-bundle callouts and is always empty today.
+
 ---
 
 ## Action Scheduler Date Trigger Jobs

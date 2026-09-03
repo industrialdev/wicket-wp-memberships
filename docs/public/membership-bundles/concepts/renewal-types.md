@@ -64,6 +64,8 @@ if ( $config->is_renewal_confirmation() ) {
 
 **Confirm window:** the confirm action is only accepted between `early_renew_at` and `ends_at` — the same window that governs the renewal-window callout itself. A confirm attempt outside that window, by anyone other than the bundle's owner, or on a bundle not configured with `confirmation_renewal`, is rejected. A second confirm once a renewal order already exists for the current cycle is rejected as already-renewed rather than creating a duplicate order.
 
+**Account Center button:** `Membership_Bundle::get_owner_callouts()` sets a `confirmation_renewal` flag (alongside the existing `next_tier`/`form_page`/`subscription_renewal` flags) on each bundle's callout data so the Account Center's `ac-callout` block knows this callout's button should POST to the confirm endpoint rather than link somewhere.
+
 ## Renewal window
 
 The renewal window is the period before `ends_at` during which renewal is permitted. It is defined in days on the bundle config. The `early_renew_at` date is calculated as `ends_at - renewal_window_days`, snapped to the end of that day in the MDP timezone.
