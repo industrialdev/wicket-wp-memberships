@@ -79,12 +79,12 @@ Batch handler for membership renewal provisioning. Dispatched by `Membership_Con
 
 1. Loads the renewal WC order and collects eligible line items — items where `_membership_post_id` is set. This is the authoritative member list for the renewal (not the full old bundle member list).
 2. Slices `$batch_size` items starting at `$offset`.
-3. For each item: resolves `user_id`, `tier_post_id`, and `product_id` from the old membership post meta, then calls `$new_bundle->add_member(..., is_renewal: true)`.
+3. For each item: resolves `user_id`, `tier_post_id`, and `product_id` from the old membership post meta. Loads the old tier and checks `get_tier_renewal_type()`: if `sequential_logic`, resolves `get_next_tier_id()` and overrides `tier_post_id`/`product_id` to the next tier and its first product (variation preferred) before calling `add_member()` — see [Renewal Types](../public/membership-bundles/concepts/renewal-types.md#per-member-tier-succession-on-renewal). `current_tier` and `form_flow` renew unchanged. Then calls `$new_bundle->add_member(..., is_renewal: true)`.
 4. `is_renewal: true` sets the `processing_renewal` flag on `Membership_Controller`, causing `create_membership_record()` to skip the MDP create call — MDP handles bundle members at the org level, not per-member.
 5. If more items remain beyond `$offset + $batch_size`, dispatches itself again with the next offset.
 6. On the final batch: stamps `completed_at` on `membership_renewal_processing` meta for both old and new bundle posts (meta is **not** deleted — presence of `completed_at` key indicates completion), adds an order note **and a subscription note**, and fires `wicket_memberships_bundle_renewal_complete`.
 
-**Error handling:** items with missing `user_id` or `tier_post_id` are skipped and logged. Failed `add_member()` calls are logged and recorded in the `errors` array in the completion meta.
+**Error handling:** items with missing `user_id` or `tier_post_id` are skipped and logged. A `sequential_logic` tier with no `next_tier_id` configured, or a next tier with no products configured, is also skipped and logged. Failed `add_member()` calls are logged and recorded in the `errors` array in the completion meta.
 
 **MDP note:** No per-member MDP calls are made. `add_member(is_renewal: true)` bypasses the MDP create path. MDP is updated at the bundle/org level by the higher-level orchestration.
 

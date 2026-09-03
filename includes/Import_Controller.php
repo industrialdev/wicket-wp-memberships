@@ -276,7 +276,10 @@ class Import_Controller {
     }
     // Resolve the tier's first product explicitly (variation preferred), matching the
     // standalone import's behavior — avoids provision_individual_membership_record()'s
-    // stricter ambiguous_product error on tiers with more than one product.
+    // stricter ambiguous_product error on tiers with more than one product. Bundle
+    // renewal's sequential_logic next-tier resolution (Membership_Bundle_Cron_Controller
+    // ::process_bundle_renewal_members()) mirrors this same first-product,
+    // variation-preferred pick for consistency.
     $product_id = ! empty( $products[0]['variation_id'] ) ? $products[0]['variation_id'] : $products[0]['product_id'];
 
     $bundle = new Membership_Bundle( $bundle_post_id );

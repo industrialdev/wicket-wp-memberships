@@ -153,3 +153,15 @@ $dates = $config->get_membership_dates([
 All dates are stored and returned in UTC, with day boundaries snapped to the MDP timezone. Do not snap dates to UTC midnight directly.
 
 You can also calculate dates via the REST API without instantiating the class — see [Bundle Config Dates](../endpoints/bundle-config-dates.md).
+
+## Per-member tier succession on renewal
+
+The renewal types above govern the **bundle container's** own renewal mechanics. Separately, each **member's** `Membership_Tier` has its own `renewal_type` field (`current_tier`, `sequential_logic`, `form_flow`, or `subscription`) that determines which tier/product a member renews into when the bundle renews.
+
+`Membership_Bundle_Cron_Controller::process_bundle_renewal_members()` checks each member's old tier at renewal time and resolves their new tier/product accordingly:
+
+- **`sequential_logic`** — the member auto-advances to the tier's configured `next_tier_id`, with no admin or member action required. The next tier's product is resolved as the tier's first configured product, preferring a variation over the parent product if one exists — the same deterministic pick `Import_Controller::create_bundle_member()` uses for CSV-imported members. If the next tier has more than one product, the member/bundle owner is **not** asked which one applies; this is expected, existing behavior, not new to this fix.
+- **`current_tier`** — the member renews into the same tier and product, unchanged.
+- **`form_flow`** — treated identically to `current_tier` for bundle renewal: the member renews into the same tier/product unchanged. This is a deliberate divergence from what `form_flow` means for a standalone individual membership (an external form gates the renewal). Bundle renewal is a batch, hands-off cron process with no per-member interruption point, so that gating is not enforced here. Avoid assigning `form_flow` tiers to bundle members if that gating behavior matters for the tier.
+
+`next_tier_id` is re-evaluated fresh on every renewal cycle from whichever tier the member currently holds — it is not a pre-resolved multi-hop chain. Editing a tier's `next_tier_id` between renewal cycles is picked up automatically on the member's next renewal.

@@ -236,6 +236,59 @@ class Membership_Bundle_Cron_Controller {
   // ---------------------------------------------------------------------------
 
   /**
+   * Resolve the tier/product a renewing member's sequential_logic tier succeeds to.
+   *
+   * Non-sequential_logic tiers (current_tier, form_flow) pass through unchanged —
+   * only sequential_logic overrides tier_post_id/product_id here. See
+   * process_bundle_renewal_members()'s per-member loop, the only caller.
+   *
+   * @param int      $tier_post_id            The member's current tier post ID.
+   * @param int|null $product_id              The member's current product ID, passed through unchanged for non-sequential_logic tiers.
+   * @param int      $old_membership_post_id  For error logging only.
+   * @param int      $new_bundle_post_id      For error logging only.
+   * @return array{tier_post_id: int, product_id: int|null}|\WP_Error Resolved pair, or
+   *   WP_Error (already logged) when sequential_logic has no usable next tier/product.
+   */
+  private static function resolve_sequential_logic_succession( int $tier_post_id, ?int $product_id, int $old_membership_post_id, int $new_bundle_post_id ): array|\WP_Error {
+    $old_tier = new Membership_Tier( $tier_post_id );
+    if ( $old_tier->get_tier_renewal_type() !== 'sequential_logic' ) {
+      return [ 'tier_post_id' => $tier_post_id, 'product_id' => $product_id ];
+    }
+
+    $next_tier_id = $old_tier->get_next_tier_id();
+    if ( $next_tier_id === false ) {
+      Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: sequential_logic tier has no next_tier_id configured', [
+        'old_membership_post_id' => $old_membership_post_id,
+        'tier_post_id'           => $tier_post_id,
+        'new_bundle_post_id'     => $new_bundle_post_id,
+      ] ] );
+      return new \WP_Error( 'no_next_tier', 'sequential_logic tier has no next_tier_id configured.' );
+    }
+
+    $next_tier = new Membership_Tier( $next_tier_id );
+    $next_tier_products = $next_tier->get_products_data();
+    if ( empty( $next_tier_products ) ) {
+      Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: next tier has no products configured', [
+        'old_membership_post_id' => $old_membership_post_id,
+        'tier_post_id'           => $tier_post_id,
+        'next_tier_id'           => $next_tier_id,
+        'new_bundle_post_id'     => $new_bundle_post_id,
+      ] ] );
+      return new \WP_Error( 'no_next_tier_product', 'sequential_logic next tier has no products configured.' );
+    }
+
+    // First product, preferring the variation over the parent product — matches
+    // Import_Controller::create_bundle_member()'s ambiguous_product handling. A next
+    // tier configured with more than one product is not an expected configuration;
+    // this deterministic pick exists for correctness/safety, mirroring the import
+    // precedent, not because multi-product next tiers are a real scenario to support.
+    return [
+      'tier_post_id' => $next_tier_id,
+      'product_id'   => ! empty( $next_tier_products[0]['variation_id'] ) ? $next_tier_products[0]['variation_id'] : $next_tier_products[0]['product_id'],
+    ];
+  }
+
+  /**
    * Process one batch of individual member provisioning for a bundle renewal.
    *
    * Dispatched by handle_bundle_renewal() via Action Scheduler. Each invocation
@@ -324,6 +377,18 @@ class Membership_Bundle_Cron_Controller {
         $errors[] = $old_membership_post_id;
         continue;
       }
+
+      // Re-evaluated fresh every renewal cycle from whichever tier the member is currently
+      // on — not a pre-resolved multi-hop chain. sequential_logic auto-follows to next_tier_id;
+      // current_tier and form_flow both renew unchanged (form_flow's own external-form gating
+      // is not enforced by this batch cron — accepted, documented divergence).
+      $resolved = self::resolve_sequential_logic_succession( $tier_post_id, $product_id, $old_membership_post_id, $new_bundle_post_id );
+      if ( is_wp_error( $resolved ) ) {
+        $errors[] = $old_membership_post_id;
+        continue;
+      }
+      $tier_post_id = $resolved['tier_post_id'];
+      $product_id   = $resolved['product_id'];
 
       // add_member() with is_renewal=true skips MDP create and subscription line item
       // creation. start_date_override anchors all new memberships to the bundle's
