@@ -84,19 +84,21 @@ The line item carries `_membership_post_id` and `_member_name` meta so it can be
 A `wicket_mship_bundle_line_item_extra_meta` filter fires when the line item is created, letting a child theme inject its own meta onto it. Core has no knowledge of what gets written — an empty array (the default) is a no-op.
 
 ```php
-add_filter( 'wicket_mship_bundle_line_item_extra_meta', function ( $extra_meta, $item_id, $user, $membership_post_id, $product_id ) {
+add_filter( 'wicket_mship_bundle_line_item_extra_meta', function ( $extra_meta, $item_id, $user, $membership_post_id, $product_id, $is_renewal = false ) {
     $bar_id = get_user_meta( $user->ID, '_bar_id', true );
     if ( $bar_id ) {
         $extra_meta['_bar_id'] = $bar_id;
     }
     return $extra_meta;
-}, 10, 5 );
+}, 10, 6 );
 ```
 
 The filter fires for every member-add-shaped flow — new add, individual-to-bundle transition, and CSV import — since they all funnel through the same line-item creation call. Its args are whatever is already in scope at that point (`$item_id`, the already-loaded `$user`, `$membership_post_id`, `$product_id`); no extra DB fetch is made just to serve this filter. Fetch anything further yourself in the callback.
 
-::: warning Does not refresh on renewal
-On renewal, the line item is never recreated — the batch processor swaps only the `_membership_post_id` pointer meta on the same physical item (see [Bundle Lifecycle](./bundle-lifecycle.md)). Any meta this filter wrote on first add persists untouched across renewal terms. If the source value your callback read has since changed, the line item's copy goes stale — nothing refreshes it automatically. This is accepted, expected behavior, not a bug.
+The filter also fires again on renewal, refreshing the value on the same physical line item. A trailing `$is_renewal` argument (default `false`) lets a callback distinguish first-add from a renewal refresh; existing 5-argument callbacks are unaffected and simply never see the sixth argument.
+
+::: tip Refreshes on renewal
+The line item itself is never recreated on renewal — the batch processor swaps only the `_membership_post_id` pointer meta on the same physical item (see [Bundle Lifecycle](./bundle-lifecycle.md)). But this filter refires separately, on WooCommerce Subscriptions' own renewal-order-creation hook, before the line item is copied to the fresh renewal order — so a changed source value (e.g. updated user meta) is picked up on every renewal, and a member added before this filter existed gets backfilled on their next renewal. `_member_name` is refreshed in the same pass. No migration script is needed.
 :::
 
 ### Initial membership status

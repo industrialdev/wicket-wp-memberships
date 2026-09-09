@@ -47,6 +47,10 @@ class Membership_Bundle_Cron_Controller {
     // renewal order WCS bills the customer on (distinct from this plugin's own batch
     // cron, which re-provisions membership records on a decoupled cadence).
     add_filter( 'wcs_renewal_order_created', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'apply_bundle_renewal_line_item_price_filter' ], 10, 2 );
+
+    // Refreshes stale line-item identity meta on renewal. wcs_renewal_order_items is
+    // renewal-specific (unlike wcs_new_order_items), so this never fires for a resubscribe.
+    add_filter( 'wcs_renewal_order_items', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'refresh_bundle_renewal_line_item_meta' ], 10, 3 );
   }
 
   // ---------------------------------------------------------------------------
@@ -446,11 +450,9 @@ class Membership_Bundle_Cron_Controller {
         // renewals so we never add or remove line items here; only the pointer changes.
         // This prevents duplicate line items building up across renewal terms.
         //
-        // Only this one meta key is touched. Any other line-item meta — including whatever
-        // a child theme wrote via the wicket_mship_bundle_line_item_extra_meta filter on
-        // first add — persists on the same physical item untouched. If the source value a
-        // child theme's callback read has since changed, the line item's copy is now stale;
-        // nothing here refreshes it. Accepted as-is, not a bug.
+        // Other line-item meta (extra_meta filter, _member_name) is refreshed separately
+        // in refresh_bundle_renewal_line_item_meta(), not here — this runs before the new
+        // term's member is known, so it would read the outgoing member's data.
         if ( function_exists( 'wcs_get_subscription' ) ) {
           $sub_id = (int) get_post_meta( $new_bundle_post_id, 'membership_subscription_id', true );
           $sub    = $sub_id ? wcs_get_subscription( $sub_id ) : null;
@@ -598,6 +600,14 @@ class Membership_Bundle_Cron_Controller {
       }
       $user_id = (int) get_post_meta( $membership_post_id, 'user_id', true );
 
+      // Enforce _member_name landed on this item — backstops refresh_bundle_renewal_line_item_meta()
+      // regardless of WCS's own meta-copy behavior.
+      $user = $user_id ? get_user_by( 'id', $user_id ) : false;
+      if ( $user && '' === (string) $item->get_meta( '_member_name' ) ) {
+        $item->update_meta_data( '_member_name', $user->display_name );
+        $item->save();
+      }
+
       try {
         // The callback mutates $item and/or $renewal_order directly — e.g.
         // $item->set_total()/set_subtotal() for a price adjustment,
@@ -628,6 +638,88 @@ class Membership_Bundle_Cron_Controller {
     $renewal_order->calculate_totals();
 
     return $renewal_order;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Per-member line-item meta refresh on renewal
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Refresh wicket_mship_bundle_line_item_extra_meta and _member_name on each bundle
+   * member's subscription line item before WCS copies it to the renewal order.
+   *
+   * $items are the subscription's own items — wcs_copy_order_item() copies all their
+   * meta (except _reduced_stock) onto the renewal order right after this filter runs,
+   * so writing here reaches both objects. Unlike a price/tier write, this carries none
+   * of Milestone 9's pre-payment risk: identity meta is correct whether or not the
+   * order is ever paid.
+   *
+   * @param \WC_Order_Item[] $items        Subscription's own line items.
+   * @param \WC_Order        $new_order    The renewal order being built.
+   * @param \WC_Subscription $subscription The subscription the renewal is related to.
+   * @return \WC_Order_Item[] The same $items array, mutated in place.
+   */
+  public static function refresh_bundle_renewal_line_item_meta( $items, $new_order, $subscription ) {
+    if ( empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) || ! is_array( $items ) ) {
+      return $items;
+    }
+
+    // Scope to bundle subscriptions only — a subscription is linked to a bundle when some
+    // bundle post's membership_subscription_id meta points back to it.
+    $bundle_posts = get_posts( [
+      'post_type'      => Helper::get_membership_bundle_cpt_slug(),
+      'post_status'    => 'any',
+      'posts_per_page' => 1,
+      'fields'         => 'ids',
+      'meta_query'     => [
+        [ 'key' => 'membership_subscription_id', 'value' => $subscription->get_id() ],
+      ],
+    ] );
+
+    if ( empty( $bundle_posts ) ) {
+      return $items;
+    }
+
+    foreach ( $items as $item_id => $item ) {
+      $membership_post_id = (int) $item->get_meta( '_membership_post_id' );
+      if ( ! $membership_post_id ) {
+        continue;
+      }
+      $user_id = (int) get_post_meta( $membership_post_id, 'user_id', true );
+      $user    = $user_id ? get_user_by( 'id', $user_id ) : false;
+
+      try {
+        if ( $user ) {
+          $item->update_meta_data( '_member_name', $user->display_name );
+        }
+
+        $product_id = (int) $item->get_product_id();
+
+        // Same filter Milestone 1 fires at add-time; trailing true marks this a refresh.
+        $extra_meta = apply_filters(
+          'wicket_mship_bundle_line_item_extra_meta',
+          [],
+          $item_id,
+          $user,
+          $membership_post_id,
+          $product_id,
+          true
+        );
+        foreach ( $extra_meta as $meta_key => $meta_value ) {
+          $item->update_meta_data( $meta_key, $meta_value );
+        }
+
+        $item->save();
+      } catch ( \Throwable $e ) {
+        Utilities::wc_log_mship_error( [ 'wicket_mship_bundle_line_item_extra_meta refresh failed', [
+          'item_id'            => $item_id,
+          'membership_post_id' => $membership_post_id,
+          'error'              => $e->getMessage(),
+        ] ] );
+      }
+    }
+
+    return $items;
   }
 
   // ---------------------------------------------------------------------------
