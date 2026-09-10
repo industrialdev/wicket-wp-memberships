@@ -824,7 +824,12 @@ class Membership_Bundle {
         return new \WP_Error( 'no_product', __( 'The membership tier has no products configured.', 'wicket-memberships' ) );
       }
       $product_id = $tier_product_ids[0];
-    } elseif ( ! \in_array( $product_id, $tier_product_ids, true ) ) {
+    } elseif ( ! $is_renewal && ! \in_array( $product_id, $tier_product_ids, true ) ) {
+      // Skipped on renewal: the renewal-order repricing phase already validated and
+      // charged this exact product before payment (see
+      // Membership_Bundle_Cron_Controller::reprice_bundle_renewal_line_item()) — that
+      // decision must be trusted here, not re-checked against the tier's *current*
+      // config, which may have changed between order creation and this batch running.
       // get_product_ids() returns parent IDs only, so a variation-configured tier fails
       // here unless the caller separately confirms $product_id via $variation_id — check
       // against the tier's own variation IDs before rejecting.
