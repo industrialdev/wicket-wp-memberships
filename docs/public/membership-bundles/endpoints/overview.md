@@ -14,7 +14,9 @@ The Membership Bundles REST API is registered under the `wicket_member/v1` names
 
 ## Authentication
 
-All endpoints require the requesting user to have the `wicket_memberships_admin` capability. Unauthenticated requests receive a `401` response. Authenticated requests from users without the capability receive a `403`.
+Most endpoints require the requesting user to have the `wicket_memberships_admin` capability. Unauthenticated requests receive a `401` response. Authenticated requests from users without the capability receive a `403`.
+
+The one exception is `GET /membership_bundles/mine` (see [Bundles](bundles.md)), a member-scoped endpoint that only requires the requester to be logged in — it is not gated by the admin capability, since it restricts results to bundles the requesting user owns.
 
 The `ALLOW_LOCAL_IMPORTS` environment flag bypasses the permission check entirely. This is for internal automation only — do not rely on it in production integrations.
 

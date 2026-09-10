@@ -38,6 +38,8 @@ class Membership_Bundle_Admin_Controller {
    * @param array|string    $filter
    * @param string|null     $order_col
    * @param string|null     $order_dir
+   * @param int|null        $owner_user_id  When provided, restricts results to bundles
+   *                                        owned by this WP user ID (member-scoped list).
    * @return array
    */
   public static function get_membership_bundles_list(
@@ -47,7 +49,8 @@ class Membership_Bundle_Admin_Controller {
     string $search = '',
     $filter = [],
     ?string $order_col = null,
-    ?string $order_dir = null
+    ?string $order_dir = null,
+    ?int $owner_user_id = null
   ): array {
     $page = max( 1, (int) $page );
     $posts_per_page = max( 1, (int) $posts_per_page );
@@ -70,6 +73,17 @@ class Membership_Bundle_Admin_Controller {
       $query_args['meta_query'][] = [
         'key'     => 'membership_status',
         'value'   => $status,
+        'compare' => '=',
+      ];
+    }
+
+    // Member-scoped list: restrict to bundles owned by this WP user (owner-only,
+    // not individual seat-holders). Kept separate from $filter since it is never
+    // a caller-supplied value — only ever the current authenticated member's ID.
+    if ( null !== $owner_user_id ) {
+      $query_args['meta_query'][] = [
+        'key'     => 'user_id',
+        'value'   => $owner_user_id,
         'compare' => '=',
       ];
     }
@@ -326,6 +340,7 @@ class Membership_Bundle_Admin_Controller {
       ? $wicket_admin . '/organizations/' . $org_uuid . '/bundles/' . $bundle_mdp_uuid
       : '';
     $config             = $bundle->get_config();
+    $dates              = $bundle->get_dates();
 
     return [
       'id'             => $bundle->get_bundle_group_uuid(),
@@ -342,6 +357,11 @@ class Membership_Bundle_Admin_Controller {
       'org_uuid'       => $org_uuid,
       'mdp_link'       => $mdp_link,
       'bundle_mdp_link' => $bundle_mdp_link,
+      // Raw ISO strings (MDP timezone) — never pre-formatted, so callers can apply
+      // their own display formatting/tooltip convention (see Frontend UI Conventions).
+      'starts_at'         => $dates['starts_at'],
+      'ends_at'           => $dates['ends_at'],
+      'total_memberships' => count( $bundle->get_individual_memberships() ),
       'eligible_tier_ids' => $config ? $config->get_eligible_tier_ids() : [],
     ];
   }

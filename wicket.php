@@ -55,6 +55,7 @@ use Wicket_Memberships\Membership_Tier_CPT_Hooks;
 use Wicket_Memberships\Membership_WP_REST_Controller;
 use Wicket_Memberships\Membership_Bundle_Config_WP_REST_Controller;
 use Wicket_Memberships\Membership_Bundle_WP_REST_Controller;
+use Wicket_Memberships\Membership_Bundle_Block_Controller;
 use Wicket_Memberships\Membership_Subscription_Controller;
 use Wicket_Memberships\Membership_Bundle_Cron_Controller;
 use Wicket_Memberships\Import_Controller;
@@ -198,6 +199,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       new Membership_WP_REST_Controller;
       new Membership_Bundle_Config_WP_REST_Controller;
       new Membership_Bundle_WP_REST_Controller;
+      new Membership_Bundle_Block_Controller;
       new Membership_Subscription_Controller;
       new Helper;
       new Settings;

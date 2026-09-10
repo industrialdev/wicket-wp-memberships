@@ -100,6 +100,45 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
+     * List/search/filter membership bundles owned by the current logged-in member.
+     *
+     * GET /wicket_member/v1/membership_bundles/mine
+     *
+     * Member-scoped counterpart to /membership_bundles: restricted to bundles the
+     * requesting user owns (via the bundle's user_id meta), gated by
+     * permissions_check_member_read instead of the staff-only capability check.
+     */
+    register_rest_route( $this->namespace, '/membership_bundles/mine', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_my_membership_bundles' ],
+        'permission_callback' => [ $this, 'permissions_check_member_read' ],
+        'args'                => [
+          'page' => [
+            'type'        => 'integer',
+            'description' => 'Paginated results page.',
+          ],
+          'posts_per_page' => [
+            'type'        => 'integer',
+            'description' => 'Paginated results per page.',
+          ],
+          'status' => [
+            'type'        => 'string',
+            'description' => 'Membership bundle status filter.',
+          ],
+          'order_col' => [
+            'type'        => 'string',
+            'description' => 'Order by column name.',
+          ],
+          'order_dir' => [
+            'type'        => 'string',
+            'description' => 'Order by direction.',
+          ],
+        ],
+      ],
+    ] );
+
+    /**
      * Get a membership bundle record by its post ID.
      *
      * GET /wicket_member/v1/membership_bundle_entity?bundle_post_id=123
@@ -462,6 +501,28 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   }
 
   /**
+   * GET /membership_bundles/mine
+   *
+   * Owner-only: returns bundles where get_current_user_id() matches the
+   * bundle's user_id meta. Does not include bundles where the member merely
+   * holds an individual seat as a non-owner.
+   */
+  public function get_my_membership_bundles( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = Membership_Bundle_Admin_Controller::get_membership_bundles_list(
+      $params['page'] ?? 1,
+      $params['posts_per_page'] ?? 25,
+      $params['status'] ?? 'all',
+      '',
+      [],
+      $params['order_col'] ?? 'post_modified',
+      $params['order_dir'] ?? 'desc',
+      get_current_user_id()
+    );
+    return rest_ensure_response( $response );
+  }
+
+  /**
    * GET /membership_bundle_entity
    */
   public function get_bundle_entity( \WP_REST_Request $request ) {
@@ -717,6 +778,26 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       return true;
     }
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
+      return new WP_REST_Response( [ 'error' => 'Authentication required.' ], 401 );
+    }
+    return true;
+  }
+
+  /**
+   * Check permissions for member-scoped read routes.
+   *
+   * Unlike permissions_check_read (staff-only, gated by
+   * WICKET_MEMBERSHIPS_CAPABILITY), this only requires the requester to be a
+   * logged-in WP user — member-scoped routes filter results to that user's own
+   * data (see get_membership_bundles_list()'s $owner_user_id param), so no
+   * elevated capability is needed.
+   *
+   * Deliberately does not honor ALLOW_LOCAL_IMPORTS: that flag exists for CSV
+   * import automation, not member-facing browsing, so it should not bypass
+   * authentication here.
+   */
+  public function permissions_check_member_read( $request ) {
+    if ( ! is_user_logged_in() ) {
       return new WP_REST_Response( [ 'error' => 'Authentication required.' ], 401 );
     }
     return true;

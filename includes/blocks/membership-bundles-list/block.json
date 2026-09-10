@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "wicket-memberships/membership-bundles-list",
+  "title": "Membership Bundles List",
+  "category": "wicket",
+  "description": "Lists the membership bundles owned by the current logged-in member, with a link to manage each one.",
+  "textdomain": "wicket-memberships",
+  "editorScript": "file:./index.js",
+  "style": "file:./style.css",
+  "render": "file:./render.php",
+  "attributes": {},
+  "supports": {
+    "html": false,
+    "multiple": false
+  }
+}

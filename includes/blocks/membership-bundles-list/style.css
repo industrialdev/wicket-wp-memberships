@@ -1,0 +1,138 @@
+/**
+ * Styles for wicket-memberships/membership-bundles-list.
+ *
+ * Registered via block.json's "style" key — WordPress auto-enqueues this
+ * only on pages where the block is actually rendered (front end and editor),
+ * so no manual wp_enqueue_style() call is needed anywhere.
+ *
+ * Uses the Wicket theme's design-token custom properties (--text-content,
+ * --state-success, --space-200, etc.) wherever one exists for the value
+ * needed. Every var() carries a literal fallback so the block still looks
+ * reasonable on a non-Wicket theme where those custom properties are never
+ * defined.
+ */
+
+.wicket-mship-bundle-list {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: var(--space-400, 2rem) var(--space-200, 1rem);
+  font-family: inherit;
+}
+
+.wicket-mship-bundle-list__title {
+  font-size: var(--heading-xl-font-size, 2rem);
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0 0 var(--space-150, 0.75rem);
+}
+
+.wicket-mship-bundle-list__subtitle {
+  max-width: 640px;
+  color: var(--text-content-secondary, #4b5563);
+  line-height: var(--line-height-normal, 1.5);
+  margin: 0 0 var(--space-300, 1.5rem);
+}
+
+.wicket-mship-bundle-list__divider {
+  border: none;
+  border-top: 1px solid var(--border-light, #e5e7eb);
+  margin: 0 0 var(--space-300, 1.5rem);
+}
+
+.wicket-mship-bundle-list__count {
+  font-size: var(--heading-sm-font-size, 1.25rem);
+  font-weight: 700;
+  margin: 0 0 var(--space-200, 1rem);
+}
+
+.wicket-mship-bundle-list__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-200, 1rem);
+}
+
+.wicket-mship-bundle-list__empty,
+.wicket-mship-bundle-list__loading {
+  color: var(--text-content-secondary, #4b5563);
+  padding: var(--space-200, 1rem) 0;
+}
+
+.wicket-mship-bundle-list__error {
+  color: var(--state-error, #991b1b);
+  background: var(--state-error-light, #fef2f2);
+  border: 1px solid var(--state-error-light, #fecaca);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-150, 0.75rem) var(--space-200, 1rem);
+}
+
+/* Bundle card
+   ------------------------------------------------------------------------ */
+
+.wicket-mship-bundle-card {
+  border: 1px solid var(--border-light, #e5e7eb);
+  border-radius: var(--card-accent-corner-radius, 0.75rem);
+  padding: var(--space-250, 1.25rem) var(--space-300, 1.5rem);
+}
+
+.wicket-mship-bundle-card__title {
+  font-size: var(--heading-xs-font-size, 1.05rem);
+  font-weight: 700;
+  margin: 0 0 var(--space-100, 0.4rem);
+}
+
+.wicket-mship-bundle-card__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-100, 0.4rem);
+  color: var(--text-content-secondary, #4b5563);
+  font-size: var(--body-sm-font-size, 0.9rem);
+  margin-bottom: var(--space-200, 1rem);
+}
+
+.wicket-mship-bundle-card__status-dot {
+  width: var(--space-100, 0.5rem);
+  height: var(--space-100, 0.5rem);
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.wicket-mship-bundle-card__status-dot--active {
+  background: var(--state-success, #16a34a);
+}
+
+.wicket-mship-bundle-card__status-dot--pending,
+.wicket-mship-bundle-card__status-dot--delayed,
+.wicket-mship-bundle-card__status-dot--grace_period {
+  background: var(--state-warning, #d97706);
+}
+
+.wicket-mship-bundle-card__status-dot--expired,
+.wicket-mship-bundle-card__status-dot--cancelled {
+  background: var(--state-error, #dc2626);
+}
+
+.wicket-mship-bundle-card__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1000, 1.5rem);
+  margin-bottom: var(--space-200, 1rem);
+}
+
+.wicket-mship-bundle-card__field-label {
+  font-size: var(--label-sm-font-size, 0.9rem);
+  font-weight: 700;
+  margin: 0 0 var(--space-25, 0.15rem);
+}
+
+.wicket-mship-bundle-card__field-value {
+  font-size: var(--body-sm-font-size, 0.9rem);
+  color: var(--text-content, #111827);
+  margin: 0;
+}
+
+.wicket-mship-bundle-card__manage-link {
+  font-size: var(--body-sm-font-size, 0.9rem);
+  font-weight: 600;
+  color: var(--interactive, #2563eb);
+  text-decoration: underline;
+}

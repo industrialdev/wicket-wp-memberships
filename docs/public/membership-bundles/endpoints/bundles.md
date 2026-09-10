@@ -281,7 +281,10 @@ Returns a paginated, filterable list of membership bundles.
             "post_modified": "2025-06-01 12:00:00",
             "org_uuid": "...",
             "mdp_link": "https://admin.example.com/organizations/...",
-            "bundle_mdp_link": "https://admin.example.com/organizations/.../bundles/..."
+            "bundle_mdp_link": "https://admin.example.com/organizations/.../bundles/...",
+            "starts_at": "2025-01-01T00:00:00+00:00",
+            "ends_at": "2025-12-31T23:59:59+00:00",
+            "total_memberships": 12
         }
     ],
     "total": 1,
@@ -290,13 +293,52 @@ Returns a paginated, filterable list of membership bundles.
 }
 ```
 
-`id` is the bundle's `membership_bundle_group_uuid` (stable across renewal cycles) — use it for admin navigation links (`?id=<uuid>`). `post_id` is the numeric WP post ID for the current `wicket_mship_bundle` post — use it when calling other endpoints that take a `bundle_post_id` path/body parameter (e.g. `move_individual_membership`, `add_member`).
+`id` is the bundle's `membership_bundle_group_uuid` (stable across renewal cycles) — use it for admin navigation links (`?id=<uuid>`). `post_id` is the numeric WP post ID for the current `wicket_mship_bundle` post — use it when calling other endpoints that take a `bundle_post_id` path/body parameter (e.g. `move_individual_membership`, `add_member`). `starts_at`/`ends_at` are raw ISO 8601 strings in the MDP timezone — never pre-formatted, so callers can apply their own display formatting/tooltip convention. `total_memberships` counts only active individual membership seats (matches `get_individual_memberships( true )`).
 
 ### Example
 
 :::details Example
 ```bash
 curl "https://example.com/wp-json/wicket_member/v1/membership_bundles?status=active&search=Acme&page=1" \
+  -H "X-WP-Nonce: {nonce}"
+```
+:::
+
+---
+
+## List my bundles (member-scoped)
+
+**`GET /wp-json/wicket_member/v1/membership_bundles/mine`**
+
+Returns a paginated, filterable list of membership bundles owned by the current logged-in member. Owner-only: a member who holds an individual seat in a bundle but does not own it will not see that bundle here. Shares its row shape and pagination behavior with [List bundles](#list-bundles), but requires only that the requester be logged in — not the `wicket_memberships_admin` capability (see [Authentication](overview.md#authentication)).
+
+### Query parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `page` | `integer` | No | Page number. Default `1`. |
+| `posts_per_page` | `integer` | No | Results per page. Default `25`. |
+| `status` | `string` | No | Filter by status slug, or `all`. |
+| `order_col` | `string` | No | Column to sort by. |
+| `order_dir` | `string` | No | `ASC` or `DESC`. |
+
+### Response
+
+`200 OK`
+
+Same shape as [List bundles](#list-bundles) — `results`, `page`, `posts_per_page`, `count`.
+
+### Errors
+
+| Status | Cause |
+|---|---|
+| `401` | Not logged in |
+
+### Example
+
+:::details Example
+```bash
+curl "https://example.com/wp-json/wicket_member/v1/membership_bundles/mine?status=active&page=1" \
   -H "X-WP-Nonce: {nonce}"
 ```
 :::

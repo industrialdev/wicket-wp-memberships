@@ -67,7 +67,8 @@ public static function get_membership_bundles_list(
     string  $search          = '',
     array   $filter          = [],
     ?string $order_col       = null,
-    ?string $order_dir       = null
+    ?string $order_dir       = null,
+    ?int    $owner_user_id   = null
 ): array
 ```
 
@@ -84,6 +85,7 @@ Returns a paginated list of membership bundles with their post meta formatted fo
 | `$filter` | `array` | No | Additional filter key-value pairs. |
 | `$order_col` | `string\|null` | No | Column to sort by. |
 | `$order_dir` | `string\|null` | No | Sort direction: `'ASC'` or `'DESC'`. |
+| `$owner_user_id` | `int\|null` | No | When provided, restricts results to bundles owned by this WP user ID (owner-only; excludes bundles where the user merely holds an individual seat). Powers the member-scoped `GET /membership_bundles/mine` route. |
 
 :::details Returns
 ```php
@@ -99,6 +101,9 @@ Returns a paginated list of membership bundles with their post meta formatted fo
             'last_updated'=> string,   // Y-m-d H:i:s
             'mdp_link'    => string,   // URL to org in MDP admin (empty if unavailable)
             'bundle_mdp_link' => string, // URL to bundle record in MDP admin
+            'starts_at'   => string,   // raw ISO 8601, MDP timezone — do not pre-format
+            'ends_at'     => string,   // raw ISO 8601, MDP timezone — do not pre-format
+            'total_memberships' => int, // count of active individual membership seats
         ],
         // ...one entry per bundle in the current page
     ],
