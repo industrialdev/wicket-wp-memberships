@@ -136,3 +136,36 @@
   color: var(--interactive, #2563eb);
   text-decoration: underline;
 }
+
+/* Pagination
+   ------------------------------------------------------------------------ */
+
+.wicket-mship-bundle-list__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-200, 1rem);
+  margin-top: var(--space-300, 1.5rem);
+}
+
+.wicket-mship-bundle-list__page-btn {
+  font-size: var(--body-sm-font-size, 0.9rem);
+  font-weight: 600;
+  color: var(--interactive, #2563eb);
+  background: none;
+  border: 1px solid var(--border-light, #e5e7eb);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-100, 0.4rem) var(--space-200, 1rem);
+  cursor: pointer;
+}
+
+.wicket-mship-bundle-list__page-btn:disabled {
+  color: var(--text-disabled, #9ca3af);
+  border-color: var(--border-disabled, #e5e7eb);
+  cursor: not-allowed;
+}
+
+.wicket-mship-bundle-list__page-status {
+  font-size: var(--body-sm-font-size, 0.9rem);
+  color: var(--text-content-secondary, #4b5563);
+}

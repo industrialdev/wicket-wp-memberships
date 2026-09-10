@@ -64,10 +64,10 @@ $block_config = [
   <template x-if="!loading && !error">
     <div>
       <h2 class="wicket-mship-bundle-list__count">
-        <?php esc_html_e( 'Organizations Found:', 'wicket-memberships' ); ?> <span x-text="bundles.length"></span>
+        <?php esc_html_e( 'Organizations Found:', 'wicket-memberships' ); ?> <span x-text="total"></span>
       </h2>
 
-      <template x-if="bundles.length === 0">
+      <template x-if="total === 0">
         <p class="wicket-mship-bundle-list__empty">
           <?php esc_html_e( "You don't own any membership bundles yet.", 'wicket-memberships' ); ?>
         </p>
@@ -107,6 +107,30 @@ $block_config = [
           </div>
         </template>
       </div>
+
+      <template x-if="totalPages > 1">
+        <nav class="wicket-mship-bundle-list__pagination" aria-label="<?php echo esc_attr__( 'Membership bundle pages', 'wicket-memberships' ); ?>">
+          <button
+            type="button"
+            class="wicket-mship-bundle-list__page-btn"
+            :disabled="page <= 1"
+            @click="goToPage(page - 1)"
+          >
+            <?php esc_html_e( 'Previous', 'wicket-memberships' ); ?>
+          </button>
+          <span class="wicket-mship-bundle-list__page-status">
+            <?php esc_html_e( 'Page', 'wicket-memberships' ); ?> <span x-text="page"></span> <?php esc_html_e( 'of', 'wicket-memberships' ); ?> <span x-text="totalPages"></span>
+          </span>
+          <button
+            type="button"
+            class="wicket-mship-bundle-list__page-btn"
+            :disabled="page >= totalPages"
+            @click="goToPage(page + 1)"
+          >
+            <?php esc_html_e( 'Next', 'wicket-memberships' ); ?>
+          </button>
+        </nav>
+      </template>
     </div>
   </template>
 </div>
@@ -120,16 +144,28 @@ $block_config = [
       restNonce: config.restNonce,
       mdpTimezone: config.mdpTimezone,
       manageBundleBaseUrl: config.manageBundleBaseUrl,
+      perPage: 10,
+      page: 1,
+      total: 0,
+      totalPages: 1,
       loading: true,
       error: '',
       bundles: [],
 
-      async fetchBundles() {
+      // Server-paginated via GET /membership_bundles/mine's page/posts_per_page
+      // args — the REST response shape is { results, page, posts_per_page,
+      // count }, where count is the total across all pages (not just this one).
+      async fetchBundles( page ) {
+        const targetPage = page || this.page;
         this.loading = true;
         this.error = '';
 
         try {
-          const response = await fetch( this.restUrl, {
+          const url = new URL( this.restUrl );
+          url.searchParams.set( 'page', targetPage );
+          url.searchParams.set( 'posts_per_page', this.perPage );
+
+          const response = await fetch( url.toString(), {
             headers: { 'X-WP-Nonce': this.restNonce },
             credentials: 'same-origin',
           } );
@@ -140,11 +176,21 @@ $block_config = [
 
           const data = await response.json();
           this.bundles = Array.isArray( data.results ) ? data.results : [];
+          this.page = data.page || targetPage;
+          this.total = typeof data.count === 'number' ? data.count : this.bundles.length;
+          this.totalPages = Math.max( 1, Math.ceil( this.total / this.perPage ) );
         } catch ( err ) {
           this.error = <?php echo wp_json_encode( __( 'We couldn\'t load your membership bundles. Please try again later.', 'wicket-memberships' ) ); ?>;
         } finally {
           this.loading = false;
         }
+      },
+
+      goToPage( page ) {
+        if ( page < 1 || page > this.totalPages || page === this.page ) {
+          return;
+        }
+        this.fetchBundles( page );
       },
 
       cardTitle( bundle ) {
