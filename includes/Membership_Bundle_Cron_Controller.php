@@ -246,30 +246,23 @@ class Membership_Bundle_Cron_Controller {
 
   /**
    * Resolve the tier/product a renewing member's sequential_logic tier succeeds to.
+   * Non-sequential_logic tiers pass through unchanged. Callable from both the
+   * post-payment batch cron and the pre-payment repricing phase — takes no
+   * new-bundle-post argument since that post doesn't exist yet at the earlier point.
    *
-   * Non-sequential_logic tiers (current_tier, form_flow) pass through unchanged —
-   * only sequential_logic overrides tier_post_id/product_id here. See
-   * process_bundle_renewal_members()'s per-member loop, the only caller.
-   *
-   * @param int      $tier_post_id            The member's current tier post ID.
-   * @param int|null $product_id              The member's current product ID, passed through unchanged for non-sequential_logic tiers.
-   * @param int      $old_membership_post_id  For error logging only.
-   * @param int      $new_bundle_post_id      For error logging only.
-   * @return array{tier_post_id: int, product_id: int|null}|\WP_Error Resolved pair, or
-   *   WP_Error (already logged) when sequential_logic has no usable next tier/product.
+   * @return array{tier_post_id: int, product_id: int|null, variation_id: int|null}|\WP_Error
    */
-  private static function resolve_sequential_logic_succession( int $tier_post_id, ?int $product_id, int $old_membership_post_id, int $new_bundle_post_id ): array|\WP_Error {
+  public static function resolve_sequential_logic_succession( int $tier_post_id, ?int $product_id, int $old_membership_post_id ): array|\WP_Error {
     $old_tier = new Membership_Tier( $tier_post_id );
     if ( $old_tier->get_tier_renewal_type() !== 'sequential_logic' ) {
-      return [ 'tier_post_id' => $tier_post_id, 'product_id' => $product_id ];
+      return [ 'tier_post_id' => $tier_post_id, 'product_id' => $product_id, 'variation_id' => null ];
     }
 
     $next_tier_id = $old_tier->get_next_tier_id();
     if ( $next_tier_id === false ) {
-      Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: sequential_logic tier has no next_tier_id configured', [
+      Utilities::wc_log_mship_error( [ 'resolve_sequential_logic_succession: sequential_logic tier has no next_tier_id configured', [
         'old_membership_post_id' => $old_membership_post_id,
         'tier_post_id'           => $tier_post_id,
-        'new_bundle_post_id'     => $new_bundle_post_id,
       ] ] );
       return new \WP_Error( 'no_next_tier', 'sequential_logic tier has no next_tier_id configured.' );
     }
@@ -277,11 +270,10 @@ class Membership_Bundle_Cron_Controller {
     $next_tier = new Membership_Tier( $next_tier_id );
     $next_tier_products = $next_tier->get_products_data();
     if ( empty( $next_tier_products ) ) {
-      Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: next tier has no products configured', [
+      Utilities::wc_log_mship_error( [ 'resolve_sequential_logic_succession: next tier has no products configured', [
         'old_membership_post_id' => $old_membership_post_id,
         'tier_post_id'           => $tier_post_id,
         'next_tier_id'           => $next_tier_id,
-        'new_bundle_post_id'     => $new_bundle_post_id,
       ] ] );
       return new \WP_Error( 'no_next_tier_product', 'sequential_logic next tier has no products configured.' );
     }
@@ -291,9 +283,12 @@ class Membership_Bundle_Cron_Controller {
     // tier configured with more than one product is not an expected configuration;
     // this deterministic pick exists for correctness/safety, mirroring the import
     // precedent, not because multi-product next tiers are a real scenario to support.
+    $variation_id = ! empty( $next_tier_products[0]['variation_id'] ) ? (int) $next_tier_products[0]['variation_id'] : null;
+
     return [
-      'tier_post_id' => $next_tier_id,
-      'product_id'   => ! empty( $next_tier_products[0]['variation_id'] ) ? $next_tier_products[0]['variation_id'] : $next_tier_products[0]['product_id'],
+      'tier_post_id'  => $next_tier_id,
+      'product_id'    => (int) $next_tier_products[0]['product_id'],
+      'variation_id'  => $variation_id,
     ];
   }
 
@@ -370,16 +365,12 @@ class Membership_Bundle_Cron_Controller {
 
     foreach ( $batch as $entry ) {
       $old_membership_post_id = $entry['membership_post_id'];
+      $item                   = $entry['item'];
 
-      // Resolve user_id, tier, and product from the old membership post meta.
-      // Keys match what create_local_membership_record() writes to post meta.
-      $user_id      = (int) get_post_meta( $old_membership_post_id, 'user_id',               true );
-      $tier_post_id = (int) get_post_meta( $old_membership_post_id, 'membership_tier_post_id', true );
-      $product_id   = (int) get_post_meta( $old_membership_post_id, 'membership_product_id',  true ) ?: null;
-      $variation_id = null; // Not stored as separate meta — product_id already reflects variation when applicable.
+      $user_id = (int) get_post_meta( $old_membership_post_id, 'user_id', true );
 
-      if ( ! $user_id || ! $tier_post_id ) {
-        Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: skipping item, missing user or tier', [
+      if ( ! $user_id ) {
+        Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: skipping item, missing user', [
           'old_membership_post_id' => $old_membership_post_id,
           'new_bundle_post_id'     => $new_bundle_post_id,
         ] ] );
@@ -387,37 +378,21 @@ class Membership_Bundle_Cron_Controller {
         continue;
       }
 
-      // Re-evaluated fresh every renewal cycle from whichever tier the member is currently
-      // on — not a pre-resolved multi-hop chain. sequential_logic auto-follows to next_tier_id;
-      // current_tier and form_flow both renew unchanged (form_flow's own external-form gating
-      // is not enforced by this batch cron — accepted, documented divergence).
-      $resolved = self::resolve_sequential_logic_succession( $tier_post_id, $product_id, $old_membership_post_id, $new_bundle_post_id );
-      if ( is_wp_error( $resolved ) ) {
+      // Read the decision reprice_bundle_renewal_line_item() already made and charged
+      // the customer for at order-creation time — this must never re-resolve after
+      // payment, or the record could disagree with what was actually billed.
+      $tier_post_id = (int) $item->get_meta( '_wicket_charge_tier_post_id' );
+      $product_id   = (int) $item->get_meta( '_wicket_charge_product_id' );
+      $variation_id = (int) $item->get_meta( '_wicket_charge_variation_id' ) ?: null;
+
+      if ( ! $tier_post_id || ! $product_id ) {
+        Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: missing charge-decision meta on renewal item', [
+          'old_membership_post_id' => $old_membership_post_id,
+          'item_id'                => $item->get_id(),
+          'new_bundle_post_id'     => $new_bundle_post_id,
+        ] ] );
         $errors[] = $old_membership_post_id;
         continue;
-      }
-      $tier_post_id = $resolved['tier_post_id'];
-      $product_id   = $resolved['product_id'];
-
-      // Client-specific extension point: full override of the tier/product a member
-      // renews into, bypassing the default resolution above entirely. Fires
-      // unconditionally for every renewing member, regardless of renewal_type. Default
-      // (null) means "no override — the resolution above stands." A non-null return is
-      // passed straight into add_member() below with no further validation — an invalid
-      // tier/product pair surfaces as a normal add_member() batch error, same as any
-      // other renewal failure, rather than being silently caught or falling back.
-      $override = apply_filters(
-        'wicket_mship_bundle_renewal_member_tier_product',
-        null,
-        $old_membership_post_id,
-        $user_id,
-        $new_bundle_post_id,
-        $old_bundle_post_id,
-        [ 'tier_post_id' => $tier_post_id, 'product_id' => $product_id ]
-      );
-      if ( is_array( $override ) ) {
-        $tier_post_id = $override['tier_post_id'];
-        $product_id   = $override['product_id'];
       }
 
       // add_member() with is_renewal=true skips MDP create and subscription line item
@@ -593,6 +568,9 @@ class Membership_Bundle_Cron_Controller {
       return $renewal_order;
     }
 
+    $old_bundle_post_id = (int) $bundle_posts[0];
+    $reprice_failures   = [];
+
     foreach ( $renewal_order->get_items() as $item_id => $item ) {
       $membership_post_id = (int) wc_get_order_item_meta( $item_id, '_membership_post_id', true );
       if ( ! $membership_post_id ) {
@@ -600,12 +578,17 @@ class Membership_Bundle_Cron_Controller {
       }
       $user_id = (int) get_post_meta( $membership_post_id, 'user_id', true );
 
-      // Enforce _member_name landed on this item — backstops refresh_bundle_renewal_line_item_meta()
-      // regardless of WCS's own meta-copy behavior.
+      // Backstops refresh_bundle_renewal_line_item_meta() regardless of WCS's meta copy.
       $user = $user_id ? get_user_by( 'id', $user_id ) : false;
       if ( $user && '' === (string) $item->get_meta( '_member_name' ) ) {
         $item->update_meta_data( '_member_name', $user->display_name );
         $item->save();
+      }
+
+      // Reprice to the term ahead before Milestone 4's fee/discount filter runs.
+      $reprice_result = self::reprice_bundle_renewal_line_item( $item, $item_id, $membership_post_id, $user_id, $old_bundle_post_id );
+      if ( $reprice_result !== true ) {
+        $reprice_failures[ $membership_post_id ] = $reprice_result;
       }
 
       try {
@@ -637,7 +620,135 @@ class Membership_Bundle_Cron_Controller {
 
     $renewal_order->calculate_totals();
 
+    if ( ! empty( $reprice_failures ) ) {
+      $note = 'Bundle renewal repricing failed for member(s): ' . implode( ', ', array_map(
+        static fn( $post_id, $code ) => "#{$post_id} ({$code})",
+        array_keys( $reprice_failures ),
+        $reprice_failures
+      ) );
+      $renewal_order->update_status( 'on-hold', $note );
+      Utilities::wc_log_mship_error( [ 'apply_bundle_renewal_line_item_price_filter: repricing failures, order held', [
+        'renewal_order_id' => $renewal_order->get_id(),
+        'failures'          => $reprice_failures,
+      ] ] );
+    }
+
     return $renewal_order;
+  }
+
+  /**
+   * Resolve and apply the term-ahead tier/product/price to one member's renewal
+   * line item, before the price/fee filter runs. Fires
+   * wicket_mship_bundle_renewal_charge_tier_product for a client override, validated
+   * against the target tier and failed closed to the resolved default on mismatch.
+   *
+   * @param \WC_Order_Item_Product $item
+   * @return true|string true on success, else an error code for the caller to collect.
+   */
+  private static function reprice_bundle_renewal_line_item( $item, int $item_id, int $membership_post_id, int $user_id, int $old_bundle_post_id ) {
+    $tier_post_id = (int) get_post_meta( $membership_post_id, 'membership_tier_post_id', true );
+    if ( ! $tier_post_id ) {
+      Utilities::wc_log_mship_error( [ 'reprice_bundle_renewal_line_item: missing tier_post_id', [
+        'item_id'            => $item_id,
+        'membership_post_id' => $membership_post_id,
+      ] ] );
+      return 'missing_tier_post_id';
+    }
+
+    $stored_product_id = (int) get_post_meta( $membership_post_id, 'membership_product_id', true ) ?: null;
+
+    // membership_product_id may hold a variation ID — disambiguate before use.
+    $current_tier_variation_ids = array_map( 'intval', ( new Membership_Tier( $tier_post_id ) )->get_product_variation_ids() );
+    $product_id = ( $stored_product_id !== null && \in_array( $stored_product_id, $current_tier_variation_ids, true ) )
+      ? null
+      : $stored_product_id;
+
+    $resolved = self::resolve_sequential_logic_succession( $tier_post_id, $product_id, $membership_post_id );
+    if ( is_wp_error( $resolved ) ) {
+      return $resolved->get_error_code();
+    }
+
+    // Default (null) means "no override — the resolution above stands."
+    $override = apply_filters(
+      'wicket_mship_bundle_renewal_charge_tier_product',
+      null,
+      $membership_post_id,
+      $user_id,
+      $old_bundle_post_id,
+      $resolved
+    );
+
+    if ( is_array( $override ) ) {
+      $validated = self::validate_charge_tier_product_override( $override );
+      if ( $validated === null ) {
+        Utilities::wc_log_mship_error( [ 'reprice_bundle_renewal_line_item: invalid wicket_mship_bundle_renewal_charge_tier_product override, falling back to core default', [
+          'membership_post_id' => $membership_post_id,
+          'override'           => $override,
+        ] ] );
+      } else {
+        $resolved = $validated;
+      }
+    }
+
+    $product = wc_get_product( $resolved['variation_id'] ?? $resolved['product_id'] );
+    if ( ! $product ) {
+      Utilities::wc_log_mship_error( [ 'reprice_bundle_renewal_line_item: resolved product could not be loaded', [
+        'item_id'            => $item_id,
+        'membership_post_id' => $membership_post_id,
+        'resolved'           => $resolved,
+      ] ] );
+      return 'product_not_found';
+    }
+
+    $item->set_product( $product );
+
+    $price = (float) $product->get_price();
+    $item->set_subtotal( (string) $price );
+    $item->set_total( (string) $price );
+
+    // Record the decision so process_bundle_renewal_members() reads it back instead of
+    // resolving again post-payment — the two must never disagree.
+    $item->update_meta_data( '_wicket_charge_tier_post_id', $resolved['tier_post_id'] );
+    $item->update_meta_data( '_wicket_charge_product_id', $resolved['product_id'] );
+    $item->update_meta_data( '_wicket_charge_variation_id', $resolved['variation_id'] ?? 0 );
+    $item->update_meta_data( '_wicket_charge_decided_at', current_time( 'mysql', true ) );
+
+    return true;
+  }
+
+  /**
+   * Validate a charge_tier_product override against its claimed tier. Fails closed
+   * (null) rather than trust a product the tier doesn't actually offer.
+   *
+   * @return array{tier_post_id: int, product_id: int, variation_id: int|null}|null
+   */
+  private static function validate_charge_tier_product_override( array $override ): ?array {
+    $tier_post_id = (int) ( $override['tier_post_id'] ?? 0 );
+    $product_id   = (int) ( $override['product_id'] ?? 0 );
+    $variation_id = isset( $override['variation_id'] ) ? (int) $override['variation_id'] : null;
+
+    if ( ! $tier_post_id || ! $product_id ) {
+      return null;
+    }
+
+    $tier = new Membership_Tier( $tier_post_id );
+    $tier_product_ids   = array_map( 'intval', $tier->get_product_ids() );
+    $tier_variation_ids = array_map( 'intval', $tier->get_product_variation_ids() );
+
+    // Normalise a variation ID returned in the product_id slot.
+    if ( ! \in_array( $product_id, $tier_product_ids, true ) && \in_array( $product_id, $tier_variation_ids, true ) ) {
+      $variation_id = $product_id;
+      $product_id   = (int) $tier->get_product_ids()[0] ?? 0;
+    }
+
+    if ( ! \in_array( $product_id, $tier_product_ids, true ) ) {
+      return null;
+    }
+    if ( $variation_id !== null && ! \in_array( $variation_id, $tier_variation_ids, true ) ) {
+      return null;
+    }
+
+    return [ 'tier_post_id' => $tier_post_id, 'product_id' => $product_id, 'variation_id' => $variation_id ];
   }
 
   // ---------------------------------------------------------------------------

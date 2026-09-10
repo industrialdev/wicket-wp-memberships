@@ -825,13 +825,21 @@ class Membership_Bundle {
       }
       $product_id = $tier_product_ids[0];
     } elseif ( ! \in_array( $product_id, $tier_product_ids, true ) ) {
-      Wicket()->log()->error( 'Membership_Bundle::provision_individual_membership_record: product_id is not associated with this tier', [
-        'source'           => 'wicket-memberships',
-        'post_id'          => $this->post_id,
-        'product_id'       => $product_id,
-        'tier_product_ids' => $tier_product_ids,
-      ] );
-      return new \WP_Error( 'product_tier_mismatch', __( 'The specified product is not associated with this membership tier.', 'wicket-memberships' ) );
+      // get_product_ids() returns parent IDs only, so a variation-configured tier fails
+      // here unless the caller separately confirms $product_id via $variation_id — check
+      // against the tier's own variation IDs before rejecting.
+      $tier_variation_ids = array_map( 'intval', $tier->get_product_variation_ids() );
+      if ( $variation_id === null || $product_id !== $variation_id || ! \in_array( $variation_id, $tier_variation_ids, true ) ) {
+        Wicket()->log()->error( 'Membership_Bundle::provision_individual_membership_record: product_id is not associated with this tier', [
+          'source'              => 'wicket-memberships',
+          'post_id'             => $this->post_id,
+          'product_id'          => $product_id,
+          'variation_id'        => $variation_id,
+          'tier_product_ids'    => $tier_product_ids,
+          'tier_variation_ids'  => $tier_variation_ids,
+        ] );
+        return new \WP_Error( 'product_tier_mismatch', __( 'The specified product is not associated with this membership tier.', 'wicket-memberships' ) );
+      }
     }
 
     $dates = $this->get_dates();

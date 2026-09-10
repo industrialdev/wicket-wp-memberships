@@ -194,6 +194,8 @@ No personal WC order or subscription is created — the bundle's subscription co
 
 `$link_to_bundle_id` is required (non-nullable). `membership_bundle_id` is written to the membership post after creation. Line item failure is non-fatal. When `$is_renewal` is `true`, the subscription line item add is skipped — the renewal batch handler updates the existing line item in-place.
 
+`$product_id` validation accepts a variation: `Membership_Tier::get_product_ids()` returns parent IDs only, so a `$product_id` that is actually a variation is checked against `get_product_variation_ids()` (matched with `$variation_id`) before falling back to `product_tier_mismatch`.
+
 Renamed from `create_individual_membership_for_group()`. Fail states: `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `mdp_create_failed`, `create_failed`.
 
 ### `provision_standalone_individual_membership( int $user_id, int $tier_post_id, ?int $product_id, string $start_date, array $bundle_dates, string $admin_note = '', bool $skip_tier_approval = false ): int|WP_Error` _(private)_

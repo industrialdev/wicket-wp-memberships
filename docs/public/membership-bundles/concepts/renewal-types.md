@@ -176,18 +176,20 @@ The renewal types above govern the **bundle container's** own renewal mechanics.
 
 `Membership_Bundle_Cron_Controller::process_bundle_renewal_members()` checks each member's old tier at renewal time and resolves their new tier/product accordingly:
 
-- **`sequential_logic`** — the member auto-advances to the tier's configured `next_tier_id`, with no admin or member action required. The next tier's product is resolved as the tier's first configured product, preferring a variation over the parent product if one exists — the same deterministic pick `Import_Controller::create_bundle_member()` uses for CSV-imported members. If the next tier has more than one product, the member/bundle owner is **not** asked which one applies; this is expected, existing behavior, not new to this fix.
+- **`sequential_logic`** — the member auto-advances to the tier's configured `next_tier_id`, with no admin or member action required. The next tier's product is resolved as the tier's first configured product, preferring a variation over the parent product if one exists — the same deterministic pick `Import_Controller::create_bundle_member()` uses for CSV-imported members. A variation-configured next tier renews correctly: the variation ID is threaded through to `add_member()` separately from the parent `product_id`, so it validates against the tier's own variation IDs rather than being rejected as a `product_tier_mismatch`. If the next tier has more than one product, the member/bundle owner is **not** asked which one applies; this is expected, existing behavior, not new to this fix.
 - **`current_tier`** — the member renews into the same tier and product, unchanged.
 - **`form_flow`** — treated identically to `current_tier` for bundle renewal: the member renews into the same tier/product unchanged. This is a deliberate divergence from what `form_flow` means for a standalone individual membership (an external form gates the renewal). Bundle renewal is a batch, hands-off cron process with no per-member interruption point, so that gating is not enforced here. Avoid assigning `form_flow` tiers to bundle members if that gating behavior matters for the tier.
 
 `next_tier_id` is re-evaluated fresh on every renewal cycle from whichever tier the member currently holds — it is not a pre-resolved multi-hop chain. Editing a tier's `next_tier_id` between renewal cycles is picked up automatically on the member's next renewal.
 
-## Overriding which tier/product a member renews into
+## Charging the term ahead (repricing at renewal-order creation)
 
-A `wicket_mship_bundle_renewal_member_tier_product` filter lets a child theme fully override the tier/product decision above — for example, when a client's own succession logic (not the built-in `renewal_type`/`next_tier_id` config) should decide instead.
+Before the renewal invoice is built, each member's renewal-order line item is repriced to the tier/product they are actually renewing into — the same `sequential_logic`/`current_tier`/`form_flow` resolution described above, run again here so the customer is billed correctly the first time, not one cycle late.
+
+A `wicket_mship_bundle_renewal_charge_tier_product` filter lets a child theme override that resolution before pricing is applied:
 
 ```php
-add_filter( 'wicket_mship_bundle_renewal_member_tier_product', function ( $override, $old_membership_post_id, $user_id, $new_bundle_post_id, $old_bundle_post_id, $core_default ) {
+add_filter( 'wicket_mship_bundle_renewal_charge_tier_product', function ( $override, $old_membership_post_id, $user_id, $old_bundle_post_id, $core_default ) {
     $my_result = my_client_succession_lookup( $user_id, $old_membership_post_id, $old_bundle_post_id );
 
     if ( ! empty( $my_result ) ) {
@@ -198,12 +200,14 @@ add_filter( 'wicket_mship_bundle_renewal_member_tier_product', function ( $overr
     }
 
     return null; // not eligible / no answer: the default above stands
-}, 10, 6 );
+}, 10, 5 );
 ```
 
-**Full override, not a merge — null-or-array contract.** The filter's default value is `null`, never the core default. A **non-null** return (`['tier_post_id' => ..., 'product_id' => ...]`) fully replaces the tier/product resolved above for that member. A **null** return means "no override — the resolution above stands." This is stricter than an always-populated array: core never has to guess whether an unchanged value means "confirmed" or "didn't answer" — only non-null counts as an answer.
+Same null-or-array contract as the old (see below) filter: `null` means no override, a non-null array fully replaces the resolution. Core validates a non-null override against the target tier's own product list and **fails closed to the resolved default** on any mismatch — an override naming a product the tier doesn't actually offer is logged and ignored, not applied.
 
-**Fires unconditionally for every renewing member, regardless of `renewal_type`** — not gated to only `sequential_logic` members. The above resolution always runs first; this filter then runs on top for every member, every time, with no exceptions.
+::: warning Supersedes `wicket_mship_bundle_renewal_member_tier_product`
+That filter still exists but fires too late to affect the invoice — it runs in the post-payment batch cron, after the customer has already been charged. Use `wicket_mship_bundle_renewal_charge_tier_product` instead: it fires while the order is still being built, so the resolved tier/product actually gets billed.
+:::
 
 **No validation on the override's return value.** If a callback returns an invalid `tier_post_id`/`product_id` pair (tier doesn't exist, product not on that tier), it is passed straight into the same `add_member()` call every other renewal uses. Whatever error results (`invalid_tier`, `ambiguous_product`, `product_not_found`, etc.) surfaces as a normal renewal failure in the batch's error tracking — the same as any other renewal error. This is deliberate: a buggy override fails loud and visible rather than being silently caught or falling back to the default.
 

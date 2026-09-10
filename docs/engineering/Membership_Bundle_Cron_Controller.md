@@ -26,7 +26,8 @@ Each handler uses Action Scheduler (`as_schedule_recurring_action`) to run once 
 
 | Filter | Fired by | Args | Default / no-op behavior |
 |---|---|---|---|
-| `wicket_mship_bundle_renewal_member_tier_product` | `process_bundle_renewal_members()` | `mixed $override, int $old_membership_post_id, int $user_id, int $new_bundle_post_id, int $old_bundle_post_id, array $core_default` | Default `null` — the tier/product resolution described above stands unchanged |
+| `wicket_mship_bundle_renewal_member_tier_product` | `process_bundle_renewal_members()` | `mixed $override, int $old_membership_post_id, int $user_id, int $new_bundle_post_id, int $old_bundle_post_id, array $core_default` | Default `null`. Fires post-payment — superseded by `wicket_mship_bundle_renewal_charge_tier_product` below, which fires in time to affect the invoice |
+| `wicket_mship_bundle_renewal_charge_tier_product` | `reprice_bundle_renewal_line_item()` | `mixed $override, int $old_membership_post_id, int $user_id, int $old_bundle_post_id, array $core_default` | Default `null` — resolved default stands. A non-null override is validated against the target tier's own products and fails closed to the default on mismatch |
 | `wicket_mship_bundle_renewal_line_item_price` | `apply_bundle_renewal_line_item_price_filter()` | `mixed $override, \WC_Order_Item $item, int $item_id, int $membership_post_id, int $user_id, \WC_Order $renewal_order` | Default `null`, single-channel — return value ignored either way; no callback means no price/fee mutation occurs |
 | `wicket_mship_bundle_line_item_extra_meta` | `refresh_bundle_renewal_line_item_meta()` | `array $extra_meta, int $item_id, \WP_User\|false $user, int $membership_post_id, int $product_id, bool $is_renewal` | Default `[]` — no-op; re-fires the same filter `Membership_Bundle::add_subscription_line_item()` fires at add-time, with `$is_renewal = true` on this call site |
 
@@ -89,12 +90,12 @@ Batch handler for membership renewal provisioning. Dispatched by `Membership_Con
 
 1. Loads the renewal WC order and collects eligible line items — items where `_membership_post_id` is set. This is the authoritative member list for the renewal (not the full old bundle member list).
 2. Slices `$batch_size` items starting at `$offset`.
-3. For each item: resolves `user_id`, `tier_post_id`, and `product_id` from the old membership post meta. Loads the old tier and checks `get_tier_renewal_type()`: if `sequential_logic`, resolves `get_next_tier_id()` and overrides `tier_post_id`/`product_id` to the next tier and its first product (variation preferred) before calling `add_member()` — see [Renewal Types](../public/membership-bundles/concepts/renewal-types.md#per-member-tier-succession-on-renewal). `current_tier` and `form_flow` renew unchanged. Fires `wicket_mship_bundle_renewal_member_tier_product` next, unconditionally for every member — a non-null return fully overrides `tier_post_id`/`product_id` in place of the resolution just described; see [Renewal Types](../public/membership-bundles/concepts/renewal-types.md#overriding-which-tierproduct-a-member-renews-into). Then calls `$new_bundle->add_member(..., is_renewal: true)`.
+3. For each item: resolves `user_id` from the old membership post meta, then reads the tier/product/variation decision `reprice_bundle_renewal_line_item()` already made and charged the customer for — `_wicket_charge_tier_post_id`/`_wicket_charge_product_id`/`_wicket_charge_variation_id` meta on the renewal order's own line item — rather than resolving `sequential_logic` succession a second time. Calls `$new_bundle->add_member(..., is_renewal: true)` with that decision. Does not fire any tier/product override filter itself; the override already happened at repricing time (see `wicket_mship_bundle_renewal_charge_tier_product` in [Renewal Types](../public/membership-bundles/concepts/renewal-types.md#charging-the-term-ahead-repricing-at-renewal-order-creation)).
 4. `is_renewal: true` sets the `processing_renewal` flag on `Membership_Controller`, causing `create_membership_record()` to skip the MDP create call — MDP handles bundle members at the org level, not per-member.
 5. If more items remain beyond `$offset + $batch_size`, dispatches itself again with the next offset.
 6. On the final batch: stamps `completed_at` on `membership_renewal_processing` meta for both old and new bundle posts (meta is **not** deleted — presence of `completed_at` key indicates completion), adds an order note **and a subscription note**, and fires `wicket_memberships_bundle_renewal_complete`.
 
-**Error handling:** items with missing `user_id` or `tier_post_id` are skipped and logged. A `sequential_logic` tier with no `next_tier_id` configured, or a next tier with no products configured, is also skipped and logged. Failed `add_member()` calls are logged and recorded in the `errors` array in the completion meta.
+**Error handling:** items with missing `user_id`, or missing charge-decision meta on the renewal item, are skipped and logged — the record and the invoice must never disagree, so a missing decision is an error, not a silent re-resolve. Failed `add_member()` calls are logged and recorded in the `errors` array in the completion meta.
 
 **MDP note:** No per-member MDP calls are made. `add_member(is_renewal: true)` bypasses the MDP create path. MDP is updated at the bundle/org level by the higher-level orchestration.
 
@@ -108,14 +109,32 @@ Hooked to WooCommerce Subscriptions' own `wcs_renewal_order_created` filter (fir
 
 1. Scopes to bundle subscriptions only — a subscription is linked to a bundle when some `wicket_mship_bundle` post's `membership_subscription_id` meta points to it. Non-bundle renewal orders pass through untouched.
 2. Loops the renewal order's line items, resolving each to its member via `_membership_post_id` order-item meta, then to `user_id` post meta.
-3. Fires `wicket_mship_bundle_renewal_line_item_price` once per member/line-item, inside its own try/catch (log-and-continue on failure — a single bad member's callback must not abort the rest of the order or skip `calculate_totals()`).
-4. Calls `$renewal_order->calculate_totals()` once after the full loop, regardless of any item's failure.
+3. Calls `reprice_bundle_renewal_line_item()` (below) to reprice the item to the term the member is renewing into, before the price/fee filter runs. A failure is collected, not thrown.
+4. Fires `wicket_mship_bundle_renewal_line_item_price` once per member/line-item, inside its own try/catch (log-and-continue on failure — a single bad member's callback must not abort the rest of the order or skip `calculate_totals()`).
+5. Calls `$renewal_order->calculate_totals()` once after the full loop, regardless of any item's failure.
+6. If any member's repricing failed, puts the order `on-hold` with a note naming every failed member and error code, and logs the batch.
 
 **Return contract:** the filter's own return value is discarded. A callback communicates any change — price adjustment, added fee/product line, whole-order effect — by mutating the passed `$item`/`$renewal_order` directly via the normal WC API (`$item->set_total()`, `$renewal_order->add_fee()`, `add_product()`, etc.). Default behavior with no callback attached: the loop runs but no mutation occurs, so price stands carried forward unchanged — zero behavior change for callers not using this.
 
-**Return value:** always returns `$renewal_order` (or whatever non-`WC_Order` value was passed in, unchanged) — required because `wcs_renewal_order_created` is a WCS filter, not an action; WCS substitutes whatever this callback returns for the renewal order if it is a `WC_Order` instance.
+**Return value:** always returns `$renewal_order` (or whatever non-`WC_Order` value was passed in, unchanged) — required because `wcs_renewal_order_created` is a WCS filter, not an action; WCS substitutes whatever this callback returns for the renewal order if it is a `WC_Order` instance. Holds true even when repricing failed for some members — the order is put on hold, not withheld.
 
 **Not doing:** no native rule-based pricing engine or promo-code support — this method only fires the filter and recalculates totals; all pricing decisions live in whatever answers the filter.
+
+---
+
+### `reprice_bundle_renewal_line_item( \WC_Order_Item_Product $item, int $item_id, int $membership_post_id, int $user_id, int $old_bundle_post_id ): true|string`
+
+Resolves the member's term-ahead tier/product via `resolve_sequential_logic_succession()` and sets `product_id`/`variation_id`/`name`/`tax_class`/`subtotal`/`total` on the line item from it. Fires `wicket_mship_bundle_renewal_charge_tier_product`; a non-null override is validated via `validate_charge_tier_product_override()` (below) and falls back to the resolved default on any mismatch. Uses `WC_Product::get_price()`, so sale prices are honored.
+
+Writes the final decision as item meta so `process_bundle_renewal_members()` reads it back instead of resolving again post-payment: `_wicket_charge_tier_post_id`, `_wicket_charge_product_id`, `_wicket_charge_variation_id` (0 when none), `_wicket_charge_decided_at` (UTC `mysql` timestamp).
+
+Returns `true` on success, or a short error code string on failure (`missing_tier_post_id`, a `resolve_sequential_logic_succession()` error code, or `product_not_found`) — never throws. The caller collects failures across the whole loop.
+
+---
+
+### `validate_charge_tier_product_override( array $override ): array|null`
+
+Validates a `wicket_mship_bundle_renewal_charge_tier_product` override against its claimed tier's own `get_product_ids()`/`get_product_variation_ids()`. A `product_id` that only matches the tier's variation list is normalised into the `variation_id` slot. Returns `null` (fail closed) if the tier/product pair doesn't actually belong together.
 
 ---
 
