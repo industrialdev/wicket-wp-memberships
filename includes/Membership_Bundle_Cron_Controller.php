@@ -616,6 +616,14 @@ class Membership_Bundle_Cron_Controller {
       return;
     }
 
+    // WooCommerce Subscriptions' own pay-for-order page only accepts payment for a
+    // subscription whose status is 'on-hold' or 'pending' (WCS_Cart_Renewal::maybe_setup_cart()) —
+    // an 'active' subscription is refused outright regardless of the order's own status.
+    // Mirrors the existing individual-membership subscription-renewal path in
+    // Membership_Controller.php, which puts the subscription on hold before creating its
+    // renewal order for the same reason.
+    $subscription->update_status( 'on-hold', __( 'Membership plugin set subscription on-hold generating a pending bundle renewal order.', 'wicket-memberships' ) );
+
     $renewal_order = wcs_create_renewal_order( $subscription );
 
     if ( is_wp_error( $renewal_order ) ) {

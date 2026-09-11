@@ -461,6 +461,28 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       ],
     ] );
 
+    /**
+     * GET /wicket_member/v1/bundle/{bundle_post_id}/renewal_order_status
+     *
+     * Member-facing poll target for the confirm_renewal flow's background job. Owner-gated
+     * the same way confirm_bundle_renewal is. Returns just enough for the account-centre
+     * callout to swap its "preparing" state for a payment link, or surface a failure.
+     */
+    register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/renewal_order_status', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_bundle_renewal_order_status' ],
+        'permission_callback' => [ $this, 'permissions_check_confirm_renewal' ],
+        'args'                => [
+          'bundle_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the membership bundle.',
+          ],
+        ],
+      ],
+    ] );
+
   }
 
   // ---------------------------------------------------------------------------
@@ -735,11 +757,16 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     }
 
     // Confirm window: same early_renew_at -> ends_at window Membership_Bundle::get_owner_callouts()
-    // already uses to surface the early_renewal callout to this same bundle owner.
+    // already uses to surface the early_renewal callout to this same bundle owner. Both
+    // paths honor the same debug override so a simulated date that shows the callout
+    // also allows confirming it.
     $dates          = $bundle->get_dates();
     $early_renew_at = ! empty( $dates['early_renew_at'] ) ? strtotime( $dates['early_renew_at'] ) : null;
     $ends_at        = ! empty( $dates['ends_at'] ) ? strtotime( $dates['ends_at'] ) : null;
     $now            = current_time( 'timestamp' );
+    if ( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && ! empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
+      $now = strtotime( date( 'Y-m-d' ) . '+' . (int) $_REQUEST['wicket_wp_membership_debug_days'] . ' days' );
+    }
 
     if ( ! $early_renew_at || ! $ends_at || $now < $early_renew_at || $now >= $ends_at ) {
       return new \WP_REST_Response( [ 'error' => 'The renewal confirmation window is not currently open for this membership bundle.' ], 400 );
@@ -771,6 +798,46 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       'success'        => __( 'Your renewal invoice is being prepared.', 'wicket-memberships' ),
       'bundle_post_id' => $bundle_post_id,
     ], 202 );
+  }
+
+  /**
+   * GET /bundle/{bundle_post_id}/renewal_order_status
+   *
+   * Reads membership_renewal_order_creation (Membership_Bundle_Cron_Controller's job
+   * result meta) and shapes it for the account-centre poller: 'pending' while queued,
+   * 'complete' with a checkout payment URL once the order exists, 'failed' otherwise.
+   * There is no per-line-item progress to report — wcs_create_renewal_order() runs as
+   * one atomic call — so this is an indeterminate status, not a progress count.
+   */
+  public function get_bundle_renewal_order_status( \WP_REST_Request $request ): \WP_REST_Response {
+    $bundle_post_id = (int) ( $request->get_param( 'bundle_post_id' ) ?? 0 );
+    $bundle         = new Membership_Bundle( $bundle_post_id );
+
+    if ( $bundle->post_id <= 0 ) {
+      return new \WP_REST_Response( [ 'error' => 'Membership bundle not found.' ], 404 );
+    }
+
+    $current_user_id = get_current_user_id();
+    if ( ! $current_user_id || $bundle->get_owner_id() !== $current_user_id ) {
+      return new \WP_REST_Response( [ 'error' => 'You are not the owner of this membership bundle.' ], 403 );
+    }
+
+    $raw   = get_post_meta( $bundle_post_id, 'membership_renewal_order_creation', true );
+    $state = $raw ? ( json_decode( $raw, true ) ?: [] ) : [];
+
+    if ( ! empty( $state['order_id'] ) ) {
+      $order = function_exists( 'wc_get_order' ) ? wc_get_order( (int) $state['order_id'] ) : false;
+      return new \WP_REST_Response( [
+        'status'      => 'complete',
+        'payment_url' => $order ? $order->get_checkout_payment_url() : null,
+      ], 200 );
+    }
+
+    if ( ! empty( $state['failed_at'] ) ) {
+      return new \WP_REST_Response( [ 'status' => 'failed' ], 200 );
+    }
+
+    return new \WP_REST_Response( [ 'status' => 'pending' ], 200 );
   }
 
   /**
