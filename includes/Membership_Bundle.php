@@ -301,10 +301,20 @@ class Membership_Bundle {
     $ends_at_ts  = strtotime( $new_dates['end_date'] );
     $end_target  = ! empty( $new_dates['expires_at'] ) ? $new_dates['expires_at'] : $new_dates['end_date'];
     $end_ts      = strtotime( $end_target );
-    $subscription->update_dates( [
-      'next_payment' => date( 'Y-m-d H:i:s', $ends_at_ts ),
-      'end'          => date( 'Y-m-d H:i:s', $end_ts > $ends_at_ts ? $end_ts : $ends_at_ts + 1 ),
-    ] );
+    $sub_dates = [
+      'end' => date( 'Y-m-d H:i:s', $end_ts > $ends_at_ts ? $end_ts : $ends_at_ts + 1 ),
+    ];
+    // next_payment only applies to the 'subscription' renewal type — matches
+    // activate_subscription_for_dates()'s rule. Every other renewal type
+    // (form_page, confirmation_renewal, ...) must not carry a next_payment date
+    // into the new term, or WCS would auto-charge on its own schedule again.
+    if ( $config->is_renewal_subscription() ) {
+      $sub_dates['next_payment'] = date( 'Y-m-d H:i:s', $ends_at_ts );
+    }
+    $subscription->update_dates( $sub_dates );
+    if ( ! $config->is_renewal_subscription() ) {
+      $subscription->delete_date( 'next_payment' );
+    }
     $subscription->save();
 
     // Carry the group UUID forward — this post joins the existing renewal series.
@@ -814,14 +824,27 @@ class Membership_Bundle {
         return new \WP_Error( 'no_product', __( 'The membership tier has no products configured.', 'wicket-memberships' ) );
       }
       $product_id = $tier_product_ids[0];
-    } elseif ( ! \in_array( $product_id, $tier_product_ids, true ) ) {
-      Wicket()->log()->error( 'Membership_Bundle::provision_individual_membership_record: product_id is not associated with this tier', [
-        'source'           => 'wicket-memberships',
-        'post_id'          => $this->post_id,
-        'product_id'       => $product_id,
-        'tier_product_ids' => $tier_product_ids,
-      ] );
-      return new \WP_Error( 'product_tier_mismatch', __( 'The specified product is not associated with this membership tier.', 'wicket-memberships' ) );
+    } elseif ( ! $is_renewal && ! \in_array( $product_id, $tier_product_ids, true ) ) {
+      // Skipped on renewal: the renewal-order repricing phase already validated and
+      // charged this exact product before payment (see
+      // Membership_Bundle_Cron_Controller::reprice_bundle_renewal_line_item()) — that
+      // decision must be trusted here, not re-checked against the tier's *current*
+      // config, which may have changed between order creation and this batch running.
+      // get_product_ids() returns parent IDs only, so a variation-configured tier fails
+      // here unless the caller separately confirms $product_id via $variation_id — check
+      // against the tier's own variation IDs before rejecting.
+      $tier_variation_ids = array_map( 'intval', $tier->get_product_variation_ids() );
+      if ( $variation_id === null || $product_id !== $variation_id || ! \in_array( $variation_id, $tier_variation_ids, true ) ) {
+        Wicket()->log()->error( 'Membership_Bundle::provision_individual_membership_record: product_id is not associated with this tier', [
+          'source'              => 'wicket-memberships',
+          'post_id'             => $this->post_id,
+          'product_id'          => $product_id,
+          'variation_id'        => $variation_id,
+          'tier_product_ids'    => $tier_product_ids,
+          'tier_variation_ids'  => $tier_variation_ids,
+        ] );
+        return new \WP_Error( 'product_tier_mismatch', __( 'The specified product is not associated with this membership tier.', 'wicket-memberships' ) );
+      }
     }
 
     $dates = $this->get_dates();
@@ -1333,6 +1356,21 @@ class Membership_Bundle {
     $user = get_user_by( 'id', $user_id );
     if ( $user ) {
       wc_add_order_item_meta( $item_id, '_member_name', $user->display_name );
+    }
+
+    // Client-specific extension point: a child theme can inject additional line-item
+    // meta (e.g. a client-specific ID sourced from user meta). Core has no knowledge of
+    // what gets written here — empty array in, no-op, zero cost for callers not using it.
+    $extra_meta = apply_filters(
+      'wicket_mship_bundle_line_item_extra_meta',
+      [],
+      $item_id,
+      $user,
+      $membership_post_id,
+      $product_id
+    );
+    foreach ( $extra_meta as $meta_key => $meta_value ) {
+      wc_add_order_item_meta( $item_id, $meta_key, $meta_value );
     }
 
     if ( $recalculate_totals ) {
@@ -2629,12 +2667,25 @@ class Membership_Bundle {
     }
 
     $subscription_dates = [
-      'start_date'   => Utilities::get_mdp_day_start( $starts_at_utc )->format( 'Y-m-d H:i:s' ),
-      'next_payment' => $next_payment->format( 'Y-m-d H:i:s' ),
-      'end'          => $end->format( 'Y-m-d H:i:s' ),
+      'start_date' => Utilities::get_mdp_day_start( $starts_at_utc )->format( 'Y-m-d H:i:s' ),
+      'end'        => $end->format( 'Y-m-d H:i:s' ),
     ];
 
+    // next_payment only applies to the 'subscription' renewal type — matches the
+    // individual-membership precedent (Helper::has_next_payment_date()) and
+    // Membership_Bundle_Admin_Controller::maybe_sync_renewal_type_next_payment()'s
+    // rule for a later renewal-type change: subscription auto-charges via WCS's own
+    // schedule; every other renewal type (form_page, confirmation_renewal, ...) must
+    // not have a next_payment date or WCS would trigger an unwanted renewal payment.
+    $config = $this->get_config();
+    if ( $config && $config->is_renewal_subscription() ) {
+      $subscription_dates['next_payment'] = $next_payment->format( 'Y-m-d H:i:s' );
+    }
+
     $subscription->update_dates( $subscription_dates );
+    if ( ! $config || ! $config->is_renewal_subscription() ) {
+      $subscription->delete_date( 'next_payment' );
+    }
     $subscription->save();
   }
 
@@ -2764,48 +2815,52 @@ class Membership_Bundle {
       return;
     }
 
-    $next_payment = Utilities::get_mdp_day_end( $dates['ends_at'] );
+    $config = $this->get_config();
 
-    // Mirror individual membership logic: subscription-renewal monthly groups use ends_at
-    // for the subscription end date; all other renewal types use expires_at (grace-period end).
-    $is_monthly_subscription_renewal = (
-      ! empty( get_post_meta( $this->post_id, 'membership_next_tier_subscription_renewal', true ) )
-      && $sub->get_billing_period() === 'month'
-      && (int) $sub->get_billing_interval() === 1
-    );
+    // Config's own renewal type is the authority here — membership_next_tier_subscription_renewal
+    // is the per-member individual-tier flag and does not describe the bundle's own renewal
+    // mechanics. Mirrors activate_subscription_for_dates()/renew_bundle()'s rule: 'subscription'
+    // uses ends_at for the subscription end date and carries a next_payment date; every other
+    // renewal type (form_page, confirmation_renewal, ...) uses expires_at (grace-period end) and
+    // must not have a next_payment date, or WCS would trigger an unwanted renewal payment.
+    $is_renewal_subscription = $config && $config->is_renewal_subscription();
 
-    if ( $is_monthly_subscription_renewal ) {
+    if ( $is_renewal_subscription ) {
       $end_source = $dates['ends_at'];
     } else {
       $end_source = ! empty( $dates['expires_at'] ) ? $dates['expires_at'] : $dates['ends_at'];
     }
 
-    $end = Utilities::get_mdp_day_end( $end_source );
+    $next_payment = Utilities::get_mdp_day_end( $dates['ends_at'] );
+    $end          = Utilities::get_mdp_day_end( $end_source );
 
     // WCS requires end > next_payment (strict). Bump by one second when equal (no grace period).
     if ( $end <= $next_payment ) {
       $end->modify( '+1 second' );
     }
 
-    $date_updates = [
-      'next_payment' => $next_payment->format( 'Y-m-d H:i:s' ),
-      'end'          => $end->format( 'Y-m-d H:i:s' ),
-    ];
+    $date_updates = [ 'end' => $end->format( 'Y-m-d H:i:s' ) ];
+    if ( $is_renewal_subscription ) {
+      $date_updates['next_payment'] = $next_payment->format( 'Y-m-d H:i:s' );
+    }
 
     try {
       $sub->update_dates( $date_updates );
+      if ( ! $is_renewal_subscription ) {
+        $sub->delete_date( 'next_payment' );
+      }
 
       $sub->add_order_note( sprintf(
         'Membership bundle (ID: %d) date edit synced subscription dates. Next Payment: %s End: %s',
         $this->post_id,
-        date( 'Y-m-d', strtotime( $dates['ends_at'] ) ),
+        $is_renewal_subscription ? date( 'Y-m-d', strtotime( $dates['ends_at'] ) ) : 'none',
         date( 'Y-m-d', strtotime( $end_source ) )
       ) );
     } catch ( \Exception $e ) {
       $sub->add_order_note( sprintf(
         'Membership bundle (ID: %d) attempted to sync subscription dates but failed. Next Payment: %s End: %s Error: %s',
         $this->post_id,
-        date( 'Y-m-d', strtotime( $dates['ends_at'] ) ),
+        $is_renewal_subscription ? date( 'Y-m-d', strtotime( $dates['ends_at'] ) ) : 'none',
         date( 'Y-m-d', strtotime( $end_source ) ),
         $e->getMessage()
       ) );
@@ -2883,6 +2938,11 @@ class Membership_Bundle {
         'next_tier'       => false,
         'form_page'       => false,
         'subscription_renewal' => false,
+        // Fourth button-type flag, alongside the three above: the Account Center's
+        // ac-callout block dispatches on these to decide what the callout's button
+        // does. confirmation_renewal has no link target (product/form/checkout) —
+        // it renders a real button that POSTs to confirm_renewal instead.
+        'confirmation_renewal' => $config->is_renewal_confirmation(),
         'multi_tier_renewal'   => false,
         'meta'            => [
           'membership_status'         => $status,

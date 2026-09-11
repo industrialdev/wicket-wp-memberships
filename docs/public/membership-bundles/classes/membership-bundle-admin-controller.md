@@ -239,7 +239,7 @@ Returns all data needed to populate the bundle edit form. Accepts the bundle's s
             'starts_at'              => string, // ISO 8601 UTC
             'ends_at'                => string, // ISO 8601 UTC
             'expires_at'             => string, // ISO 8601 UTC
-            'renewal_type'           => string, // 'subscription' | 'form_page'
+            'renewal_type'           => string, // 'subscription' | 'form_page' | 'confirmation_renewal'
             'next_tier_form_page_id' => int|null,
         ],
         // ...one entry per bundle post in the renewal series, newest first
@@ -413,7 +413,7 @@ Updates editable fields on a bundle post. Validates date ordering before writing
 | `membership_starts_at` | No | ISO 8601. Must be before `membership_ends_at`. |
 | `membership_ends_at` | No | ISO 8601. Must not be after `membership_expires_at`. |
 | `membership_expires_at` | No | ISO 8601. |
-| `membership_renewal_type` | No | `'subscription'` or `'form_page'`. Changing this updates the WC subscription's `next_payment` date accordingly. |
+| `membership_renewal_type` | No | `'subscription'`, `'form_page'`, or `'confirmation_renewal'`. Changing this updates the WC subscription's `next_payment` date accordingly — set when the new value is `'subscription'`, removed for any other value. |
 
 :::details Example
 ```php

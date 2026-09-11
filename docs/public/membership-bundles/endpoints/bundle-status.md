@@ -258,3 +258,56 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/create_ren
   }'
 ```
 :::
+
+---
+
+## Confirm a renewal (confirmation_renewal bundles)
+
+**`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/confirm_renewal`**
+
+Member-facing confirm action for a bundle configured with `renewal_type` `"confirmation_renewal"` (see [Renewal Types](../concepts/renewal-types.md)). Unlike `create_renewal_order` above (an unconditional admin override), this endpoint is restricted to the bundle's own owner, only works while the renewal confirmation window is open, and only for bundles actually configured with `confirmation_renewal`. It creates the same kind of WooCommerce renewal order `create_renewal_order` does — there is no separate order-creation logic — but with a permission, timing, and idempotency model suited to a member-initiated confirm click rather than an admin override.
+
+### URL parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundle_post_id` | `integer` | Yes | Post ID of the bundle. |
+
+### Request body
+
+None.
+
+### Response
+
+`200 OK`
+
+```json
+{
+    "success": "Renewal confirmed successfully.",
+    "order_id": 500
+}
+```
+
+No `order_url` is returned — unlike `create_renewal_order`'s response, a wp-admin edit URL is not meaningful to a non-admin caller.
+
+### Errors
+
+| Status | Cause |
+|---|---|
+| `400` | Invalid `bundle_post_id`, bundle has no linked subscription, or the linked subscription could not be loaded |
+| `400` | Bundle is not configured with `renewal_type` `"confirmation_renewal"` |
+| `400` | The renewal confirmation window is not currently open (before `early_renew_at` or on/after `ends_at`) |
+| `403` | Requesting user is not the bundle's owner |
+| `404` | Bundle post not found |
+| `409` | This membership bundle has already been renewed for the current cycle (a renewal order already exists since the window opened) |
+| `500` | WooCommerce Subscriptions is not active, or renewal order creation failed |
+
+### Example
+
+:::details Example
+```bash
+curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/confirm_renewal" \
+  -H "Content-Type: application/json" \
+  -H "X-WP-Nonce: {nonce}"
+```
+:::

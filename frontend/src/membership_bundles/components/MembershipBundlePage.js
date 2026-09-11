@@ -25,7 +25,7 @@ const isNewlyCreated = () => {
 };
 
 const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembersUrl }) => {
-  const { pageData, setPageData, requestState, retryLoad, renewalProcessingMeta } = useMembershipBundleBootstrap({ bundleGroupUuid });
+  const { pageData, setPageData, requestState, retryLoad, renewalProcessingMeta, renewalOrderCreationMeta } = useMembershipBundleBootstrap({ bundleGroupUuid });
   const [memberAddedNotice, setMemberAddedNotice]       = useState(null);
   const [groupCancelledNotice, setGroupCancelledNotice] = useState(null);
   const [newGroupNotice, setNewGroupNotice] = useState(
@@ -89,7 +89,7 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
     <>
       <AdminNoticeStack notices={notices} />
       <ContentArea>
-        <RenewalProcessingOverlay processingMeta={renewalProcessingMeta} />
+        <RenewalProcessingOverlay processingMeta={renewalProcessingMeta} orderCreationMeta={renewalOrderCreationMeta} />
         <MembershipBundleForm
           pageData={pageData}
           isLoading={isLoading}
