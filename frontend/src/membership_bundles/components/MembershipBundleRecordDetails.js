@@ -19,6 +19,7 @@ import {
   updateMembershipBundle,
 } from "../../shared/services/api";
 import { BUNDLE_RENEWAL_TYPE_OPTIONS } from "../../shared/components/MembershipRenewalTypeSection";
+import { getRenewalOrderCreationMeta } from "../utils/renewalMeta";
 
 const DetailsWrap = styled.div`
   padding: 4px 0;
@@ -102,6 +103,10 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
   };
 
   const isCancelled = record.status?.toLowerCase() === "cancelled";
+  // A creation already queued/in progress for this cycle — the REST layer
+  // would reject a second one via claim_renewal_order_creation() anyway, but
+  // the button shouldn't invite a click that's already known to fail.
+  const isRenewalOrderCreationPending = Boolean(getRenewalOrderCreationMeta(bundlePageData));
 
   const handleStatusUpdated = (_postId, newStatus) => {
     if (onRecordUpdated) {
@@ -164,7 +169,7 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
             {
               label: __("Create Renewal Order", "wicket-memberships"),
               onClick: () => setIsCreateRenewalOrderOpen(true),
-              disabled: isCancelled,
+              disabled: isCancelled || isRenewalOrderCreationPending,
             },
           ]}
         />
