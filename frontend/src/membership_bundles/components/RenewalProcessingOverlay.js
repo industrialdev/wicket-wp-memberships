@@ -69,16 +69,20 @@ const StartedAt = styled.p`
 /**
  * RenewalProcessingOverlay
  *
- * Full-page blocking overlay shown while a bundle renewal batch is in progress.
- * Covers the bundle detail content area and blocks all interaction.
- * Unmounts when processingMeta is null (renewal complete or not running).
+ * Full-page blocking overlay shown while a bundle renewal is in progress.
+ * Covers the bundle detail content area and blocks all interaction. Unmounts
+ * when both meta props are null (renewal complete or not running).
+ *
+ * orderCreationMeta precedes processingMeta — the renewal order is created
+ * (Milestone 10) before member-provisioning meta even exists (Milestone 9).
  *
  * @param {object|null} props.processingMeta - Parsed membership_renewal_processing object, or null.
+ * @param {object|null} props.orderCreationMeta - Parsed membership_renewal_order_creation object, or null.
  */
-const RenewalProcessingOverlay = ({ processingMeta }) => {
-  if (!processingMeta) return null;
+const RenewalProcessingOverlay = ({ processingMeta, orderCreationMeta }) => {
+  if (!orderCreationMeta && !processingMeta) return null;
 
-  const { offset = 0, total_members = 0, started_at } = processingMeta;
+  const startedAt = orderCreationMeta?.queued_at ?? processingMeta?.started_at;
 
   return (
     <Overlay>
@@ -90,13 +94,18 @@ const RenewalProcessingOverlay = ({ processingMeta }) => {
         <Subtext>
           {__("Please wait for the renewal process to finish.", "wicket-memberships")}
         </Subtext>
-        <Progress>
-          {offset}/{total_members} {__("records processed.", "wicket-memberships")}
-        </Progress>
-        {started_at && (
+        {orderCreationMeta ? (
+          <Progress>{__("Preparing renewal order…", "wicket-memberships")}</Progress>
+        ) : (
+          <Progress>
+            {processingMeta.offset ?? 0}/{processingMeta.total_members ?? 0}{" "}
+            {__("records processed.", "wicket-memberships")}
+          </Progress>
+        )}
+        {startedAt && (
           <StartedAt>
             {__("Started:", "wicket-memberships")}{" "}
-            {moment.tz(started_at, PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || "UTC").format("YYYY-MM-DD HH:mm:ss z")}
+            {moment.tz(startedAt, PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || "UTC").format("YYYY-MM-DD HH:mm:ss z")}
           </StartedAt>
         )}
       </ContentBlock>
