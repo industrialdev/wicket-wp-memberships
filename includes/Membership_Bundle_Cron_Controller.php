@@ -250,12 +250,12 @@ class Membership_Bundle_Cron_Controller {
    * post-payment batch cron and the pre-payment repricing phase — takes no
    * new-bundle-post argument since that post doesn't exist yet at the earlier point.
    *
-   * @return array{tier_post_id: int, product_id: int|null, variation_id: int|null}|\WP_Error
+   * @return array{tier_post_id: int, product_id: int|null, variation_id: int|null, decision_source: 'unchanged'|'sequential_logic'}|\WP_Error
    */
   public static function resolve_sequential_logic_succession( int $tier_post_id, ?int $product_id, int $old_membership_post_id ): array|\WP_Error {
     $old_tier = new Membership_Tier( $tier_post_id );
     if ( $old_tier->get_tier_renewal_type() !== 'sequential_logic' ) {
-      return [ 'tier_post_id' => $tier_post_id, 'product_id' => $product_id, 'variation_id' => null ];
+      return [ 'tier_post_id' => $tier_post_id, 'product_id' => $product_id, 'variation_id' => null, 'decision_source' => 'unchanged' ];
     }
 
     $next_tier_id = $old_tier->get_next_tier_id();
@@ -286,9 +286,10 @@ class Membership_Bundle_Cron_Controller {
     $variation_id = ! empty( $next_tier_products[0]['variation_id'] ) ? (int) $next_tier_products[0]['variation_id'] : null;
 
     return [
-      'tier_post_id'  => $next_tier_id,
-      'product_id'    => (int) $next_tier_products[0]['product_id'],
-      'variation_id'  => $variation_id,
+      'tier_post_id'     => $next_tier_id,
+      'product_id'       => (int) $next_tier_products[0]['product_id'],
+      'variation_id'     => $variation_id,
+      'decision_source'  => 'sequential_logic',
     ];
   }
 
@@ -378,15 +379,36 @@ class Membership_Bundle_Cron_Controller {
         continue;
       }
 
-      // Read the decision reprice_bundle_renewal_line_item() already made and charged
+      // Read the tier reprice_bundle_renewal_line_item() already decided and charged
       // the customer for at order-creation time — this must never re-resolve after
-      // payment, or the record could disagree with what was actually billed.
-      $tier_post_id = (int) $item->get_meta( '_wicket_charge_tier_post_id' );
-      $product_id   = (int) $item->get_meta( '_wicket_charge_product_id' );
-      $variation_id = (int) $item->get_meta( '_wicket_charge_variation_id' ) ?: null;
+      // payment, or the record could disagree with what was actually billed. Product/
+      // variation come straight off the item, which set_product() already set correctly.
+      $tier_post_id = (int) $item->get_meta( '_wicket_bundle_renewal_resolved_tier_post_id' );
+      $product_id   = (int) $item->get_product_id();
+      $variation_id = (int) $item->get_variation_id() ?: null;
+
+      // resolved_tier_post_id is written on every successful repricing (unchanged or
+      // not) — its absence here means repricing never completed for this member (e.g.
+      // a renewal order created before this stamp existed, or reprice_bundle_renewal_
+      // line_item() failed and the order was held). Only fall back to the old
+      // membership's own tier/product when that tier was never expected to produce a
+      // new decision in the first place (current_tier/form_flow) — a sequential_logic
+      // tier's absence of a decision means its own succession genuinely failed (e.g. a
+      // misconfigured next tier), and must hard-fail rather than silently renew at the
+      // outgoing tier as if nothing was supposed to change.
+      if ( ! $tier_post_id ) {
+        $old_tier_post_id   = (int) get_post_meta( $old_membership_post_id, 'membership_tier_post_id', true );
+        $old_renewal_type   = $old_tier_post_id ? ( new Membership_Tier( $old_tier_post_id ) )->get_tier_renewal_type() : null;
+
+        if ( $old_renewal_type !== 'sequential_logic' ) {
+          $tier_post_id = $old_tier_post_id;
+          $product_id   = (int) get_post_meta( $old_membership_post_id, 'membership_product_id', true );
+          $variation_id = null;
+        }
+      }
 
       if ( ! $tier_post_id || ! $product_id ) {
-        Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: missing charge-decision meta on renewal item', [
+        Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: missing charge-decision meta on renewal item and old membership', [
           'old_membership_post_id' => $old_membership_post_id,
           'item_id'                => $item->get_id(),
           'new_bundle_post_id'     => $new_bundle_post_id,
@@ -591,6 +613,8 @@ class Membership_Bundle_Cron_Controller {
         $reprice_failures[ $membership_post_id ] = $reprice_result;
       }
 
+      $original_product_price = (string) $item->get_total();
+
       try {
         // The callback mutates $item and/or $renewal_order directly — e.g.
         // $item->set_total()/set_subtotal() for a price adjustment,
@@ -605,6 +629,21 @@ class Membership_Bundle_Cron_Controller {
           $user_id,
           $renewal_order
         );
+
+        // Only a direct set_total()/set_subtotal() override is worth recording here —
+        // not a discount/coupon (WC already tracks those natively) and not a product
+        // swap (already explained by the tier/product decision meta above). Compare
+        // against the product's own price before this filter ran, since WC applies
+        // discounts later via its own line-item fields, not by mutating this total.
+        // The item's own get_total() is the current/final price — no need to duplicate it.
+        if ( (string) $item->get_total() !== $original_product_price ) {
+          $item->update_meta_data( '_wicket_bundle_renewal_original_product_price', $original_product_price );
+          // Mirrors _wicket_bundle_renewal_decision_source (tier/product): names what
+          // changed the price, distinct from what changed the tier/product. Only one
+          // mechanism can force a raw price override, so this is always 'filter_override'.
+          $item->update_meta_data( '_wicket_bundle_renewal_price_decision_source', 'filter_override' );
+        }
+
         $item->save();
       } catch ( \Throwable $e ) {
         // A single member's callback failing (e.g. an external lookup throwing) must not
@@ -663,6 +702,9 @@ class Membership_Bundle_Cron_Controller {
       ? null
       : $stored_product_id;
 
+    $previous_tier_post_id = $tier_post_id;
+    $previous_product_id   = $stored_product_id;
+
     $resolved = self::resolve_sequential_logic_succession( $tier_post_id, $product_id, $membership_post_id );
     if ( is_wp_error( $resolved ) ) {
       return $resolved->get_error_code();
@@ -686,7 +728,7 @@ class Membership_Bundle_Cron_Controller {
           'override'           => $override,
         ] ] );
       } else {
-        $resolved = $validated;
+        $resolved = $validated + [ 'decision_source' => 'filter_override' ];
       }
     }
 
@@ -706,12 +748,28 @@ class Membership_Bundle_Cron_Controller {
     $item->set_subtotal( (string) $price );
     $item->set_total( (string) $price );
 
-    // Record the decision so process_bundle_renewal_members() reads it back instead of
-    // resolving again post-payment — the two must never disagree.
-    $item->update_meta_data( '_wicket_charge_tier_post_id', $resolved['tier_post_id'] );
-    $item->update_meta_data( '_wicket_charge_product_id', $resolved['product_id'] );
-    $item->update_meta_data( '_wicket_charge_variation_id', $resolved['variation_id'] ?? 0 );
-    $item->update_meta_data( '_wicket_charge_decided_at', current_time( 'mysql', true ) );
+    // Record which tier this charge belongs to, so process_bundle_renewal_members()
+    // reads it back instead of re-deriving it post-payment — product/variation are
+    // already on the item natively via set_product() above. Always written on success
+    // (even when unchanged): its presence is process_bundle_renewal_members()'s only
+    // signal that repricing actually completed, vs. failed outright (e.g. a
+    // sequential_logic next tier with no products) — those two cases must not be
+    // confused with each other, or a failed member could wrongly fall back to renewing
+    // at their old tier/product instead of being skipped and logged as an error.
+    $item->update_meta_data( '_wicket_bundle_renewal_resolved_tier_post_id', $resolved['tier_post_id'] );
+
+    // The rest of the decision record is only worth writing when something actually
+    // changed — an "unchanged" renewal has nothing more to say than the line above.
+    if ( $resolved['decision_source'] !== 'unchanged' ) {
+      $item->update_meta_data( '_wicket_bundle_renewal_decision_source', $resolved['decision_source'] );
+      $item->update_meta_data( '_wicket_bundle_renewal_previous_tier_post_id', $previous_tier_post_id );
+      $item->update_meta_data( '_wicket_bundle_renewal_previous_product_id', $previous_product_id ?? 0 );
+
+      // ISO 8601 with offset (matches process_bundle_renewal_members()'s completed_at
+      // stamp) — render with formatDateWithTooltip() wherever this surfaces in the
+      // admin UI, per this plugin's date-display convention.
+      $item->update_meta_data( '_wicket_bundle_renewal_decided_at', current_time( 'c' ) );
+    }
 
     return true;
   }
