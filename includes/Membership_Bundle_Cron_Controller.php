@@ -40,6 +40,9 @@ class Membership_Bundle_Cron_Controller {
     // Renewal batch processor — dispatched by handle_bundle_renewal() via Action Scheduler.
     add_action( 'wicket_bundle_renewal_process_members', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'process_bundle_renewal_members' ], 10, 5 );
 
+    // Background renewal-order creation — dispatched by the create/confirm REST endpoints.
+    add_action( 'wicket_bundle_create_renewal_order', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'create_renewal_order_job' ], 10, 2 );
+
     // Early renewal transition — cancel old bundle + activate new bundle at new term start date.
     add_action( 'wicket_bundle_cancel_old_on_new_starts_at', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'cancel_old_bundle_on_new_starts_at' ], 10, 2 );
 
@@ -545,6 +548,101 @@ class Membership_Bundle_Cron_Controller {
       'errors'             => $errors,
       'has_more'           => $has_more,
     ] ] );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Background renewal-order creation
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Claim a bundle's renewal-order-creation slot, or report it's already
+   * claimed/complete. Must happen at enqueue time — once creation is deferred, no
+   * order exists yet for a second request to detect via an order-existence check.
+   *
+   * Uses add_post_meta(unique: true) rather than update_post_meta's $prev_value: the
+   * latter skips its compare-and-swap when $prev_value is empty, which is exactly a
+   * bundle's first claim.
+   *
+   * @return true|array{status: int, order_id: ?int}
+   */
+  public static function claim_renewal_order_creation( int $bundle_post_id ) {
+    $raw     = get_post_meta( $bundle_post_id, 'membership_renewal_order_creation', true );
+    $current = $raw ? ( json_decode( $raw, true ) ?: [] ) : [];
+
+    if ( ! empty( $current ) ) {
+      if ( isset( $current['order_id'] ) ) {
+        return [ 'status' => 409, 'order_id' => (int) $current['order_id'] ];
+      }
+      if ( ! isset( $current['failed_at'] ) ) {
+        return [ 'status' => 409, 'order_id' => null ];
+      }
+      // A failed attempt doesn't block a retry — clear it first for a clean claim.
+      delete_post_meta( $bundle_post_id, 'membership_renewal_order_creation' );
+    }
+
+    $claim = wp_json_encode( [
+      'queued_at' => current_time( 'c' ),
+      'phase'     => 'creating_order',
+    ] );
+
+    $claimed = add_post_meta( $bundle_post_id, 'membership_renewal_order_creation', $claim, true );
+
+    if ( $claimed === false ) {
+      // Lost the race — re-read to report the winner's state.
+      $raw     = get_post_meta( $bundle_post_id, 'membership_renewal_order_creation', true );
+      $current = $raw ? ( json_decode( $raw, true ) ?: [] ) : [];
+
+      return [ 'status' => 409, 'order_id' => isset( $current['order_id'] ) ? (int) $current['order_id'] : null ];
+    }
+
+    return true;
+  }
+
+  /**
+   * Create a bundle's renewal order in the background — dispatched by the REST
+   * endpoints instead of calling wcs_create_renewal_order() inline in the request.
+   * Writes the result (order_id or failure) back onto the claim's own meta; that's
+   * the terminal state the UI polls for and a later claim attempt checks against.
+   */
+  public static function create_renewal_order_job( int $bundle_post_id, int $subscription_id ): void {
+    $subscription = function_exists( 'wcs_get_subscription' ) ? wcs_get_subscription( $subscription_id ) : false;
+
+    if ( ! $subscription ) {
+      Utilities::wc_log_mship_error( [ 'create_renewal_order_job: subscription not found', [
+        'bundle_post_id'   => $bundle_post_id,
+        'subscription_id'  => $subscription_id,
+      ] ] );
+      self::mark_renewal_order_creation_failed( $bundle_post_id, 'subscription_not_found' );
+      return;
+    }
+
+    $renewal_order = wcs_create_renewal_order( $subscription );
+
+    if ( is_wp_error( $renewal_order ) ) {
+      Utilities::wc_log_mship_error( [ 'create_renewal_order_job: wcs_create_renewal_order failed', [
+        'bundle_post_id'  => $bundle_post_id,
+        'subscription_id' => $subscription_id,
+        'error'           => $renewal_order->get_error_message(),
+      ] ] );
+      self::mark_renewal_order_creation_failed( $bundle_post_id, $renewal_order->get_error_code() );
+      return;
+    }
+
+    $raw   = get_post_meta( $bundle_post_id, 'membership_renewal_order_creation', true );
+    $claim = $raw ? ( json_decode( $raw, true ) ?: [] ) : [];
+
+    update_post_meta( $bundle_post_id, 'membership_renewal_order_creation', wp_json_encode( [
+      'queued_at'    => $claim['queued_at'] ?? current_time( 'c' ),
+      'completed_at' => current_time( 'c' ),
+      'order_id'     => $renewal_order->get_id(),
+    ] ) );
+  }
+
+  private static function mark_renewal_order_creation_failed( int $bundle_post_id, string $error_code ): void {
+    update_post_meta( $bundle_post_id, 'membership_renewal_order_creation', wp_json_encode( [
+      'failed_at'  => current_time( 'c' ),
+      'error_code' => $error_code,
+    ] ) );
   }
 
   // ---------------------------------------------------------------------------

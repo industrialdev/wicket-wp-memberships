@@ -658,10 +658,10 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   /**
    * POST /bundle/{bundle_post_id}/create_renewal_order
    *
-   * Creates a WooCommerce renewal order off the bundle's existing subscription
-   * using wcs_create_renewal_order(). Does not create a new subscription —
-   * the bundle subscription carries all member line items and must remain the
-   * parent so billing history stays intact.
+   * Queues the renewal order for background creation (Membership_Bundle_Cron_
+   * Controller::create_renewal_order_job()) instead of calling
+   * wcs_create_renewal_order() inline — large bundles can exceed a proxy's timeout.
+   * Returns 202 once queued, or 409 if already queued/created.
    */
   public function create_bundle_renewal_order( \WP_REST_Request $request ): \WP_REST_Response {
     $bundle_post_id = (int) ( $request->get_param( 'bundle_post_id' ) ?? 0 );
@@ -670,41 +670,48 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     if ( is_wp_error( $validated ) ) {
       return new \WP_REST_Response( [ 'error' => $validated->get_error_message() ], (int) $validated->get_error_data()['status'] );
     }
-    [ 'bundle' => $bundle, 'subscription' => $subscription ] = $validated;
+    [ 'subscription' => $subscription ] = $validated;
 
-    $renewal_order = wcs_create_renewal_order( $subscription );
-    if ( is_wp_error( $renewal_order ) ) {
-      return new \WP_REST_Response( [ 'error' => $renewal_order->get_error_message() ], 500 );
+    $claim = Membership_Bundle_Cron_Controller::claim_renewal_order_creation( $bundle_post_id );
+    if ( $claim !== true ) {
+      return new \WP_REST_Response( [
+        'error'    => $claim['order_id']
+          ? __( 'A renewal order already exists for this membership bundle.', 'wicket-memberships' )
+          : __( 'Renewal order creation is already in progress for this membership bundle.', 'wicket-memberships' ),
+        'order_id' => $claim['order_id'],
+      ], $claim['status'] );
     }
 
-    $order_url = admin_url( 'admin.php?page=wc-orders&action=edit&id=' . $renewal_order->get_id(), 'https' );
+    as_schedule_single_action(
+      time(),
+      'wicket_bundle_create_renewal_order',
+      [ 'bundle_post_id' => $bundle_post_id, 'subscription_id' => $subscription->get_id() ],
+      'wicket-memberships',
+      false
+    );
 
     return new \WP_REST_Response( [
-      'success'   => __( 'Renewal order created successfully.', 'wicket-memberships' ),
-      'order_url' => $order_url,
-      'order_id'  => $renewal_order->get_id(),
-    ], 200 );
+      'success'        => __( 'Renewal order creation has been queued.', 'wicket-memberships' ),
+      'bundle_post_id' => $bundle_post_id,
+    ], 202 );
   }
 
   /**
    * POST /bundle/{bundle_post_id}/confirm_renewal
    *
    * Member-facing confirm action for a bundle configured with
-   * renewal_type === 'confirmation_renewal'. Calls the same wcs_create_renewal_order()
-   * the admin create_renewal_order endpoint uses — this plugin does not create a
-   * second code path for the actual order creation, only for the permission/
-   * validation/response-shape layer around it (see design decision in the
-   * client-extensibility plan, Milestone 5).
+   * renewal_type === 'confirmation_renewal'. Queues the same background job
+   * create_bundle_renewal_order uses, rather than a second creation code path.
    *
-   * Deliberately a separate endpoint from create_bundle_renewal_order rather than a
-   * reuse with a loosened permission check: the two callers have different trust
-   * models. The admin tool is an unconditional manual override (capability check
-   * only, no timing/config gating). This endpoint only works during the confirm
-   * window, only for the bundle's actual owner, and only for bundles actually
-   * configured with confirmation_renewal — coupling both into one method would mean
-   * the admin override's permission callback grows an is_admin() OR is_bundle_owner()
-   * branch, and the response shape would need to be conditional (the admin response's
-   * order_url is a wp-admin URL meaningless to a non-admin caller).
+   * Deliberately a separate endpoint from create_bundle_renewal_order: the admin tool
+   * is an unconditional capability-gated override; this one is gated to the bundle's
+   * owner, the confirm window, and confirmation_renewal configs specifically, with a
+   * member-appropriate response shape.
+   *
+   * Returns 202 once queued, or 409 if already queued/created. The claim replaces the
+   * old order-existence scan, which can no longer detect a concurrent request once
+   * creation is deferred — renew_bundle() creates a new bundle post per cycle, so a
+   * claim never carries over from a prior one.
    */
   public function confirm_bundle_renewal( \WP_REST_Request $request ): \WP_REST_Response {
     $bundle_post_id = (int) ( $request->get_param( 'bundle_post_id' ) ?? 0 );
@@ -738,33 +745,32 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       return new \WP_REST_Response( [ 'error' => 'The renewal confirmation window is not currently open for this membership bundle.' ], 400 );
     }
 
-    // Idempotency: reject a second confirm (double-click, duplicate/race request) if a
-    // renewal order already exists for this cycle. A renewal order created before the
-    // current window opened belongs to a prior cycle, not this one — only one created
-    // since early_renew_at counts as "already renewed" for this cycle.
-    foreach ( $subscription->get_related_orders( 'ids', 'renewal' ) as $existing_order_id ) {
-      $existing_order = wc_get_order( $existing_order_id );
-      if ( $existing_order && $existing_order->get_date_created() && $existing_order->get_date_created()->getTimestamp() >= $early_renew_at ) {
-        return new \WP_REST_Response( [
-          'error'    => 'This membership bundle has already been renewed for the current cycle.',
-          'order_id' => $existing_order_id,
-        ], 409 );
-      }
+    $claim = Membership_Bundle_Cron_Controller::claim_renewal_order_creation( $bundle_post_id );
+    if ( $claim !== true ) {
+      return new \WP_REST_Response( [
+        'error'    => $claim['order_id']
+          ? __( 'This membership bundle has already been renewed for the current cycle.', 'wicket-memberships' )
+          : __( 'Renewal confirmation is already in progress for this membership bundle.', 'wicket-memberships' ),
+        'order_id' => $claim['order_id'],
+      ], $claim['status'] );
     }
 
-    $renewal_order = wcs_create_renewal_order( $subscription );
-    if ( is_wp_error( $renewal_order ) ) {
-      return new \WP_REST_Response( [ 'error' => $renewal_order->get_error_message() ], 500 );
-    }
+    as_schedule_single_action(
+      time(),
+      'wicket_bundle_create_renewal_order',
+      [ 'bundle_post_id' => $bundle_post_id, 'subscription_id' => $subscription->get_id() ],
+      'wicket-memberships',
+      false
+    );
 
     // Member-appropriate response shape — no wp-admin order_url, unlike
     // create_bundle_renewal_order's response: a wp-admin URL is meaningless to a
     // non-admin caller. The created order flows through the existing
     // catch_order_completed() -> handle_bundle_renewal() pipeline unchanged.
     return new \WP_REST_Response( [
-      'success'  => __( 'Renewal confirmed successfully.', 'wicket-memberships' ),
-      'order_id' => $renewal_order->get_id(),
-    ], 200 );
+      'success'        => __( 'Your renewal invoice is being prepared.', 'wicket-memberships' ),
+      'bundle_post_id' => $bundle_post_id,
+    ], 202 );
   }
 
   /**
