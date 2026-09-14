@@ -1,32 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchBundleEditPageInfo } from "../../shared/services/api";
+import { getRenewalProcessingMeta, getRenewalOrderCreationMeta } from "../utils/renewalMeta";
 
 const REQUEST_LOADING = { status: "loading", error: null };
 const REQUEST_SUCCESS = { status: "success", error: null };
 
 const RENEWAL_POLL_INTERVAL_MS = 10000;
-
-/**
- * Returns the parsed membership_renewal_processing object if the renewal is
- * still in progress (meta present and no completed_at), otherwise null.
- *
- * @param {object|null} data - pageData from fetchBundleEditPageInfo
- * @returns {object|null}
- */
-const getRenewalProcessingMeta = (data) => {
-  if (!data?.meta?.membership_renewal_processing) return null;
-  try {
-    const parsed =
-      typeof data.meta.membership_renewal_processing === "string"
-        ? JSON.parse(data.meta.membership_renewal_processing)
-        : data.meta.membership_renewal_processing;
-    // completed_at presence means the batch finished — overlay should dismiss.
-    if (parsed?.completed_at) return null;
-    return parsed ?? null;
-  } catch {
-    return null;
-  }
-};
 
 /**
  * useMembershipBundleBootstrap
@@ -80,11 +59,12 @@ export const useMembershipBundleBootstrap = ({ bundleGroupUuid }) => {
     }
   }, [bundleGroupUuid]);
 
-  // Schedule next poll if renewal is still in progress.
+  // Schedule next poll while either phase (order creation, then member
+  // processing) is still in progress.
   const scheduleNextPoll = useCallback(
     (data) => {
       stopPolling();
-      if (getRenewalProcessingMeta(data)) {
+      if (getRenewalOrderCreationMeta(data) || getRenewalProcessingMeta(data)) {
         pollTimerRef.current = setTimeout(async () => {
           const refreshed = await silentRefresh();
           if (refreshed) {
@@ -111,5 +91,6 @@ export const useMembershipBundleBootstrap = ({ bundleGroupUuid }) => {
     requestState,
     retryLoad: loadPageData,
     renewalProcessingMeta: getRenewalProcessingMeta(pageData),
+    renewalOrderCreationMeta: getRenewalOrderCreationMeta(pageData),
   };
 };

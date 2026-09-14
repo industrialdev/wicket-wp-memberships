@@ -40,8 +40,20 @@ class Membership_Bundle_Cron_Controller {
     // Renewal batch processor — dispatched by handle_bundle_renewal() via Action Scheduler.
     add_action( 'wicket_bundle_renewal_process_members', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'process_bundle_renewal_members' ], 10, 5 );
 
+    // Background renewal-order creation — dispatched by the create/confirm REST endpoints.
+    add_action( 'wicket_bundle_create_renewal_order', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'create_renewal_order_job' ], 10, 2 );
+
     // Early renewal transition — cancel old bundle + activate new bundle at new term start date.
     add_action( 'wicket_bundle_cancel_old_on_new_starts_at', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'cancel_old_bundle_on_new_starts_at' ], 10, 2 );
+
+    // Client-specific extension point: per-member price/fee adjustment on the actual
+    // renewal order WCS bills the customer on (distinct from this plugin's own batch
+    // cron, which re-provisions membership records on a decoupled cadence).
+    add_filter( 'wcs_renewal_order_created', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'apply_bundle_renewal_line_item_price_filter' ], 10, 2 );
+
+    // Refreshes stale line-item identity meta on renewal. wcs_renewal_order_items is
+    // renewal-specific (unlike wcs_new_order_items), so this never fires for a resubscribe.
+    add_filter( 'wcs_renewal_order_items', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'refresh_bundle_renewal_line_item_meta' ], 10, 3 );
   }
 
   // ---------------------------------------------------------------------------
@@ -236,6 +248,55 @@ class Membership_Bundle_Cron_Controller {
   // ---------------------------------------------------------------------------
 
   /**
+   * Resolve the tier/product a renewing member's sequential_logic tier succeeds to.
+   * Non-sequential_logic tiers pass through unchanged. Callable from both the
+   * post-payment batch cron and the pre-payment repricing phase — takes no
+   * new-bundle-post argument since that post doesn't exist yet at the earlier point.
+   *
+   * @return array{tier_post_id: int, product_id: int|null, variation_id: int|null, decision_source: 'unchanged'|'sequential_logic'}|\WP_Error
+   */
+  public static function resolve_sequential_logic_succession( int $tier_post_id, ?int $product_id, int $old_membership_post_id ): array|\WP_Error {
+    $old_tier = new Membership_Tier( $tier_post_id );
+    if ( $old_tier->get_tier_renewal_type() !== 'sequential_logic' ) {
+      return [ 'tier_post_id' => $tier_post_id, 'product_id' => $product_id, 'variation_id' => null, 'decision_source' => 'unchanged' ];
+    }
+
+    $next_tier_id = $old_tier->get_next_tier_id();
+    if ( $next_tier_id === false ) {
+      Utilities::wc_log_mship_error( [ 'resolve_sequential_logic_succession: sequential_logic tier has no next_tier_id configured', [
+        'old_membership_post_id' => $old_membership_post_id,
+        'tier_post_id'           => $tier_post_id,
+      ] ] );
+      return new \WP_Error( 'no_next_tier', 'sequential_logic tier has no next_tier_id configured.' );
+    }
+
+    $next_tier = new Membership_Tier( $next_tier_id );
+    $next_tier_products = $next_tier->get_products_data();
+    if ( empty( $next_tier_products ) ) {
+      Utilities::wc_log_mship_error( [ 'resolve_sequential_logic_succession: next tier has no products configured', [
+        'old_membership_post_id' => $old_membership_post_id,
+        'tier_post_id'           => $tier_post_id,
+        'next_tier_id'           => $next_tier_id,
+      ] ] );
+      return new \WP_Error( 'no_next_tier_product', 'sequential_logic next tier has no products configured.' );
+    }
+
+    // First product, preferring the variation over the parent product — matches
+    // Import_Controller::create_bundle_member()'s ambiguous_product handling. A next
+    // tier configured with more than one product is not an expected configuration;
+    // this deterministic pick exists for correctness/safety, mirroring the import
+    // precedent, not because multi-product next tiers are a real scenario to support.
+    $variation_id = ! empty( $next_tier_products[0]['variation_id'] ) ? (int) $next_tier_products[0]['variation_id'] : null;
+
+    return [
+      'tier_post_id'     => $next_tier_id,
+      'product_id'       => (int) $next_tier_products[0]['product_id'],
+      'variation_id'     => $variation_id,
+      'decision_source'  => 'sequential_logic',
+    ];
+  }
+
+  /**
    * Process one batch of individual member provisioning for a bundle renewal.
    *
    * Dispatched by handle_bundle_renewal() via Action Scheduler. Each invocation
@@ -308,17 +369,51 @@ class Membership_Bundle_Cron_Controller {
 
     foreach ( $batch as $entry ) {
       $old_membership_post_id = $entry['membership_post_id'];
+      $item                   = $entry['item'];
 
-      // Resolve user_id, tier, and product from the old membership post meta.
-      // Keys match what create_local_membership_record() writes to post meta.
-      $user_id      = (int) get_post_meta( $old_membership_post_id, 'user_id',               true );
-      $tier_post_id = (int) get_post_meta( $old_membership_post_id, 'membership_tier_post_id', true );
-      $product_id   = (int) get_post_meta( $old_membership_post_id, 'membership_product_id',  true ) ?: null;
-      $variation_id = null; // Not stored as separate meta — product_id already reflects variation when applicable.
+      $user_id = (int) get_post_meta( $old_membership_post_id, 'user_id', true );
 
-      if ( ! $user_id || ! $tier_post_id ) {
-        Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: skipping item, missing user or tier', [
+      if ( ! $user_id ) {
+        Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: skipping item, missing user', [
           'old_membership_post_id' => $old_membership_post_id,
+          'new_bundle_post_id'     => $new_bundle_post_id,
+        ] ] );
+        $errors[] = $old_membership_post_id;
+        continue;
+      }
+
+      // Read the tier reprice_bundle_renewal_line_item() already decided and charged
+      // the customer for at order-creation time — this must never re-resolve after
+      // payment, or the record could disagree with what was actually billed. Product/
+      // variation come straight off the item, which set_product() already set correctly.
+      $tier_post_id = (int) $item->get_meta( '_wicket_bundle_renewal_resolved_tier_post_id' );
+      $product_id   = (int) $item->get_product_id();
+      $variation_id = (int) $item->get_variation_id() ?: null;
+
+      // resolved_tier_post_id is written on every successful repricing (unchanged or
+      // not) — its absence here means repricing never completed for this member (e.g.
+      // a renewal order created before this stamp existed, or reprice_bundle_renewal_
+      // line_item() failed and the order was held). Only fall back to the old
+      // membership's own tier/product when that tier was never expected to produce a
+      // new decision in the first place (current_tier/form_flow) — a sequential_logic
+      // tier's absence of a decision means its own succession genuinely failed (e.g. a
+      // misconfigured next tier), and must hard-fail rather than silently renew at the
+      // outgoing tier as if nothing was supposed to change.
+      if ( ! $tier_post_id ) {
+        $old_tier_post_id   = (int) get_post_meta( $old_membership_post_id, 'membership_tier_post_id', true );
+        $old_renewal_type   = $old_tier_post_id ? ( new Membership_Tier( $old_tier_post_id ) )->get_tier_renewal_type() : null;
+
+        if ( $old_renewal_type !== 'sequential_logic' ) {
+          $tier_post_id = $old_tier_post_id;
+          $product_id   = (int) get_post_meta( $old_membership_post_id, 'membership_product_id', true );
+          $variation_id = null;
+        }
+      }
+
+      if ( ! $tier_post_id || ! $product_id ) {
+        Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: missing charge-decision meta on renewal item and old membership', [
+          'old_membership_post_id' => $old_membership_post_id,
+          'item_id'                => $item->get_id(),
           'new_bundle_post_id'     => $new_bundle_post_id,
         ] ] );
         $errors[] = $old_membership_post_id;
@@ -354,6 +449,10 @@ class Membership_Bundle_Cron_Controller {
         // from the old membership post ID to the new one. The subscription is shared across
         // renewals so we never add or remove line items here; only the pointer changes.
         // This prevents duplicate line items building up across renewal terms.
+        //
+        // Other line-item meta (extra_meta filter, _member_name) is refreshed separately
+        // in refresh_bundle_renewal_line_item_meta(), not here — this runs before the new
+        // term's member is known, so it would read the outgoing member's data.
         if ( function_exists( 'wcs_get_subscription' ) ) {
           $sub_id = (int) get_post_meta( $new_bundle_post_id, 'membership_subscription_id', true );
           $sub    = $sub_id ? wcs_get_subscription( $sub_id ) : null;
@@ -449,6 +548,453 @@ class Membership_Bundle_Cron_Controller {
       'errors'             => $errors,
       'has_more'           => $has_more,
     ] ] );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Background renewal-order creation
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Claim a bundle's renewal-order-creation slot, or report it's already
+   * claimed/complete. Must happen at enqueue time — once creation is deferred, no
+   * order exists yet for a second request to detect via an order-existence check.
+   *
+   * Uses add_post_meta(unique: true) rather than update_post_meta's $prev_value: the
+   * latter skips its compare-and-swap when $prev_value is empty, which is exactly a
+   * bundle's first claim.
+   *
+   * @return true|array{status: int, order_id: ?int}
+   */
+  public static function claim_renewal_order_creation( int $bundle_post_id ) {
+    $raw     = get_post_meta( $bundle_post_id, 'membership_renewal_order_creation', true );
+    $current = $raw ? ( json_decode( $raw, true ) ?: [] ) : [];
+
+    if ( ! empty( $current ) ) {
+      if ( isset( $current['order_id'] ) ) {
+        return [ 'status' => 409, 'order_id' => (int) $current['order_id'] ];
+      }
+      if ( ! isset( $current['failed_at'] ) ) {
+        return [ 'status' => 409, 'order_id' => null ];
+      }
+      // A failed attempt doesn't block a retry — clear it first for a clean claim.
+      delete_post_meta( $bundle_post_id, 'membership_renewal_order_creation' );
+    }
+
+    $claim = wp_json_encode( [
+      'queued_at' => current_time( 'c' ),
+      'phase'     => 'creating_order',
+    ] );
+
+    $claimed = add_post_meta( $bundle_post_id, 'membership_renewal_order_creation', $claim, true );
+
+    if ( $claimed === false ) {
+      // Lost the race — re-read to report the winner's state.
+      $raw     = get_post_meta( $bundle_post_id, 'membership_renewal_order_creation', true );
+      $current = $raw ? ( json_decode( $raw, true ) ?: [] ) : [];
+
+      return [ 'status' => 409, 'order_id' => isset( $current['order_id'] ) ? (int) $current['order_id'] : null ];
+    }
+
+    return true;
+  }
+
+  /**
+   * Create a bundle's renewal order in the background — dispatched by the REST
+   * endpoints instead of calling wcs_create_renewal_order() inline in the request.
+   * Writes the result (order_id or failure) back onto the claim's own meta; that's
+   * the terminal state the UI polls for and a later claim attempt checks against.
+   */
+  public static function create_renewal_order_job( int $bundle_post_id, int $subscription_id ): void {
+    $subscription = function_exists( 'wcs_get_subscription' ) ? wcs_get_subscription( $subscription_id ) : false;
+
+    if ( ! $subscription ) {
+      Utilities::wc_log_mship_error( [ 'create_renewal_order_job: subscription not found', [
+        'bundle_post_id'   => $bundle_post_id,
+        'subscription_id'  => $subscription_id,
+      ] ] );
+      self::mark_renewal_order_creation_failed( $bundle_post_id, 'subscription_not_found' );
+      return;
+    }
+
+    // WooCommerce Subscriptions' own pay-for-order page only accepts payment for a
+    // subscription whose status is 'on-hold' or 'pending' (WCS_Cart_Renewal::maybe_setup_cart()) —
+    // an 'active' subscription is refused outright regardless of the order's own status.
+    // Mirrors the existing individual-membership subscription-renewal path in
+    // Membership_Controller.php, which puts the subscription on hold before creating its
+    // renewal order for the same reason.
+    $subscription->update_status( 'on-hold', __( 'Membership plugin set subscription on-hold generating a pending bundle renewal order.', 'wicket-memberships' ) );
+
+    $renewal_order = wcs_create_renewal_order( $subscription );
+
+    if ( is_wp_error( $renewal_order ) ) {
+      Utilities::wc_log_mship_error( [ 'create_renewal_order_job: wcs_create_renewal_order failed', [
+        'bundle_post_id'  => $bundle_post_id,
+        'subscription_id' => $subscription_id,
+        'error'           => $renewal_order->get_error_message(),
+      ] ] );
+      self::mark_renewal_order_creation_failed( $bundle_post_id, $renewal_order->get_error_code() );
+      return;
+    }
+
+    $raw   = get_post_meta( $bundle_post_id, 'membership_renewal_order_creation', true );
+    $claim = $raw ? ( json_decode( $raw, true ) ?: [] ) : [];
+
+    update_post_meta( $bundle_post_id, 'membership_renewal_order_creation', wp_json_encode( [
+      'queued_at'    => $claim['queued_at'] ?? current_time( 'c' ),
+      'completed_at' => current_time( 'c' ),
+      'order_id'     => $renewal_order->get_id(),
+    ] ) );
+  }
+
+  private static function mark_renewal_order_creation_failed( int $bundle_post_id, string $error_code ): void {
+    update_post_meta( $bundle_post_id, 'membership_renewal_order_creation', wp_json_encode( [
+      'failed_at'  => current_time( 'c' ),
+      'error_code' => $error_code,
+    ] ) );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Per-member renewal-order price/fee extension point
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fire wicket_mship_bundle_renewal_line_item_price once per member/line-item as a
+   * bundle's renewal order is built, then recalculate totals once for the whole order.
+   *
+   * Hooked to WCS's native `wcs_renewal_order_created` filter (always return
+   * $renewal_order — WCS requires a WC_Order back). Fires on WCS's own per-subscription
+   * renewal schedule, not this plugin's process_bundle_renewal_members() batch cron,
+   * which re-provisions membership records on a decoupled cadence and would not
+   * reliably affect the order actually being charged.
+   *
+   * The filter's return value is discarded; a callback communicates any change (price
+   * adjustment, added fee/product line, whole-order effect) by mutating
+   * $item/$renewal_order directly via the normal WC API.
+   *
+   * @param \WC_Order        $renewal_order The freshly created renewal order.
+   * @param \WC_Subscription $subscription  The subscription the renewal is related to.
+   * @return \WC_Order The same renewal order.
+   */
+  public static function apply_bundle_renewal_line_item_price_filter( $renewal_order, $subscription ) {
+    if ( ! $renewal_order instanceof \WC_Order ) {
+      return $renewal_order;
+    }
+
+    // Scope to bundle subscriptions only — a subscription is linked to a bundle when some
+    // bundle post's membership_subscription_id meta points back to it.
+    $bundle_posts = get_posts( [
+      'post_type'      => Helper::get_membership_bundle_cpt_slug(),
+      'post_status'    => 'any',
+      'posts_per_page' => 1,
+      'fields'         => 'ids',
+      'meta_query'     => [
+        [ 'key' => 'membership_subscription_id', 'value' => $subscription->get_id() ],
+      ],
+    ] );
+
+    if ( empty( $bundle_posts ) ) {
+      return $renewal_order;
+    }
+
+    $old_bundle_post_id = (int) $bundle_posts[0];
+    $reprice_failures   = [];
+
+    foreach ( $renewal_order->get_items() as $item_id => $item ) {
+      $membership_post_id = (int) wc_get_order_item_meta( $item_id, '_membership_post_id', true );
+      if ( ! $membership_post_id ) {
+        continue;
+      }
+      $user_id = (int) get_post_meta( $membership_post_id, 'user_id', true );
+
+      // Backstops refresh_bundle_renewal_line_item_meta() regardless of WCS's meta copy.
+      $user = $user_id ? get_user_by( 'id', $user_id ) : false;
+      if ( $user && '' === (string) $item->get_meta( '_member_name' ) ) {
+        $item->update_meta_data( '_member_name', $user->display_name );
+        $item->save();
+      }
+
+      // Reprice to the term ahead before Milestone 4's fee/discount filter runs.
+      $reprice_result = self::reprice_bundle_renewal_line_item( $item, $item_id, $membership_post_id, $user_id, $old_bundle_post_id );
+      if ( $reprice_result !== true ) {
+        $reprice_failures[ $membership_post_id ] = $reprice_result;
+      }
+
+      $original_product_price = (string) $item->get_total();
+
+      try {
+        // The callback mutates $item and/or $renewal_order directly — e.g.
+        // $item->set_total()/set_subtotal() for a price adjustment,
+        // $renewal_order->add_fee()/add_product() for a separate line. The return
+        // value is intentionally discarded.
+        apply_filters(
+          'wicket_mship_bundle_renewal_line_item_price',
+          null,
+          $item,
+          $item_id,
+          $membership_post_id,
+          $user_id,
+          $renewal_order
+        );
+
+        // Only a direct set_total()/set_subtotal() override is worth recording here —
+        // not a discount/coupon (WC already tracks those natively) and not a product
+        // swap (already explained by the tier/product decision meta above). Compare
+        // against the product's own price before this filter ran, since WC applies
+        // discounts later via its own line-item fields, not by mutating this total.
+        // The item's own get_total() is the current/final price — no need to duplicate it.
+        if ( (string) $item->get_total() !== $original_product_price ) {
+          $item->update_meta_data( '_wicket_bundle_renewal_original_product_price', $original_product_price );
+          // Mirrors _wicket_bundle_renewal_decision_source (tier/product): names what
+          // changed the price, distinct from what changed the tier/product. Only one
+          // mechanism can force a raw price override, so this is always 'filter_override'.
+          $item->update_meta_data( '_wicket_bundle_renewal_price_decision_source', 'filter_override' );
+        }
+
+        $item->save();
+      } catch ( \Throwable $e ) {
+        // A single member's callback failing (e.g. an external lookup throwing) must not
+        // abort processing for the rest of the order's members, and must not skip the
+        // calculate_totals() call below.
+        Utilities::wc_log_mship_error( [ 'wicket_mship_bundle_renewal_line_item_price filter failed', [
+          'item_id'            => $item_id,
+          'membership_post_id' => $membership_post_id,
+          'error'              => $e->getMessage(),
+        ] ] );
+      }
+    }
+
+    $renewal_order->calculate_totals();
+
+    if ( ! empty( $reprice_failures ) ) {
+      $note = 'Bundle renewal repricing failed for member(s): ' . implode( ', ', array_map(
+        static fn( $post_id, $code ) => "#{$post_id} ({$code})",
+        array_keys( $reprice_failures ),
+        $reprice_failures
+      ) );
+      $renewal_order->update_status( 'on-hold', $note );
+      Utilities::wc_log_mship_error( [ 'apply_bundle_renewal_line_item_price_filter: repricing failures, order held', [
+        'renewal_order_id' => $renewal_order->get_id(),
+        'failures'          => $reprice_failures,
+      ] ] );
+    }
+
+    return $renewal_order;
+  }
+
+  /**
+   * Resolve and apply the term-ahead tier/product/price to one member's renewal
+   * line item, before the price/fee filter runs. Fires
+   * wicket_mship_bundle_renewal_charge_tier_product for a client override, validated
+   * against the target tier and failed closed to the resolved default on mismatch.
+   *
+   * @param \WC_Order_Item_Product $item
+   * @return true|string true on success, else an error code for the caller to collect.
+   */
+  private static function reprice_bundle_renewal_line_item( $item, int $item_id, int $membership_post_id, int $user_id, int $old_bundle_post_id ) {
+    $tier_post_id = (int) get_post_meta( $membership_post_id, 'membership_tier_post_id', true );
+    if ( ! $tier_post_id ) {
+      Utilities::wc_log_mship_error( [ 'reprice_bundle_renewal_line_item: missing tier_post_id', [
+        'item_id'            => $item_id,
+        'membership_post_id' => $membership_post_id,
+      ] ] );
+      return 'missing_tier_post_id';
+    }
+
+    $stored_product_id = (int) get_post_meta( $membership_post_id, 'membership_product_id', true ) ?: null;
+
+    // membership_product_id may hold a variation ID — disambiguate before use.
+    $current_tier_variation_ids = array_map( 'intval', ( new Membership_Tier( $tier_post_id ) )->get_product_variation_ids() );
+    $product_id = ( $stored_product_id !== null && \in_array( $stored_product_id, $current_tier_variation_ids, true ) )
+      ? null
+      : $stored_product_id;
+
+    $previous_tier_post_id = $tier_post_id;
+    $previous_product_id   = $stored_product_id;
+
+    $resolved = self::resolve_sequential_logic_succession( $tier_post_id, $product_id, $membership_post_id );
+    if ( is_wp_error( $resolved ) ) {
+      return $resolved->get_error_code();
+    }
+
+    // Default (null) means "no override — the resolution above stands."
+    $override = apply_filters(
+      'wicket_mship_bundle_renewal_charge_tier_product',
+      null,
+      $membership_post_id,
+      $user_id,
+      $old_bundle_post_id,
+      $resolved
+    );
+
+    if ( is_array( $override ) ) {
+      $validated = self::validate_charge_tier_product_override( $override );
+      if ( $validated === null ) {
+        Utilities::wc_log_mship_error( [ 'reprice_bundle_renewal_line_item: invalid wicket_mship_bundle_renewal_charge_tier_product override, falling back to core default', [
+          'membership_post_id' => $membership_post_id,
+          'override'           => $override,
+        ] ] );
+      } else {
+        $resolved = $validated + [ 'decision_source' => 'filter_override' ];
+      }
+    }
+
+    $product = wc_get_product( $resolved['variation_id'] ?? $resolved['product_id'] );
+    if ( ! $product ) {
+      Utilities::wc_log_mship_error( [ 'reprice_bundle_renewal_line_item: resolved product could not be loaded', [
+        'item_id'            => $item_id,
+        'membership_post_id' => $membership_post_id,
+        'resolved'           => $resolved,
+      ] ] );
+      return 'product_not_found';
+    }
+
+    $item->set_product( $product );
+
+    $price = (float) $product->get_price();
+    $item->set_subtotal( (string) $price );
+    $item->set_total( (string) $price );
+
+    // Record which tier this charge belongs to, so process_bundle_renewal_members()
+    // reads it back instead of re-deriving it post-payment — product/variation are
+    // already on the item natively via set_product() above. Always written on success
+    // (even when unchanged): its presence is process_bundle_renewal_members()'s only
+    // signal that repricing actually completed, vs. failed outright (e.g. a
+    // sequential_logic next tier with no products) — those two cases must not be
+    // confused with each other, or a failed member could wrongly fall back to renewing
+    // at their old tier/product instead of being skipped and logged as an error.
+    $item->update_meta_data( '_wicket_bundle_renewal_resolved_tier_post_id', $resolved['tier_post_id'] );
+
+    // The rest of the decision record is only worth writing when something actually
+    // changed — an "unchanged" renewal has nothing more to say than the line above.
+    if ( $resolved['decision_source'] !== 'unchanged' ) {
+      $item->update_meta_data( '_wicket_bundle_renewal_decision_source', $resolved['decision_source'] );
+      $item->update_meta_data( '_wicket_bundle_renewal_previous_tier_post_id', $previous_tier_post_id );
+      $item->update_meta_data( '_wicket_bundle_renewal_previous_product_id', $previous_product_id ?? 0 );
+
+      // ISO 8601 with offset (matches process_bundle_renewal_members()'s completed_at
+      // stamp) — render with formatDateWithTooltip() wherever this surfaces in the
+      // admin UI, per this plugin's date-display convention.
+      $item->update_meta_data( '_wicket_bundle_renewal_decided_at', current_time( 'c' ) );
+    }
+
+    return true;
+  }
+
+  /**
+   * Validate a charge_tier_product override against its claimed tier. Fails closed
+   * (null) rather than trust a product the tier doesn't actually offer.
+   *
+   * @return array{tier_post_id: int, product_id: int, variation_id: int|null}|null
+   */
+  private static function validate_charge_tier_product_override( array $override ): ?array {
+    $tier_post_id = (int) ( $override['tier_post_id'] ?? 0 );
+    $product_id   = (int) ( $override['product_id'] ?? 0 );
+    $variation_id = isset( $override['variation_id'] ) ? (int) $override['variation_id'] : null;
+
+    if ( ! $tier_post_id || ! $product_id ) {
+      return null;
+    }
+
+    $tier = new Membership_Tier( $tier_post_id );
+    $tier_product_ids   = array_map( 'intval', $tier->get_product_ids() );
+    $tier_variation_ids = array_map( 'intval', $tier->get_product_variation_ids() );
+
+    // Normalise a variation ID returned in the product_id slot.
+    if ( ! \in_array( $product_id, $tier_product_ids, true ) && \in_array( $product_id, $tier_variation_ids, true ) ) {
+      $variation_id = $product_id;
+      $product_id   = (int) $tier->get_product_ids()[0] ?? 0;
+    }
+
+    if ( ! \in_array( $product_id, $tier_product_ids, true ) ) {
+      return null;
+    }
+    if ( $variation_id !== null && ! \in_array( $variation_id, $tier_variation_ids, true ) ) {
+      return null;
+    }
+
+    return [ 'tier_post_id' => $tier_post_id, 'product_id' => $product_id, 'variation_id' => $variation_id ];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Per-member line-item meta refresh on renewal
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Refresh wicket_mship_bundle_line_item_extra_meta and _member_name on each bundle
+   * member's subscription line item before WCS copies it to the renewal order.
+   *
+   * $items are the subscription's own items — wcs_copy_order_item() copies all their
+   * meta (except _reduced_stock) onto the renewal order right after this filter runs,
+   * so writing here reaches both objects. Unlike a price/tier write, this carries none
+   * of Milestone 9's pre-payment risk: identity meta is correct whether or not the
+   * order is ever paid.
+   *
+   * @param \WC_Order_Item[] $items        Subscription's own line items.
+   * @param \WC_Order        $new_order    The renewal order being built.
+   * @param \WC_Subscription $subscription The subscription the renewal is related to.
+   * @return \WC_Order_Item[] The same $items array, mutated in place.
+   */
+  public static function refresh_bundle_renewal_line_item_meta( $items, $new_order, $subscription ) {
+    if ( empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) || ! is_array( $items ) ) {
+      return $items;
+    }
+
+    // Scope to bundle subscriptions only — a subscription is linked to a bundle when some
+    // bundle post's membership_subscription_id meta points back to it.
+    $bundle_posts = get_posts( [
+      'post_type'      => Helper::get_membership_bundle_cpt_slug(),
+      'post_status'    => 'any',
+      'posts_per_page' => 1,
+      'fields'         => 'ids',
+      'meta_query'     => [
+        [ 'key' => 'membership_subscription_id', 'value' => $subscription->get_id() ],
+      ],
+    ] );
+
+    if ( empty( $bundle_posts ) ) {
+      return $items;
+    }
+
+    foreach ( $items as $item_id => $item ) {
+      $membership_post_id = (int) $item->get_meta( '_membership_post_id' );
+      if ( ! $membership_post_id ) {
+        continue;
+      }
+      $user_id = (int) get_post_meta( $membership_post_id, 'user_id', true );
+      $user    = $user_id ? get_user_by( 'id', $user_id ) : false;
+
+      try {
+        if ( $user ) {
+          $item->update_meta_data( '_member_name', $user->display_name );
+        }
+
+        $product_id = (int) $item->get_product_id();
+
+        // Same filter Milestone 1 fires at add-time; trailing true marks this a refresh.
+        $extra_meta = apply_filters(
+          'wicket_mship_bundle_line_item_extra_meta',
+          [],
+          $item_id,
+          $user,
+          $membership_post_id,
+          $product_id,
+          true
+        );
+        foreach ( $extra_meta as $meta_key => $meta_value ) {
+          $item->update_meta_data( $meta_key, $meta_value );
+        }
+
+        $item->save();
+      } catch ( \Throwable $e ) {
+        Utilities::wc_log_mship_error( [ 'wicket_mship_bundle_line_item_extra_meta refresh failed', [
+          'item_id'            => $item_id,
+          'membership_post_id' => $membership_post_id,
+          'error'              => $e->getMessage(),
+        ] ] );
+      }
+    }
+
+    return $items;
   }
 
   // ---------------------------------------------------------------------------

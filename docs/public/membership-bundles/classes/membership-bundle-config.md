@@ -40,9 +40,10 @@ This class is read-only from a business-logic standpoint — it performs no stat
   - [`get_late_fee_window_product_id()`](#get_late_fee_window_product_id) — WC product ID for a late fee charge (field exists; UI currently hidden)
 
 - **[Renewal type](#renewal-type)**
-  - [`get_renewal_type()`](#get_renewal_type) — Returns `'subscription'` or `'form_page'`
+  - [`get_renewal_type()`](#get_renewal_type) — Returns `'subscription'`, `'form_page'`, or `'confirmation_renewal'`
   - [`is_renewal_subscription()`](#is_renewal_subscription) — Check whether this config uses WooCommerce Subscriptions for renewal
   - [`is_renewal_form_page()`](#is_renewal_form_page) — Check whether this config uses a form page for renewal
+  - [`is_renewal_confirmation()`](#is_renewal_confirmation) — Check whether this config requires the owner to explicitly confirm renewal
   - [`get_renewal_form_page_id()`](#get_renewal_form_page_id) — Get the WP page ID for the renewal form
 
 - **[Approval settings](#approval-settings)**
@@ -335,7 +336,7 @@ Returns the late fee WooCommerce product ID, or `false`. This field exists in th
 public function get_renewal_type(): string|false
 ```
 
-Returns `'subscription'` or `'form_page'`, or `false` if not set. See [Renewal Types](../concepts/renewal-types.md) for a full explanation.
+Returns `'subscription'`, `'form_page'`, or `'confirmation_renewal'`, or `false` if not set. See [Renewal Types](../concepts/renewal-types.md) for a full explanation.
 
 #### `is_renewal_subscription()`
 
@@ -368,6 +369,14 @@ if ( $config->is_renewal_form_page() ) {
 }
 ```
 :::
+
+#### `is_renewal_confirmation()`
+
+```php
+public function is_renewal_confirmation(): bool
+```
+
+Returns `true` if `renewal_type` is `'confirmation_renewal'` — auto-creation of the renewal order is suppressed, and the bundle owner must explicitly confirm via `POST /bundle/{bundle_post_id}/confirm_renewal` before one is created. See [Renewal Types](../concepts/renewal-types.md) for the full mechanics.
 
 ---
 

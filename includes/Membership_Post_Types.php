@@ -1173,8 +1173,8 @@ class Membership_Post_Types {
                 return $errors;
               }
 
-              if ( empty( $value['renewal_type'] ) || ! in_array( $value['renewal_type'], [ 'subscription', 'form_page' ] ) ) {
-                $errors->add( 'rest_invalid_param_renewal_type', __( 'The renewal type must be either subscription or form_page.', 'wicket-memberships' ), array( 'status' => 400 ) );
+              if ( empty( $value['renewal_type'] ) || ! in_array( $value['renewal_type'], [ 'subscription', 'form_page', 'confirmation_renewal' ] ) ) {
+                $errors->add( 'rest_invalid_param_renewal_type', __( 'The renewal type must be subscription, form_page, or confirmation_renewal.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
               if ( $value['renewal_type'] === 'form_page' ) {
@@ -1233,7 +1233,7 @@ class Membership_Post_Types {
           'properties'  => array(
             'renewal_type'             => array(
               'type'        => 'string',
-              'description' => 'Renewal Type: subscription | form_page',
+              'description' => 'Renewal Type: subscription | form_page | confirmation_renewal',
             ),
             'renewal_form_page_id'     => array(
               'type'        => 'integer',

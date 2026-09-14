@@ -9,7 +9,7 @@ source_files: ["includes/Membership_Bundle_Config.php"]
 
 **File:** `includes/Membership_Bundle_Config.php`
 
-Represents a Membership Bundle Config CPT record (`wicket_mship_bcfg`). Combines the date/cycle/renewal-window logic of `Membership_Config` with the approval and renewal-type logic of `Membership_Tier`, scoped specifically for Membership Bundles. Renewal type is limited to `subscription` and `form_page`.
+Represents a Membership Bundle Config CPT record (`wicket_mship_bcfg`). Combines the date/cycle/renewal-window logic of `Membership_Config` with the approval and renewal-type logic of `Membership_Tier`, scoped specifically for Membership Bundles. Renewal type is limited to `subscription`, `form_page`, and `confirmation_renewal`.
 
 **CPT slug:** `wicket_mship_bcfg` — via `Helper::get_membership_bundle_config_cpt_slug()`
 
@@ -55,6 +55,7 @@ Represents a Membership Bundle Config CPT record (`wicket_mship_bcfg`). Combines
 - `get_renewal_type()`
 - `is_renewal_subscription()`
 - `is_renewal_form_page()`
+- `is_renewal_confirmation()`
 - `get_renewal_form_page_id()`
 - `is_approval_required()`
 - `is_grant_owner_assignment()`
@@ -145,13 +146,16 @@ Supported `$membership` keys:
 - `start_date` (string) — ISO 8601 date override for a new membership start. When provided (with no `membership_ends_at`), all date calculations are anchored to this date instead of `'now'`.
 
 **get_renewal_type()**
-Returns `'subscription'` or `'form_page'` from `bundle_config_data`, or false.
+Returns `'subscription'`, `'form_page'`, or `'confirmation_renewal'` from `bundle_config_data`, or false.
 
 **is_renewal_subscription()**
 Returns true if `renewal_type` is `'subscription'`.
 
 **is_renewal_form_page()**
 Returns true if a `renewal_form_page_id` is set.
+
+**is_renewal_confirmation()**
+Returns true if `renewal_type` is `'confirmation_renewal'`.
 
 **get_renewal_form_page_id()**
 Returns the renewal form page post ID from `bundle_config_data`, or false.
