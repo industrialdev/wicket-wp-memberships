@@ -2925,6 +2925,35 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
+   * Drop every cached member list ID set.
+   *
+   * One transient exists per distinct filter/sort combination, so they are removed
+   * by prefix rather than by key. Call this after a bulk import or any operation
+   * that changes which memberships exist, to avoid waiting out
+   * MEMBERS_IDS_TRANSIENT_TTL before the list reflects it. Tests that create
+   * memberships between assertions need this too.
+   *
+   * @return int  Number of cached sets removed.
+   *
+   * @since  1.0.122
+   * @see    get_deduplicated_member_ids()
+   * @global \wpdb $wpdb
+   */
+  public static function flush_member_list_cache() {
+    global $wpdb;
+    // Transients are stored as two option rows each (value and timeout), so match
+    // both prefixes and let delete_transient() handle the pairing.
+    $like = $wpdb->esc_like( '_transient_' . self::MEMBERS_IDS_TRANSIENT_PREFIX ) . '%';
+    $names = $wpdb->get_col( $wpdb->prepare(
+      "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", $like
+    ) );
+    foreach ( $names as $name ) {
+      delete_transient( substr( $name, strlen( '_transient_' ) ) );
+    }
+    return count( $names );
+  }
+
+  /**
    * Change status of Membership to Expires
    * @return int
    */
