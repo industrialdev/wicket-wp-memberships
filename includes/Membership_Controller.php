@@ -13,6 +13,35 @@ use Wicket_Memberships\Membership_Config;
  */
 class Membership_Controller {
 
+  /** Transient key prefix for the cached member list filter options. */
+  const MEMBERS_FILTERS_TRANSIENT_PREFIX = 'wicket_mship_members_filters_';
+
+  /**
+   * Lifetime of the member list filter cache.
+   *
+   * Deliberately time-based rather than invalidated on write. The obvious hook
+   * (a membership save, or a membership_status/membership_tier_uuid meta write)
+   * fires once per record during CSV imports, which would clear the cache tens of
+   * thousands of times in a run. The cached values are the distinct tier UUIDs and
+   * statuses in use, so the only visible staleness is a newly introduced tier
+   * taking up to an hour to appear in the filter dropdown. Call
+   * flush_members_filters_cache() to force a refresh sooner.
+   */
+  const MEMBERS_FILTERS_TRANSIENT_TTL = HOUR_IN_SECONDS;
+
+  /** Transient key prefix for a resolved, deduplicated member list ID set. */
+  const MEMBERS_IDS_TRANSIENT_PREFIX = 'wicket_mship_member_ids_';
+
+  /**
+   * Lifetime of a resolved member list ID set.
+   *
+   * Short, because it determines how long a membership edit can take to be
+   * reflected in the list's ordering, membership, or total. Long enough that
+   * paging through results, which is where the cost is most visible, does not
+   * repeat the full scan on every click.
+   */
+  const MEMBERS_IDS_TRANSIENT_TTL = 5 * MINUTE_IN_SECONDS;
+
   private $error_message = '';
   private $membership_cpt_slug = '';
   private $membership_config_cpt_slug = '';
@@ -2283,12 +2312,200 @@ function get_item_data ( $other_data, $cart_item ) {
   public function get_members_list_last_name_orderby( $_orderby ) {
     global $wpdb;
     $dir = isset( $this->_last_name_sort_dir ) && $this->_last_name_sort_dir === 'ASC' ? 'ASC' : 'DESC';
+    // Trailing ID ASC keeps the representative row stable for members sharing a
+    // surname; see the tiebreak note in get_members_list().
     return "(SELECT um.meta_value FROM {$wpdb->usermeta} um
              INNER JOIN {$wpdb->postmeta} pm ON pm.meta_value = um.user_id AND pm.meta_key = 'user_id' AND pm.post_id = {$wpdb->posts}.ID
              WHERE um.meta_key = 'last_name'
-             LIMIT 1) $dir";
+             LIMIT 1) $dir, {$wpdb->posts}.ID ASC";
   }
 
+  /**
+   * Resolve the ordered representative membership post ID for every member.
+   *
+   * A member holds many membership records but occupies one row in the list, so the
+   * set has to be deduplicated before it can be paginated, which means reading every
+   * matching row. The outcome depends only on the filters and sort order, never on
+   * the page being viewed, so it is cached and reused across page navigation.
+   *
+   * Deduplicating here rather than with a SQL GROUP BY is deliberate: GROUP BY picks
+   * an arbitrary representative row, which made the sort order non-deterministic.
+   * The caller's ORDER BY always carries an ID tiebreak, so the first row seen per
+   * member is stable.
+   *
+   * @param  array  $args             WP_Query args describing the matching set. Any
+   *                                  pagination in them is replaced.
+   * @param  string $group_key        Meta key identifying the member: 'user_id' or 'org_uuid'.
+   * @param  array  $signature_parts  Values that, with $group_key, uniquely identify
+   *                                  this query for caching. Must exclude the page number.
+   *
+   * @return int[]  Representative post IDs, in the requested sort order.
+   *
+   * @since  1.0.122
+   * @see    get_members_list()
+   */
+  private function get_deduplicated_member_ids( array $args, $group_key, array $signature_parts ) {
+    array_unshift( $signature_parts, $group_key );
+    $cache_key = self::MEMBERS_IDS_TRANSIENT_PREFIX . md5( wp_json_encode( $signature_parts ) );
+
+    $cached = get_transient( $cache_key );
+    if ( is_array( $cached ) ) {
+      // Still detach the sort filter the caller attached, since the query that
+      // would otherwise have consumed it is being skipped.
+      remove_filter( 'posts_orderby', [ $this, 'get_members_list_last_name_orderby' ] );
+      return $cached;
+    }
+
+    // IDs only, with both caches off. Hydrating post objects and priming the meta
+    // cache across the full membership set is what exhausted PHP memory here, and
+    // the dedupe below needs only one meta value per row.
+    $args['posts_per_page']         = -1;
+    $args['fields']                 = 'ids';
+    $args['no_found_rows']          = true;
+    $args['update_post_meta_cache'] = false;
+    $args['update_post_term_cache'] = false;
+    unset( $args['paged'] );
+
+    $all_ids = ( new \WP_Query( $args ) )->posts;
+    remove_filter( 'posts_orderby', [ $this, 'get_members_list_last_name_orderby' ] );
+
+    $key_map     = $this->get_meta_map_for_posts( $all_ids, $group_key );
+    $seen_keys   = [];
+    $ordered_ids = [];
+    foreach ( $all_ids as $id ) {
+      $key = $key_map[ $id ] ?? '';
+      if ( $key === '' || isset( $seen_keys[ $key ] ) ) {
+        continue;
+      }
+      $seen_keys[ $key ] = true;
+      $ordered_ids[]     = (int) $id;
+    }
+    // Released explicitly: these hold one entry per membership post, whereas the
+    // returned list holds one per member.
+    unset( $all_ids, $key_map, $seen_keys );
+
+    set_transient( $cache_key, $ordered_ids, self::MEMBERS_IDS_TRANSIENT_TTL );
+    return $ordered_ids;
+  }
+
+  /**
+   * Read a single meta value for many posts without priming the full meta cache.
+   *
+   * get_post_meta() would either issue one query per post or force WP_Query to
+   * prime every meta row for the result set. Across the whole membership CPT that
+   * is hundreds of megabytes, so read only the key actually needed, in chunks.
+   *
+   * @param  int[]  $post_ids  Post IDs to look up. May be empty.
+   * @param  string $meta_key  The meta key to read.
+   *
+   * @return array<int, string>  Map of post ID to its first value for $meta_key.
+   *
+   * @since  1.0.122
+   * @see    get_members_list()
+   * @global \wpdb $wpdb
+   */
+  private function get_meta_map_for_posts( array $post_ids, $meta_key ) {
+    global $wpdb;
+    $map = [];
+    // Chunked so the generated IN() list stays well within max_allowed_packet.
+    foreach ( array_chunk( $post_ids, 5000 ) as $chunk ) {
+      $ids  = implode( ',', array_map( 'intval', $chunk ) );
+      $rows = $wpdb->get_results( $wpdb->prepare(
+        "SELECT post_id, meta_value FROM {$wpdb->postmeta}
+          WHERE meta_key = %s AND post_id IN ({$ids}) ORDER BY meta_id ASC",
+        $meta_key
+      ) );
+      // Keep the first value per post, matching get_post_meta( $id, $key, true ).
+      foreach ( $rows as $row ) {
+        if ( ! isset( $map[ (int) $row->post_id ] ) ) {
+          $map[ (int) $row->post_id ] = $row->meta_value;
+        }
+      }
+    }
+    return $map;
+  }
+
+  /**
+   * Fetch every membership's tier UUID and status, grouped by user or org key.
+   *
+   * Replaces a per-result-row WP_Query that ran with posts_per_page => -1. The
+   * ascending ID tiebreak reproduces the row order that query returned for posts
+   * sharing a post_date, so all_membership_tiers is unchanged for API consumers,
+   * and is now deterministic rather than left to the query plan.
+   *
+   * @param  string   $group_key  Meta key rows are grouped by: 'user_id' or 'org_uuid'.
+   * @param  string[] $keys       Group key values for the current page; may be empty.
+   *
+   * @return array<string, array<int, array{uuid: string|null, status: string|null}>>
+   *         Map of group key value to its tier/status pairs.
+   *
+   * @since  1.0.122
+   * @see    get_members_list()
+   * @global \wpdb $wpdb
+   */
+  private function get_membership_tiers_by_group_key( $group_key, array $keys ) {
+    global $wpdb;
+    $keys = array_values( array_unique( array_filter( $keys, function ( $key ) {
+      return $key !== '' && $key !== null;
+    } ) ) );
+    if ( empty( $keys ) ) {
+      return [];
+    }
+    $placeholders = implode( ',', array_fill( 0, count( $keys ), '%s' ) );
+    // Tier UUID and status are LEFT JOINed because either may legitimately be
+    // absent on a membership post, and such rows must still appear in the list.
+    $sql = $wpdb->prepare(
+      "SELECT gk.meta_value AS group_key,
+              uuid.meta_value AS tier_uuid,
+              stat.meta_value AS membership_status
+         FROM {$wpdb->posts} p
+         INNER JOIN {$wpdb->postmeta} gk   ON gk.post_id = p.ID AND gk.meta_key = %s
+         LEFT JOIN  {$wpdb->postmeta} uuid ON uuid.post_id = p.ID AND uuid.meta_key = 'membership_tier_uuid'
+         LEFT JOIN  {$wpdb->postmeta} stat ON stat.post_id = p.ID AND stat.meta_key = 'membership_status'
+        WHERE p.post_type = %s
+          AND p.post_status = 'publish'
+          AND gk.meta_value IN ({$placeholders})
+        ORDER BY p.post_date DESC, p.ID ASC",
+      array_merge( [ $group_key, $this->membership_cpt_slug ], $keys )
+    );
+    $grouped = [];
+    foreach ( $wpdb->get_results( $sql ) as $row ) {
+      $grouped[ $row->group_key ][] = [
+        'uuid'   => $row->tier_uuid,
+        'status' => $row->membership_status,
+      ];
+    }
+    return $grouped;
+  }
+
+  /**
+   * Build one page of the admin member list, deduplicated to one row per member.
+   *
+   * A member may hold many membership posts, so the matching set is resolved as
+   * IDs, reduced to the first post per user (individual) or org (organization) in
+   * the requested sort order, and only the requested page is hydrated. Pagination
+   * therefore happens after deduplication, which is why $posts_per_page cannot be
+   * passed straight to WP_Query.
+   *
+   * @param  string      $type            Membership type: 'individual' or 'organization'.
+   * @param  int         $page            1-based page number; falls back to 1.
+   * @param  int         $posts_per_page  Rows per page after dedupe; falls back to 25.
+   * @param  string      $status          Membership status; retained for signature
+   *                                      compatibility, filtering is done via $filter.
+   * @param  string      $search          Free-text match against member name/email
+   *                                      and org name/location.
+   * @param  array       $filter          Optional 'membership_status' and
+   *                                      'membership_tier' constraints.
+   * @param  string|null $order_col       Sort column: post_modified, user_last_name,
+   *                                      start_date or end_date.
+   * @param  string|null $order_dir       Sort direction, ASC or DESC; defaults to DESC.
+   *
+   * @return array{results: array, page: int, posts_per_page: int, count: int}|void
+   *         Page payload, or void when $type is not a recognised membership type.
+   *
+   * @see    get_meta_map_for_posts()
+   * @see    get_membership_tiers_by_group_key()
+   */
   public function get_members_list( $type, $page, $posts_per_page, $status, $search = '', $filter = [], $order_col = null, $order_dir = null ) {
     $members_list = [];
     if( (! in_array( $type, ['individual', 'organization'] ))) {
@@ -2327,9 +2544,14 @@ function get_item_data ( $other_data, $cart_item ) {
     if ( isset( $order_col_map[ $order_col ] ) ) {
       $order_col = $order_col_map[ $order_col ];
     }
+    // Every sort below carries an ascending ID tiebreak. Members routinely hold
+    // several memberships sharing a sort value, and the dedupe further down keeps
+    // whichever tied row the database returned first. Without the tiebreak that
+    // choice is left to the query plan, so the representative row (and therefore
+    // the row rendered in the list) could change between otherwise identical
+    // requests. ID ASC matches the row this endpoint has historically returned.
     if ( empty( $order_col ) || $order_col === 'post_modified' ) {
-      $args['orderby'] = 'modified';
-      $args['order']   = $sort_dir;
+      $args['orderby'] = array( 'modified' => $sort_dir, 'ID' => 'ASC' );
     } elseif ( $order_col === 'user_last_name' ) {
       $sort_dir_safe = $sort_dir === 'ASC' ? 'ASC' : 'DESC';
       $this->_last_name_sort_dir = $sort_dir_safe;
@@ -2339,7 +2561,7 @@ function get_item_data ( $other_data, $cart_item ) {
         'key'     => $order_col,
         'compare' => 'EXISTS',
       );
-      $args['orderby'] = array( 'sort_meta' => $sort_dir );
+      $args['orderby'] = array( 'sort_meta' => $sort_dir, 'ID' => 'ASC' );
     }
 
     if( ! empty( $search ) ) {
@@ -2383,27 +2605,41 @@ function get_item_data ( $other_data, $cart_item ) {
       }
     }
 
-    // Fetch all matching posts ordered by the requested column, then deduplicate
-    // per user/org in PHP. This avoids SQL GROUP BY's arbitrary representative row
-    // selection which causes non-deterministic sort order.
-    $args['posts_per_page'] = -1;
-    unset( $args['paged'] );
+    $group_key = ( $type === 'organization' ) ? 'org_uuid' : 'user_id';
 
-    $all_posts    = new \WP_Query( $args );
-    remove_filter( 'posts_orderby', [ $this, 'get_members_list_last_name_orderby' ] );
-    $group_key    = ( $type === 'organization' ) ? 'org_uuid' : 'user_id';
-    $seen_keys    = [];
-    $deduplicated = [];
-    foreach ( $all_posts->posts as $post ) {
-      $key = get_post_meta( $post->ID, $group_key, true );
-      if ( $key !== '' && ! isset( $seen_keys[ $key ] ) ) {
-        $seen_keys[ $key ] = true;
-        $deduplicated[]    = $post;
-      }
-    }
+    // Resolving the representative row per member requires reading the whole
+    // matching set, because a member holds many memberships and the list shows one
+    // row each: the deduplication has to happen before pagination, so the query
+    // cannot stop at the requested page. That work depends only on the filters and
+    // sort, not on which page is being viewed, so the resulting ID list is cached
+    // and every subsequent page of the same query is served from it.
+    $ordered_ids = $this->get_deduplicated_member_ids( $args, $group_key, [
+      $type, $status, $search, $filter, $order_col, $sort_dir,
+    ] );
 
-    $total_unique = count( $deduplicated );
-    $page_posts   = array_slice( $deduplicated, ( $page - 1 ) * $posts_per_page, $posts_per_page );
+    $offset       = ( $page - 1 ) * $posts_per_page;
+    $total_unique = count( $ordered_ids );
+    $page_ids     = array_slice( $ordered_ids, $offset, $posts_per_page );
+    unset( $ordered_ids );
+
+    // Only the page's own group keys are needed from here on, so look them up for
+    // those rows rather than retaining a map covering every membership.
+    $page_keys = $this->get_meta_map_for_posts( $page_ids, $group_key );
+
+    // Hydrate only the current page. orderby=post__in preserves the sort order
+    // established by the ID query above.
+    $page_posts = empty( $page_ids ) ? [] : ( new \WP_Query( array(
+      'post_type'      => $this->membership_cpt_slug,
+      'post_status'    => 'publish',
+      'post__in'       => $page_ids,
+      'orderby'        => 'post__in',
+      'posts_per_page' => count( $page_ids ),
+      'no_found_rows'  => true,
+    ) ) )->posts;
+
+    // Tier/status pairs for every row on this page, fetched in one query rather
+    // than one unbounded WP_Query per row.
+    $tiers_by_key = $this->get_membership_tiers_by_group_key( $group_key, $page_keys );
 
     foreach ( $page_posts as $tier ) {
       $tier_meta = get_post_meta( $tier->ID );
@@ -2446,48 +2682,19 @@ function get_item_data ( $other_data, $cart_item ) {
       unset( $user->user_pass );
       $tier->user = $user->data;
 
+      // mdp_link is assigned before all_membership_tiers so the serialised user
+      // object keeps the same property order the API returned previously.
       if ( $type != 'organization' ) {
         $tier->user->mdp_link = $wicket_settings['wicket_admin'] . '/people/' . $user->data->user_login;
-        $user_tiers = new \WP_Query( array(
-          'post_type'      => $this->membership_cpt_slug,
-          'post_status'    => 'publish',
-          'posts_per_page' => -1,
-          'meta_query'     => array(
-            array(
-              'key'     => 'user_id',
-              'value'   => $tier->meta['user_id'],
-              'compare' => '='
-            )
-          )
-        ) );
-        foreach ( $user_tiers->posts as $user_tier ) {
-          $tier->user->all_membership_tiers[] = [
-            'uuid'   => get_post_meta( $user_tier->ID, 'membership_tier_uuid', true ),
-            'status' => get_post_meta( $user_tier->ID, 'membership_status', true ),
-          ];
-        }
-      } else {
-        $org_tiers = new \WP_Query( array(
-          'post_type'      => $this->membership_cpt_slug,
-          'post_status'    => 'publish',
-          'posts_per_page' => -1,
-          'meta_query'     => array(
-            array(
-              'key'     => 'org_uuid',
-              'value'   => $tier->meta['org_uuid'],
-              'compare' => '='
-            )
-          )
-        ) );
-        foreach ( $org_tiers->posts as $org_tier ) {
-          $tier->user->all_membership_tiers[] = [
-            'uuid'   => get_post_meta( $org_tier->ID, 'membership_tier_uuid', true ),
-            'status' => get_post_meta( $org_tier->ID, 'membership_status', true ),
-          ];
-        }
-        if ( ! empty( $tier->user ) ) {
-          $tier->user->mdp_link = $wicket_settings['wicket_admin'] . '/organizations/' . $tier->meta['org_uuid'];
-        }
+      } elseif ( ! empty( $tier->user ) ) {
+        $tier->user->mdp_link = $wicket_settings['wicket_admin'] . '/organizations/' . $tier->meta['org_uuid'];
+      }
+
+      // Every membership belonging to this row's user/org was pre-loaded in one
+      // query before the loop; index into that result instead of re-querying.
+      $row_key = $page_keys[ $tier->ID ] ?? '';
+      if ( ! empty( $tiers_by_key[ $row_key ] ) ) {
+        $tier->user->all_membership_tiers = $tiers_by_key[ $row_key ];
       }
       $members_list[] = $tier;
     }
@@ -2636,7 +2843,26 @@ function get_item_data ( $other_data, $cart_item ) {
     return ['org_data' => $mship_org_array];
   }
 
+  /**
+   * List the tier UUIDs and statuses in use, for the member list filter dropdowns.
+   *
+   * Both lists are derived by grouping the entire membership CPT, which is a full
+   * scan taking several seconds, yet yields only a few dozen near-static values.
+   * The result is therefore cached in a transient for MEMBERS_FILTERS_TRANSIENT_TTL.
+   *
+   * @param  string $type  'individual', 'organization', or 'both' for no type constraint.
+   *
+   * @return array{tiers: array<int, array{value: string}>, membership_status: array<int, array{name: string, value: string}>}
+   *
+   * @since  1.0.122
+   * @see    flush_members_filters_cache()
+   */
   public function get_members_filters( $type ) {
+    $cache_key = self::MEMBERS_FILTERS_TRANSIENT_PREFIX . sanitize_key( $type );
+    $cached    = get_transient( $cache_key );
+    if ( false !== $cached ) {
+      return $cached;
+    }
     $args = array(
       'post_type' => $this->membership_cpt_slug,
       'post_status' => 'publish',
@@ -2677,7 +2903,25 @@ function get_item_data ( $other_data, $cart_item ) {
     if( $type == 'organization' ) {
       // get locations assigned to membership records as filters???
     }
+    set_transient( $cache_key, $filters, self::MEMBERS_FILTERS_TRANSIENT_TTL );
     return $filters;
+  }
+
+  /**
+   * Drop the cached member list filter options for every membership type.
+   *
+   * Not hooked to anything by default; see MEMBERS_FILTERS_TRANSIENT_TTL for why.
+   * Call it after a bulk import or a tier change to refresh the dropdowns at once.
+   *
+   * @return void
+   *
+   * @since  1.0.122
+   * @see    get_members_filters()
+   */
+  public static function flush_members_filters_cache() {
+    foreach ( [ 'individual', 'organization', 'both' ] as $type ) {
+      delete_transient( self::MEMBERS_FILTERS_TRANSIENT_PREFIX . $type );
+    }
   }
 
   /**

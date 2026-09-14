@@ -99,18 +99,14 @@ export const fetchMembers = (params = null) => {
 
 /**
  * Fetch Membership Tiers Info
+ *
+ * No tier UUIDs are sent: the endpoint returns every tier regardless of what it
+ * is given. Callers therefore do not need a loaded member list first, which lets
+ * this run in parallel with the list request rather than after it.
  */
-export const fetchTiersInfo = (tierIds = []) => {
-  if (tierIds.length === 0) {
-    return;
-  }
-
+export const fetchTiersInfo = () => {
   return apiFetch({
-    path: addQueryArgs(`${PLUGIN_API_URL}/membership_tier_info`, {
-      filter: {
-        tier_uuid: tierIds,
-      },
-    }),
+    path: `${PLUGIN_API_URL}/membership_tier_info`,
   });
 };
 
