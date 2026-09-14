@@ -172,7 +172,11 @@ Validates `member_handling` and (when applicable) `timing`, then delegates to `M
 
 **Permission:** `permissions_check_write` (admin capability, unconditional override — no timing/config gating).
 
-Body: `bundle_post_id` (integer, required). Validates via `validate_bundle_and_subscription()`, then calls `wcs_create_renewal_order()` directly. Returns `200` with the renewal order's wp-admin `order_url` and `order_id` on success. Admin-only manual override, works regardless of the bundle's configured `renewal_type` or renewal window.
+Body: `bundle_post_id` (integer, required, from the URL). Validates via `validate_bundle_and_subscription()`, then claims the renewal slot via `Membership_Bundle_Cron_Controller::claim_renewal_order_creation()` and queues background creation — it does **not** call `wcs_create_renewal_order()` inline (Milestone 10: `wcs_create_renewal_order()` plus Milestone 9's per-member repricing can take several seconds for a 100+ member bundle, too long to hold an HTTP request open).
+
+On a successful claim: schedules `wicket_bundle_create_renewal_order` (group `wicket-memberships`, args `bundle_post_id` + `subscription_id`) via `as_schedule_single_action()` and returns `202` with `{success, bundle_post_id}` — no `order_id`/`order_url`, since the order does not exist yet. On a claim conflict: `409` with `{error, order_id}` — `order_id` is the existing order's ID if the bundle already renewed this cycle, or `null` if creation is still in flight from an earlier request. Admin-only manual override, works regardless of the bundle's configured `renewal_type` or renewal window.
+
+See `renewal_order_status` below for how the caller learns the job's outcome.
 
 ### `confirm_bundle_renewal( \WP_REST_Request $request ): \WP_REST_Response`
 
@@ -180,18 +184,32 @@ Body: `bundle_post_id` (integer, required). Validates via `validate_bundle_and_s
 
 **Permission:** `permissions_check_confirm_renewal` (any logged-in user — the handler itself rejects non-owners).
 
-Member-facing confirm action for `confirmation_renewal` bundles. Body: `bundle_post_id` (integer, required).
+Member-facing confirm action for `confirmation_renewal` bundles. Body: `bundle_post_id` (integer, required, from the URL).
 
 **Validation order:**
 1. `validate_bundle_and_subscription()` — same shared check `create_bundle_renewal_order` uses.
 2. Requesting user must be `$bundle->get_owner_id()` — `403` (`not the owner`) otherwise.
 3. `$bundle->get_config()->is_renewal_confirmation()` must be `true` — `400` otherwise.
-4. Confirm window must be open: `current_time() >= early_renew_at && current_time() < ends_at` (same window `Membership_Bundle::get_owner_callouts()` uses for the `early_renewal` callout) — `400` otherwise.
-5. Idempotency: rejects with `409` (`already renewed`) if the subscription already has a renewal order (`$subscription->get_related_orders('ids', 'renewal')`) created on or after `early_renew_at` — a renewal order from a prior cycle does not block this cycle's confirm.
+4. Confirm window must be open: `current_time() >= early_renew_at && current_time() < ends_at` (same window `Membership_Bundle::get_owner_callouts()` uses for the `early_renewal` callout; honors the `WICKET_MEMBERSHIPS_DEBUG_RENEW` + `wicket_wp_membership_debug_days` override) — `400` otherwise.
+5. Claims the renewal slot via the same `Membership_Bundle_Cron_Controller::claim_renewal_order_creation()` `create_bundle_renewal_order` uses — `409` on conflict.
 
-On success, calls `wcs_create_renewal_order()` — the same WCS call `create_bundle_renewal_order` uses; no separate order-creation code path. Returns `200` with `order_id` only (no `order_url`: the admin response's wp-admin URL is meaningless to a non-admin caller). The created order flows through the existing `catch_order_completed()` → `handle_bundle_renewal()` pipeline unchanged.
+On a successful claim (Milestone 10, same as `create_bundle_renewal_order`): schedules the same `wicket_bundle_create_renewal_order` job and returns `202` with `{success, bundle_post_id}` — no separate order-creation code path. No `order_id`/`order_url` in the response (the admin response's wp-admin URL is meaningless to a non-admin caller, and the order doesn't exist yet). On conflict: `409` with `{error, order_id}` (`order_id` is `null` while a confirm is still in flight). The created order flows through the existing `catch_order_completed()` → `handle_bundle_renewal()` pipeline unchanged.
 
 **Why a separate endpoint from `create_bundle_renewal_order`:** the two callers have different trust models — admin override vs. owner-gated, window-gated, config-gated confirm. Coupling both into one method would require an `is_admin() OR is_bundle_owner()`-style permission branch and a conditional response shape. See Milestone 5 in the client-extensibility plan for the full design rationale.
+
+### `get_bundle_renewal_order_status( \WP_REST_Request $request ): \WP_REST_Response`
+
+**Route:** `GET /bundle/{bundle_post_id}/renewal_order_status`
+
+**Permission:** `permissions_check_confirm_renewal` (owner-gated the same way `confirm_bundle_renewal` is).
+
+Poll target for the `wicket_bundle_create_renewal_order` background job queued by either endpoint above (Milestone 10). Reads `membership_renewal_order_creation` post meta and returns one of three states — there is no per-item progress, since `wcs_create_renewal_order()` runs as one atomic call:
+
+- `{"status": "pending"}` — no claim yet, or a claim is queued but the job hasn't run.
+- `{"status": "complete", "payment_url": ...}` — the job created the order; `payment_url` comes from `wc_get_order($order_id)->get_checkout_payment_url()`, `null` if the recorded order ID no longer resolves.
+- `{"status": "failed"}` — the job errored (e.g. subscription not found, `wcs_create_renewal_order()` failed). A failed claim is cleared automatically on the next `create_renewal_order`/`confirm_renewal` call, so the caller can simply retry.
+
+`404` if the bundle post is invalid, `403` if the requesting user is not the owner.
 
 ### `validate_bundle_and_subscription( int $bundle_post_id ): array{bundle: Membership_Bundle, subscription: \WC_Subscription}|\WP_Error` _(private, static)_
 
