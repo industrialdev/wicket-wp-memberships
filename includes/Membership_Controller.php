@@ -3045,6 +3045,11 @@ function get_item_data ( $other_data, $cart_item ) {
       $memberships_updated[] = [$membership->ID, $membership->membership_status, $membership->membership_expires_at ];
       update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_EXPIRED);
     }
+    // Status feeds the member list's tabs, filters and ordering; these nightly jobs
+    // write it directly rather than through update_membership_status().
+    if ( $memberships ) {
+      self::mark_member_list_cache_stale();
+    }
     Utilities::wc_log_mship_error( [ 'daily_membership_expiry_hook', $membership_expires_at, $memberships_updated ] );
     return count($memberships);
   }
@@ -3081,6 +3086,7 @@ function get_item_data ( $other_data, $cart_item ) {
     foreach( $memberships as $membership ) {
       $memberships_updated[] = [$membership->ID, $membership->membership_status, $membership->membership_starts_at];
       update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_ACTIVE );
+      self::mark_member_list_cache_stale();
     }
     Utilities::wc_log_mship_error( [ 'daily_membership_activation_hook', $membership_starts_at, $memberships_updated ] );
     return count($memberships);
@@ -3122,6 +3128,7 @@ function get_item_data ( $other_data, $cart_item ) {
     foreach( $memberships as $membership) {
       $memberships_updated[] = [$membership->ID, $membership->membership_status, $membership->membership_ends_at ];
       update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_GRACE);
+      self::mark_member_list_cache_stale();
     }
     Utilities::wc_log_mship_error( [ 'daily_membership_grace_period_hook', $membership_ends_at, $memberships_updated ] );
     return count($memberships);
