@@ -42,6 +42,9 @@ class Membership_Controller {
    */
   const MEMBERS_IDS_TRANSIENT_TTL = 5 * MINUTE_IN_SECONDS;
 
+  /** True once a membership write has queued the member list cache flush for this request. */
+  private static $member_list_cache_stale = false;
+
   private $error_message = '';
   private $membership_cpt_slug = '';
   private $membership_config_cpt_slug = '';
@@ -210,6 +213,10 @@ function get_item_data ( $other_data, $cart_item ) {
       'post_type' => $this->membership_cpt_slug,
       'meta_input'  => $meta
     ]);
+
+    // Status drives the member list's status tabs and tier filter, so a change
+    // here must not wait for the cached set to expire.
+    self::mark_member_list_cache_stale();
 
     return $response;
   }
@@ -1486,6 +1493,9 @@ function get_item_data ( $other_data, $cart_item ) {
       'post_status' => 'publish',
       'meta_input'  => $meta_data
     ]);
+    // Dates, status and owner all feed the member list's ordering and filters.
+    self::mark_member_list_cache_stale();
+
     $user_id = $meta_data['user_id'] ?? $this->get_user_id_from_membership_post( $membership_post_id );
     if( empty( $user_id ) ) {
       return $return;
@@ -1596,6 +1606,9 @@ function get_item_data ( $other_data, $cart_item ) {
           'meta_input'  => $meta
         ]);
       }
+      // Both branches change the admin member list: an insert adds a row, and an
+      // update can change the status, dates or tier the list sorts and filters on.
+      self::mark_member_list_cache_stale();
       //moved outside of conditional for merge membership functionality to work on update membership post meta
       // Return value ignored on purpose: failures are flagged via post meta
       // (_collision/_failed) and wc-logs; local record creation must complete.
@@ -2939,8 +2952,37 @@ function get_item_data ( $other_data, $cart_item ) {
    * @see    get_deduplicated_member_ids()
    * @global \wpdb $wpdb
    */
+  /**
+   * Queue a member list cache flush for the end of the current request.
+   *
+   * Call after any write that changes which memberships exist, or changes a value
+   * the list sorts, filters or groups by. Without this a new membership stays
+   * invisible to the admin list until MEMBERS_IDS_TRANSIENT_TTL expires.
+   *
+   * Deferred to shutdown rather than flushing inline because the membership
+   * creation funnel is also the CSV import path: flushing per record costs about
+   * 0.1ms each even when nothing is cached, which is roughly 17 seconds across a
+   * 150k row import. Deferring collapses that to a single flush per request, and
+   * the flag makes repeat calls free.
+   *
+   * @return void
+   *
+   * @since  1.0.122
+   * @see    flush_member_list_cache()
+   */
+  public static function mark_member_list_cache_stale() {
+    if ( self::$member_list_cache_stale ) {
+      return;
+    }
+    self::$member_list_cache_stale = true;
+    add_action( 'shutdown', [ self::class, 'flush_member_list_cache' ], 1 );
+  }
+
   public static function flush_member_list_cache() {
     global $wpdb;
+    // Reset first so a flush during a long-running import re-arms the deferral for
+    // any writes that follow it.
+    self::$member_list_cache_stale = false;
     // Transients are stored as two option rows each (value and timeout), so match
     // both prefixes and let delete_transient() handle the pairing.
     $like = $wpdb->esc_like( '_transient_' . self::MEMBERS_IDS_TRANSIENT_PREFIX ) . '%';

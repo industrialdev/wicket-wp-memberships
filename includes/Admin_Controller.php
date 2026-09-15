@@ -1372,6 +1372,10 @@ class Admin_Controller {
       return new \WP_REST_Response(['success' => false, 'error' => 'Failed to create new membership post.'], 400);
     }
 
+    // A new membership post adds a row to the admin member list; drop the cached
+    // set so it appears immediately rather than when the transient expires.
+    Membership_Controller::mark_member_list_cache_stale();
+
     // Copy all meta from the original post to the new post
     $all_meta = get_post_meta( $membership_post_id );
     foreach ( $all_meta as $meta_key => $meta_values ) {
@@ -1559,6 +1563,10 @@ class Admin_Controller {
     if ( is_wp_error( $new_post_id ) ) {
       return new \WP_REST_Response(['success' => false, 'error' => 'Failed to create new membership post.'], 400);
     }
+
+    // A new membership post adds a row to the admin member list; drop the cached
+    // set so it appears immediately rather than when the transient expires.
+    Membership_Controller::mark_member_list_cache_stale();
 
     // Copy all meta from the original post to the new post
     $all_meta = get_post_meta( $membership_post_id );
