@@ -6,6 +6,8 @@ use Wicket_Memberships\Helper;
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Config;
+use Wicket_Memberships\Autorenew;
+use Wicket_Memberships\Autorenew_Sync;
 
 /**
  * Main controller methods
@@ -830,6 +832,13 @@ function get_item_data ( $other_data, $cart_item ) {
       return $membership;
     }
 
+    // A brand new membership has no subscription-lifecycle trigger to have run yet, so
+    // compute the initial autorenew status here rather than leaving it unset until the
+    // next Autorenew_Sync listener fires.
+    $autorenew_status = Autorenew::resolve_status( $membership );
+    $membership['membership_is_autorenew'] = $autorenew_status['result'];
+    $membership['membership_is_autorenew_reason'] = $autorenew_status['reason'];
+
     $tier = new Membership_Tier( $membership['membership_tier_post_id'] );
     //we only create the mdp record if tier not pending approval | tier pending approval and is renewal
     if( ! $tier->is_approval_required() || ( ! $tier->is_renew_approval_required() && $tier->is_approval_required() && $self->processing_renewal )) {
@@ -1090,9 +1099,21 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Update the membership record in MDP
+   * Update the membership record in MDP.
+   *
+   * Reads autorenew status off `$membership`/`$meta_data` as attributes
+   * (`membership_is_autorenew`, `membership_is_autorenew_reason`), the same way grace period and
+   * dates already are, rather than as separate parameters — callers that don't set these keys
+   * keep working exactly as before, since a missing key omits the field from the MDP push
+   * entirely. Individual memberships only; the organization branch below is untouched (see plan
+   * doc's org deferral).
+   *
+   * @param  array $membership  Membership data array. May include `membership_is_autorenew`
+   *               (bool) and `membership_is_autorenew_reason` (string).
+   * @param  array $meta_data   Fields being changed on this update. Checked first, same as the
+   *               other date/grace-period fields, falling back to `$membership`.
+   * @return array|WP_Error|array{error: string}
    */
-
    public function update_mdp_record( $membership, $meta_data ) {
     if( !empty( $_ENV['BYPASS_WICKET'] )) {
       return;
@@ -1101,6 +1122,7 @@ function get_item_data ( $other_data, $cart_item ) {
     $ends_at = '';
     $grace_period_days = false;
     $max_assignments = false;
+    $is_autorenew = $meta_data['membership_is_autorenew'] ?? $membership['membership_is_autorenew'] ?? null;
 
     if('development' == wp_get_environment_type()) {
           Utilities::wc_log_mship_error( ['update_mdp_record', $membership, $meta_data] );
@@ -1137,7 +1159,8 @@ function get_item_data ( $other_data, $cart_item ) {
         $membership['membership_wicket_uuid'],
         $starts_at,
         $ends_at,
-        $grace_period_days
+        $grace_period_days,
+        $is_autorenew
       );
     } else {
     if( $max_assignments < 1) {
@@ -1169,9 +1192,19 @@ function get_item_data ( $other_data, $cart_item ) {
    }
 
   /**
-   * Create the Membership Record in MDP
+   * Create the Membership Record in MDP.
+   *
+   * Reads autorenew status off `$membership` as an attribute (`membership_is_autorenew`), the
+   * same way grace period and dates already are, rather than as a separate parameter — a missing
+   * key omits the field from the MDP push entirely. Supports both individual and organization
+   * memberships; the organization branch gates on `base-plugin.organization_membership.is_auto_renew`
+   * since an older base plugin has no `$is_autorenew` param on `wicket_assign_organization_membership()`.
+   *
+   * @param  array $membership  Membership data array. May include `membership_is_autorenew` (bool).
+   * @return array|WP_Error
    */
   public function create_mdp_record( $membership ) {
+    $is_autorenew = $membership['membership_is_autorenew'] ?? null;
     $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
     $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
     // Capability gate (not version-gated): the base plugin ships a registry
@@ -1179,6 +1212,10 @@ function get_item_data ( $other_data, $cart_item ) {
     // ADR 0004 / conventions/capability-detection.md.
     $base_version_supports_copy_active_assignments = function_exists( 'wicket_supports' )
       && wicket_supports( 'base-plugin.organization_membership.copy_previous_assignments' );
+    // Same capability-gate pattern for the is_auto_renew param on org assignment.
+    $base_version_supports_org_autorenew = function_exists( 'wicket_supports' )
+      && wicket_supports( 'base-plugin.organization_membership.is_auto_renew' );
+    $org_is_autorenew = $base_version_supports_org_autorenew ? $is_autorenew : null;
 
     $previous_membership_wicket_uuid = '';
     if(!empty($membership['previous_membership_post_id'])) {
@@ -1197,7 +1234,8 @@ function get_item_data ( $other_data, $cart_item ) {
             $membership['membership_starts_at'],
             $membership['membership_ends_at'],
             $membership['membership_grace_period_days'],
-            $previous_membership_wicket_uuid
+            $previous_membership_wicket_uuid,
+            $is_autorenew
           );
         } else {
           $response = wicket_assign_individual_membership(
@@ -1205,7 +1243,9 @@ function get_item_data ( $other_data, $cart_item ) {
             $membership['membership_tier_uuid'],
             $membership['membership_starts_at'],
             $membership['membership_ends_at'],
-            $membership['membership_grace_period_days']
+            $membership['membership_grace_period_days'],
+            '',
+            $is_autorenew
           );
         }
       } else {
@@ -1231,7 +1271,8 @@ function get_item_data ( $other_data, $cart_item ) {
             $membership['membership_grace_period_days'],
             $previous_membership_wicket_uuid,
             $Tier->is_grant_owner_assignment(),
-            $carry
+            $carry,
+            $org_is_autorenew
           );
           // Seat-count overflow safety net (WWID-1908): if the MDP rejected the
           // create because carrying assignments over would exceed the new tier's
@@ -1253,7 +1294,8 @@ function get_item_data ( $other_data, $cart_item ) {
               $membership['membership_grace_period_days'],
               $previous_membership_wicket_uuid,
               $Tier->is_grant_owner_assignment(),
-              false
+              false,
+              $org_is_autorenew
             );
             // Defensive: log the retry outcome so QA can see whether the
             // copy=false retry recovered or also failed. A failed retry still
@@ -1493,6 +1535,12 @@ function get_item_data ( $other_data, $cart_item ) {
       'post_status' => 'publish',
       'meta_input'  => $meta_data
     ]);
+
+    // Refresh the stored autorenew status: $meta_data may not include
+    // membership_subscription_id (only fields the caller actually changed), so read the
+    // now-current, freshly-saved post meta rather than relying on this method's own input. See
+    // A0007.
+    Autorenew_Sync::refresh_for_membership_post( $membership_post_id );
     // Dates, status and owner all feed the member list's ordering and filters.
     self::mark_member_list_cache_stale();
 
@@ -1571,6 +1619,8 @@ function get_item_data ( $other_data, $cart_item ) {
       'membership_product_id' => $membership['membership_product_id'],
       'membership_subscription_id' => $membership['membership_subscription_id'],
       'previous_membership_post_id' => $membership['previous_membership_post_id'] ?? '',
+      Autorenew_Sync::META_KEY_RESULT => $membership['membership_is_autorenew'] ?? null,
+      Autorenew_Sync::META_KEY_REASON => $membership['membership_is_autorenew_reason'] ?? '',
     ];
 
     if(!empty( $membership['previous_membership_post_id'] ?? '' )) {
@@ -1623,6 +1673,10 @@ function get_item_data ( $other_data, $cart_item ) {
           ['membership_post' => $membership_post],
         ]);
       }
+
+      // Refresh the stored autorenew status now that the subscription link (and its status/
+      // manual-renewal flag) is known to be current on this post. See A0007.
+      Autorenew_Sync::refresh_for_membership_post( $membership_post );
 
     if( !empty( $membership['membership_parent_order_id'] )) {
       $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
@@ -2120,10 +2174,11 @@ function get_item_data ( $other_data, $cart_item ) {
           $sub = \wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
         }
         if(!empty($sub)) {
-          $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
-          $subscription_status = $sub->get_status();
+          // Use the single source of truth for autorenew status rather than re-deriving it from
+          // the raw flag and a status blocklist here.
+          $is_autopay_enabled = Autorenew::is_autorenewing( $membership_data['meta'] );
           $next_payment_date = $sub->get_time( 'next_payment' );
-          if( $is_autopay_enabled && !empty($next_payment_date) && $subscription_status != 'on-hold' && $subscription_status != 'expired' && $subscription_status != 'cancelled' && $subscription_status != 'switched' && $subscription_status != 'trash' && (current_time( 'timestamp' ) < $next_payment_date) && ! $allow_form_flow_early_callout) {
+          if( $is_autopay_enabled && !empty($next_payment_date) && (current_time( 'timestamp' ) < $next_payment_date) && ! $allow_form_flow_early_callout) {
             echo "<$debug_comment_hide--";
             echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
             echo '|'.( strtotime($next_payment_date) - current_time( 'timestamp' ) );
@@ -2242,10 +2297,11 @@ function get_item_data ( $other_data, $cart_item ) {
             $sub = \wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
           }
           if(!empty($sub)) {
-            $subscription_status = $sub->get_status();
-            $is_autopay_enabled = $sub->get_requires_manual_renewal() ? false : true;
+            // Use the single source of truth for autorenew status rather than re-deriving it from
+            // the raw flag and a status blocklist here.
+            $is_autopay_enabled = Autorenew::is_autorenewing( $membership_data['meta'] );
             $next_payment_date = $sub->get_time( 'next_payment' );
-            if(empty($next_payment_date) || $subscription_status == 'on-hold' || $subscription_status == 'expired' || $subscription_status == 'cancelled' || $subscription_status == 'switched' || $subscription_status == 'trash' || (current_time( 'timestamp' ) > $next_payment_date)) {
+            if(empty($next_payment_date) || (current_time( 'timestamp' ) > $next_payment_date)) {
               $is_autopay_enabled = false;
             }
             // Form Flow: autopay cannot complete a form, so it must not stand in for the renewal
