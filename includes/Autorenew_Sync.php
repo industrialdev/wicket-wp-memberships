@@ -128,18 +128,18 @@ class Autorenew_Sync {
   }
 
   /**
-   * Pushes a membership's autorenew status to the MDP. Individual memberships only — organization
-   * memberships are out of scope for this feature (see the plan doc's org deferral); a membership
-   * with no `membership_wicket_uuid` yet (not yet created in the MDP) is skipped, since there's no
-   * MDP record to patch.
+   * Pushes a membership's autorenew status to the MDP, for both individual and organization
+   * memberships. A membership with no `membership_wicket_uuid` yet (not yet created in the MDP)
+   * is skipped, since there's no MDP record to patch.
    *
-   * `wicket_update_individual_membership_dates()` always sends `starts_at`/`ends_at` in its
-   * payload — unlike `grace_period_days`/`is_autorenew`, it has no way to omit them — and defaults
-   * empty values to "now" / "one year from now." An autorenew-only push must read the membership's
-   * real, precise dates directly via `get_post_meta()` (not `Helper::get_post_meta()`, which
-   * truncates `_at` fields to a plain date, dropping the time/timezone) and pass them through
-   * unchanged, or this call would silently corrupt the membership's real MDP dates as a side
-   * effect of a change that was only ever about autorenew status.
+   * Both `wicket_update_individual_membership_dates()` and `wicket_update_organization_membership_dates()`
+   * always send `starts_at`/`ends_at` in their payload — unlike `grace_period_days`/`is_autorenew`,
+   * they have no way to omit them — and default empty values to "now" / "one year from now." An
+   * autorenew-only push must read the membership's real, precise dates directly via
+   * `get_post_meta()` (not `Helper::get_post_meta()`, which truncates `_at` fields to a plain
+   * date, dropping the time/timezone) and pass them through unchanged, or this call would
+   * silently corrupt the membership's real MDP dates as a side effect of a change that was only
+   * ever about autorenew status.
    *
    * @param  int    $membership_post_id  The `wicket_membership` post ID being pushed.
    * @param  array  $membership_meta     This post's own meta, as returned by `Helper::get_post_meta()`.
@@ -147,21 +147,37 @@ class Autorenew_Sync {
    * @return void
    */
   private static function push_to_mdp( $membership_post_id, $membership_meta, $is_autorenew ) {
-    if ( ( $membership_meta['membership_type'] ?? '' ) !== 'individual' ) {
-      return;
-    }
-
     if ( empty( $membership_meta['membership_wicket_uuid'] ) ) {
       return;
     }
 
-    $response = wicket_update_individual_membership_dates(
-      $membership_meta['membership_wicket_uuid'],
-      get_post_meta( $membership_post_id, 'membership_starts_at', true ),
-      get_post_meta( $membership_post_id, 'membership_ends_at', true ),
-      false, // grace_period_days: not this push's concern, omit
-      $is_autorenew
-    );
+    $starts_at = get_post_meta( $membership_post_id, 'membership_starts_at', true );
+    $ends_at = get_post_meta( $membership_post_id, 'membership_ends_at', true );
+
+    if ( 'organization' === ( $membership_meta['membership_type'] ?? '' ) ) {
+      // Capability gate (not version-gated): the base plugin ships a registry
+      // helper when it supports the is_auto_renew param on org membership
+      // updates. See atlas ADR 0004 / conventions/capability-detection.md.
+      $base_version_supports_org_autorenew = function_exists( 'wicket_supports' )
+        && wicket_supports( 'base-plugin.organization_membership.is_auto_renew' );
+
+      $response = wicket_update_organization_membership_dates(
+        $membership_meta['membership_wicket_uuid'],
+        $starts_at,
+        $ends_at,
+        false, // max_seats: not this push's concern, omit
+        false, // grace_period_days: not this push's concern, omit
+        $base_version_supports_org_autorenew ? $is_autorenew : null
+      );
+    } else {
+      $response = wicket_update_individual_membership_dates(
+        $membership_meta['membership_wicket_uuid'],
+        $starts_at,
+        $ends_at,
+        false, // grace_period_days: not this push's concern, omit
+        $is_autorenew
+      );
+    }
 
     if ( is_wp_error( $response ) ) {
       Utilities::wc_log_mship_error( sprintf(

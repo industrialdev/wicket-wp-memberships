@@ -1196,8 +1196,9 @@ function get_item_data ( $other_data, $cart_item ) {
    *
    * Reads autorenew status off `$membership` as an attribute (`membership_is_autorenew`), the
    * same way grace period and dates already are, rather than as a separate parameter — a missing
-   * key omits the field from the MDP push entirely. Individual memberships only; the organization
-   * branch below is untouched.
+   * key omits the field from the MDP push entirely. Supports both individual and organization
+   * memberships; the organization branch gates on `base-plugin.organization_membership.is_auto_renew`
+   * since an older base plugin has no `$is_autorenew` param on `wicket_assign_organization_membership()`.
    *
    * @param  array $membership  Membership data array. May include `membership_is_autorenew` (bool).
    * @return array|WP_Error
@@ -1211,6 +1212,10 @@ function get_item_data ( $other_data, $cart_item ) {
     // ADR 0004 / conventions/capability-detection.md.
     $base_version_supports_copy_active_assignments = function_exists( 'wicket_supports' )
       && wicket_supports( 'base-plugin.organization_membership.copy_previous_assignments' );
+    // Same capability-gate pattern for the is_auto_renew param on org assignment.
+    $base_version_supports_org_autorenew = function_exists( 'wicket_supports' )
+      && wicket_supports( 'base-plugin.organization_membership.is_auto_renew' );
+    $org_is_autorenew = $base_version_supports_org_autorenew ? $is_autorenew : null;
 
     $previous_membership_wicket_uuid = '';
     if(!empty($membership['previous_membership_post_id'])) {
@@ -1266,7 +1271,8 @@ function get_item_data ( $other_data, $cart_item ) {
             $membership['membership_grace_period_days'],
             $previous_membership_wicket_uuid,
             $Tier->is_grant_owner_assignment(),
-            $carry
+            $carry,
+            $org_is_autorenew
           );
           // Seat-count overflow safety net (WWID-1908): if the MDP rejected the
           // create because carrying assignments over would exceed the new tier's
@@ -1288,7 +1294,8 @@ function get_item_data ( $other_data, $cart_item ) {
               $membership['membership_grace_period_days'],
               $previous_membership_wicket_uuid,
               $Tier->is_grant_owner_assignment(),
-              false
+              false,
+              $org_is_autorenew
             );
             // Defensive: log the retry outcome so QA can see whether the
             // copy=false retry recovered or also failed. A failed retry still
