@@ -1,0 +1,11 @@
+# Keep developer documentation out of Composer dist packages.
+#
+# docs/ is reference material for developers and the implementation team; none of it is
+# loaded at runtime. It also carries internal architecture detail that has no business
+# sitting on a production server. Reading it requires git auth against this repo, which
+# is the intended access path.
+#
+# export-ignore applies to `git archive`, and therefore to Composer dist installs
+# (the stack sets "preferred-install": "dist"). It does NOT apply to --prefer-source,
+# `git clone`, or rsync-based deploys from a working tree.
+/docs export-ignore

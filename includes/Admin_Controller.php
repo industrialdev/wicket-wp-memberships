@@ -191,7 +191,18 @@ class Admin_Controller {
       }
       $Membership_Controller->assign_membership_external_id( $membership['membership_wicket_uuid'], $wicket_membership_type, $membership_post_id );
 
-      do_action('wicket_membership_created_mdp', $membership_post_data);
+      // WWID-2384: same gate as Membership_Controller. Approval activated the
+      // local record, but create_mdp_record() above returns '' when the MDP API
+      // call fails. Listeners must not act on a membership that has no MDP
+      // record; retry the activation once the API recovers.
+      if ( ! empty( $membership['membership_wicket_uuid'] ) ) {
+        do_action('wicket_membership_created_mdp', $membership_post_data);
+      } else {
+        Utilities::wc_log_mship_error([
+          'SKIPPED wicket_membership_created_mdp: MDP record missing (create_mdp_record returned no uuid)',
+          ['membership_post_id' => $membership_post_id],
+        ]);
+      }
       $response_array['success'] = 'Pending membership activated successfully.';
       $response_array['response'] = $membership_post_data;
       $response_code = 200;
@@ -361,11 +372,12 @@ class Admin_Controller {
 
   /**
    * Summary of get_edit_page_info
-   * This should be streamlined to store and get ID Numbers locally 
+   * This should be streamlined to store and get ID Numbers locally
    * Currently for org it is doing the lookup twice for name and ID
-   * 
-   * @param mixed $id
-   * @return array{data: mixed, identifying_number: mixed, mdp_link: string, org_name: string|array{data: string, identifying_number: mixed, mdp_link: string, org_name: mixed}}
+   *
+   * @param  mixed $id  WP user ID (individual member) or MDP organization UUID (org member).
+   *
+   * @return array{data: mixed, identifying_number: mixed, identifying_number_label: string, mdp_link: string, org_name: string|array{data: string, identifying_number: mixed, identifying_number_label: string, mdp_link: string, org_name: mixed}}
    */
   public static function get_edit_page_info( $id ) {
     $self = new self();
@@ -375,8 +387,12 @@ class Admin_Controller {
       $person_uuid = $user->user_login;
       $response = wicket_get_person_by_id( $person_uuid );
       $switch_to_url = Helper::get_user_switch_to_url( $id );
+
+      $identifying_number = self::resolve_identifying_number( $response->getAttribute('identifying_number'), $id, 'individual' );
+
       return [
-        'identifying_number' => $response->getAttribute('identifying_number'),
+        'identifying_number' => $identifying_number['value'],
+        'identifying_number_label' => $identifying_number['label'],
         'data' => $user->user_email,
         'mdp_link' => $wicket_settings['wicket_admin'] . '/people/' . $person_uuid,
         'org_name' => '',
@@ -390,14 +406,54 @@ class Admin_Controller {
         //the org_name has changed we need to update it in the cache and on org membership records
         $self->update_org_name_on_memberships($id, $org_data['name']);
       }
+
+      $identifying_number = self::resolve_identifying_number( $response['data']['attributes']['identifying_number'], $id, 'organization' );
+
       return [
-        'identifying_number' => $response['data']['attributes']['identifying_number'],
+        'identifying_number' => $identifying_number['value'],
+        'identifying_number_label' => $identifying_number['label'],
         'data' => $org_data['location'],
         'mdp_link' => $wicket_settings['wicket_admin'] . '/organizations/' . $id,
         'org_name' => $response['data']['attributes']['legal_name'],
       ];
     }
 
+  }
+
+  /**
+   * Build the identifying number value/label pair for the membership edit page, filterable
+   * as a single unit so a client override can't change one without the other.
+   *
+   * If a filter callback returns something other than an array with both `value` and `label`
+   * keys, the unfiltered defaults are used instead. The returned label is always sanitized,
+   * since a filter can be supplied by third-party client code.
+   *
+   * @param  mixed  $raw_value  The unfiltered identifying_number attribute from the MDP response.
+   * @param  mixed  $id         WP user ID (individual member) or MDP organization UUID (org member).
+   * @param  string $type       Either 'individual' or 'organization'.
+   *
+   * @see    'wicket_mship_edit_page_identifying_number' filter
+   *
+   * @return array{value: mixed, label: string} Value/label pair, after the filter is applied.
+   */
+  private static function resolve_identifying_number( $raw_value, $id, $type ) {
+    // Default identifying number value/label, overridable by clients that key off a different MDP/meta field (e.g. an external member ID).
+    $defaults = [
+      'value' => $raw_value,
+      'label' => __( 'Identifying Number:', 'wicket-memberships' ),
+    ];
+
+    $identifying_number = apply_filters( 'wicket_mship_edit_page_identifying_number', $defaults, $id, $type );
+
+    // Guard against a misbehaving client filter: fall back to defaults if the shape is wrong. `value` must be
+    // scalar (not an array/object) since it round-trips through the REST response straight into a React child.
+    if ( ! is_array( $identifying_number ) || ! isset( $identifying_number['value'], $identifying_number['label'] ) || ! is_scalar( $identifying_number['value'] ) ) {
+      return $defaults;
+    }
+
+    $identifying_number['label'] = sanitize_text_field( $identifying_number['label'] );
+
+    return $identifying_number;
   }
 
   /**
@@ -483,6 +539,7 @@ class Admin_Controller {
       );
     }
     $memberships = get_posts( $args );
+    $membership_items = [];
     foreach( $memberships as &$membership) {
       $meta_data = get_post_meta( $membership->ID );
       $meta = [];
@@ -1353,6 +1410,10 @@ class Admin_Controller {
       return new \WP_REST_Response(['success' => false, 'error' => 'Failed to create new membership post.'], 400);
     }
 
+    // A new membership post adds a row to the admin member list; drop the cached
+    // set so it appears immediately rather than when the transient expires.
+    Membership_Controller::mark_member_list_cache_stale();
+
     // Copy all meta from the original post to the new post
     $all_meta = get_post_meta( $membership_post_id );
     foreach ( $all_meta as $meta_key => $meta_values ) {
@@ -1558,6 +1619,10 @@ class Admin_Controller {
     if ( is_wp_error( $new_post_id ) ) {
       return new \WP_REST_Response(['success' => false, 'error' => 'Failed to create new membership post.'], 400);
     }
+
+    // A new membership post adds a row to the admin member list; drop the cached
+    // set so it appears immediately rather than when the transient expires.
+    Membership_Controller::mark_member_list_cache_stale();
 
     // Copy all meta from the original post to the new post
     $all_meta = get_post_meta( $membership_post_id );

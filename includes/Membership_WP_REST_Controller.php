@@ -581,7 +581,12 @@ public function get_membership_dates( \WP_REST_Request $request ) {
 
   public function get_tier_info(  \WP_REST_Request $request  ) {
     $params = $request->get_params();
-    $tier_info = Membership_Controller::get_tier_info( $params['filter']['tier_uuid'], $params['properties'] );
+    // Both params are optional: the member list calls this without a filter, and
+    // get_tier_info() resolves the full tier set regardless of what is passed.
+    $tier_info = Membership_Controller::get_tier_info(
+      $params['filter']['tier_uuid'] ?? [],
+      $params['properties'] ?? []
+    );
     return rest_ensure_response( $tier_info );
   }
 

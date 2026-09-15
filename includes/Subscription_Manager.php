@@ -95,4 +95,41 @@ class Subscription_Manager {
 
     return $dates_to_update;
   }
+
+  /**
+   * Removes the pending payment from a subscription whose membership has been renewed elsewhere.
+   *
+   * A renewal that creates a NEW subscription leaves the old one with a live payment date and
+   * nothing to stop it, so it keeps taking money for a term that is over. Clearing the date leaves
+   * it inert: it takes no further payment and expires on its own end date without renewing.
+   *
+   * Monthly billing is the exception. Those payments are instalments against the term the member
+   * has already taken, so they are still owed and the date is left in place.
+   *
+   * Deliberately does NOT route through prepare_dates(), which exists to PRESERVE a colliding
+   * next_payment by nudging it earlier. Here the payment is the thing being removed.
+   *
+   * @param  \WC_Subscription  $sub  Superseded subscription to stop taking payment on.
+   *
+   * @return bool  True if the date was removed; false if there was nothing to remove, the billing
+   *               period is monthly, or WooCommerce rejected the write.
+   */
+  public static function drop_superseded_next_payment( \WC_Subscription $sub ): bool {
+    if ( ( $sub->get_billing_period() == 'month' && $sub->get_billing_interval() == 1 )
+      || empty( $sub->get_time( 'next_payment' ) ) ) {
+      return false;
+    }
+
+    try {
+      // WooCommerce reads a 0 date as a delete.
+      $sub->update_dates( [ 'next_payment' => 0 ] );
+    } catch ( \Exception $e ) {
+      Utilities::wc_log_mship_error( [ 'Failed to remove next payment date from superseded subscription', [ $sub->get_id(), $e->getMessage() ] ] );
+      return false;
+    }
+
+    $sub->add_order_note( 'Wicket removed the next payment date: the membership this subscription was paying for has been renewed.' );
+
+    return true;
+  }
 }
