@@ -111,6 +111,43 @@ curl "https://example.com/wp-json/wicket_member/v1/membership_bundle_entity?bund
 
 ---
 
+## Get a bundle record (member-scoped)
+
+**`GET /wp-json/wicket_member/v1/membership_bundle_entity/mine`**
+
+Member-scoped counterpart to [Get a bundle record](#get-a-bundle-record). Returns the same response shape, but requires only that the requester belong (via an active MDP organisation connection) to the bundle's linked organisation — not the `wicket_memberships_admin` capability (see [Authentication](overview.md#authentication)). A member with an individual seat in the bundle who does not otherwise belong to the owning org is not authorized by this alone.
+
+### Query parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundle_post_id` | `integer` | Yes | Post ID of the `wicket_mship_bundle`. |
+
+### Response
+
+`200 OK` — same shape as [Get a bundle record](#get-a-bundle-record).
+
+### Errors
+
+:::details Error codes
+| Status | Cause |
+|---|---|
+| `401` | Not logged in |
+| `403` | Logged in, but the current member's MDP organisation connections do not include the bundle's `org_uuid` |
+| `404` | Bundle post not found |
+:::
+
+### Example
+
+:::details Example
+```bash
+curl "https://example.com/wp-json/wicket_member/v1/membership_bundle_entity/mine?bundle_post_id=123" \
+  -H "X-WP-Nonce: {nonce}"
+```
+:::
+
+---
+
 ## Update a bundle record
 
 **`POST /wp-json/wicket_member/v1/membership_bundle_entity/{bundle_post_id}/update`**
@@ -409,3 +446,40 @@ Tiers are sorted alphabetically by `tier_name`. Members without a `tier_uuid` ar
 | Status | Cause |
 |---|---|
 | `404` | Bundle post not found |
+
+---
+
+## Get member count by tier (member-scoped)
+
+**`GET /wp-json/wicket_member/v1/bundle/{bundle_post_id}/members_by_tier/mine`**
+
+Member-scoped counterpart to [Get member count by tier](#get-member-count-by-tier). Returns the same response shape, but requires only that the requester belong (via an active MDP organisation connection) to the bundle's linked organisation — not the `wicket_memberships_admin` capability (see [Authentication](overview.md#authentication)).
+
+### URL parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundle_post_id` | `integer` | Yes | Post ID of the bundle. |
+
+### Response
+
+`200 OK` — same shape as [Get member count by tier](#get-member-count-by-tier).
+
+### Errors
+
+:::details Error codes
+| Status | Cause |
+|---|---|
+| `401` | Not logged in |
+| `403` | Logged in, but the current member's MDP organisation connections do not include the bundle's `org_uuid` |
+| `404` | Bundle post not found |
+:::
+
+### Example
+
+:::details Example
+```bash
+curl "https://example.com/wp-json/wicket_member/v1/bundle/123/members_by_tier/mine" \
+  -H "X-WP-Nonce: {nonce}"
+```
+:::

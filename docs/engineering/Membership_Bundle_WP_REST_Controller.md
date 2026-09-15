@@ -29,12 +29,14 @@ Call chain: **`Membership_Bundle_WP_REST_Controller`** → `Membership_Bundle_Ad
 |---|---|---|---|
 | `GET` | `/membership_bundles` | `get_membership_bundles` | Yes |
 | `GET` | `/membership_bundle_entity` | `get_bundle_entity` | Yes |
+| `GET` | `/membership_bundle_entity/mine` | `get_bundle_entity` | Yes |
 | `POST` | `/membership_bundle_entity/{bundle_post_id}/update` | `update_bundle_entity` | Yes |
 | `GET` | `/bundle/admin/status_options` | `get_bundle_admin_status_options` | Yes |
 | `POST` | `/bundle/admin/manage_status` | `bundle_bundle_admin_manage_status` | Yes |
 | `GET` | `/bundle/admin/get_edit_page_info` | `get_bundle_edit_page_info` | Yes |
 | `GET` | `/membership_bundle_filters` | `get_membership_bundle_filters` | Yes |
 | `GET` | `/bundle/{bundle_post_id}/members_by_tier` | `get_bundle_members_by_tier` | Yes |
+| `GET` | `/bundle/{bundle_post_id}/members_by_tier/mine` | `get_bundle_members_by_tier` | Yes |
 | `POST` | `/bundle` | `create_membership_bundle` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/change_owner` | `update_bundle_change_ownership` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/add_member` | `add_member_to_bundle` | Yes |
@@ -60,6 +62,8 @@ Registers all bundle REST routes.
 **Route:** `GET /membership_bundle_entity?bundle_post_id={id}`
 
 Delegates to `Membership_Bundle_Admin_Controller::get_bundle_entity_records()`. Returns bundle post meta, formatted dates, and child membership post IDs.
+
+**Route:** `GET /membership_bundle_entity/mine?bundle_post_id={id}` — same handler, registered a second time with `permissions_check_bundle_org_member` as its permission callback instead of `permissions_check_read`. Member-scoped variant: no distinct method, since the response shape and business logic are identical — only authorization differs.
 
 ### `update_bundle_entity( \WP_REST_Request $request )`
 
@@ -99,6 +103,8 @@ Delegates to `Membership_Bundle_Admin_Controller::get_bundle_members_by_tier()`.
   ]
 }
 ```
+
+**Route:** `GET /bundle/{bundle_post_id}/members_by_tier/mine` — same handler, registered a second time with `permissions_check_bundle_org_member` as its permission callback instead of `permissions_check_read`. Member-scoped variant: no distinct method, since the response shape and business logic are identical — only authorization differs.
 
 ### `update_bundle_change_ownership( \WP_REST_Request $request )`
 
@@ -178,6 +184,14 @@ Allows all requests when `ALLOW_LOCAL_IMPORTS` is set. Otherwise requires `Wicke
 ### `permissions_check_write( $request ): bool|\WP_REST_Response`
 
 Same logic as `permissions_check_read`. Applied to all `CREATABLE` routes.
+
+### `permissions_check_bundle_org_member( \WP_REST_Request $request ): bool|\WP_REST_Response`
+
+Member-scoped authorization for the `/mine` bundle-detail and members-by-tier routes. Requires `is_user_logged_in()` (`401` otherwise), then loads the bundle via `new Membership_Bundle( $bundle_post_id )` and checks `$bundle->post_id` (`404` if the post doesn't exist or isn't the bundle CPT). Resolves the bundle's `get_org_uuid()` (`403` if unset — a bundle with no linked org has no member to authorize) and the current user's `wicket_current_person_uuid()` (`403` if unresolved), then calls `wicket_get_active_person_org_connections( $person_uuid, $org_uuid )` (base plugin) and requires a non-empty, non-`WP_Error` result (`403` otherwise).
+
+Queries MDP live on every request rather than caching org membership locally — MDP is the source of truth and connections can change independently of anything cached on the bundle or WP user. Does not honor `ALLOW_LOCAL_IMPORTS`, matching `permissions_check_member_read`.
+
+Distinct from `permissions_check_member_read` (used by `/membership_bundles/mine`): that check is owner-only (WP `user_id` meta match), while this check authorizes any member with an active connection to the bundle's org — e.g. an org delegate who didn't personally purchase the bundle.
 
 ### `authorization_status_code(): int`
 

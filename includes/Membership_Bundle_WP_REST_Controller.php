@@ -159,6 +159,32 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
+     * Get a membership bundle record by its post ID (member-scoped).
+     *
+     * GET /wicket_member/v1/membership_bundle_entity/mine?bundle_post_id=123
+     *
+     * Member-scoped counterpart to /membership_bundle_entity: restricted to
+     * bundles linked to an MDP organisation the requesting member belongs to
+     * (see permissions_check_bundle_org_member), rather than staff members
+     * holding the plugin's admin capability. Reuses get_bundle_entity() as-is
+     * since the response shape is identical — only the permission layer differs.
+     */
+    register_rest_route( $this->namespace, '/membership_bundle_entity/mine', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_bundle_entity' ],
+        'permission_callback' => [ $this, 'permissions_check_bundle_org_member' ],
+        'args'                => [
+          'bundle_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'The WP post ID of the membership bundle.',
+          ],
+        ],
+      ],
+    ] );
+
+    /**
      * Update editable fields on a membership bundle post.
      *
      * POST /wicket_member/v1/membership_bundle_entity/{id}/update
@@ -268,6 +294,31 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
         'methods'             => \WP_REST_Server::READABLE,
         'callback'            => [ $this, 'get_bundle_members_by_tier' ],
         'permission_callback' => [ $this, 'permissions_check_read' ],
+        'args'                => [
+          'bundle_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'The WP post ID of the membership bundle.',
+          ],
+        ],
+      ],
+    ] );
+
+    /**
+     * Return total member count and per-tier breakdown for a bundle (member-scoped).
+     *
+     * GET /wicket_member/v1/bundle/{id}/members_by_tier/mine
+     *
+     * Member-scoped counterpart to /bundle/{id}/members_by_tier, gated by
+     * permissions_check_bundle_org_member instead of the staff-only capability
+     * check. Reuses get_bundle_members_by_tier() as-is — only the permission
+     * layer differs.
+     */
+    register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/members_by_tier/mine', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_bundle_members_by_tier' ],
+        'permission_callback' => [ $this, 'permissions_check_bundle_org_member' ],
         'args'                => [
           'bundle_post_id' => [
             'required'    => true,
@@ -800,6 +851,56 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     if ( ! is_user_logged_in() ) {
       return new WP_REST_Response( [ 'error' => 'Authentication required.' ], 401 );
     }
+    return true;
+  }
+
+  /**
+   * Check permissions for member-scoped routes restricted to bundles the
+   * requesting member's MDP organisation owns.
+   *
+   * Unlike permissions_check_member_read (owner-only, matched against the WP
+   * user_id meta), this allows any member belonging to the bundle's linked
+   * org_uuid to read — e.g. an org delegate who did not personally purchase
+   * the bundle but administers it on the org's behalf. Ownership is resolved
+   * via MDP (the source of truth for org membership), not cached locally, so
+   * this always reflects the member's current connections.
+   *
+   * Deliberately does not honor ALLOW_LOCAL_IMPORTS: that flag exists for CSV
+   * import automation, not member-facing browsing.
+   */
+  public function permissions_check_bundle_org_member( \WP_REST_Request $request ) {
+    if ( ! is_user_logged_in() ) {
+      return new WP_REST_Response( [ 'error' => 'Authentication required.' ], 401 );
+    }
+
+    $bundle_post_id = (int) $request->get_param( 'bundle_post_id' );
+    $bundle = new Membership_Bundle( $bundle_post_id );
+
+    // Reject unknown/wrong-CPT IDs here rather than letting the handler's own
+    // 404 fire after we've already treated the request as authorized.
+    if ( ! $bundle->post_id ) {
+      return new WP_REST_Response( [ 'error' => 'Membership bundle not found.' ], 404 );
+    }
+
+    $org_uuid = $bundle->get_org_uuid();
+    if ( ! $org_uuid ) {
+      // A bundle with no linked org has no member to authorize against.
+      return new WP_REST_Response( [ 'error' => 'You do not have access to this membership bundle.' ], 403 );
+    }
+
+    $person_uuid = wicket_current_person_uuid();
+    if ( empty( $person_uuid ) ) {
+      return new WP_REST_Response( [ 'error' => 'Unable to resolve current member.' ], 403 );
+    }
+
+    // MDP is the source of truth for org membership — query live rather than
+    // trusting any locally cached role/relationship data.
+    $connections = wicket_get_active_person_org_connections( $person_uuid, $org_uuid );
+
+    if ( is_wp_error( $connections ) || empty( $connections ) ) {
+      return new WP_REST_Response( [ 'error' => 'You do not have access to this membership bundle.' ], 403 );
+    }
+
     return true;
   }
 
