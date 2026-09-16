@@ -45,6 +45,8 @@ AS single-action hooks (`wicket_bundle_early_renew_at`, `wicket_bundle_ends_at`,
 | `wicket_memberships_bundle_cancel_old_on_starts_at` | `cancel_old_bundle_on_new_starts_at()` | scheduled AS single action |
 | `wcs_renewal_order_created` (WCS native filter) | `apply_bundle_renewal_line_item_price_filter()` | fired by WCS's own `wcs_create_renewal_order()`, once per renewal order — independent of this plugin's own batch cron |
 | `wcs_renewal_order_items` (WCS native filter) | `refresh_bundle_renewal_line_item_meta()` | fired by `wcs_create_order_from_subscription()` (dynamic filter name `wcs_{$type}_items`, `$type = 'renewal_order'` for real renewals) — fires on the subscription's own items, before they're copied to the fresh renewal order; never fires for a resubscribe order |
+| `woocommerce_order_action_wcs_create_pending_renewal` (WCS native admin order action) | `intercept_wcs_create_pending_renewal_for_bundle()` | fired by WooCommerce core's order-actions meta box save handler when an admin selects "Create pending renewal order" on a subscription edit screen; this plugin hooks at priority 5, before WCS's own handler at priority 10 |
+| `admin_notices` | `render_queued_bundle_renewal_order_notice()` | renders the one-time notice `intercept_wcs_create_pending_renewal_for_bundle()` sets via transient |
 
 Daily handlers are registered as recurring daily actions starting tomorrow (midnight, site timezone). The renewal batch handler is a single-action job dispatched on each renewal order.
 
@@ -105,7 +107,27 @@ Batch handler for membership renewal provisioning. Dispatched by `Membership_Con
 
 Deletes `membership_renewal_order_creation` post meta, but only when it holds a completed claim (`order_id` set). Leaves an in-flight claim (queued or still creating, no `order_id` yet) untouched, so it does not weaken `claim_renewal_order_creation()`'s concurrency guard against a genuine second request racing an in-progress job.
 
-Called by `Membership_Bundle_WP_REST_Controller::create_bundle_renewal_order()` (the admin manual action) before it claims — that endpoint may legitimately be triggered again on the same bundle post, unlike `confirm_bundle_renewal()` (member-facing, one confirm per cycle), which does not call this and keeps blocking on a completed claim indefinitely.
+Called by `Membership_Bundle_WP_REST_Controller::create_bundle_renewal_order()` (the admin manual action) and by `intercept_wcs_create_pending_renewal_for_bundle()` (below) before each claims — both may legitimately be triggered again on the same bundle post, unlike `confirm_bundle_renewal()` (member-facing, one confirm per cycle), which does not call this and keeps blocking on a completed claim indefinitely.
+
+---
+
+### `intercept_wcs_create_pending_renewal_for_bundle( \WC_Subscription $subscription ): void`
+
+Hooked to WooCommerce Subscriptions' native `woocommerce_order_action_wcs_create_pending_renewal` admin order action, at priority 5 — before WCS's own handler (`WCS_Admin_Meta_Boxes::create_pending_renewal_action_request()`, priority 10). Fired when an admin selects "Create pending renewal order" from a subscription's Order Actions dropdown in wp-admin.
+
+WCS's own handler calls `wcs_create_renewal_order()` synchronously on that admin request, which fires `wcs_renewal_order_created` — the same filter `apply_bundle_renewal_line_item_price_filter()` hooks — running the full per-member repricing loop inline, with no Action Scheduler involved anywhere in that call chain. For a large bundle this is a real timeout risk on a live HTTP request, unlike this plugin's own two REST endpoints (`create_bundle_renewal_order`, `confirm_bundle_renewal`), which already defer the equivalent work to a background job.
+
+**Behavior:**
+- Resolves `membership_bundle_id` post meta on the subscription. If it's empty or doesn't resolve to a `wicket_mship_bundle` post, returns immediately — WCS's own priority-10 handler runs normally for non-bundle subscriptions, completely unaffected.
+- For a bundle subscription: `remove_action()`s WCS's own handler off this same hook (so it never runs, and `wcs_create_renewal_order()` is never called synchronously here), then calls `clear_completed_renewal_order_claim()` + `claim_renewal_order_creation()` and, on a successful claim, `as_schedule_single_action( 'wicket_bundle_create_renewal_order', ... )` — the identical job `create_bundle_renewal_order()` dispatches. Same claim, same job, same `create_renewal_order_job()` handler, same `wcs_renewal_order_created` filter — just deferred instead of inline.
+- On a claim conflict (order already exists, or creation already in flight), sets a transient notice instead of proceeding — no order is created and nothing is queued twice.
+- Sets a one-time transient notice (`wicket_mship_bundle_renewal_order_notice_{user_id}`) either way, since removing WCS's own handler also removes WCS's own success/failure admin notice for this action — nothing else on the request would otherwise tell the admin what happened.
+
+---
+
+### `render_queued_bundle_renewal_order_notice(): void`
+
+Hooked to `admin_notices`. Reads and immediately deletes the transient `intercept_wcs_create_pending_renewal_for_bundle()` sets, rendering it as a standard WordPress admin notice. A transient (rather than a `redirect_post_location` query arg) is used because it survives independently of whatever redirect WCS's or WooCommerce's own order-actions save flow performs, and is scoped per-user so it does not leak to a different admin viewing the same screen.
 
 ---
 

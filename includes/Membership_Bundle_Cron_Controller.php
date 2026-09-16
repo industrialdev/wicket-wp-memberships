@@ -54,6 +54,17 @@ class Membership_Bundle_Cron_Controller {
     // Refreshes stale line-item identity meta on renewal. wcs_renewal_order_items is
     // renewal-specific (unlike wcs_new_order_items), so this never fires for a resubscribe.
     add_filter( 'wcs_renewal_order_items', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'refresh_bundle_renewal_line_item_meta' ], 10, 3 );
+
+    // Intercept WCS's own "Create Pending Renewal Order" admin order action for bundle
+    // subscriptions only. Priority 5, before WCS's own handler at priority 10 (class-wcs-
+    // admin-meta-boxes.php), so this runs first and can remove_action() it away. WCS's own
+    // handler calls wcs_create_renewal_order() synchronously on the admin request, which
+    // fires the same per-member repricing loop as apply_bundle_renewal_line_item_price_filter()
+    // above — expensive for a large bundle and, unlike this plugin's own REST endpoints, not
+    // backed by Action Scheduler. Redirects to the same queued job those endpoints already use.
+    add_action( 'woocommerce_order_action_wcs_create_pending_renewal', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'intercept_wcs_create_pending_renewal_for_bundle' ], 5, 1 );
+
+    add_action( 'admin_notices', [ __NAMESPACE__ . '\\Membership_Bundle_Cron_Controller', 'render_queued_bundle_renewal_order_notice' ] );
   }
 
   // ---------------------------------------------------------------------------
@@ -646,6 +657,75 @@ class Membership_Bundle_Cron_Controller {
     if ( isset( $current['order_id'] ) ) {
       delete_post_meta( $bundle_post_id, 'membership_renewal_order_creation' );
     }
+  }
+
+  /**
+   * Redirects WCS's native "Create Pending Renewal Order" admin action to our own
+   * queued job for bundle subscriptions, instead of letting WCS call
+   * wcs_create_renewal_order() synchronously on the admin request. No-ops for a
+   * non-bundle subscription.
+   */
+  public static function intercept_wcs_create_pending_renewal_for_bundle( \WC_Subscription $subscription ): void {
+    $bundle_post_id = (int) get_post_meta( $subscription->get_id(), 'membership_bundle_id', true );
+    if ( $bundle_post_id <= 0 || get_post_type( $bundle_post_id ) !== Helper::get_membership_bundle_cpt_slug() ) {
+      return;
+    }
+
+    if ( class_exists( '\\WCS_Admin_Meta_Boxes' ) ) {
+      remove_action(
+        'woocommerce_order_action_wcs_create_pending_renewal',
+        [ '\\WCS_Admin_Meta_Boxes', 'create_pending_renewal_action_request' ],
+        10
+      );
+    }
+
+    self::clear_completed_renewal_order_claim( $bundle_post_id );
+    $claim = self::claim_renewal_order_creation( $bundle_post_id );
+
+    if ( $claim !== true ) {
+      set_transient( 'wicket_mship_bundle_renewal_order_notice_' . get_current_user_id(), [
+        'type'    => 'warning',
+        'message' => ! empty( $claim['order_id'] )
+          ? __( 'A renewal order already exists for this membership bundle.', 'wicket-memberships' )
+          : __( 'Renewal order creation is already in progress for this membership bundle.', 'wicket-memberships' ),
+      ], 60 );
+      return;
+    }
+
+    as_schedule_single_action(
+      time(),
+      'wicket_bundle_create_renewal_order',
+      [ 'bundle_post_id' => $bundle_post_id, 'subscription_id' => $subscription->get_id() ],
+      'wicket-memberships',
+      false
+    );
+
+    set_transient( 'wicket_mship_bundle_renewal_order_notice_' . get_current_user_id(), [
+      'type'    => 'success',
+      'message' => __( 'This subscription belongs to a membership bundle. Renewal order creation has been queued in the background instead of running immediately.', 'wicket-memberships' ),
+    ], 60 );
+  }
+
+  /**
+   * Render the one-time admin notice set by intercept_wcs_create_pending_renewal_for_bundle().
+   * A transient (not a query-string redirect) survives WCS's own admin-notice/redirect
+   * handling for this same order-actions save, and is cleared on display so it shows once.
+   */
+  public static function render_queued_bundle_renewal_order_notice(): void {
+    $key    = 'wicket_mship_bundle_renewal_order_notice_' . get_current_user_id();
+    $notice = get_transient( $key );
+
+    if ( ! $notice ) {
+      return;
+    }
+
+    delete_transient( $key );
+
+    printf(
+      '<div class="notice notice-%1$s is-dismissible"><p>%2$s</p></div>',
+      esc_attr( $notice['type'] === 'success' ? 'success' : 'warning' ),
+      esc_html( $notice['message'] )
+    );
   }
 
   /**

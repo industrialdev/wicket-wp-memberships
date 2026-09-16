@@ -219,6 +219,8 @@ The order is not created synchronously in the request — `wcs_create_renewal_or
 
 Poll [`GET .../renewal_order_status`](#check-renewal-order-creation-status) for the job's outcome — `order_id` and `order_url` are not available in this endpoint's own response.
 
+WooCommerce Subscriptions' own native "Create pending renewal order" admin order action (on a subscription's wp-admin edit screen) is redirected into this same queued job for a bundle subscription — see `Membership_Bundle_Cron_Controller::intercept_wcs_create_pending_renewal_for_bundle()`. WCS's own handler would otherwise call `wcs_create_renewal_order()` synchronously on that admin request, running the same per-member repricing loop inline with no Action Scheduler involved. This endpoint and that admin action end up in the identical background job either way.
+
 ### URL parameters
 
 | Name | Type | Required | Description |
