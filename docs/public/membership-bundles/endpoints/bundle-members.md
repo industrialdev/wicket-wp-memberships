@@ -10,6 +10,69 @@ For the conceptual explanation of how seats relate to individual membership reco
 
 ---
 
+## Search for a person to add
+
+**`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/search_eligible_members`**
+
+Searches MDP people by name or email for the add-member flow. Member-scoped counterpart to the staff-only `/mdp_person/search` route: requires the requester to belong (via an active MDP organisation connection) to the bundle's linked organisation, rather than the `wicket_memberships_admin` capability (see [Authentication](overview.md#authentication)).
+
+`bundle_post_id` is only used to resolve the bundle's org for that authorization check — it does not scope or filter the search results themselves, and results are not pre-checked against tier eligibility or existing memberships. [Add a member to a bundle](#add-a-member-to-a-bundle) still performs the authoritative tier-eligibility check at submit time.
+
+### URL parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundle_post_id` | `integer` | Yes | Post ID of the bundle being searched within (used for authorization only). |
+
+### Request body
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `term` | `string` | Yes | Free-text search term matched against MDP person full name or email. |
+
+### Response
+
+`200 OK`
+
+```json
+[
+    {
+        "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+        "full_name": "Jane Smith",
+        "primary_email_address": "jane@acme.com"
+    }
+]
+```
+
+`id` is the MDP person UUID — pass it as `person_uuid` to [Add a member to a bundle](#add-a-member-to-a-bundle) with `mode: "new"`.
+
+### Errors
+
+:::details Error codes
+| Status | Cause |
+|---|---|
+| `400` | `term` missing or empty |
+| `401` | Not logged in |
+| `403` | Logged in, but the current member's MDP organisation connections do not include the bundle's `org_uuid` |
+| `404` | Bundle post not found |
+| `500` | The MDP person search request failed |
+:::
+
+### Example
+
+:::details Example
+```bash
+curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/search_eligible_members" \
+  -H "Content-Type: application/json" \
+  -H "X-WP-Nonce: {nonce}" \
+  -d '{
+    "term": "jane"
+  }'
+```
+:::
+
+---
+
 ## Add a member to a bundle
 
 **`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/add_member`**

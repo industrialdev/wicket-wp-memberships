@@ -330,6 +330,39 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
+     * Search MDP people by name or email for the add-member flow (member-scoped).
+     *
+     * POST /wicket_member/v1/bundle/{bundle_post_id}/search_eligible_members
+     * Body: { term }
+     *
+     * Member-scoped counterpart to the staff-only /mdp_person/search route
+     * (Membership_WP_REST_Controller::mdp_person_lookup): gated by
+     * permissions_check_bundle_org_member, so only members of the bundle's
+     * owning org can search. Returns plain MDP person matches only — no
+     * eligibility computation. Tier eligibility is still enforced by
+     * add_member at submit time (see Membership_Bundle_Config::is_tier_eligible_for_bundle()).
+     */
+    register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/search_eligible_members', [
+      [
+        'methods'             => \WP_REST_Server::CREATABLE,
+        'callback'            => [ $this, 'search_eligible_members' ],
+        'permission_callback' => [ $this, 'permissions_check_bundle_org_member' ],
+        'args'                => [
+          'bundle_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the membership bundle to search within.',
+          ],
+          'term' => [
+            'required'    => true,
+            'type'        => 'string',
+            'description' => 'Free-text search term matched against MDP person full name or email.',
+          ],
+        ],
+      ],
+    ] );
+
+    /**
      * Create a new membership bundle.
      *
      * POST /wicket_member/v1/bundle
@@ -636,6 +669,29 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   public function get_bundle_members_by_tier( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $response = Membership_Bundle_Admin_Controller::get_bundle_members_by_tier( (int) $params['bundle_post_id'] );
+    return rest_ensure_response( $response );
+  }
+
+  /**
+   * POST /bundle/{bundle_post_id}/search_eligible_members
+   *
+   * bundle_post_id is only used by the permission_callback (to resolve the
+   * bundle's org for the org-membership check) — the search itself is a
+   * plain MDP person lookup, not scoped to the bundle's existing members.
+   */
+  public function search_eligible_members( \WP_REST_Request $request ) {
+    $term = sanitize_text_field( (string) $request->get_param( 'term' ) );
+
+    if ( '' === $term ) {
+      return new WP_REST_Response( [ 'error' => 'term is required.' ], 400 );
+    }
+
+    $response = wicket_search_person( $term );
+
+    if ( false === $response ) {
+      return new WP_REST_Response( [ 'error' => 'Person search failed.' ], 500 );
+    }
+
     return rest_ensure_response( $response );
   }
 

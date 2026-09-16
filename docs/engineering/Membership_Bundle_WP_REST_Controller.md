@@ -37,6 +37,7 @@ Call chain: **`Membership_Bundle_WP_REST_Controller`** → `Membership_Bundle_Ad
 | `GET` | `/membership_bundle_filters` | `get_membership_bundle_filters` | Yes |
 | `GET` | `/bundle/{bundle_post_id}/members_by_tier` | `get_bundle_members_by_tier` | Yes |
 | `GET` | `/bundle/{bundle_post_id}/members_by_tier/mine` | `get_bundle_members_by_tier` | Yes |
+| `POST` | `/bundle/{bundle_post_id}/search_eligible_members` | `search_eligible_members` | Yes |
 | `POST` | `/bundle` | `create_membership_bundle` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/change_owner` | `update_bundle_change_ownership` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/add_member` | `add_member_to_bundle` | Yes |
@@ -105,6 +106,14 @@ Delegates to `Membership_Bundle_Admin_Controller::get_bundle_members_by_tier()`.
 ```
 
 **Route:** `GET /bundle/{bundle_post_id}/members_by_tier/mine` — same handler, registered a second time with `permissions_check_bundle_org_member` as its permission callback instead of `permissions_check_read`. Member-scoped variant: no distinct method, since the response shape and business logic are identical — only authorization differs.
+
+### `search_eligible_members( \WP_REST_Request $request )`
+
+**Route:** `POST /bundle/{bundle_post_id}/search_eligible_members` — body: `term`
+
+Member-scoped counterpart to `Membership_WP_REST_Controller::mdp_person_lookup()` (`/mdp_person/search`), gated by `permissions_check_bundle_org_member` instead of the staff-only capability check. `bundle_post_id` is used only by the permission callback to resolve the bundle's org for the org-membership check; the handler itself ignores it and delegates the raw `term` straight to `wicket_search_person()` (base plugin), same as the staff route. Returns `400` if `term` is empty, `500` if `wicket_search_person()` returns `false`.
+
+Returns plain MDP person matches (`full_name`, `primary_email_address`, `id`) — no eligibility computation. Tier eligibility is still enforced only by `add_member` at submit time via `Membership_Bundle_Config::is_tier_eligible_for_bundle()`; there is no person-level duplicate-membership check for new members anywhere in this flow (see `add_member_to_bundle()` above).
 
 ### `update_bundle_change_ownership( \WP_REST_Request $request )`
 
