@@ -97,6 +97,7 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
           individualMembersUrl={individualMembersUrl}
           onMemberAdded={handleMemberAdded}
           onBundleCancelled={handleGroupCancelled}
+          onRenewalOrderQueued={retryLoad}
         />
       </ContentArea>
     </>

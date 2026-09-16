@@ -29,8 +29,11 @@ Loads all data required to populate the membership bundle detail page. Calls `fe
     error: Error | null;
   };
 
-  // Re-runs the full load sequence, resetting requestState to "loading".
-  // Wired to the "Retry loading" notice action.
+  // Re-runs the full load sequence, resetting requestState to "loading". Wired
+  // to the "Retry loading" notice action, and also called after a renewal order
+  // is successfully queued (manual create or the WCS-native action) so the
+  // overlay appears immediately instead of waiting for the next page load.
+  // Resumes polling itself if the freshly-loaded data shows a renewal in progress.
   retryLoad: () => Promise<object | null>;
 
   // Parsed membership_renewal_processing meta from the current pageData,
@@ -49,7 +52,7 @@ The hook inspects `pageData.meta.membership_renewal_processing` after each succe
 1. A `setTimeout` schedules a **silent refresh** after 10 seconds (`RENEWAL_POLL_INTERVAL_MS = 10000`).
 2. The silent refresh calls `fetchBundleEditPageInfo` and updates `pageData` **without** resetting `requestState` to `"loading"`, so the page skeleton does not flash.
 3. After each silent refresh, the hook checks `renewalProcessingMeta` again. If the batch is still running, it schedules another poll. If `completed_at` or `failed_at` is now present (or the field is absent), polling stops.
-4. Any in-flight `setTimeout` is cleared when `retryLoad` is called (full reload) or when the component unmounts (cleanup from `useEffect`).
+4. Any in-flight `setTimeout` is cleared whenever a fresh load starts (`retryLoad` or the initial mount) or when the component unmounts (cleanup from `useEffect`). `retryLoad` then re-evaluates the newly-loaded data and resumes polling if it shows a renewal in progress — this is how the overlay can appear immediately after `CreateBundleRenewalOrderModal` queues a renewal order, via its `onSuccess` callback calling `retryLoad` (threaded down as `onRenewalOrderQueued`), rather than only appearing after the next full page reload.
 
 The `RenewalProcessingOverlay` displays `offset` and `total_members` from `renewalProcessingMeta`, which update automatically with each poll cycle.
 

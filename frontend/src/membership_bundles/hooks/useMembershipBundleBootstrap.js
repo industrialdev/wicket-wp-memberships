@@ -31,21 +31,6 @@ export const useMembershipBundleBootstrap = ({ bundleGroupUuid }) => {
     }
   }, []);
 
-  const loadPageData = useCallback(async () => {
-    setRequestState(REQUEST_LOADING);
-    stopPolling();
-
-    try {
-      const data = await fetchBundleEditPageInfo(bundleGroupUuid);
-      setPageData(data);
-      setRequestState(REQUEST_SUCCESS);
-      return data;
-    } catch (error) {
-      setRequestState({ status: "error", error });
-      return null;
-    }
-  }, [bundleGroupUuid, stopPolling]);
-
   // Silent background refresh — does not reset requestState to loading so the
   // overlay can update progress without re-rendering the full page skeleton.
   const silentRefresh = useCallback(async () => {
@@ -76,14 +61,31 @@ export const useMembershipBundleBootstrap = ({ bundleGroupUuid }) => {
     [silentRefresh, stopPolling],
   );
 
+  const loadPageData = useCallback(async () => {
+    setRequestState(REQUEST_LOADING);
+    stopPolling();
+
+    try {
+      const data = await fetchBundleEditPageInfo(bundleGroupUuid);
+      setPageData(data);
+      setRequestState(REQUEST_SUCCESS);
+      // Resume polling if the freshly-loaded data shows a renewal in progress —
+      // e.g. retryLoad() called right after queuing a renewal order, so the overlay
+      // appears immediately instead of waiting for the next full page load.
+      scheduleNextPoll(data);
+      return data;
+    } catch (error) {
+      setRequestState({ status: "error", error });
+      return null;
+    }
+  }, [bundleGroupUuid, stopPolling, scheduleNextPoll]);
+
   useEffect(() => {
     if (bundleGroupUuid) {
-      loadPageData().then((data) => {
-        if (data) scheduleNextPoll(data);
-      });
+      loadPageData();
     }
     return stopPolling;
-  }, [bundleGroupUuid, loadPageData, scheduleNextPoll, stopPolling]);
+  }, [bundleGroupUuid, loadPageData, stopPolling]);
 
   return {
     pageData,

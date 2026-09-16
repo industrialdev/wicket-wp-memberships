@@ -49,8 +49,9 @@ const DetailsWrap = styled.div`
  * @param {Function} props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}   props.individualMembersUrl  - URL of the individual members list page for bundle member links.
  * @param {Function} [props.onBundleCancelled]    - Called with a success message after the bundle is cancelled.
+ * @param {Function} [props.onRenewalOrderQueued] - Called after a renewal order is successfully queued.
  */
-const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl, onMemberAdded, onBundleCancelled }) => {
+const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl, onMemberAdded, onBundleCancelled, onRenewalOrderQueued }) => {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isCancelGroupOpen, setIsCancelGroupOpen] = useState(false);
   const [isCreateRenewalOrderOpen, setIsCreateRenewalOrderOpen] = useState(false);
@@ -205,7 +206,10 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
         isOpen={isCreateRenewalOrderOpen}
         bundlePostId={bundlePostId}
         onRequestClose={() => setIsCreateRenewalOrderOpen(false)}
-        onSuccess={() => setIsCreateRenewalOrderOpen(false)}
+        onSuccess={() => {
+          setIsCreateRenewalOrderOpen(false);
+          if (onRenewalOrderQueued) onRenewalOrderQueued();
+        }}
       />
 
       <MembershipDetailsForm
