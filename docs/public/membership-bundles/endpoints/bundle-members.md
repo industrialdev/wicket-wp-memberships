@@ -155,6 +155,55 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/add_member
 
 ---
 
+## Add a member to a bundle (member-scoped)
+
+**`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/add_member/mine`**
+
+Member-scoped counterpart to [Add a member to a bundle](#add-a-member-to-a-bundle). Same request body, response, and errors — requires only that the requester belong (via an active MDP organisation connection) to the bundle's linked organisation, not the `wicket_memberships_admin` capability (see [Authentication](overview.md#authentication)).
+
+### URL parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundle_post_id` | `integer` | Yes | Post ID of the bundle to add the member to. |
+
+### Request body
+
+Same as [Add a member to a bundle](#add-a-member-to-a-bundle): `mode`, `tier_post_id`, `person_uuid` or `existing_membership_post_id`, `product_id`.
+
+### Response
+
+`200 OK` — same shape as [Add a member to a bundle](#add-a-member-to-a-bundle).
+
+### Errors
+
+:::details Error codes
+| Status | Cause |
+|---|---|
+| `401` | Not logged in |
+| `403` | Logged in, but the current member's MDP organisation connections do not include the bundle's `org_uuid` |
+| `404` | Bundle post not found |
+:::
+
+Also returns the same `400` business-logic errors as [Add a member to a bundle](#add-a-member-to-a-bundle) (`invalid_bundle_status`, `bundle_ended`, `ambiguous_product`, `invalid_user`, `invalid_tier`, `create_failed`).
+
+### Example
+
+:::details Example
+```bash
+curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/add_member/mine" \
+  -H "Content-Type: application/json" \
+  -H "X-WP-Nonce: {nonce}" \
+  -d '{
+    "mode": "new",
+    "tier_post_id": 88,
+    "person_uuid": "member-person-uuid"
+  }'
+```
+:::
+
+---
+
 ## Remove a member from a bundle
 
 **`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/remove_member`**
@@ -227,6 +276,54 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/remove_mem
   -d '{
     "membership_post_id": 456,
     "mode": "keep_as_individual"
+  }'
+```
+:::
+
+---
+
+## Remove a member from a bundle (member-scoped)
+
+**`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/remove_member/mine`**
+
+Member-scoped counterpart to [Remove a member from a bundle](#remove-a-member-from-a-bundle). Same request body, response, and errors — requires only that the requester belong (via an active MDP organisation connection) to the bundle's linked organisation, not the `wicket_memberships_admin` capability (see [Authentication](overview.md#authentication)).
+
+### URL parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundle_post_id` | `integer` | Yes | Post ID of the bundle. |
+
+### Request body
+
+Same as [Remove a member from a bundle](#remove-a-member-from-a-bundle): `membership_post_id`, `mode`.
+
+### Response
+
+`200 OK` — same shape as [Remove a member from a bundle](#remove-a-member-from-a-bundle).
+
+### Errors
+
+:::details Error codes
+| Status | Cause |
+|---|---|
+| `401` | Not logged in |
+| `403` | Logged in, but the current member's MDP organisation connections do not include the bundle's `org_uuid` |
+| `404` | Bundle post not found |
+:::
+
+Also returns the same `400` business-logic errors as [Remove a member from a bundle](#remove-a-member-from-a-bundle) (`invalid_bundle_status`, `invalid_membership`, `membership_not_in_bundle`, `invalid_user`).
+
+### Example
+
+:::details Example
+```bash
+curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/remove_member/mine" \
+  -H "Content-Type: application/json" \
+  -H "X-WP-Nonce: {nonce}" \
+  -d '{
+    "membership_post_id": 456,
+    "mode": "cancel"
   }'
 ```
 :::

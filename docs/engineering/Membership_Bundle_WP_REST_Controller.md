@@ -41,7 +41,9 @@ Call chain: **`Membership_Bundle_WP_REST_Controller`** → `Membership_Bundle_Ad
 | `POST` | `/bundle` | `create_membership_bundle` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/change_owner` | `update_bundle_change_ownership` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/add_member` | `add_member_to_bundle` | Yes |
+| `POST` | `/bundle/{bundle_post_id}/add_member/mine` | `add_member_to_bundle` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/remove_member` | `remove_member_from_bundle` | Yes |
+| `POST` | `/bundle/{bundle_post_id}/remove_member/mine` | `remove_member_from_bundle` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/move_individual_membership` | `move_individual_membership` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/cancel` | `cancel_bundle` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/create_renewal_order` | `create_bundle_renewal_order` | Yes |
@@ -137,6 +139,8 @@ Body params:
 
 Validates `mode` and conditional required params, then delegates to `Membership_Bundle_Admin_Controller::add_member()`. Returns `200` with `{ success, membership_post_id }` on success; `400` with `{ error }` on any validation or model failure.
 
+**Route:** `POST /bundle/{bundle_post_id}/add_member/mine` — same handler, registered a second time with `permissions_check_bundle_org_member` as its permission callback instead of `permissions_check_write`. Member-scoped variant: no distinct method or business logic, only authorization differs.
+
 ### `remove_member_from_bundle( \WP_REST_Request $request ): \WP_REST_Response`
 
 **Route:** `POST /bundle/{bundle_post_id}/remove_member`
@@ -152,6 +156,8 @@ Validates `mode`, then delegates to `Membership_Bundle_Admin_Controller::remove_
 
 - `cancel`: returned `membership_post_id` is the cancelled membership.
 - `keep_as_individual`: returned `membership_post_id` is the newly created standalone membership.
+
+**Route:** `POST /bundle/{bundle_post_id}/remove_member/mine` — same handler, registered a second time with `permissions_check_bundle_org_member` as its permission callback instead of `permissions_check_write`. Member-scoped variant: no distinct method or business logic, only authorization differs.
 
 ### `move_individual_membership( \WP_REST_Request $request )`
 

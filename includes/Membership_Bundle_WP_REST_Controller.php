@@ -450,6 +450,58 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
+     * Add an individual membership to a bundle (member-scoped).
+     *
+     * POST /wicket_member/v1/bundle/{bundle_post_id}/add_member/mine
+     * Body: { mode, tier_post_id, person_uuid|existing_membership_post_id, product_id? }
+     *
+     * Member-scoped counterpart to /bundle/{bundle_post_id}/add_member: gated
+     * by permissions_check_bundle_org_member instead of the staff-only
+     * capability check. Reuses add_member_to_bundle() and
+     * Membership_Bundle_Admin_Controller::add_member() as-is — no new
+     * business logic, only the permission layer differs.
+     */
+    register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/add_member/mine', [
+      [
+        'methods'             => \WP_REST_Server::CREATABLE,
+        'callback'            => [ $this, 'add_member_to_bundle' ],
+        'permission_callback' => [ $this, 'permissions_check_bundle_org_member' ],
+        'args'                => [
+          'bundle_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the membership bundle.',
+          ],
+          'mode' => [
+            'type'        => 'string',
+            'description' => '"new" to create a fresh membership, "existing" to cancel an existing membership and create a new one.',
+          ],
+          'tier_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the individual Membership_Tier CPT.',
+          ],
+          'person_uuid' => [
+            'type'        => 'string',
+            'description' => 'MDP person UUID. Required when mode = "new".',
+          ],
+          'existing_membership_post_id' => [
+            'type'        => 'integer',
+            'description' => 'Existing wicket_membership post ID to cancel. Required when mode = "existing".',
+          ],
+          'product_id' => [
+            'type'        => 'integer',
+            'description' => 'WC parent product ID. Auto-resolved from tier when omitted.',
+          ],
+          'variation_id' => [
+            'type'        => 'integer',
+            'description' => 'WC variation ID. When provided, stored as membership_product_id instead of parent product_id.',
+          ],
+        ],
+      ],
+    ] );
+
+    /**
      * Remove an individual membership from a bundle (cancel or keep as individual).
      *
      * POST /wicket_member/v1/bundle/{bundle_post_id}/remove_member
@@ -460,6 +512,42 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
         'methods'             => \WP_REST_Server::CREATABLE,
         'callback'            => [ $this, 'remove_member_from_bundle' ],
         'permission_callback' => [ $this, 'permissions_check_write' ],
+        'args'                => [
+          'bundle_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the membership bundle.',
+          ],
+          'membership_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the individual membership to remove.',
+          ],
+          'mode' => [
+            'type'        => 'string',
+            'description' => '"cancel" to end the membership immediately, "keep_as_individual" to convert to a standalone individual membership.',
+          ],
+        ],
+      ],
+    ] );
+
+    /**
+     * Remove an individual membership from a bundle (member-scoped).
+     *
+     * POST /wicket_member/v1/bundle/{bundle_post_id}/remove_member/mine
+     * Body: { membership_post_id, mode }
+     *
+     * Member-scoped counterpart to /bundle/{bundle_post_id}/remove_member:
+     * gated by permissions_check_bundle_org_member instead of the staff-only
+     * capability check. Reuses remove_member_from_bundle() and
+     * Membership_Bundle_Admin_Controller::remove_member() as-is — no new
+     * business logic, only the permission layer differs.
+     */
+    register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/remove_member/mine', [
+      [
+        'methods'             => \WP_REST_Server::CREATABLE,
+        'callback'            => [ $this, 'remove_member_from_bundle' ],
+        'permission_callback' => [ $this, 'permissions_check_bundle_org_member' ],
         'args'                => [
           'bundle_post_id' => [
             'required'    => true,
