@@ -29,16 +29,6 @@ class Membership_Bundle_Block_Controller {
     'wicket-acc-menu-mobile-two',
   ];
 
-  /**
-   * href substrings identifying which account-menu link the badge attaches
-   * to. Matched via a CSS attribute-contains selector (`[href*=...]`) so it
-   * still works regardless of query args or the exact page slug.
-   */
-  private const NAV_BADGE_HREF_FRAGMENTS = [
-    'membership-bundles',
-    'membership-groups',
-  ];
-
   public function __construct() {
     add_action( 'init', [ $this, 'register_block' ] );
     add_action( 'wp_head', [ $this, 'render_nav_badge_style' ] );
@@ -120,6 +110,32 @@ class Membership_Bundle_Block_Controller {
   }
 
   /**
+   * Determine the href substring(s) identifying the account-menu link the
+   * "requires attention" badge attaches to.
+   *
+   * Derived from the actual slug of the configured "Manage Membership
+   * Bundles" page (Settings > Wicket Memberships > Membership Bundles),
+   * since that's the real URL the account nav links to. Returns an empty
+   * array when no page is configured yet, or the configured page no longer
+   * exists/is unpublished — callers should treat that as "nothing to match"
+   * and render no badge.
+   *
+   * @return string[]
+   */
+  private static function get_nav_badge_href_fragments(): array {
+    $page_id = Helper::get_membership_bundles_manage_page_id();
+
+    if ( $page_id > 0 && get_post_status( $page_id ) === 'publish' ) {
+      $slug = get_post_field( 'post_name', $page_id );
+      if ( ! empty( $slug ) ) {
+        return [ $slug ];
+      }
+    }
+
+    return [];
+  }
+
+  /**
    * Echo a <style> block with a ::after badge on the membership-bundles /
    * membership-groups link inside each account nav menu ID variant, showing
    * the current member's "requires attention" bundle count. Hooked to
@@ -139,17 +155,24 @@ class Membership_Bundle_Block_Controller {
       return;
     }
 
+    $href_fragments = self::get_nav_badge_href_fragments();
+
+    // Nothing to attach the badge to until a "Manage Membership Bundles" page is configured.
+    if ( empty( $href_fragments ) ) {
+      return;
+    }
+
     $badge_text = (string) $count;
 
     $selectors = [];
     foreach ( self::NAV_BADGE_MENU_IDS as $menu_id ) {
-      foreach ( self::NAV_BADGE_HREF_FRAGMENTS as $href_fragment ) {
-        $selectors[] = '#' . $menu_id . ' > .menu-item > a[href*=' . $href_fragment . ']::after';
+      foreach ( $href_fragments as $href_fragment ) {
+        $selectors[] = '#' . $menu_id . ' > .menu-item > a[href*=' . esc_attr( $href_fragment ) . ']::after';
       }
     }
     ?>
     <style id="wicket-mship-nav-badge-style">
-      <?php echo implode( ",\n      ", $selectors ); // phpcs:ignore WordPress.Security.EscapeOutput -- static, hardcoded IDs, no user input. ?> {
+      <?php echo implode( ",\n      ", $selectors ); // phpcs:ignore WordPress.Security.EscapeOutput -- selectors built from hardcoded IDs and esc_attr()'d page slug above. ?> {
         content: "<?php echo esc_html( $badge_text ); ?>";
         display: inline-flex;
         align-items: center;
