@@ -671,10 +671,14 @@ class Membership_Bundle_Cron_Controller {
       return;
     }
 
-    if ( class_exists( '\\WCS_Admin_Meta_Boxes' ) ) {
+    if ( class_exists( 'WCS_Admin_Meta_Boxes' ) ) {
+      // No leading backslash — WCS registered this callback as ['WCS_Admin_Meta_Boxes', ...]
+      // (unqualified, global namespace). class_exists() normalizes a leading backslash but
+      // WordPress's callback identity check (_wp_filter_build_unique_id()) does not, so a
+      // leading backslash here silently fails to match and remove_action() removes nothing.
       remove_action(
         'woocommerce_order_action_wcs_create_pending_renewal',
-        [ '\\WCS_Admin_Meta_Boxes', 'create_pending_renewal_action_request' ],
+        [ 'WCS_Admin_Meta_Boxes', 'create_pending_renewal_action_request' ],
         10
       );
     }
