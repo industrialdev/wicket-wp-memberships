@@ -186,6 +186,17 @@ class Helper {
     return 'wicket_mship_bcfg';
   }
 
+  /**
+   * Gets the ID of the front-end "Manage Membership Bundles" page, as configured in
+   * Settings > Wicket Memberships > Membership Bundles.
+   *
+   * @return int The page ID, or 0 if none has been configured.
+   */
+  public static function get_membership_bundles_manage_page_id() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    return isset( $options['wicket_mship_bundles_manage_page_id'] ) ? (int) $options['wicket_mship_bundles_manage_page_id'] : 0;
+  }
+
   public static function is_valid_membership_post( $membership_post_id ) {
     return ( !empty( get_post_status( $membership_post_id ) ) && get_post_status( $membership_post_id ) == 'publish' );
   }

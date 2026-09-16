@@ -130,6 +130,7 @@ class Settings {
     // Membership Bundles section
     add_settings_section( 'membership_bundles_settings', 'Membership Bundles', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_membership_bundles_text'], 'wicket_membership_plugin' );
     add_settings_field( 'wicket_mship_enable_bundles', '<p>Enable Membership Bundles</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_enable_bundles'], 'wicket_membership_plugin', 'membership_bundles_settings' );
+    add_settings_field( 'wicket_mship_bundles_manage_page_id', '<p>Manage Membership Bundles Page</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_bundles_manage_page_id'], 'wicket_membership_plugin', 'membership_bundles_settings' );
 
     //debug
     add_settings_section( 'debug_settings', 'Debug Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_debug_text'], 'wicket_membership_plugin' );
@@ -213,6 +214,58 @@ class Settings {
     echo "<input id='wicket_mship_enable_bundles' name='wicket_membership_plugin_options[wicket_mship_enable_bundles]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_enable_bundles']), false). " />"
       .'Enable the Membership Bundles system. When enabled, the Membership Bundles list page and Bundle Configs menu will appear in the admin.'
       .'<p><span style="color:#b32d2e;font-weight:bold;">Note:</span> Disabling this toggle <strong>only hides the admin pages</strong>. It does <strong>not</strong> cancel, delete, or disable any existing membership bundles, bundle configs, or their associated Action Scheduler jobs. All scheduled background processing for existing bundles will continue to run unaffected.</p>';
+  }
+
+  /**
+   * Renders a page-picker for the front-end "Manage Membership Bundles" page.
+   *
+   * Stores the selected page ID so front-end code (blocks/templates that need to link
+   * to the bundle management page) can resolve it via Helper::get_membership_bundles_manage_page_id()
+   * instead of hard-coding a page slug or ID.
+   *
+   * Built manually (rather than wp_dropdown_pages(), which only queries the core 'page'
+   * post type) because the "Manage Membership Bundles" experience is commonly embedded on
+   * an Account Centre page, which lives on the 'my-account' CPT registered by wicket-acc.
+   *
+   * @return void
+   */
+  public static function wicket_mship_bundles_manage_page_id() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    $selected_page_id = isset( $options['wicket_mship_bundles_manage_page_id'] ) ? (int) $options['wicket_mship_bundles_manage_page_id'] : 0;
+
+    // Include both regular WP Pages and Account Centre ('my-account') pages, since the
+    // bundle management block is typically embedded on an Account Centre page.
+    $post_types = [ 'page' => __( 'Pages', 'wicket-memberships' ) ];
+    if ( post_type_exists( 'my-account' ) ) {
+      $post_types['my-account'] = __( 'Account Centre Pages', 'wicket-memberships' );
+    }
+
+    echo "<select name='wicket_membership_plugin_options[wicket_mship_bundles_manage_page_id]' id='wicket_mship_bundles_manage_page_id'>";
+    echo '<option value="0">' . esc_html__( '— Select a page —', 'wicket-memberships' ) . '</option>';
+
+    foreach ( $post_types as $post_type => $group_label ) {
+      $pages = get_posts( [
+        'post_type'      => $post_type,
+        'post_status'    => 'publish',
+        'posts_per_page' => -1,
+        'orderby'        => 'title',
+        'order'          => 'ASC',
+      ] );
+
+      if ( empty( $pages ) ) {
+        continue;
+      }
+
+      echo '<optgroup label="' . esc_attr( $group_label ) . '">';
+      foreach ( $pages as $page ) {
+        echo '<option value="' . esc_attr( $page->ID ) . '" ' . selected( $selected_page_id, $page->ID, false ) . '>' . esc_html( $page->post_title ) . '</option>';
+      }
+      echo '</optgroup>';
+    }
+
+    echo '</select>';
+
+    echo '<p>Select the page where the "Manage Membership Bundles" front-end experience (bundle list / bundle detail block) is embedded. Includes both regular Pages and Account Centre pages. Used to build links to that page elsewhere in the plugin.</p>';
   }
 
   public static function wicket_plugin_section_membership_bundles_text() {
@@ -411,6 +464,7 @@ class Settings {
     $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim($input['wicket_mship_import_create_subscriptions_tier_only']);
     $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
     $newinput['wicket_mship_enable_bundles'] = trim($input['wicket_mship_enable_bundles']);
+    $newinput['wicket_mship_bundles_manage_page_id'] = isset( $input['wicket_mship_bundles_manage_page_id'] ) ? (int) $input['wicket_mship_bundles_manage_page_id'] : 0;
     $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
     if(!empty($_REQUEST['schedule_daily_membership_expiry_hook'])) {
       $count = Membership_Controller::daily_membership_expiry_hook();

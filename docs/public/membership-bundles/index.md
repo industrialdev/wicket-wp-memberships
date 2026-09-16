@@ -45,6 +45,12 @@ Toggling this setting only controls visibility of the admin menu pages (Membersh
 
 For programmatic or environment-based control, the underlying option is `wicket_mship_enable_bundles` (stored in `wicket_membership_plugin_options`) and the corresponding env flag is `WICKET_MSHIP_ENABLE_BUNDLES`.
 
+### Manage Membership Bundles page
+
+The same **Membership Bundles** settings section includes a **Manage Membership Bundles Page** picker, which selects the front-end WordPress page hosting the bundle list / bundle detail block (see `templates/account-membership-bundles/`). The selected page ID is stored as `wicket_mship_bundles_manage_page_id` in `wicket_membership_plugin_options`.
+
+Resolve it programmatically with `Helper::get_membership_bundles_manage_page_id()`, which returns the configured page ID (or `0` if none has been set).
+
 ## Glossary
 
 These terms appear throughout the documentation. If you're new to the Wicket stack, read this first.
