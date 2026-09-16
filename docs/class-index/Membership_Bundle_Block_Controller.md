@@ -3,7 +3,7 @@
 **File:** `includes/Membership_Bundle_Block_Controller.php`
 **Namespace:** `Wicket_Memberships`
 
-Registers the `wicket-memberships/membership-bundles-list` Gutenberg block — a plain (non-ACF) dynamic block with no configurable attributes. The front end is rendered entirely by `includes/blocks/membership-bundles-list/render.php`, which in turn includes `templates/account-membership-bundles/list.php` (the "Membership Bundle - List" PHP + Alpine.js screen). The editor preview uses a small no-build `index.js` (registered via block.json's `editorScript`, with dependencies declared in the sibling `index.asset.php` since there's no webpack/`@wordpress/scripts` step) that wraps `<ServerSideRender>` — this is what makes the block reliably show up and preview in the inserter; block.json alone (render-only, no editor script) is not sufficient on all WP/Gutenberg versions.
+Registers the `wicket-memberships/membership-bundles-list` Gutenberg block — a plain (non-ACF) dynamic block with no configurable attributes. The front end is rendered entirely by `includes/blocks/membership-bundles-list/render.php`, which switches between two PHP + Alpine.js templates on the SAME rendered page based on the current URL: `templates/account-membership-bundles/list.php` (the "Membership Bundle - List" screen, default) when there is no `bundle_post_id` query param, or `templates/account-membership-bundles/detail.php` (the "Membership Bundle - Detail/Manage" screen — status/dates, tier breakdown, members table) when `bundle_post_id` is a positive integer. This lets `list.php`'s "Manage Bundle" links stay simple (just add `bundle_post_id` to the current URL) without needing a second page or any mechanism to locate one. The editor preview uses a small no-build `index.js` (registered via block.json's `editorScript`, with dependencies declared in the sibling `index.asset.php` since there's no webpack/`@wordpress/scripts` step) that wraps `<ServerSideRender>` — this is what makes the block reliably show up and preview in the inserter; block.json alone (render-only, no editor script) is not sufficient on all WP/Gutenberg versions.
 
 ## Why a separate controller
 
@@ -52,6 +52,7 @@ Badge styling uses theme v2 CSS custom properties (`--spacing-200`, `--spacing-7
 
 ## Related
 
-- REST data source: `Membership_Bundle_WP_REST_Controller::get_my_membership_bundles()` — `GET /wicket_member/v1/membership_bundles/mine`.
-- Row/query logic: `Membership_Bundle_Admin_Controller::get_membership_bundles_list()` (`$owner_user_id` param).
-- Public docs: `docs/public/membership-bundles/endpoints/bundles.md` (endpoint), `docs/public/membership-bundles/classes/membership-bundle-admin-controller.md` (query method).
+- List view REST data source: `Membership_Bundle_WP_REST_Controller::get_my_membership_bundles()` — `GET /wicket_member/v1/membership_bundles/mine`.
+- List view row/query logic: `Membership_Bundle_Admin_Controller::get_membership_bundles_list()` (`$owner_user_id` param).
+- Detail view REST data sources (all `permissions_check_bundle_org_member`-gated, in `Membership_Bundle_WP_REST_Controller`): `get_bundle_entity()` (`GET .../membership_bundle_entity/mine`), `get_bundle_members_by_tier()` (`GET .../bundle/{id}/members_by_tier/mine`), `get_bundle_members()` (`GET .../bundle/{id}/members/mine`).
+- Public docs: `docs/public/membership-bundles/endpoints/bundles.md` (all four `/mine` endpoints above), `docs/public/membership-bundles/classes/membership-bundle-admin-controller.md` (query methods).

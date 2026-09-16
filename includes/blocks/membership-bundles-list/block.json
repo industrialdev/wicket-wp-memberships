@@ -4,7 +4,7 @@
   "name": "wicket-memberships/membership-bundles-list",
   "title": "Membership Bundles List",
   "category": "wicket",
-  "description": "Lists the membership bundles owned by the current logged-in member, with a link to manage each one.",
+  "description": "Lists the membership bundles owned by the current logged-in member, with a link to manage each one. Also renders the bundle detail/manage screen (status, tier breakdown, members table) when the URL carries a bundle_post_id query param.",
   "textdomain": "wicket-memberships",
   "editorScript": "file:./index.js",
   "style": "file:./style.css",

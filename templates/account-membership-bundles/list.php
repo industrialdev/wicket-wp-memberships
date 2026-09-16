@@ -24,7 +24,10 @@ $rest_url  = esc_url_raw( rest_url( 'wicket_member/v1/membership_bundles/mine' )
 $rest_nonce = wp_create_nonce( 'wp_rest' );
 $mdp_timezone = $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC';
 
-// TODO: point at the real bundle-detail screen once it exists. See TODO.md.
+// The detail screen lives on this same page/block, switched in by
+// render.php when `bundle_post_id` is present on the URL — so "Manage
+// Bundle" just needs the current URL as a base for manageBundleUrl() to add
+// that param to (see templates/account-membership-bundles/detail.php).
 $manage_bundle_base_url = esc_url_raw( add_query_arg( [] ) );
 
 // Built as one JSON blob and esc_attr()'d as a whole below — embedding several

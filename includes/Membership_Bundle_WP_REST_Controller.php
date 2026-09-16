@@ -330,6 +330,58 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
+     * List individual member seats within a bundle, for the bundle-detail
+     * members table (member-scoped).
+     *
+     * GET /wicket_member/v1/bundle/{bundle_post_id}/members/mine
+     *
+     * Gated by permissions_check_bundle_org_member. Unlike the other /mine
+     * routes, this does NOT reuse an existing staff handler directly:
+     * Membership_Controller::get_members_list() (which backs the staff
+     * /memberships route) accepts a client-supplied `filter[membership_bundle_id]`
+     * with no ownership check, and its row shape includes staff-only fields
+     * (mdp_link) and cross-bundle data (all_membership_tiers,
+     * all_membership_bundles) that must not reach a member. get_bundle_members()
+     * forces membership_bundle_id server-side from the already-authorized
+     * bundle_post_id and returns a minimal, explicit row shape instead of
+     * passing the staff response through — see that method for details.
+     */
+    register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/members/mine', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_bundle_members' ],
+        'permission_callback' => [ $this, 'permissions_check_bundle_org_member' ],
+        'args'                => [
+          'bundle_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'The WP post ID of the membership bundle.',
+          ],
+          'page' => [
+            'type'        => 'integer',
+            'description' => 'Paginated results page.',
+          ],
+          'posts_per_page' => [
+            'type'        => 'integer',
+            'description' => 'Paginated results per page.',
+          ],
+          'tier_uuid' => [
+            'type'        => 'string',
+            'description' => 'Restrict results to one tier (matches membership_tier_uuid).',
+          ],
+          'order_col' => [
+            'type'        => 'string',
+            'description' => 'Order by column name.',
+          ],
+          'order_dir' => [
+            'type'        => 'string',
+            'description' => 'Order by direction.',
+          ],
+        ],
+      ],
+    ] );
+
+    /**
      * Search MDP people by name or email for the add-member flow (member-scoped).
      *
      * POST /wicket_member/v1/bundle/{bundle_post_id}/search_eligible_members
@@ -758,6 +810,76 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     $params = $request->get_params();
     $response = Membership_Bundle_Admin_Controller::get_bundle_members_by_tier( (int) $params['bundle_post_id'] );
     return rest_ensure_response( $response );
+  }
+
+  /**
+   * GET /bundle/{bundle_post_id}/members/mine
+   *
+   * Builds its own filter and calls Membership_Controller::get_members_list()
+   * directly rather than delegating to Membership_WP_REST_Controller's
+   * /memberships handler — that route trusts the caller's own `filter` input
+   * for membership_bundle_id, which would let an authorized-for-this-bundle
+   * member also request another bundle's members by changing the filter.
+   * bundle_post_id is instead read from the already-validated route param and
+   * used as the ONLY source of the membership_bundle_id filter.
+   */
+  public function get_bundle_members( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $bundle_post_id = (int) $params['bundle_post_id'];
+
+    $filter = [ 'membership_bundle_id' => $bundle_post_id ];
+    if ( ! empty( $params['tier_uuid'] ) ) {
+      $filter['membership_tier'] = sanitize_text_field( $params['tier_uuid'] );
+    }
+
+    $membership_controller = new Membership_Controller();
+    $response = $membership_controller->get_members_list(
+      'individual',
+      $params['page'] ?? 1,
+      $params['posts_per_page'] ?? 25,
+      '',
+      '',
+      $filter,
+      $params['order_col'] ?? null,
+      $params['order_dir'] ?? null
+    );
+
+    if ( ! is_array( $response ) || ! isset( $response['results'] ) ) {
+      return new WP_REST_Response( [ 'error' => 'Unable to load bundle members.' ], 500 );
+    }
+
+    // Reshape into an explicit, minimal row rather than returning
+    // get_members_list()'s output as-is: that shape carries a staff-only MDP
+    // admin link and cross-bundle/cross-org membership data (all_membership_tiers,
+    // all_membership_bundles) that has no place in a member-facing response,
+    // plus a raw, unaudited post-meta dump that may include internal fields.
+    $response['results'] = array_map( [ $this, 'shape_member_row_for_member' ], $response['results'] );
+
+    return rest_ensure_response( $response );
+  }
+
+  /**
+   * Reduce a Membership_Controller::get_members_list() row down to the fields
+   * safe to expose to a member viewing their own org's bundle.
+   */
+  private function shape_member_row_for_member( $row ) {
+    $meta        = is_array( $row->meta ?? null ) ? $row->meta : [];
+    $user        = $row->user ?? null;
+    $status_slug = $meta['membership_status'] ?? '';
+    $statuses    = Helper::get_all_status_names();
+
+    return [
+      'ID'                     => $row->ID ?? null,
+      'first_name'             => $user->first_name ?? '',
+      'last_name'              => $user->last_name ?? '',
+      'email'                  => $user->user_email ?? '',
+      'membership_status'      => $statuses[ $status_slug ]['name'] ?? $status_slug,
+      'membership_status_slug' => $status_slug,
+      'membership_starts_at'   => $meta['membership_starts_at'] ?? '',
+      'membership_ends_at'     => $meta['membership_ends_at'] ?? '',
+      'membership_expires_at'  => $meta['membership_expires_at'] ?? '',
+      'tier_uuid'              => $meta['membership_tier_uuid'] ?? '',
+    ];
   }
 
   /**

@@ -148,6 +148,80 @@ curl "https://example.com/wp-json/wicket_member/v1/membership_bundle_entity/mine
 
 ---
 
+## List bundle members (member-scoped)
+
+**`GET /wp-json/wicket_member/v1/bundle/{bundle_post_id}/members/mine`**
+
+Returns a paginated list of individual member seats within a bundle, for the bundle-detail members table. Requires the requester to belong (via an active MDP organisation connection) to the bundle's linked organisation, not the `wicket_memberships_admin` capability (see [Authentication](overview.md#authentication)).
+
+Purpose-built for member-facing use: `bundle_post_id` is resolved server-side from the URL and cannot be overridden by request data, and each row is a minimal, explicit shape — it does not include the MDP admin link or the cross-bundle/cross-org membership history that the staff-only members list exposes.
+
+### URL parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundle_post_id` | `integer` | Yes | Post ID of the bundle. |
+
+### Query parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `page` | `integer` | No | Page number. Default `1`. |
+| `posts_per_page` | `integer` | No | Results per page. Default `25`. |
+| `tier_uuid` | `string` | No | Restrict results to one tier. |
+| `order_col` | `string` | No | Column to sort by. |
+| `order_dir` | `string` | No | `ASC` or `DESC`. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+    "results": [
+        {
+            "ID": 456,
+            "first_name": "Jane",
+            "last_name": "Smith",
+            "email": "jane@acme.com",
+            "membership_status": "Active",
+            "membership_status_slug": "active",
+            "membership_starts_at": "2025-01-01T00:00:00+00:00",
+            "membership_ends_at": "2025-12-31T23:59:59+00:00",
+            "membership_expires_at": "2026-01-30T23:59:59+00:00",
+            "tier_uuid": "abc-123"
+        }
+    ],
+    "page": 1,
+    "posts_per_page": 25,
+    "count": 1
+}
+```
+
+`ID` is the `wicket_membership` post ID. `tier_uuid` matches a `tier_uuid` in [Get member count by tier](#get-member-count-by-tier)'s `tiers[]` — join client-side to display the tier name rather than re-fetching it. Dates are raw ISO 8601 strings in the MDP timezone — never pre-formatted.
+
+### Errors
+
+:::details Error codes
+| Status | Cause |
+|---|---|
+| `401` | Not logged in |
+| `403` | Logged in, but the current member's MDP organisation connections do not include the bundle's `org_uuid` |
+| `404` | Bundle post not found |
+| `500` | The underlying member query failed unexpectedly |
+:::
+
+### Example
+
+:::details Example
+```bash
+curl "https://example.com/wp-json/wicket_member/v1/bundle/123/members/mine?page=1" \
+  -H "X-WP-Nonce: {nonce}"
+```
+:::
+
+---
+
 ## Update a bundle record
 
 **`POST /wp-json/wicket_member/v1/membership_bundle_entity/{bundle_post_id}/update`**

@@ -37,6 +37,7 @@ Call chain: **`Membership_Bundle_WP_REST_Controller`** → `Membership_Bundle_Ad
 | `GET` | `/membership_bundle_filters` | `get_membership_bundle_filters` | Yes |
 | `GET` | `/bundle/{bundle_post_id}/members_by_tier` | `get_bundle_members_by_tier` | Yes |
 | `GET` | `/bundle/{bundle_post_id}/members_by_tier/mine` | `get_bundle_members_by_tier` | Yes |
+| `GET` | `/bundle/{bundle_post_id}/members/mine` | `get_bundle_members` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/search_eligible_members` | `search_eligible_members` | Yes |
 | `POST` | `/bundle` | `create_membership_bundle` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/change_owner` | `update_bundle_change_ownership` | Yes |
@@ -116,6 +117,34 @@ Delegates to `Membership_Bundle_Admin_Controller::get_bundle_members_by_tier()`.
 Member-scoped counterpart to `Membership_WP_REST_Controller::mdp_person_lookup()` (`/mdp_person/search`), gated by `permissions_check_bundle_org_member` instead of the staff-only capability check. `bundle_post_id` is used only by the permission callback to resolve the bundle's org for the org-membership check; the handler itself ignores it and delegates the raw `term` straight to `wicket_search_person()` (base plugin), same as the staff route. Returns `400` if `term` is empty, `500` if `wicket_search_person()` returns `false`.
 
 Returns plain MDP person matches (`full_name`, `primary_email_address`, `id`) — no eligibility computation. Tier eligibility is still enforced only by `add_member` at submit time via `Membership_Bundle_Config::is_tier_eligible_for_bundle()`; there is no person-level duplicate-membership check for new members anywhere in this flow (see `add_member_to_bundle()` above).
+
+### `get_bundle_members( \WP_REST_Request $request )`
+
+**Route:** `GET /bundle/{bundle_post_id}/members/mine` — optional query params: `page`, `posts_per_page`, `tier_uuid`, `order_col`, `order_dir`
+
+Unlike the other `/mine` routes, this is **not** a permission-only variant of an existing handler — it's a new, deliberately narrower wrapper around `Membership_Controller::get_members_list()` (the same method backing the staff `GET /memberships` route). Two problems ruled out reusing that route directly for a member-facing screen:
+
+1. `get_members_list()`'s `$filter` array (including `membership_bundle_id`) is trusted verbatim from the request with no ownership check — the staff route's `permissions_check_read` only checks a capability, never that the caller may see *this* bundle. Forwarding a client-supplied filter here would let anyone who passes `permissions_check_bundle_org_member` for bundle A also request bundle B's members by changing `filter[membership_bundle_id]`.
+2. Its row shape includes a staff-only `mdp_link` (direct MDP admin URL) and cross-bundle/cross-org data (`all_membership_tiers`, `all_membership_bundles` — every tier/bundle that person holds anywhere), plus a raw, unaudited dump of all non-underscore-prefixed post meta on the membership CPT.
+
+`get_bundle_members()` instead builds `$filter = ['membership_bundle_id' => $bundle_post_id]` itself from the already-authorized route param (never from client input), optionally adds `membership_tier` from the validated `tier_uuid` query arg, and calls `get_members_list('individual', ...)` directly. Each result row is then passed through `shape_member_row_for_member()`, which returns an explicit minimal shape instead of the raw row:
+
+```json
+{
+  "ID": 456,
+  "first_name": "Jane",
+  "last_name": "Smith",
+  "email": "jane@acme.com",
+  "membership_status": "Active",
+  "membership_status_slug": "active",
+  "membership_starts_at": "2025-01-01T00:00:00+00:00",
+  "membership_ends_at": "2025-12-31T23:59:59+00:00",
+  "membership_expires_at": "2026-01-30T23:59:59+00:00",
+  "tier_uuid": "abc-123"
+}
+```
+
+`tier_uuid` is meant to be joined client-side against `members_by_tier`'s `tiers[].tier_uuid`/`tier_name` (already fetched for the summary counts) rather than resolving the tier name server-side a second time. `membership_status_slug` uses `Helper::get_all_status_names()`, the same slug/label source as `Membership_Bundle_Admin_Controller::get_bundle_entity_records()`.
 
 ### `update_bundle_change_ownership( \WP_REST_Request $request )`
 

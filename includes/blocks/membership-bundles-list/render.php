@@ -8,6 +8,14 @@
  * configurable widget, so nothing here needs saving back to post content. The
  * editor preview (index.js) calls this same render path via ServerSideRender.
  *
+ * This one block renders TWO views of the same "Manage Group Membership"
+ * flow, both living on whatever single page a site editor places it on:
+ * the bundle list (default) and the bundle detail/manage screen, switched by
+ * the presence of a `bundle_post_id` query param on the current URL. This
+ * avoids needing a second page (and a way to find it) for the detail screen —
+ * list.php's "Manage Bundle" links already just add that param to the
+ * current URL.
+ *
  * @package Wicket_Memberships
  */
 
@@ -37,6 +45,14 @@ if ( ! Membership_Bundle_Block_Controller::is_alpine_available() ) {
       esc_html__( 'Admin note: Alpine.js is not available on this page, so the Membership Bundles List block cannot render. Enable Alpine via wicket-wp-base-plugin or the active theme.', 'wicket-memberships' ) .
       '</p>';
   }
+  return;
+}
+
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only view switch, not a form submission.
+$bundle_post_id = isset( $_GET['bundle_post_id'] ) ? (int) $_GET['bundle_post_id'] : 0;
+
+if ( $bundle_post_id > 0 ) {
+  require WICKET_MEMBERSHIP_PLUGIN_DIR . 'templates/account-membership-bundles/detail.php';
   return;
 }
 

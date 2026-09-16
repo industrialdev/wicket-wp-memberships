@@ -169,3 +169,348 @@
   font-size: var(--body-sm-font-size, 0.9rem);
   color: var(--text-content-secondary, #4b5563);
 }
+
+/* Bundle detail (Manage) screen
+   ------------------------------------------------------------------------
+   Rendered by the same block as the list above (see render.php), but as a
+   separate template (detail.php) with its own markup — so this gets its
+   own .wicket-mship-bundle-detail prefix rather than sharing the
+   .wicket-mship-bundle-list__* / .wicket-mship-bundle-card__* classes
+   above, even though several rules (loading/empty/error text, status
+   dots, pagination) intentionally mirror them visually. */
+
+.wicket-mship-bundle-detail {
+  max-width: 1075px;
+  margin: 0 auto;
+  padding: var(--space-400, 2rem) var(--space-200, 1rem);
+  font-family: inherit;
+}
+
+.wicket-mship-bundle-detail__back {
+  display: inline-block;
+  font-size: var(--body-sm-font-size, 0.9rem);
+  font-weight: 600;
+  color: var(--interactive, #2563eb);
+  text-decoration: underline;
+  margin-bottom: var(--space-300, 1.5rem);
+}
+
+.wicket-mship-bundle-detail__title {
+  font-size: var(--heading-xl-font-size, 2rem);
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0 0 var(--space-150, 0.75rem);
+}
+
+.wicket-mship-bundle-detail__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-100, 0.4rem);
+  color: var(--text-content-secondary, #4b5563);
+  font-size: var(--body-sm-font-size, 0.9rem);
+  margin-bottom: var(--space-300, 1.5rem);
+}
+
+.wicket-mship-bundle-detail__status-dot {
+  width: var(--space-100, 0.5rem);
+  height: var(--space-100, 0.5rem);
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.wicket-mship-bundle-detail__status-dot--active {
+  background: var(--state-success, #16a34a);
+}
+
+.wicket-mship-bundle-detail__status-dot--pending,
+.wicket-mship-bundle-detail__status-dot--delayed,
+.wicket-mship-bundle-detail__status-dot--grace_period {
+  background: var(--state-warning, #d97706);
+}
+
+.wicket-mship-bundle-detail__status-dot--expired,
+.wicket-mship-bundle-detail__status-dot--cancelled {
+  background: var(--state-error, #dc2626);
+}
+
+.wicket-mship-bundle-detail__fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-300, 1.5rem);
+  background: var(--bg-accent-light, #dde6fc);
+  border-radius: var(--card-accent-corner-radius, 0.85rem);
+  padding: var(--space-200, 1.1rem) var(--space-300, 1.5rem);
+  margin-bottom: var(--space-1000, 5.5rem);
+}
+
+.wicket-mship-bundle-detail__field {
+  flex: 1 1 150px;
+  min-width: 0;
+}
+
+.wicket-mship-bundle-detail__field-label {
+  font-size: var(--body-sm-font-size, 0.85rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-content-secondary, #5b6584);
+  margin: 0 0 var(--space-100, 0.35rem);
+}
+
+.wicket-mship-bundle-detail__field-value {
+  font-size: var(--body-md-font-size, 1rem);
+  font-weight: 700;
+  color: var(--text-content, #111827);
+  margin: 0;
+}
+
+.wicket-mship-bundle-detail__divider {
+  border: none;
+  border-top: 1px solid var(--border-light, #e5e7eb);
+  margin: 0 0 var(--space-300, 1.5rem);
+}
+
+.wicket-mship-bundle-detail__section-title {
+  font-size: var(--heading-sm-font-size, 1.25rem);
+  font-weight: 700;
+  margin: 0 0 var(--space-200, 1rem);
+}
+
+.wicket-mship-bundle-detail__loading,
+.wicket-mship-bundle-detail__empty {
+  color: var(--text-content-secondary, #4b5563);
+  padding: var(--space-200, 1rem) 0;
+}
+
+.wicket-mship-bundle-detail__error {
+  color: var(--state-error, #991b1b);
+  background: var(--state-error-light, #fef2f2);
+  border: 1px solid var(--state-error-light, #fecaca);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-150, 0.75rem) var(--space-200, 1rem);
+}
+
+/* Tier summary */
+
+.wicket-mship-bundle-detail__tier-summary {
+  margin-bottom: var(--space-1000, 5.5rem);
+}
+
+.wicket-mship-bundle-detail__tier-summary-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-150, 0.75rem);
+  margin-bottom: var(--space-150, 0.75rem);
+}
+
+.wicket-mship-bundle-detail__tier-summary-heading {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-150, 0.75rem);
+}
+
+.wicket-mship-bundle-detail__tier-summary-title {
+  font-size: var(--label-sm-font-size, 0.8rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-content, #111827);
+}
+
+.wicket-mship-bundle-detail__tier-summary-count {
+  font-size: var(--body-sm-font-size, 0.9rem);
+  color: var(--text-content-secondary, #6b7280);
+}
+
+.wicket-mship-bundle-detail__tier-summary-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-75, 0.4rem);
+  font-size: var(--body-sm-font-size, 0.9rem);
+  font-weight: 600;
+  color: var(--interactive, #2563eb);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.wicket-mship-bundle-detail__tier-summary-chevron {
+  transition: transform 0.15s ease;
+}
+
+.wicket-mship-bundle-detail__tier-summary-chevron--open {
+  transform: rotate(180deg);
+}
+
+.wicket-mship-bundle-detail__tier-summary-divider {
+  border: none;
+  border-top: 1px solid var(--border-light, #e5e7eb);
+  margin: 0 0 var(--space-200, 1rem);
+}
+
+.wicket-mship-bundle-detail__tier-grid {
+  columns: 3 200px;
+  column-gap: var(--space-300, 1.5rem);
+}
+
+.wicket-mship-bundle-detail__tier-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-200, 1rem);
+  font-size: var(--body-sm-font-size, 0.9rem);
+  padding: var(--space-100, 0.55rem) 0;
+  border-bottom: 1px solid var(--border-light, #e5e7eb);
+  break-inside: avoid;
+}
+
+.wicket-mship-bundle-detail__tier-name {
+  color: var(--text-content, #111827);
+}
+
+.wicket-mship-bundle-detail__tier-count {
+  font-weight: 700;
+  color: var(--text-content, #111827);
+  flex-shrink: 0;
+}
+
+/* Members table */
+
+.wicket-mship-bundle-detail__members-table-wrap {
+  overflow-x: auto;
+  margin-bottom: var(--space-200, 1rem);
+}
+
+.wicket-mship-bundle-detail__members-table-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+
+.wicket-mship-bundle-detail__members-table-wrap::-webkit-scrollbar-track {
+  background: var(--border-light, #e5e7eb);
+  border-radius: 3px;
+}
+
+.wicket-mship-bundle-detail__members-table-wrap::-webkit-scrollbar-thumb {
+  background: var(--text-disabled, #9ca3af);
+  border-radius: 3px;
+}
+
+.wicket-mship-bundle-detail__members-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: var(--body-sm-font-size, 0.9rem);
+}
+
+.wicket-mship-bundle-detail__members-table th,
+.wicket-mship-bundle-detail__members-table td {
+  text-align: left;
+  padding: var(--space-150, 0.75rem) var(--space-200, 1rem);
+}
+
+.wicket-mship-bundle-detail__members-table thead tr {
+  border-bottom: 2px solid var(--interactive-dark, #1e3a8a);
+}
+
+.wicket-mship-bundle-detail__members-table tbody tr {
+  border-bottom: 1px solid var(--border-light, #e5e7eb);
+}
+
+.wicket-mship-bundle-detail__members-table th {
+  font-size: var(--label-xs-font-size, 0.75rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-content, #111827);
+  white-space: nowrap;
+}
+
+.wicket-mship-bundle-detail__sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-50, 0.3rem);
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.wicket-mship-bundle-detail__sort-icon {
+  color: var(--text-content-secondary, #9ca3af);
+  font-size: 0.8em;
+}
+
+/* Left accent border grouping consecutive rows for the same person — see
+   isGroupedMemberRow() in the template's <script>. Applied to the first cell
+   rather than the <tr> itself since <tr> border-left support is inconsistent
+   with border-collapse across browsers. */
+.wicket-mship-bundle-detail__member-row--grouped td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--interactive, #2563eb);
+}
+
+/* Pagination */
+
+.wicket-mship-bundle-detail__pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-200, 1rem);
+  margin-top: var(--space-300, 1.5rem);
+}
+
+.wicket-mship-bundle-detail__pagination {
+  display: flex;
+  align-items: center;
+  gap: var(--space-100, 0.5rem);
+}
+
+.wicket-mship-bundle-detail__page-arrow {
+  font-size: var(--body-sm-font-size, 0.9rem);
+  font-weight: 600;
+  color: var(--interactive, #2563eb);
+  background: none;
+  border: none;
+  padding: var(--space-100, 0.4rem) var(--space-100, 0.5rem);
+  cursor: pointer;
+}
+
+.wicket-mship-bundle-detail__page-arrow:disabled {
+  color: var(--text-disabled, #9ca3af);
+  cursor: not-allowed;
+}
+
+.wicket-mship-bundle-detail__page-num {
+  min-width: 2rem;
+  font-size: var(--body-sm-font-size, 0.9rem);
+  font-weight: 600;
+  color: var(--text-content, #111827);
+  background: none;
+  border: none;
+  border-radius: var(--border-radius-100, 0.4rem);
+  padding: var(--space-75, 0.35rem) var(--space-100, 0.5rem);
+  cursor: pointer;
+}
+
+.wicket-mship-bundle-detail__page-num:disabled {
+  cursor: default;
+  color: var(--text-disabled, #9ca3af);
+}
+
+.wicket-mship-bundle-detail__page-num--active {
+  background: var(--interactive, #2563eb);
+  color: var(--text-content-reversed, #ffffff);
+}
+
+.wicket-mship-bundle-detail__page-status {
+  font-size: var(--body-sm-font-size, 0.9rem);
+  color: var(--text-content-secondary, #4b5563);
+  margin: 0;
+}
