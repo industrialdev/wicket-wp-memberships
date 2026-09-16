@@ -683,7 +683,13 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    * Queues the renewal order for background creation (Membership_Bundle_Cron_
    * Controller::create_renewal_order_job()) instead of calling
    * wcs_create_renewal_order() inline — large bundles can exceed a proxy's timeout.
-   * Returns 202 once queued, or 409 if already queued/created.
+   * Returns 202 once queued, or 409 if already in-flight.
+   *
+   * Unlike confirm_bundle_renewal() (member-facing, one confirm per cycle), this is
+   * an admin action and may legitimately be triggered again on the same bundle post —
+   * e.g. to manually create a second ad-hoc renewal order. A completed prior claim is
+   * therefore cleared before claiming again; an in-flight claim (no order_id yet)
+   * still blocks, so a genuine concurrent request is unaffected.
    */
   public function create_bundle_renewal_order( \WP_REST_Request $request ): \WP_REST_Response {
     $bundle_post_id = (int) ( $request->get_param( 'bundle_post_id' ) ?? 0 );
@@ -693,6 +699,8 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       return new \WP_REST_Response( [ 'error' => $validated->get_error_message() ], (int) $validated->get_error_data()['status'] );
     }
     [ 'subscription' => $subscription ] = $validated;
+
+    Membership_Bundle_Cron_Controller::clear_completed_renewal_order_claim( $bundle_post_id );
 
     $claim = Membership_Bundle_Cron_Controller::claim_renewal_order_creation( $bundle_post_id );
     if ( $claim !== true ) {

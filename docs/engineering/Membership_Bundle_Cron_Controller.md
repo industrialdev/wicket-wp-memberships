@@ -101,6 +101,14 @@ Batch handler for membership renewal provisioning. Dispatched by `Membership_Con
 
 ---
 
+### `clear_completed_renewal_order_claim( int $bundle_post_id ): void`
+
+Deletes `membership_renewal_order_creation` post meta, but only when it holds a completed claim (`order_id` set). Leaves an in-flight claim (queued or still creating, no `order_id` yet) untouched, so it does not weaken `claim_renewal_order_creation()`'s concurrency guard against a genuine second request racing an in-progress job.
+
+Called by `Membership_Bundle_WP_REST_Controller::create_bundle_renewal_order()` (the admin manual action) before it claims — that endpoint may legitimately be triggered again on the same bundle post, unlike `confirm_bundle_renewal()` (member-facing, one confirm per cycle), which does not call this and keeps blocking on a completed claim indefinitely.
+
+---
+
 ### `apply_bundle_renewal_line_item_price_filter( \WC_Order $renewal_order, \WC_Subscription $subscription ): \WC_Order`
 
 Hooked to WooCommerce Subscriptions' own `wcs_renewal_order_created` filter (fired from `wcs_create_renewal_order()` — a WCS-native filter, not this plugin's own hook). This is the actual order WCS bills the customer on, independent of and on a different cadence from `process_bundle_renewal_members()`'s own batch cron, which only re-provisions membership records.

@@ -629,6 +629,26 @@ class Membership_Bundle_Cron_Controller {
   }
 
   /**
+   * Clear a completed renewal-order claim so the bundle can be claimed again.
+   *
+   * claim_renewal_order_creation() blocks indefinitely once a claim completes
+   * (order_id set) — correct for confirm_bundle_renewal(), where a second member
+   * confirm in the same cycle should stay blocked, but wrong for the admin's manual
+   * create_bundle_renewal_order action, which may legitimately be triggered again on
+   * the same bundle post. Only call this from a caller that intentionally allows a
+   * repeat manual renewal-order creation; it does nothing to an in-flight claim (no
+   * order_id yet) so a genuine concurrent request is still blocked.
+   */
+  public static function clear_completed_renewal_order_claim( int $bundle_post_id ): void {
+    $raw     = get_post_meta( $bundle_post_id, 'membership_renewal_order_creation', true );
+    $current = $raw ? ( json_decode( $raw, true ) ?: [] ) : [];
+
+    if ( isset( $current['order_id'] ) ) {
+      delete_post_meta( $bundle_post_id, 'membership_renewal_order_creation' );
+    }
+  }
+
+  /**
    * Create a bundle's renewal order in the background — dispatched by the REST
    * endpoints instead of calling wcs_create_renewal_order() inline in the request.
    * Writes the result (order_id or failure) back onto the claim's own meta; that's

@@ -215,7 +215,7 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/cancel" \
 
 Queues background creation of a WooCommerce renewal order for the bundle's linked subscription (Milestone 10). Use this to manually trigger a renewal payment when automatic subscription renewal is not configured or when a manual renewal order is needed.
 
-The order is not created synchronously in the request — `wcs_create_renewal_order()` plus Milestone 9's per-member repricing can take several seconds for a bundle with 100+ members, well past what a proxy or browser will hold an HTTP request open for. The endpoint instead validates the bundle/subscription, claims the renewal slot, queues the actual creation as an Action Scheduler job (`wicket_bundle_create_renewal_order`, group `wicket-memberships`), and returns immediately.
+The order is not created synchronously in the request — `wcs_create_renewal_order()` plus Milestone 9's per-member repricing can take several seconds for a bundle with 100+ members, well past what a proxy or browser will hold an HTTP request open for. The endpoint instead validates the bundle/subscription, clears any *completed* renewal-order claim from a prior call against this same bundle post (this endpoint may legitimately be called again — e.g. to manually create a second ad-hoc renewal order), claims the renewal slot, queues the actual creation as an Action Scheduler job (`wicket_bundle_create_renewal_order`, group `wicket-memberships`), and returns immediately.
 
 Poll [`GET .../renewal_order_status`](#check-renewal-order-creation-status) for the job's outcome — `order_id` and `order_url` are not available in this endpoint's own response.
 
@@ -240,16 +240,16 @@ None. (An earlier synchronous version of this endpoint took `product_id`/`variat
 }
 ```
 
-`409 Conflict` — a renewal order already exists for the current cycle, or creation is already in progress from an earlier request:
+`409 Conflict` — creation is still in progress from an earlier request against this bundle post:
 
 ```json
 {
-    "error": "A renewal order already exists for this membership bundle.",
-    "order_id": 500
+    "error": "Renewal order creation is already in progress for this membership bundle.",
+    "order_id": null
 }
 ```
 
-`order_id` is `null` in the 409 body when creation is still in flight (no order exists yet to reference) — only populated once the job has actually completed.
+A completed prior claim (a renewal order that already finished creating) does **not** produce a `409` here — it is cleared automatically before the new claim is made, so this endpoint can be called again on the same bundle post. `order_id` in the response body is only ever non-null in the rare case where a concurrent request's job completes in the brief window between the claim clear and the new claim.
 
 ### Errors
 
