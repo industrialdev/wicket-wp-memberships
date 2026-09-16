@@ -12,6 +12,44 @@
  * defined.
  */
 
+/* Loading skeleton
+   ------------------------------------------------------------------------
+ */
+
+@keyframes wicket-mship-shimmer {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}
+
+.wicket-mship-skeleton-bar {
+  height: 32px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #d4d8dd 0%, #e7eaee 50%, #d4d8dd 100%);
+  background-size: 200% 100%;
+  animation: wicket-mship-shimmer 1.4s ease-in-out infinite;
+}
+
+.wicket-mship-skeleton-stack {
+  display: grid;
+  gap: var(--space-150, 0.75rem);
+}
+
+.wicket-mship-skeleton-row {
+  display: grid;
+  gap: var(--space-150, 0.75rem);
+  grid-template-columns: 1fr;
+}
+
+@media screen and (max-width: 700px) {
+  .wicket-mship-skeleton-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 .wicket-mship-bundle-list {
   max-width: 860px;
   margin: 0 auto;

@@ -59,7 +59,16 @@ $block_config = [
   </a>
 
   <template x-if="loading">
-    <p class="wicket-mship-bundle-detail__loading"><?php esc_html_e( 'Loading bundle…', 'wicket-memberships' ); ?></p>
+    <div class="wicket-mship-skeleton-stack" aria-hidden="true" aria-label="<?php echo esc_attr__( 'Loading bundle…', 'wicket-memberships' ); ?>">
+      <div class="wicket-mship-skeleton-bar" style="height:28px;width:260px;"></div>
+      <div class="wicket-mship-skeleton-bar" style="height:11px;width:120px;border-radius:999px;"></div>
+      <div class="wicket-mship-skeleton-row" style="grid-template-columns:repeat(4, 1fr);">
+        <div class="wicket-mship-skeleton-bar" style="height:52px;"></div>
+        <div class="wicket-mship-skeleton-bar" style="height:52px;"></div>
+        <div class="wicket-mship-skeleton-bar" style="height:52px;"></div>
+        <div class="wicket-mship-skeleton-bar" style="height:52px;"></div>
+      </div>
+    </div>
   </template>
 
   <template x-if="!loading && error">
@@ -107,7 +116,19 @@ $block_config = [
 
       <!-- Tier summary counts -->
       <template x-if="tiersLoading">
-        <p class="wicket-mship-bundle-detail__loading"><?php esc_html_e( 'Loading breakdown…', 'wicket-memberships' ); ?></p>
+        <div class="wicket-mship-skeleton-stack" aria-hidden="true" aria-label="<?php echo esc_attr__( 'Loading breakdown…', 'wicket-memberships' ); ?>">
+          <div class="wicket-mship-skeleton-bar" style="height:11px;width:180px;border-radius:999px;"></div>
+          <div class="wicket-mship-skeleton-row" style="grid-template-columns:repeat(3, 1fr);">
+            <div class="wicket-mship-skeleton-bar" style="height:24px;"></div>
+            <div class="wicket-mship-skeleton-bar" style="height:24px;"></div>
+            <div class="wicket-mship-skeleton-bar" style="height:24px;"></div>
+          </div>
+          <div class="wicket-mship-skeleton-row" style="grid-template-columns:repeat(3, 1fr);">
+            <div class="wicket-mship-skeleton-bar" style="height:24px;"></div>
+            <div class="wicket-mship-skeleton-bar" style="height:24px;"></div>
+            <div class="wicket-mship-skeleton-bar" style="height:24px;"></div>
+          </div>
+        </div>
       </template>
 
       <template x-if="!tiersLoading && tiersError">
@@ -167,7 +188,18 @@ $block_config = [
 
       <!-- Members table -->
       <template x-if="membersLoading">
-        <p class="wicket-mship-bundle-detail__loading"><?php esc_html_e( 'Loading members…', 'wicket-memberships' ); ?></p>
+        <div class="wicket-mship-skeleton-stack" aria-hidden="true" aria-label="<?php echo esc_attr__( 'Loading members…', 'wicket-memberships' ); ?>">
+          <div class="wicket-mship-skeleton-bar" style="height:11px;width:140px;border-radius:999px;"></div>
+          <template x-for="n in 4" :key="n">
+            <div class="wicket-mship-skeleton-row" style="grid-template-columns:1fr 1fr 2fr 1fr 1fr;">
+              <div class="wicket-mship-skeleton-bar" style="height:24px;"></div>
+              <div class="wicket-mship-skeleton-bar" style="height:24px;"></div>
+              <div class="wicket-mship-skeleton-bar" style="height:24px;"></div>
+              <div class="wicket-mship-skeleton-bar" style="height:24px;"></div>
+              <div class="wicket-mship-skeleton-bar" style="height:24px;"></div>
+            </div>
+          </template>
+        </div>
       </template>
 
       <template x-if="!membersLoading && membersError">
