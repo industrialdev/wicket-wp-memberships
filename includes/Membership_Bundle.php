@@ -302,9 +302,11 @@ class Membership_Bundle {
 
     // Reuse the existing subscription — link the new bundle post to it and update
     // the subscription's dates to the new term so WCS schedules the next renewal correctly.
+    // membership_bundle_id is staged via update_meta_data() + save() below, not a
+    // standalone update_post_meta() call — see create_bundle_subscription() for why.
     $sub_id = $subscription->get_id();
     update_post_meta( $post_id, 'membership_subscription_id', $sub_id );
-    update_post_meta( $sub_id,  'membership_bundle_id',       $post_id );
+    $subscription->update_meta_data( 'membership_bundle_id', $post_id );
 
     // Update subscription dates to match the new term. Mirrors create_bundle_subscription()
     // date logic — next_payment at ends_at, end at expires_at (or ends_at + 1s).
@@ -3189,10 +3191,13 @@ class Membership_Bundle {
     // org membership subscriptions (Membership_Controller.php lines 83–84).
     // org_name is stored alongside _org_uuid so the subscription is human-readable
     // in WC admin without following the bundle post link.
+    //
+    // Staged via update_meta_data() + save(), not a standalone update_post_meta() call —
+    // $sub->save() re-syncs meta from its own in-memory store and can drop a key that
+    // bypassed it.
     $org_uuid = $this->get_org_uuid();
     $org_name = get_post_meta( $this->post_id, 'org_name', true );
-    update_post_meta( $sub->get_id(), 'membership_bundle_id', $this->post_id );
-    update_post_meta( $sub->get_id(), '_org_uuid', $org_uuid );
+    $sub->update_meta_data( 'membership_bundle_id', $this->post_id );
     $sub->update_meta_data( '_org_uuid', $org_uuid );
     if ( ! empty( $org_name ) ) {
       $sub->update_meta_data( 'org_name', $org_name );
