@@ -322,6 +322,35 @@ class Membership_Bundle_Cron_Controller {
     int $offset,
     int $batch_size
   ): void {
+    try {
+      self::process_bundle_renewal_members_batch( $old_bundle_post_id, $new_bundle_post_id, $renewal_order_id, $offset, $batch_size );
+    } catch ( \Throwable $e ) {
+      Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: uncaught error, marking processing failed', [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'new_bundle_post_id' => $new_bundle_post_id,
+        'offset'             => $offset,
+        'error'              => $e->getMessage(),
+      ] ] );
+      self::mark_renewal_processing_failed( $old_bundle_post_id, $new_bundle_post_id, $e->getMessage() );
+    }
+  }
+
+  private static function mark_renewal_processing_failed( int $old_bundle_post_id, int $new_bundle_post_id, string $error_message ): void {
+    foreach ( [ $old_bundle_post_id, $new_bundle_post_id ] as $post_id ) {
+      $pm               = json_decode( get_post_meta( $post_id, 'membership_renewal_processing', true ), true ) ?: [];
+      $pm['failed_at']  = current_time( 'c' );
+      $pm['error']      = $error_message;
+      update_post_meta( $post_id, 'membership_renewal_processing', wp_json_encode( $pm ) );
+    }
+  }
+
+  private static function process_bundle_renewal_members_batch(
+    int $old_bundle_post_id,
+    int $new_bundle_post_id,
+    int $renewal_order_id,
+    int $offset,
+    int $batch_size
+  ): void {
     $order = wc_get_order( $renewal_order_id );
     if ( ! $order ) {
       Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: renewal order not found', [
@@ -329,6 +358,7 @@ class Membership_Bundle_Cron_Controller {
         'old_bundle_post_id' => $old_bundle_post_id,
         'new_bundle_post_id' => $new_bundle_post_id,
       ] ] );
+      self::mark_renewal_processing_failed( $old_bundle_post_id, $new_bundle_post_id, 'renewal_order_not_found' );
       return;
     }
 

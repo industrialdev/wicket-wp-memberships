@@ -165,6 +165,16 @@ class Membership_Bundle {
     $subscription_id = $bundle->create_bundle_subscription();
     if ( $subscription_id ) {
       update_post_meta( $post_id, 'membership_subscription_id', $subscription_id );
+
+      // Bundles created directly active skip the pending→active transition, so
+      // promote the subscription here instead.
+      if ( $initial_status === Wicket_Memberships::STATUS_ACTIVE ) {
+        $bundle->activate_subscription_for_dates(
+          $dates['start_date'],
+          $dates['end_date'],
+          $dates['expires_at'] ?? $dates['end_date']
+        );
+      }
     } else {
       Wicket()->log()->error(
         'Membership_Bundle::create: could not create WC subscription — bundle created without one',
@@ -3084,6 +3094,10 @@ class Membership_Bundle {
    *
    * Called only from create() after dates are written. No product line items are
    * added here — those are attached when individual members are added to the bundle.
+   * Always created 'pending' regardless of the bundle's own initial status — create()
+   * promotes it to 'active' afterward via activate_subscription_for_dates() when the
+   * bundle itself starts active, reusing the same mechanism as the pending→active
+   * admin transition rather than duplicating status/date logic here.
    *
    * @return int|false Subscription post ID on success, false on any failure.
    */

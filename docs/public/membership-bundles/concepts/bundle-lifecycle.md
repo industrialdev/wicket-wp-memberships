@@ -86,7 +86,7 @@ Each bundle has exactly one WooCommerce subscription. Its state changes in step 
 |---|---|---|
 | `pending` | `pending` | Only reached via manual admin action or approval-gated config; activated on `pending → active` |
 | `delayed` | `pending` | Not yet activated; activation deferred to `starts_at` date |
-| `active` | `active` | Activated when bundle goes active; drives renewal payments for `subscription` renewal type |
+| `active` | `active` | Activated whenever the bundle becomes active — both on the `pending → active` transition and immediately at creation when `create()` starts the bundle active (start date already reached); drives renewal payments for `subscription` renewal type |
 | `grace-period` | `active` | Subscription stays active during grace period — it may still process a renewal payment |
 | `expired` | `active` or `cancelled` | Expiry does not touch the subscription; it depends on whether a renewal payment occurred |
 | `cancelled` (immediately) | `cancelled` | Hard-cancelled at cancellation time |

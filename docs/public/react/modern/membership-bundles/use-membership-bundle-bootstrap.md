@@ -44,11 +44,11 @@ Loads all data required to populate the membership bundle detail page. Calls `fe
 
 ## Renewal Polling Behaviour
 
-The hook inspects `pageData.meta.membership_renewal_processing` after each successful load. A batch is considered **in progress** when that field is present and contains no `completed_at` timestamp. When in progress:
+The hook inspects `pageData.meta.membership_renewal_processing` after each successful load. A batch is considered **in progress** when that field is present and contains no `completed_at` or `failed_at` timestamp. When in progress:
 
 1. A `setTimeout` schedules a **silent refresh** after 10 seconds (`RENEWAL_POLL_INTERVAL_MS = 10000`).
 2. The silent refresh calls `fetchBundleEditPageInfo` and updates `pageData` **without** resetting `requestState` to `"loading"`, so the page skeleton does not flash.
-3. After each silent refresh, the hook checks `renewalProcessingMeta` again. If the batch is still running, it schedules another poll. If `completed_at` is now present (or the field is absent), polling stops.
+3. After each silent refresh, the hook checks `renewalProcessingMeta` again. If the batch is still running, it schedules another poll. If `completed_at` or `failed_at` is now present (or the field is absent), polling stops.
 4. Any in-flight `setTimeout` is cleared when `retryLoad` is called (full reload) or when the component unmounts (cleanup from `useEffect`).
 
 The `RenewalProcessingOverlay` displays `offset` and `total_members` from `renewalProcessingMeta`, which update automatically with each poll cycle.

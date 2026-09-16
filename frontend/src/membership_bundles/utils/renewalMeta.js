@@ -9,15 +9,15 @@ export const parseMetaJson = (raw) => {
 
 /**
  * Returns the parsed membership_renewal_processing object if the renewal is
- * still in progress (meta present and no completed_at), otherwise null.
+ * still in progress (meta present and no completed_at/failed_at), otherwise null.
  *
  * @param {object|null} data - pageData from fetchBundleEditPageInfo
  * @returns {object|null}
  */
 export const getRenewalProcessingMeta = (data) => {
   const parsed = parseMetaJson(data?.meta?.membership_renewal_processing);
-  // completed_at presence means the batch finished — overlay should dismiss.
-  return parsed?.completed_at ? null : parsed;
+  // completed_at or failed_at presence means the batch is done — overlay should dismiss.
+  return parsed?.completed_at || parsed?.failed_at ? null : parsed;
 };
 
 /**
