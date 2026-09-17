@@ -308,20 +308,18 @@ class Membership_Bundle {
     update_post_meta( $post_id, 'membership_subscription_id', $sub_id );
     $subscription->update_meta_data( 'membership_bundle_id', $post_id );
 
-    // Update subscription dates to match the new term. Mirrors create_bundle_subscription()
-    // date logic — next_payment at ends_at, end at expires_at (or ends_at + 1s).
-    $ends_at_ts  = strtotime( $new_dates['end_date'] );
-    $end_target  = ! empty( $new_dates['expires_at'] ) ? $new_dates['expires_at'] : $new_dates['end_date'];
-    $end_ts      = strtotime( $end_target );
+    // Mirrors create_bundle_subscription()'s date logic and collision nudging.
+    $end_target = ! empty( $new_dates['expires_at'] ) ? $new_dates['expires_at'] : $new_dates['end_date'];
     $sub_dates = [
-      'end' => date( 'Y-m-d H:i:s', $end_ts > $ends_at_ts ? $end_ts : $ends_at_ts + 1 ),
+      'end' => date( 'Y-m-d H:i:s', strtotime( $end_target ) ),
     ];
     // next_payment only applies to the 'subscription' renewal type — matches
     // activate_subscription_for_dates()'s rule. Every other renewal type
     // (form_page, ...) must not carry a next_payment date into the new term,
     // or WCS would auto-charge on its own schedule again.
     if ( $config->is_renewal_subscription() ) {
-      $sub_dates['next_payment'] = date( 'Y-m-d H:i:s', $ends_at_ts );
+      $sub_dates['next_payment'] = date( 'Y-m-d H:i:s', strtotime( $new_dates['end_date'] ) );
+      $sub_dates = Subscription_Manager::prepare_dates( $sub_dates, $subscription );
     }
     $subscription->update_dates( $sub_dates );
     if ( ! $config->is_renewal_subscription() ) {
@@ -1257,16 +1255,14 @@ class Membership_Bundle {
     $end_dt = Utilities::get_mdp_day_end( $expires_date_only );
 
     $dates_to_update = [];
+    $dates_to_update['end'] = $end_dt->format( 'Y-m-d H:i:s' );
     if ( $tier->is_renewal_subscription() ) {
       $next_payment_dt = Utilities::get_mdp_day_end( $ends_date_only );
-      if ( $end_dt <= $next_payment_dt ) {
-        $end_dt->modify( '+1 second' );
-      }
       $dates_to_update['next_payment'] = $next_payment_dt->format( 'Y-m-d H:i:s' );
+      $dates_to_update = Subscription_Manager::prepare_dates( $dates_to_update, $sub );
     } else {
       $dates_to_update['next_payment'] = '';
     }
-    $dates_to_update['end'] = $end_dt->format( 'Y-m-d H:i:s' );
 
     try {
       $sub->update_dates( $dates_to_update );
@@ -2671,13 +2667,6 @@ class Membership_Bundle {
     $next_payment = Utilities::get_mdp_day_end( $ends_at_utc );
     $end          = Utilities::get_mdp_day_end( $expires_at_utc );
 
-    // WC Subscriptions requires end > next_payment (strict). When there is no
-    // grace period expires_at equals ends_at, producing identical timestamps.
-    // Bump end by one second so the constraint is satisfied.
-    if ( $end <= $next_payment ) {
-      $end->modify( '+1 second' );
-    }
-
     $subscription_dates = [
       'start_date' => Utilities::get_mdp_day_start( $starts_at_utc )->format( 'Y-m-d H:i:s' ),
       'end'        => $end->format( 'Y-m-d H:i:s' ),
@@ -2692,6 +2681,8 @@ class Membership_Bundle {
     $config = $this->get_config();
     if ( $config && $config->is_renewal_subscription() ) {
       $subscription_dates['next_payment'] = $next_payment->format( 'Y-m-d H:i:s' );
+      // Nudges next_payment earlier instead of bumping end when no grace period is configured.
+      $subscription_dates = Subscription_Manager::prepare_dates( $subscription_dates, $subscription );
     }
 
     $subscription->update_dates( $subscription_dates );
@@ -2828,32 +2819,16 @@ class Membership_Bundle {
     }
 
     $config = $this->get_config();
-
-    // Config's own renewal type is the authority here — membership_next_tier_subscription_renewal
-    // is the per-member individual-tier flag and does not describe the bundle's own renewal
-    // mechanics. Mirrors activate_subscription_for_dates()/renew_bundle()'s rule: 'subscription'
-    // uses ends_at for the subscription end date and carries a next_payment date; every other
-    // renewal type (form_page, ...) uses expires_at (grace-period end) and must not have
-    // a next_payment date, or WCS would trigger an unwanted renewal payment.
     $is_renewal_subscription = $config && $config->is_renewal_subscription();
-
-    if ( $is_renewal_subscription ) {
-      $end_source = $dates['ends_at'];
-    } else {
-      $end_source = ! empty( $dates['expires_at'] ) ? $dates['expires_at'] : $dates['ends_at'];
-    }
+    $end_source = ! empty( $dates['expires_at'] ) ? $dates['expires_at'] : $dates['ends_at'];
 
     $next_payment = Utilities::get_mdp_day_end( $dates['ends_at'] );
     $end          = Utilities::get_mdp_day_end( $end_source );
 
-    // WCS requires end > next_payment (strict). Bump by one second when equal (no grace period).
-    if ( $end <= $next_payment ) {
-      $end->modify( '+1 second' );
-    }
-
     $date_updates = [ 'end' => $end->format( 'Y-m-d H:i:s' ) ];
     if ( $is_renewal_subscription ) {
       $date_updates['next_payment'] = $next_payment->format( 'Y-m-d H:i:s' );
+      $date_updates = Subscription_Manager::prepare_dates( $date_updates, $sub );
     }
 
     try {
@@ -3160,25 +3135,15 @@ class Membership_Bundle {
     // the subscription always has an explicit end date.
     $end_target = ! empty( $dates['expires_at'] ) ? $dates['expires_at'] : $dates['ends_at'];
 
-    // WCS validates end > next_payment (strictly). When billing_period is set, WCS
-    // auto-computes next_payment as start + 1 period, which can violate the constraint
-    // for date-driven subscriptions. Set both explicitly in all cases.
-    //
-    // Subscription renewal: next_payment = ends_at so WCS triggers renewal at period end;
-    //   end = end_target (expires_at or ends_at) which is >= ends_at.
-    // All other renewal types: next_payment = ends_at, end = end_target + 1 second so
-    //   the strict end > next_payment constraint is always satisfied without scheduling
-    //   an automatic charge (WCS only charges on next_payment for active subscriptions).
-    $ends_at_ts   = strtotime( $dates['ends_at'] );
-    $end_ts       = strtotime( $end_target );
-    $next_payment = date( 'Y-m-d H:i:s', $ends_at_ts );
-    // Guarantee end > next_payment — add one second when they would be equal (no grace period).
-    $end = date( 'Y-m-d H:i:s', $end_ts > $ends_at_ts ? $end_ts : $ends_at_ts + 1 );
+    // WCS validates end > next_payment (strictly); set both explicitly, then let
+    // Subscription_Manager nudge next_payment if they'd collide (no grace period).
+    $end = date( 'Y-m-d H:i:s', strtotime( $end_target ) );
+    $next_payment = date( 'Y-m-d H:i:s', strtotime( $dates['ends_at'] ) );
 
-    $sub->update_dates( [
+    $sub->update_dates( Subscription_Manager::prepare_dates( [
       'end'          => $end,
       'next_payment' => $next_payment,
-    ] );
+    ], $sub ) );
 
     // Link the subscription back to the bundle and forward org identity so admin
     // screens and MDP sync can identify which organisation owns this subscription

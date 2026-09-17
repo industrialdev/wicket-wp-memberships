@@ -186,10 +186,7 @@ class Bundle_Import_Controller {
     $end_mysqltime = date( 'Y-m-d H:i:s', strtotime( $expires_at ) );
 
     $dates = [ 'next_payment' => $next_payment_mysqltime, 'end' => $end_mysqltime ];
-    if ( $dates['next_payment'] === $dates['end'] ) {
-      $dates['end'] = date( 'Y-m-d H:i:s', strtotime( $dates['end'] . ' + 1 second' ) );
-    }
-    $subscription->update_dates( $dates );
+    $subscription->update_dates( Subscription_Manager::prepare_dates( $dates, $subscription ) );
 
     // derive_status() only yields active/delayed/expired. active/expired map directly
     // to WCS statuses; delayed bundles keep the subscription pending — no billing

@@ -115,7 +115,7 @@ Initial membership status: if `start_date` is in the future → `delayed`; other
 Instance method. Creates a new bundle post for a renewal term of the current bundle. **Use this instead of `create()` for all renewal flows.**
 
 Key differences from `create()`:
-- Reuses the existing WC subscription (updates its `end` date, and its `next_payment` date only when the config's `renewal_type` is `'subscription'` — otherwise `next_payment` is explicitly deleted) — no new subscription created.
+- Reuses the existing WC subscription (updates its `end` date, and its `next_payment` date only when the config's `renewal_type` is `'subscription'` — otherwise `next_payment` is explicitly deleted) — no new subscription created. Date writes for the `'subscription'` renewal type pass through `Subscription_Manager::prepare_dates()`, same as `create_bundle_subscription()`.
 - Carries the existing `membership_bundle_group_uuid` forward so all renewal posts share a series link.
 - Accepts pre-calculated `$new_dates` from `Membership_Bundle_Config::get_membership_dates()` rather than deriving internally.
 - Does **not** cancel the old bundle — that is handled by the caller (`handle_bundle_renewal`).
@@ -153,7 +153,7 @@ Creates a pending WooCommerce subscription for a freshly-created bundle and writ
 | `membership_bundle_id` | Bundle post ID |
 | `_org_uuid` | Org UUID from the bundle |
 
-`billing_period` and `billing_interval` are sourced from `$config->get_period_data()` so the values match the bundle config cycle (anniversary configs use their configured period; calendar configs fall back to `year` / `1`). `end` is set to `expires_at` (grace-period end), falling back to `ends_at` when no grace period is configured, mirroring `Membership_Subscription_Controller::create_subscriptions()`. `next_payment` is only set when `$config->is_renewal_subscription()` returns `true`; it maps to `ends_at` so WCS triggers renewal at the membership period end.
+`billing_period` and `billing_interval` are sourced from `$config->get_period_data()` so the values match the bundle config cycle (anniversary configs use their configured period; calendar configs fall back to `year` / `1`). `end` is set to `expires_at` (grace-period end), falling back to `ends_at` when no grace period is configured, mirroring `Membership_Subscription_Controller::create_subscriptions()`. `next_payment` is only set when `$config->is_renewal_subscription()` returns `true`; it maps to `ends_at` so WCS triggers renewal at the membership period end. Both dates are passed through `Subscription_Manager::prepare_dates()` before the write — when no grace period is configured (`end == next_payment`), it nudges `next_payment` a moment earlier rather than pushing `end` forward, so `end` always reflects the real configured expiration (see `Class-Subscription_Manager.md`).
 
 No product line items are added at creation — those are attached per member when `add_member()` is called. Called only from `create()` after `set_dates()` succeeds. Returns the subscription post ID on success, `false` on any failure. Always creates the subscription as `pending`, regardless of the bundle's own initial status — `create()` is responsible for promoting it to `active` afterward (see `create()` above) when the bundle itself starts active.
 
