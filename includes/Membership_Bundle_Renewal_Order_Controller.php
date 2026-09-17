@@ -626,7 +626,10 @@ class Membership_Bundle_Renewal_Order_Controller {
           'membership_post_id' => $membership_post_id,
           'override'           => $override,
         ] ] );
-      } else {
+      } elseif ( $validated['tier_post_id'] !== $resolved['tier_post_id'] || $validated['product_id'] !== $resolved['product_id'] ) {
+        // Only a genuine change is worth recording as a filter override — a
+        // callback that answers with core's own tier/product is a no-op, not
+        // a decision, and must not overwrite 'unchanged'/'sequential_logic'.
         $resolved = $validated + [ 'decision_source' => 'filter_override' ];
       }
     }
