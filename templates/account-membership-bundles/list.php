@@ -57,7 +57,25 @@ $block_config = [
   <hr class="wicket-mship-bundle-list__divider" />
 
   <template x-if="loading">
-    <p class="wicket-mship-bundle-list__loading"><?php esc_html_e( 'Loading your membership bundles…', 'wicket-memberships' ); ?></p>
+    <div class="wicket-mship-skeleton-stack" aria-hidden="true" aria-label="<?php echo esc_attr__( 'Loading membership bundles…', 'wicket-memberships' ); ?>">
+      <div class="wicket-mship-skeleton-bar" style="height:20px;width:200px;"></div>
+      <div class="wicket-mship-bundle-list__cards">
+        <template x-for="n in 3" :key="n">
+          <div class="wicket-mship-bundle-card">
+            <div class="wicket-mship-skeleton-stack">
+              <div class="wicket-mship-skeleton-bar" style="height:22px;width:70%;"></div>
+              <div class="wicket-mship-skeleton-bar" style="height:11px;width:140px;border-radius:999px;"></div>
+              <div class="wicket-mship-skeleton-row" style="grid-template-columns:repeat(3, 1fr);">
+                <div class="wicket-mship-skeleton-bar" style="height:36px;"></div>
+                <div class="wicket-mship-skeleton-bar" style="height:36px;"></div>
+                <div class="wicket-mship-skeleton-bar" style="height:36px;"></div>
+              </div>
+              <div class="wicket-mship-skeleton-bar" style="height:32px;width:140px;"></div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
   </template>
 
   <template x-if="!loading && error">
