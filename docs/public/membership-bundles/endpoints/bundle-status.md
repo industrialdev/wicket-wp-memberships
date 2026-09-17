@@ -275,78 +275,13 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/create_ren
 
 ---
 
-## Confirm a renewal (confirmation_renewal bundles)
-
-**`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/confirm_renewal`**
-
-Member-facing confirm action for a bundle configured with `renewal_type` `"confirmation_renewal"` (see [Renewal Types](../concepts/renewal-types.md)). Unlike `create_renewal_order` above (an unconditional admin override), this endpoint is restricted to the bundle's own owner, only works while the renewal confirmation window is open, and only for bundles actually configured with `confirmation_renewal`. It creates the same kind of WooCommerce renewal order `create_renewal_order` does — there is no separate order-creation logic — but with a permission, timing, and idempotency model suited to a member-initiated confirm click rather than an admin override.
-
-### URL parameters
-
-| Name | Type | Required | Description |
-|---|---|---|---|
-| `bundle_post_id` | `integer` | Yes | Post ID of the bundle. |
-
-### Request body
-
-None.
-
-### Response
-
-Like `create_renewal_order` above (Milestone 10), this endpoint queues background order creation rather than creating it inline — the same `wicket_bundle_create_renewal_order` Action Scheduler job the admin endpoint uses.
-
-`202 Accepted` — confirmed, order creation has been queued:
-
-```json
-{
-    "success": "Your renewal invoice is being prepared.",
-    "bundle_post_id": 123
-}
-```
-
-No `order_id` or `order_url` is returned — the order does not exist yet when this response is sent. Poll [`GET .../renewal_order_status`](#check-renewal-order-creation-status) for the outcome.
-
-`409 Conflict` — already renewed this cycle, or a confirm is already in progress:
-
-```json
-{
-    "error": "This membership bundle has already been renewed for the current cycle.",
-    "order_id": 500
-}
-```
-
-`order_id` is `null` in the 409 body while creation is still in flight (the confirm click already claimed the slot, but the job hasn't finished yet).
-
-### Errors
-
-| Status | Cause |
-|---|---|
-| `400` | Invalid `bundle_post_id`, bundle has no linked subscription, or the linked subscription could not be loaded |
-| `400` | Bundle is not configured with `renewal_type` `"confirmation_renewal"` |
-| `400` | The renewal confirmation window is not currently open (before `early_renew_at` or on/after `ends_at`) |
-| `403` | Requesting user is not the bundle's owner |
-| `404` | Bundle post not found |
-| `409` | Already renewed this cycle, or confirmation is already in progress (see response shape above) |
-
-### Example
-
-:::details Example
-```bash
-curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/confirm_renewal" \
-  -H "Content-Type: application/json" \
-  -H "X-WP-Nonce: {nonce}"
-```
-:::
-
----
-
 ## Check renewal order creation status
 
 **`GET /wp-json/wicket_member/v1/bundle/{bundle_post_id}/renewal_order_status`**
 
-Poll target for the background job `create_renewal_order` and `confirm_renewal` queue (Milestone 10). Reads `membership_renewal_order_creation` post meta and reports whichever of three states that meta currently represents — there is no per-item progress to report, since `wcs_create_renewal_order()` runs as one atomic call, not a batch.
+Poll target for the background job `create_renewal_order` queues (Milestone 10). Reads `membership_renewal_order_creation` post meta and reports whichever of three states that meta currently represents — there is no per-item progress to report, since `wcs_create_renewal_order()` runs as one atomic call, not a batch.
 
-Owner-gated the same way `confirm_renewal` is — only the bundle's own owner may poll this.
+Owner-gated — only the bundle's own owner may poll this.
 
 ### URL parameters
 
@@ -383,7 +318,7 @@ Owner-gated the same way `confirm_renewal` is — only the bundle's own owner ma
 }
 ```
 
-A failed claim is cleared automatically on the next `create_renewal_order` or `confirm_renewal` call, so the member or admin can simply retry.
+A failed claim is cleared automatically on the next `create_renewal_order` call, so the admin can simply retry.
 
 ### Errors
 

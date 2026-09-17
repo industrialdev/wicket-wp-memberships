@@ -438,51 +438,6 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       ],
     ] );
 
-    /**
-     * POST /wicket_member/v1/bundle/{bundle_post_id}/confirm_renewal
-     *
-     * Member-facing confirm action for confirmation_renewal bundles. Distinct from
-     * create_renewal_order above: this endpoint is gated to the bundle's actual owner
-     * (not just the admin capability), and only works during the confirm window on a
-     * bundle actually configured with renewal_type === 'confirmation_renewal'.
-     */
-    register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/confirm_renewal', [
-      [
-        'methods'             => \WP_REST_Server::CREATABLE,
-        'callback'            => [ $this, 'confirm_bundle_renewal' ],
-        'permission_callback' => [ $this, 'permissions_check_confirm_renewal' ],
-        'args'                => [
-          'bundle_post_id' => [
-            'required'    => true,
-            'type'        => 'integer',
-            'description' => 'Post ID of the membership bundle.',
-          ],
-        ],
-      ],
-    ] );
-
-    /**
-     * GET /wicket_member/v1/bundle/{bundle_post_id}/renewal_order_status
-     *
-     * Member-facing poll target for the confirm_renewal flow's background job. Owner-gated
-     * the same way confirm_bundle_renewal is. Returns just enough for the account-centre
-     * callout to swap its "preparing" state for a payment link, or surface a failure.
-     */
-    register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/renewal_order_status', [
-      [
-        'methods'             => \WP_REST_Server::READABLE,
-        'callback'            => [ $this, 'get_bundle_renewal_order_status' ],
-        'permission_callback' => [ $this, 'permissions_check_confirm_renewal' ],
-        'args'                => [
-          'bundle_post_id' => [
-            'required'    => true,
-            'type'        => 'integer',
-            'description' => 'Post ID of the membership bundle.',
-          ],
-        ],
-      ],
-    ] );
-
   }
 
   // ---------------------------------------------------------------------------
@@ -685,11 +640,10 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    * wcs_create_renewal_order() inline — large bundles can exceed a proxy's timeout.
    * Returns 202 once queued, or 409 if already in-flight.
    *
-   * Unlike confirm_bundle_renewal() (member-facing, one confirm per cycle), this is
-   * an admin action and may legitimately be triggered again on the same bundle post —
-   * e.g. to manually create a second ad-hoc renewal order. A completed prior claim is
-   * therefore cleared before claiming again; an in-flight claim (no order_id yet)
-   * still blocks, so a genuine concurrent request is unaffected.
+   * This is an admin action and may legitimately be triggered again on the same
+   * bundle post — e.g. to manually create a second ad-hoc renewal order. A completed
+   * prior claim is therefore cleared before claiming again; an in-flight claim (no
+   * order_id yet) still blocks, so a genuine concurrent request is unaffected.
    */
   public function create_bundle_renewal_order( \WP_REST_Request $request ): \WP_REST_Response {
     $bundle_post_id = (int) ( $request->get_param( 'bundle_post_id' ) ?? 0 );
@@ -727,134 +681,10 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   }
 
   /**
-   * POST /bundle/{bundle_post_id}/confirm_renewal
-   *
-   * Member-facing confirm action for a bundle configured with
-   * renewal_type === 'confirmation_renewal'. Queues the same background job
-   * create_bundle_renewal_order uses, rather than a second creation code path.
-   *
-   * Deliberately a separate endpoint from create_bundle_renewal_order: the admin tool
-   * is an unconditional capability-gated override; this one is gated to the bundle's
-   * owner, the confirm window, and confirmation_renewal configs specifically, with a
-   * member-appropriate response shape.
-   *
-   * Returns 202 once queued, or 409 if already queued/created. The claim replaces the
-   * old order-existence scan, which can no longer detect a concurrent request once
-   * creation is deferred — renew_bundle() creates a new bundle post per cycle, so a
-   * claim never carries over from a prior one.
-   */
-  public function confirm_bundle_renewal( \WP_REST_Request $request ): \WP_REST_Response {
-    $bundle_post_id = (int) ( $request->get_param( 'bundle_post_id' ) ?? 0 );
-
-    $validated = self::validate_bundle_and_subscription( $bundle_post_id );
-    if ( is_wp_error( $validated ) ) {
-      return new \WP_REST_Response( [ 'error' => $validated->get_error_message() ], (int) $validated->get_error_data()['status'] );
-    }
-    [ 'bundle' => $bundle, 'subscription' => $subscription ] = $validated;
-
-    // Owner check — distinct from the admin capability check permissions_check_write()
-    // uses. Only the bundle's own owner may confirm their own renewal.
-    $current_user_id = get_current_user_id();
-    if ( ! $current_user_id || $bundle->get_owner_id() !== $current_user_id ) {
-      return new \WP_REST_Response( [ 'error' => 'You are not the owner of this membership bundle.' ], 403 );
-    }
-
-    $config = $bundle->get_config();
-    if ( ! $config || ! $config->is_renewal_confirmation() ) {
-      return new \WP_REST_Response( [ 'error' => 'This membership bundle is not configured for confirmation renewal.' ], 400 );
-    }
-
-    // Confirm window: same early_renew_at -> ends_at window Membership_Bundle::get_owner_callouts()
-    // already uses to surface the early_renewal callout to this same bundle owner. Both
-    // paths honor the same debug override so a simulated date that shows the callout
-    // also allows confirming it.
-    $dates          = $bundle->get_dates();
-    $early_renew_at = ! empty( $dates['early_renew_at'] ) ? strtotime( $dates['early_renew_at'] ) : null;
-    $ends_at        = ! empty( $dates['ends_at'] ) ? strtotime( $dates['ends_at'] ) : null;
-    $now            = current_time( 'timestamp' );
-    if ( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && ! empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
-      $now = strtotime( date( 'Y-m-d' ) . '+' . (int) $_REQUEST['wicket_wp_membership_debug_days'] . ' days' );
-    }
-
-    if ( ! $early_renew_at || ! $ends_at || $now < $early_renew_at || $now >= $ends_at ) {
-      return new \WP_REST_Response( [ 'error' => 'The renewal confirmation window is not currently open for this membership bundle.' ], 400 );
-    }
-
-    $claim = Membership_Bundle_Renewal_Order_Controller::claim_renewal_order_creation( $bundle_post_id );
-    if ( $claim !== true ) {
-      return new \WP_REST_Response( [
-        'error'    => $claim['order_id']
-          ? __( 'This membership bundle has already been renewed for the current cycle.', 'wicket-memberships' )
-          : __( 'Renewal confirmation is already in progress for this membership bundle.', 'wicket-memberships' ),
-        'order_id' => $claim['order_id'],
-      ], $claim['status'] );
-    }
-
-    as_schedule_single_action(
-      time(),
-      'wicket_bundle_create_renewal_order',
-      [ 'bundle_post_id' => $bundle_post_id, 'subscription_id' => $subscription->get_id() ],
-      'wicket-memberships',
-      false
-    );
-
-    // Member-appropriate response shape — no wp-admin order_url, unlike
-    // create_bundle_renewal_order's response: a wp-admin URL is meaningless to a
-    // non-admin caller. The created order flows through the existing
-    // catch_order_completed() -> handle_bundle_renewal() pipeline unchanged.
-    return new \WP_REST_Response( [
-      'success'        => __( 'Your renewal invoice is being prepared.', 'wicket-memberships' ),
-      'bundle_post_id' => $bundle_post_id,
-    ], 202 );
-  }
-
-  /**
-   * GET /bundle/{bundle_post_id}/renewal_order_status
-   *
-   * Reads membership_renewal_order_creation (Membership_Bundle_Renewal_Order_Controller's job
-   * result meta) and shapes it for the account-centre poller: 'pending' while queued,
-   * 'complete' with a checkout payment URL once the order exists, 'failed' otherwise.
-   * There is no per-line-item progress to report — wcs_create_renewal_order() runs as
-   * one atomic call — so this is an indeterminate status, not a progress count.
-   */
-  public function get_bundle_renewal_order_status( \WP_REST_Request $request ): \WP_REST_Response {
-    $bundle_post_id = (int) ( $request->get_param( 'bundle_post_id' ) ?? 0 );
-    $bundle         = new Membership_Bundle( $bundle_post_id );
-
-    if ( $bundle->post_id <= 0 ) {
-      return new \WP_REST_Response( [ 'error' => 'Membership bundle not found.' ], 404 );
-    }
-
-    $current_user_id = get_current_user_id();
-    if ( ! $current_user_id || $bundle->get_owner_id() !== $current_user_id ) {
-      return new \WP_REST_Response( [ 'error' => 'You are not the owner of this membership bundle.' ], 403 );
-    }
-
-    $raw   = get_post_meta( $bundle_post_id, 'membership_renewal_order_creation', true );
-    $state = $raw ? ( json_decode( $raw, true ) ?: [] ) : [];
-
-    if ( ! empty( $state['order_id'] ) ) {
-      $order = function_exists( 'wc_get_order' ) ? wc_get_order( (int) $state['order_id'] ) : false;
-      return new \WP_REST_Response( [
-        'status'      => 'complete',
-        'payment_url' => $order ? $order->get_checkout_payment_url() : null,
-      ], 200 );
-    }
-
-    if ( ! empty( $state['failed_at'] ) ) {
-      return new \WP_REST_Response( [ 'status' => 'failed' ], 200 );
-    }
-
-    return new \WP_REST_Response( [ 'status' => 'pending' ], 200 );
-  }
-
-  /**
    * Shared defensive validation for any endpoint that needs to act on a bundle's
    * linked WooCommerce subscription: bundle_post_id is valid, WCS is active, the
    * post resolves to a membership bundle, it has a linked subscription, and that
-   * subscription loads. Purely defensive — no business/permission logic. Used by
-   * both the admin create_renewal_order endpoint and the member-facing
-   * confirm_renewal endpoint so the two share identical checks.
+   * subscription loads. Purely defensive — no business/permission logic.
    *
    * @param int $bundle_post_id
    * @return array{bundle: Membership_Bundle, subscription: \WC_Subscription}|\WP_Error
@@ -944,19 +774,4 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     return $status;
   }
 
-  /**
-   * Check permissions for the member-facing confirm_renewal endpoint.
-   *
-   * Distinct from permissions_check_write: this is not gated on the admin
-   * WICKET_MEMBERSHIPS_CAPABILITY. Any logged-in user may call this endpoint —
-   * the handler itself rejects with 'not_bundle_owner' if the caller is not the
-   * bundle's actual owner, since bundle_post_id is only known once the route
-   * resolves and this callback runs before the handler.
-   */
-  public function permissions_check_confirm_renewal( $request ) {
-    if ( ! is_user_logged_in() ) {
-      return new WP_REST_Response( [ 'error' => 'Authentication required.' ], 401 );
-    }
-    return true;
-  }
 }

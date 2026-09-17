@@ -19,11 +19,8 @@ const RenewalTypeSection = ({
   onRenewalFormPostIdChange,
   loadPostOptions,
   postTypeLabel = "Post",
-  // Extra options appended to the base list — e.g. bundle configs add
-  // "confirmation_renewal", which is not a valid Membership_Tier renewal_type.
-  extraOptions = [],
 }) => {
-  const options = [...RENEWAL_TYPE_OPTIONS, ...extraOptions];
+  const options = RENEWAL_TYPE_OPTIONS;
   if (isLoading) {
     return (
       <div style={{ marginTop: "15px" }}>

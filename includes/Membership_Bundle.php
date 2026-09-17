@@ -318,8 +318,8 @@ class Membership_Bundle {
     ];
     // next_payment only applies to the 'subscription' renewal type — matches
     // activate_subscription_for_dates()'s rule. Every other renewal type
-    // (form_page, confirmation_renewal, ...) must not carry a next_payment date
-    // into the new term, or WCS would auto-charge on its own schedule again.
+    // (form_page, ...) must not carry a next_payment date into the new term,
+    // or WCS would auto-charge on its own schedule again.
     if ( $config->is_renewal_subscription() ) {
       $sub_dates['next_payment'] = date( 'Y-m-d H:i:s', $ends_at_ts );
     }
@@ -2687,8 +2687,8 @@ class Membership_Bundle {
     // individual-membership precedent (Helper::has_next_payment_date()) and
     // Membership_Bundle_Admin_Controller::maybe_sync_renewal_type_next_payment()'s
     // rule for a later renewal-type change: subscription auto-charges via WCS's own
-    // schedule; every other renewal type (form_page, confirmation_renewal, ...) must
-    // not have a next_payment date or WCS would trigger an unwanted renewal payment.
+    // schedule; every other renewal type (form_page, ...) must not have a
+    // next_payment date or WCS would trigger an unwanted renewal payment.
     $config = $this->get_config();
     if ( $config && $config->is_renewal_subscription() ) {
       $subscription_dates['next_payment'] = $next_payment->format( 'Y-m-d H:i:s' );
@@ -2833,8 +2833,8 @@ class Membership_Bundle {
     // is the per-member individual-tier flag and does not describe the bundle's own renewal
     // mechanics. Mirrors activate_subscription_for_dates()/renew_bundle()'s rule: 'subscription'
     // uses ends_at for the subscription end date and carries a next_payment date; every other
-    // renewal type (form_page, confirmation_renewal, ...) uses expires_at (grace-period end) and
-    // must not have a next_payment date, or WCS would trigger an unwanted renewal payment.
+    // renewal type (form_page, ...) uses expires_at (grace-period end) and must not have
+    // a next_payment date, or WCS would trigger an unwanted renewal payment.
     $is_renewal_subscription = $config && $config->is_renewal_subscription();
 
     if ( $is_renewal_subscription ) {
@@ -2950,11 +2950,6 @@ class Membership_Bundle {
         'next_tier'       => false,
         'form_page'       => false,
         'subscription_renewal' => false,
-        // Fourth button-type flag, alongside the three above: the Account Center's
-        // ac-callout block dispatches on these to decide what the callout's button
-        // does. confirmation_renewal has no link target (product/form/checkout) —
-        // it renders a real button that POSTs to confirm_renewal instead.
-        'confirmation_renewal' => $config->is_renewal_confirmation(),
         'multi_tier_renewal'   => false,
         'meta'            => [
           'membership_status'         => $status,
