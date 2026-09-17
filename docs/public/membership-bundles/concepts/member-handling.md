@@ -20,6 +20,10 @@ This means:
 
 There are two modes for adding a member to a bundle.
 
+::: info Member-facing "Add Member" flow
+The account-center bundle detail screen (`templates/account-membership-bundles/detail.php`) offers a three-step "Add Member" modal — search, results, review/confirm — that only ever uses `mode: "new"`. It searches MDP people by name via [Search for a person to add](../endpoints/bundle-members.md#search-for-a-person-to-add), lists eligible tiers via [List eligible tiers](../endpoints/bundle-members.md#list-eligible-tiers-member-scoped), and lets the member check one or more tiers at once — issuing one [Add a member to a bundle (member-scoped)](../endpoints/bundle-members.md#add-a-member-to-a-bundle-member-scoped) call per selected tier on confirm, sequentially, so a failure on one tier doesn't roll back or block the others.
+:::
+
 ### Mode: `new`
 
 Creates a fresh individual membership and links it to the bundle. You must supply the MDP person UUID and the `Membership_Tier` post ID. The tier determines what type of seat is being added and which WooCommerce product covers it.

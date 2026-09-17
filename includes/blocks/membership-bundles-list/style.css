@@ -552,3 +552,277 @@
   color: var(--text-content-secondary, #4b5563);
   margin: 0;
 }
+
+.wicket-mship-bundle-detail__title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-200, 1rem);
+  flex-wrap: wrap;
+}
+
+/* Add Member modal
+   ------------------------------------------------------------------------
+   Three-step (search → results → review/confirm) modal opened from the
+   bundle-detail title row. See templates/account-membership-bundles/
+   add-member-modal.php for the Alpine component. */
+
+.wicket-mship-add-member-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-200, 1rem);
+}
+
+.wicket-mship-add-member-modal[x-cloak] {
+  display: none !important;
+}
+
+.wicket-mship-add-member-modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.55);
+}
+
+.wicket-mship-add-member-modal__panel {
+  position: relative;
+  background: var(--bg-surface, #ffffff);
+  border-radius: var(--card-accent-corner-radius, 0.85rem);
+  width: 100%;
+  max-width: 640px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--space-300, 1.5rem);
+  box-shadow: 0 20px 40px rgba(17, 24, 39, 0.25);
+}
+
+.wicket-mship-add-member-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-200, 1rem);
+  margin-bottom: var(--space-200, 1rem);
+}
+
+.wicket-mship-add-member-modal__title {
+  font-size: var(--heading-sm-font-size, 1.25rem);
+  font-weight: 700;
+  margin: 0;
+}
+
+.wicket-mship-add-member-modal__description {
+  color: var(--text-content-secondary, #4b5563);
+  line-height: var(--line-height-normal, 1.5);
+  margin: 0 0 var(--space-200, 1rem);
+}
+
+.wicket-mship-add-member-modal__label {
+  display: block;
+  font-size: var(--label-sm-font-size, 0.85rem);
+  font-weight: 700;
+  margin-bottom: var(--space-100, 0.5rem);
+}
+
+.wicket-mship-add-member-modal__search-row {
+  display: flex;
+  gap: var(--space-150, 0.75rem);
+  margin-bottom: var(--space-200, 1rem);
+}
+
+.wicket-mship-add-member-modal__search-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--border-light, #d1d5db);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-100, 0.55rem) var(--space-150, 0.75rem);
+  font-size: var(--body-sm-font-size, 0.9rem);
+}
+
+.wicket-mship-add-member-modal__error {
+  color: var(--state-error, #991b1b);
+  background: var(--state-error-light, #fef2f2);
+  border: 1px solid var(--state-error-light, #fecaca);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-150, 0.75rem) var(--space-200, 1rem);
+  margin-bottom: var(--space-200, 1rem);
+}
+
+.wicket-mship-add-member-modal__empty {
+  color: var(--text-content-secondary, #4b5563);
+  padding: var(--space-200, 1rem) 0;
+}
+
+.wicket-mship-add-member-modal__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-150, 0.75rem);
+  margin-top: var(--space-300, 1.5rem);
+  padding-top: var(--space-200, 1rem);
+  border-top: 1px solid var(--border-light, #e5e7eb);
+}
+
+.wicket-mship-add-member-modal__footer--split {
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.wicket-mship-add-member-modal__footer-actions {
+  display: flex;
+  gap: var(--space-150, 0.75rem);
+}
+
+.wicket-mship-add-member-modal__selected-count {
+  font-size: var(--body-sm-font-size, 0.9rem);
+  color: var(--text-content-secondary, #4b5563);
+}
+
+/* Results step — person rows / selected person card */
+
+/* Layout-only — appearance (color, weight, cursor) comes from the
+   get_component('button', ['variant' => 'ghost', ...]) markup itself. */
+.wicket-mship-add-member-modal__back-link {
+  margin-bottom: var(--space-150, 0.75rem);
+}
+
+.wicket-mship-add-member-modal__results-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-100, 0.5rem);
+  margin-bottom: var(--space-200, 1rem);
+}
+
+.wicket-mship-add-member-modal__result-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-150, 0.75rem);
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 1px solid var(--border-light, #e5e7eb);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-150, 0.75rem);
+  cursor: pointer;
+}
+
+.wicket-mship-add-member-modal__result-row:hover {
+  border-color: var(--interactive, #2563eb);
+}
+
+.wicket-mship-add-member-modal__person-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-150, 0.75rem);
+  background: var(--bg-accent-light, #dde6fc);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-150, 0.75rem);
+  margin-bottom: var(--space-200, 1rem);
+}
+
+.wicket-mship-add-member-modal__result-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--border-light, #d1d5db);
+}
+
+.wicket-mship-add-member-modal__result-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-25, 0.15rem);
+  min-width: 0;
+}
+
+.wicket-mship-add-member-modal__result-name {
+  font-weight: 700;
+  color: var(--text-content, #111827);
+}
+
+.wicket-mship-add-member-modal__result-email {
+  font-size: var(--body-sm-font-size, 0.85rem);
+  color: var(--text-content-secondary, #6b7280);
+}
+
+/* Results step — tier checkboxes */
+
+.wicket-mship-add-member-modal__tier-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-150, 0.75rem);
+}
+
+.wicket-mship-add-member-modal__tier-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-150, 0.75rem);
+  border: 1px solid var(--border-light, #e5e7eb);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-150, 0.75rem);
+}
+
+.wicket-mship-add-member-modal__tier-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-100, 0.5rem);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wicket-mship-add-member-modal__product-select {
+  border: 1px solid var(--border-light, #d1d5db);
+  border-radius: var(--border-radius-100, 0.4rem);
+  padding: var(--space-75, 0.4rem) var(--space-100, 0.5rem);
+  font-size: var(--body-sm-font-size, 0.85rem);
+}
+
+/* Review step */
+
+.wicket-mship-add-member-modal__review-table-wrap {
+  overflow-x: auto;
+  margin-bottom: var(--space-200, 1rem);
+}
+
+.wicket-mship-add-member-modal__review-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  font-size: var(--body-sm-font-size, 0.9rem);
+}
+
+.wicket-mship-add-member-modal__review-table th,
+.wicket-mship-add-member-modal__review-table td {
+  text-align: left;
+  padding: var(--space-150, 0.75rem) var(--space-150, 0.75rem);
+  vertical-align: top;
+}
+
+.wicket-mship-add-member-modal__review-table thead tr {
+  border-bottom: 2px solid var(--interactive-dark, #1e3a8a);
+}
+
+.wicket-mship-add-member-modal__review-table tbody tr {
+  border-bottom: 1px solid var(--border-light, #e5e7eb);
+}
+
+.wicket-mship-add-member-modal__review-table th {
+  font-size: var(--label-xs-font-size, 0.75rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.wicket-mship-add-member-modal__info-banner {
+  background: var(--bg-accent-light, #dde6fc);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-150, 0.75rem) var(--space-200, 1rem);
+  color: var(--text-content, #111827);
+  font-size: var(--body-sm-font-size, 0.9rem);
+  line-height: var(--line-height-normal, 1.5);
+}

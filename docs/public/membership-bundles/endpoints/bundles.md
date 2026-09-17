@@ -200,6 +200,8 @@ Purpose-built for member-facing use: `bundle_post_id` is resolved server-side fr
 
 `ID` is the `wicket_membership` post ID. `tier_uuid` matches a `tier_uuid` in [Get member count by tier](#get-member-count-by-tier)'s `tiers[]` — join client-side to display the tier name rather than re-fetching it. Dates are raw ISO 8601 strings in the MDP timezone — never pre-formatted.
 
+This returns one row per individual `wicket_membership` record, not one row per person — a member holding more than one tier in this bundle (added via the add-member modal's multi-tier selection, for example) appears as multiple rows, one per tier, each with its own `ID` and `tier_uuid`. The client-side table (`templates/account-membership-bundles/detail.php`) visually groups consecutive rows sharing the same email to signal they belong to the same person.
+
 ### Errors
 
 :::details Error codes
@@ -208,7 +210,6 @@ Purpose-built for member-facing use: `bundle_post_id` is resolved server-side fr
 | `401` | Not logged in |
 | `403` | Logged in, but the current member's MDP organisation connections do not include the bundle's `org_uuid` |
 | `404` | Bundle post not found |
-| `500` | The underlying member query failed unexpectedly |
 :::
 
 ### Example

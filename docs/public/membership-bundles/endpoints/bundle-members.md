@@ -73,6 +73,64 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/search_eli
 
 ---
 
+## List eligible tiers (member-scoped)
+
+**`GET /wp-json/wicket_member/v1/bundle/{bundle_post_id}/eligible_tiers/mine`**
+
+Lists the individual membership tiers eligible for this bundle, each with its resolved WooCommerce product/variation options. Used by the add-member flow's results step to build the tier picker, since the underlying tier and product catalogs are not otherwise readable by a plain member (see [Authentication](overview.md#authentication)).
+
+An empty eligible-tiers list on the bundle's config means every active individual tier is eligible — this endpoint reflects that fallback rule rather than returning an empty array in that case.
+
+### URL parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundle_post_id` | `integer` | Yes | Post ID of the bundle to list eligible tiers for. |
+
+### Response
+
+`200 OK`
+
+```json
+[
+    {
+        "id": 88,
+        "name": "Gold",
+        "products": [
+            {
+                "product_id": 803,
+                "variation_id": 805,
+                "name": "Gold — Annual",
+                "price": "150.00"
+            }
+        ]
+    }
+]
+```
+
+A tier with more than one entry in `products` requires the caller to choose one and pass its `product_id`/`variation_id` to [Add a member to a bundle (member-scoped)](#add-a-member-to-a-bundle-member-scoped). A tier with exactly one product can omit `product_id` there — it's auto-resolved from the tier.
+
+### Errors
+
+:::details Error codes
+| Status | Cause |
+|---|---|
+| `401` | Not logged in |
+| `403` | Logged in, but the current member's MDP organisation connections do not include the bundle's `org_uuid` |
+| `404` | Bundle post not found |
+:::
+
+### Example
+
+:::details Example
+```bash
+curl "https://example.com/wp-json/wicket_member/v1/bundle/123/eligible_tiers/mine" \
+  -H "X-WP-Nonce: {nonce}"
+```
+:::
+
+---
+
 ## Add a member to a bundle
 
 **`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/add_member`**

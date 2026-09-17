@@ -53,6 +53,7 @@ $block_config = [
   class="wicket-mship-bundle-detail"
   x-data="wicketMembershipBundleDetail(<?php echo esc_attr( wp_json_encode( $block_config ) ); ?>)"
   x-init="init()"
+  x-on:wicket-mship-bundle-member-added.window="fetchTiers(); fetchMembers(1)"
 >
   <a class="wicket-mship-bundle-detail__back" :href="backUrl">
     <?php esc_html_e( '← Back to Membership Bundles', 'wicket-memberships' ); ?>
@@ -77,7 +78,26 @@ $block_config = [
 
   <template x-if="!loading && !error && bundle">
     <div>
-      <h1 class="wicket-mship-bundle-detail__title" x-text="bundle.title"></h1>
+      <div class="wicket-mship-bundle-detail__title-row">
+        <h1 class="wicket-mship-bundle-detail__title" x-text="bundle.title"></h1>
+
+        <?php
+        // get_component('button', ...) from wicket-wp-base-plugin — Alpine
+        // bindings (x-show, x-on) are passed through as raw strings in
+        // 'atts', the same pattern used by that plugin's own Alpine-driven
+        // org-search-select component.
+        get_component( 'button', [
+          'variant' => 'primary',
+          'size'    => 'sm',
+          'label'   => __( 'Add Member', 'wicket-memberships' ),
+          'type'    => 'button',
+          'atts'    => [
+            'x-show="[\'pending\', \'active\', \'delayed\'].includes(bundle.data.membership_status_slug)"',
+            'x-on:click="window.dispatchEvent(new CustomEvent(\'wicket-mship-open-add-member-modal\'))"',
+          ],
+        ] );
+        ?>
+      </div>
 
       <div class="wicket-mship-bundle-detail__status">
         <span
@@ -302,6 +322,15 @@ $block_config = [
     </div>
   </template>
 </div>
+
+<?php
+// Sibling Alpine component, not nested inside the x-data above — see
+// add-member-modal.php's own header comment for why it's decoupled via a
+// window event rather than shared scope. Reuses $block_config as-is since
+// its restBase/restNonce/bundlePostId/mdpTimezone already match what the
+// modal needs.
+require __DIR__ . '/add-member-modal.php';
+?>
 
 <script>
   // Global Alpine component factory — no bundler/build step for this block,

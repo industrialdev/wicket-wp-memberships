@@ -912,6 +912,117 @@ class Membership_Bundle_Admin_Controller {
   // ---------------------------------------------------------------------------
 
   /**
+   * Return the individual tiers eligible for a bundle's add-member flow, each
+   * with its resolvable WooCommerce product/variation options.
+   *
+   * Mirrors the tier + product loading logic of the legacy React
+   * AddMemberToBundleModal (frontend/src/membership_bundles/components/
+   * AddMemberToBundleModal.js), but as a member-scoped server-side endpoint:
+   * the wicket_mship_tier CPT is registered with `public => false`, so a
+   * logged-in member cannot read it via the native /wp/v2/{slug} REST route
+   * (see Membership_Post_Types::register_membership_tier_post_type()), and
+   * the staff-only /membership_products route cannot be reused to resolve
+   * product names/prices for the same reason.
+   *
+   * @param int $bundle_post_id
+   * @return array|\WP_REST_Response Array of { id, name, products: [{ product_id, variation_id, name, price }] }.
+   */
+  public static function get_eligible_tiers_for_bundle( int $bundle_post_id ) {
+    $bundle = new Membership_Bundle( $bundle_post_id );
+    if ( $bundle->post_id <= 0 ) {
+      return new \WP_REST_Response( [ 'error' => 'Membership bundle not found.' ], 404 );
+    }
+
+    $config            = $bundle->get_config();
+    $eligible_tier_ids = $config instanceof Membership_Bundle_Config ? $config->get_eligible_tier_ids() : [];
+
+    $query_args = [
+      'post_type'      => Helper::get_membership_tier_cpt_slug(),
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+      'orderby'        => 'title',
+      'order'          => 'ASC',
+    ];
+
+    // Empty eligible_tier_ids means all active individual tiers are eligible
+    // (the config field's own fallback rule — see
+    // Membership_Bundle_Config::get_eligible_tier_ids()) — only constrain the
+    // query when the config actually restricts the list.
+    if ( ! empty( $eligible_tier_ids ) ) {
+      $query_args['post__in'] = $eligible_tier_ids;
+    }
+
+    $tier_posts = get_posts( $query_args );
+
+    // Collect every product/variation ID across all tiers up front so WC
+    // names/prices are resolved in one pass rather than once per tier.
+    $tiers                = [];
+    $product_lookup_ids   = [];
+
+    foreach ( $tier_posts as $tier_post ) {
+      $tier = new Membership_Tier( $tier_post->ID );
+      if ( ! $tier->is_individual_tier() ) {
+        continue;
+      }
+
+      $products_data = $tier->get_products_data();
+      $products_data = is_array( $products_data ) ? $products_data : [];
+
+      $tiers[] = [
+        'id'       => $tier_post->ID,
+        'name'     => get_the_title( $tier_post ),
+        'products' => $products_data,
+      ];
+
+      foreach ( $products_data as $product_entry ) {
+        $lookup_id = ! empty( $product_entry['variation_id'] )
+          ? (int) $product_entry['variation_id']
+          : (int) ( $product_entry['product_id'] ?? 0 );
+        if ( $lookup_id > 0 ) {
+          $product_lookup_ids[ $lookup_id ] = true;
+        }
+      }
+    }
+
+    // Resolve WC product/variation display names and prices in one pass —
+    // prefer variation_id over product_id when both are present, same
+    // lookup-precedence rule the legacy React modal used.
+    $product_names  = [];
+    $product_prices = [];
+    foreach ( array_keys( $product_lookup_ids ) as $lookup_id ) {
+      $wc_product = wc_get_product( $lookup_id );
+      if ( ! $wc_product ) {
+        continue;
+      }
+      $product_names[ $lookup_id ]  = $wc_product->get_name();
+      $product_prices[ $lookup_id ] = $wc_product->get_price();
+    }
+
+    // Reshape each tier's raw product_data into the flat option list the
+    // add-member modal renders, with names/prices merged in.
+    foreach ( $tiers as &$tier_row ) {
+      $tier_row['products'] = array_values( array_map(
+        function ( $product_entry ) use ( $product_names, $product_prices ) {
+          $variation_id = ! empty( $product_entry['variation_id'] ) ? (int) $product_entry['variation_id'] : null;
+          $product_id   = (int) ( $product_entry['product_id'] ?? 0 );
+          $lookup_id    = $variation_id ?: $product_id;
+
+          return [
+            'product_id'   => $product_id,
+            'variation_id' => $variation_id,
+            'name'         => $product_names[ $lookup_id ] ?? '',
+            'price'        => $product_prices[ $lookup_id ] ?? '',
+          ];
+        },
+        $tier_row['products']
+      ) );
+    }
+    unset( $tier_row );
+
+    return $tiers;
+  }
+
+  /**
    * Add an individual membership to a bundle.
    *
    * Dispatches to Membership_Bundle::add_member() based on the 'mode' key in $params:

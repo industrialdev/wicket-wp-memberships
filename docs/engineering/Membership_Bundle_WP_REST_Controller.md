@@ -118,16 +118,23 @@ Member-scoped counterpart to `Membership_WP_REST_Controller::mdp_person_lookup()
 
 Returns plain MDP person matches (`full_name`, `primary_email_address`, `id`) — no eligibility computation. Tier eligibility is still enforced only by `add_member` at submit time via `Membership_Bundle_Config::is_tier_eligible_for_bundle()`; there is no person-level duplicate-membership check for new members anywhere in this flow (see `add_member_to_bundle()` above).
 
+### `get_bundle_eligible_tiers( \WP_REST_Request $request )`
+
+**Route:** `GET /bundle/{bundle_post_id}/eligible_tiers/mine` — gated by `permissions_check_bundle_org_member`
+
+Delegates to `Membership_Bundle_Admin_Controller::get_eligible_tiers_for_bundle()`. Backs the account-center "Add Member" modal's results step: lists the bundle's eligible individual tiers with resolved WooCommerce product/variation names and prices, since the `wicket_mship_tier` CPT and the staff-only `/membership_products` route are both unreachable by a plain member. Returns `404` if the bundle post is not found; otherwise an array of `{ id, name, products: [{ product_id, variation_id, name, price }] }`.
+
 ### `get_bundle_members( \WP_REST_Request $request )`
 
 **Route:** `GET /bundle/{bundle_post_id}/members/mine` — optional query params: `page`, `posts_per_page`, `tier_uuid`, `order_col`, `order_dir`
 
-Unlike the other `/mine` routes, this is **not** a permission-only variant of an existing handler — it's a new, deliberately narrower wrapper around `Membership_Controller::get_members_list()` (the same method backing the staff `GET /memberships` route). Two problems ruled out reusing that route directly for a member-facing screen:
+Unlike the other `/mine` routes, this is **not** a permission-only variant of an existing handler, and it does **not** delegate to `Membership_Controller::get_members_list()` (the method backing the staff `GET /memberships` route) — it queries the `wicket_membership` CPT directly. Three problems ruled out reusing that method for a member-facing bundle table:
 
 1. `get_members_list()`'s `$filter` array (including `membership_bundle_id`) is trusted verbatim from the request with no ownership check — the staff route's `permissions_check_read` only checks a capability, never that the caller may see *this* bundle. Forwarding a client-supplied filter here would let anyone who passes `permissions_check_bundle_org_member` for bundle A also request bundle B's members by changing `filter[membership_bundle_id]`.
 2. Its row shape includes a staff-only `mdp_link` (direct MDP admin URL) and cross-bundle/cross-org data (`all_membership_tiers`, `all_membership_bundles` — every tier/bundle that person holds anywhere), plus a raw, unaudited dump of all non-underscore-prefixed post meta on the membership CPT.
+3. **`get_members_list()` deduplicates its result set by `user_id`** (see that method's own "deduplicate per user/org in PHP" comment) — it was written for rosters where one row per person is the goal, folding a person's other memberships into a nested `all_membership_tiers` array instead of separate rows. A bundle can legitimately hold more than one concurrent individual membership for the same person (one per tier — see the add-member modal's multi-tier selection in [Member Handling](../public/membership-bundles/concepts/member-handling.md)), and that dedup silently drops every row past the first one for that person. A member added to two tiers in the same bundle would show only one of them in this table. This alone would have ruled out reuse even ignoring points 1 and 2.
 
-`get_bundle_members()` instead builds `$filter = ['membership_bundle_id' => $bundle_post_id]` itself from the already-authorized route param (never from client input), optionally adds `membership_tier` from the validated `tier_uuid` query arg, and calls `get_members_list('individual', ...)` directly. Each result row is then passed through `shape_member_row_for_member()`, which returns an explicit minimal shape instead of the raw row:
+`get_bundle_members()` instead runs its own `WP_Query` against `wicket_membership` filtered by `membership_type = individual`, `membership_bundle_id = $bundle_post_id` (from the already-authorized route param, never from client input), and optionally `membership_tier_uuid` from the validated `tier_uuid` query arg — with no per-user dedup. Each matching post is passed through `shape_member_row_for_member()`, which now takes a `\WP_Post` directly and returns an explicit minimal shape instead of the raw row:
 
 ```json
 {
@@ -145,6 +152,8 @@ Unlike the other `/mine` routes, this is **not** a permission-only variant of an
 ```
 
 `tier_uuid` is meant to be joined client-side against `members_by_tier`'s `tiers[].tier_uuid`/`tier_name` (already fetched for the summary counts) rather than resolving the tier name server-side a second time. `membership_status_slug` uses `Helper::get_all_status_names()`, the same slug/label source as `Membership_Bundle_Admin_Controller::get_bundle_entity_records()`.
+
+Sorting and pagination both happen in PHP after the full (unpaged) result set is fetched and shaped — there's no SQL `ORDER BY` left to attach once rows have been reshaped, and a bundle's member count is small enough that this is cheap. `sort_bundle_member_rows()` maps `order_col` to the shaped row's own field (`user_name` → `first_name`, `user_last_name` → `last_name`, `membership_tier_uuid` → `tier_uuid`, `start_date` → `membership_starts_at` — the same `order_col` values detail.php's `sortMembersBy()` already sends) and falls back to newest-start-date-first when `order_col` is empty or unrecognized.
 
 ### `update_bundle_change_ownership( \WP_REST_Request $request )`
 

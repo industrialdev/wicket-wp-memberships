@@ -198,6 +198,36 @@ Ownership reassignment of linked WooCommerce order/subscription records is handl
 
 ---
 
+### `get_eligible_tiers_for_bundle( int $bundle_post_id ): array|\WP_REST_Response`
+
+Returns the individual `Membership_Tier` posts eligible for a bundle's add-member flow, each with its resolvable WooCommerce product/variation options. Backs the member-scoped `GET /bundle/{bundle_post_id}/eligible_tiers/mine` route used by the account-center "Add Member" modal's results step.
+
+Mirrors the tier + product loading logic of the legacy React `AddMemberToBundleModal` (`frontend/src/membership_bundles/components/AddMemberToBundleModal.js`), but as a member-scoped server-side endpoint: `wicket_mship_tier` is registered with `public => false`, so a logged-in member cannot read it via the native `/wp/v2/{slug}` REST route, and the staff-only `/membership_products` route can't be reused to resolve names/prices either.
+
+Filtering:
+
+- Queries `wicket_mship_tier` posts with `post_status = publish`, constrained to `Membership_Bundle_Config::get_eligible_tier_ids()` when the bundle's config restricts them.
+- An empty `eligible_tier_ids` means all active individual tiers are eligible (the config field's own fallback rule) — the query is unconstrained in that case, not empty.
+- Non-individual tiers (`Membership_Tier::is_individual_tier()` false) are skipped even if they somehow matched `post__in`.
+
+For each surviving tier, `product_data` entries (`product_id`, `variation_id`) are collected across all tiers first, then resolved to WC names/prices in a single pass (`wc_get_product()` per unique ID, preferring `variation_id` over `product_id` when both are present — same lookup precedence the legacy React modal used).
+
+Returns `404` (`\WP_REST_Response`) if `$bundle_post_id` does not resolve to a `Membership_Bundle`. Otherwise returns:
+
+```php
+[
+  [
+    'id'       => 88,
+    'name'     => 'Gold',
+    'products' => [
+      [ 'product_id' => 803, 'variation_id' => 805, 'name' => 'Gold — Annual', 'price' => '150.00' ],
+    ],
+  ],
+]
+```
+
+---
+
 ### `add_member( array $params ): array`
 
 Adds an individual membership to a bundle. Dispatches to `Membership_Bundle::add_member()` based on `mode`.
