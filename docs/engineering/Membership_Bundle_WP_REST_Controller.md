@@ -172,7 +172,7 @@ Validates `member_handling` and (when applicable) `timing`, then delegates to `M
 
 **Permission:** `permissions_check_write` (admin capability, unconditional override — no timing/config gating).
 
-Body: `bundle_post_id` (integer, required, from the URL). Validates via `validate_bundle_and_subscription()`, then calls `Membership_Bundle_Cron_Controller::clear_completed_renewal_order_claim()` before claiming the renewal slot via `claim_renewal_order_creation()` and queuing background creation — it does **not** call `wcs_create_renewal_order()` inline (Milestone 10: `wcs_create_renewal_order()` plus Milestone 9's per-member repricing can take several seconds for a 100+ member bundle, too long to hold an HTTP request open).
+Body: `bundle_post_id` (integer, required, from the URL). Validates via `validate_bundle_and_subscription()`, then calls `Membership_Bundle_Renewal_Order_Controller::clear_completed_renewal_order_claim()` before claiming the renewal slot via `claim_renewal_order_creation()` and queuing background creation — it does **not** call `wcs_create_renewal_order()` inline (Milestone 10: `wcs_create_renewal_order()` plus Milestone 9's per-member repricing can take several seconds for a 100+ member bundle, too long to hold an HTTP request open).
 
 Unlike `confirm_bundle_renewal()`, this admin action may legitimately be triggered more than once against the same bundle post (e.g. to manually create a second ad-hoc renewal order), so a *completed* prior claim (one with `order_id` already set) is cleared before claiming again. An in-flight claim (queued or still creating, no `order_id` yet) is left alone and still blocks a concurrent request.
 
@@ -193,7 +193,7 @@ Member-facing confirm action for `confirmation_renewal` bundles. Body: `bundle_p
 2. Requesting user must be `$bundle->get_owner_id()` — `403` (`not the owner`) otherwise.
 3. `$bundle->get_config()->is_renewal_confirmation()` must be `true` — `400` otherwise.
 4. Confirm window must be open: `current_time() >= early_renew_at && current_time() < ends_at` (same window `Membership_Bundle::get_owner_callouts()` uses for the `early_renewal` callout; honors the `WICKET_MEMBERSHIPS_DEBUG_RENEW` + `wicket_wp_membership_debug_days` override) — `400` otherwise.
-5. Claims the renewal slot via the same `Membership_Bundle_Cron_Controller::claim_renewal_order_creation()` `create_bundle_renewal_order` uses — `409` on conflict.
+5. Claims the renewal slot via the same `Membership_Bundle_Renewal_Order_Controller::claim_renewal_order_creation()` `create_bundle_renewal_order` uses — `409` on conflict.
 
 On a successful claim (Milestone 10, same as `create_bundle_renewal_order`): schedules the same `wicket_bundle_create_renewal_order` job and returns `202` with `{success, bundle_post_id}` — no separate order-creation code path. No `order_id`/`order_url` in the response (the admin response's wp-admin URL is meaningless to a non-admin caller, and the order doesn't exist yet). On conflict: `409` with `{error, order_id}` (`order_id` is `null` while a confirm is still in flight). The created order flows through the existing `catch_order_completed()` → `handle_bundle_renewal()` pipeline unchanged.
 

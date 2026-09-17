@@ -196,7 +196,7 @@ No personal WC order or subscription is created — the bundle's subscription co
 
 `$product_id` validation accepts a variation: `Membership_Tier::get_product_ids()` returns parent IDs only, so a `$product_id` that is actually a variation is checked against `get_product_variation_ids()` (matched with `$variation_id`) before falling back to `product_tier_mismatch`.
 
-The tier/product cross-check is skipped entirely when `$is_renewal` is `true`: the renewal-order repricing phase (`Membership_Bundle_Cron_Controller::reprice_bundle_renewal_line_item()`) already validated and charged this exact product before payment, so the batch cron must trust that decision rather than re-check it against the tier's *current* config — which may have changed between order creation and this call.
+The tier/product cross-check is skipped entirely when `$is_renewal` is `true`: the renewal-order repricing phase (`Membership_Bundle_Renewal_Order_Controller::reprice_bundle_renewal_line_item()`) already validated and charged this exact product before payment, so the batch cron must trust that decision rather than re-check it against the tier's *current* config — which may have changed between order creation and this call.
 
 Renamed from `create_individual_membership_for_group()`. Fail states: `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `mdp_create_failed`, `create_failed`.
 

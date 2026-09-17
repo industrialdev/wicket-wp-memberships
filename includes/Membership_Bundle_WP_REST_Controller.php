@@ -700,9 +700,9 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     }
     [ 'subscription' => $subscription ] = $validated;
 
-    Membership_Bundle_Cron_Controller::clear_completed_renewal_order_claim( $bundle_post_id );
+    Membership_Bundle_Renewal_Order_Controller::clear_completed_renewal_order_claim( $bundle_post_id );
 
-    $claim = Membership_Bundle_Cron_Controller::claim_renewal_order_creation( $bundle_post_id );
+    $claim = Membership_Bundle_Renewal_Order_Controller::claim_renewal_order_creation( $bundle_post_id );
     if ( $claim !== true ) {
       return new \WP_REST_Response( [
         'error'    => $claim['order_id']
@@ -780,7 +780,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       return new \WP_REST_Response( [ 'error' => 'The renewal confirmation window is not currently open for this membership bundle.' ], 400 );
     }
 
-    $claim = Membership_Bundle_Cron_Controller::claim_renewal_order_creation( $bundle_post_id );
+    $claim = Membership_Bundle_Renewal_Order_Controller::claim_renewal_order_creation( $bundle_post_id );
     if ( $claim !== true ) {
       return new \WP_REST_Response( [
         'error'    => $claim['order_id']
@@ -811,7 +811,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   /**
    * GET /bundle/{bundle_post_id}/renewal_order_status
    *
-   * Reads membership_renewal_order_creation (Membership_Bundle_Cron_Controller's job
+   * Reads membership_renewal_order_creation (Membership_Bundle_Renewal_Order_Controller's job
    * result meta) and shapes it for the account-centre poller: 'pending' while queued,
    * 'complete' with a checkout payment URL once the order exists, 'failed' otherwise.
    * There is no per-line-item progress to report — wcs_create_renewal_order() runs as

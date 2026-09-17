@@ -41,7 +41,8 @@ audience: [implementer, support, developer, end-user]
 - [Membership_Bundle_Config](engineering/Membership_Bundle_Config.md) — Model for bundle config posts: date/cycle calculations, renewal windows, approval settings
 - [Membership_Bundle_Config_CPT_Hooks](engineering/Membership_Bundle_Config_CPT_Hooks.md) — Admin UI hooks for bundle configs: React edit page, list columns, trash protection
 - [Membership_Bundle_Config_WP_REST_Controller](engineering/Membership_Bundle_Config_WP_REST_Controller.md) — REST endpoint for bundle config date calculation
-- [Membership_Bundle_Cron_Controller](engineering/Membership_Bundle_Cron_Controller.md) — Daily Action Scheduler handlers for bundle grace-period, expiry, activation, and renewal batch processing
+- [Membership_Bundle_Cron_Controller](engineering/Membership_Bundle_Cron_Controller.md) — Daily Action Scheduler handlers for bundle grace-period, expiry, activation, and the post-payment renewal batch processing
+- [Membership_Bundle_Renewal_Order_Controller](engineering/Membership_Bundle_Renewal_Order_Controller.md) — Bundle renewal-order creation: claim/queue, WCS admin-action intercept, per-member repricing
 - [Membership_Bundle_WP_REST_Controller](engineering/Membership_Bundle_WP_REST_Controller.md) — REST endpoints for all membership bundle operations
 - [Settings](engineering/Class-Settings.md) — Plugin options page: feature flags, debug toggles, scheduled action status
 - [Subscription_Manager](engineering/Class-Subscription_Manager.md) — Intended eventual home for all WC_Subscription-touching logic; currently holds end-date/next-payment collision guards
