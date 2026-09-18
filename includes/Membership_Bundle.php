@@ -1808,6 +1808,26 @@ class Membership_Bundle {
    * @return bool True on success, false on failure.
    */
   public function set_dates( array $dates ): bool {
+    // Past ends_at/expires_at values silently break MDP record updates, so today is the
+    // earliest allowed value. Status-transition/cancellation flows collapse dates to now
+    // via apply_status_transition() instead of this method, so they are unaffected.
+    $mdp_today = Utilities::get_mdp_day_start()->getTimestamp();
+    foreach ( [ 'ends_at', 'expires_at' ] as $date_key ) {
+      if ( empty( $dates[ $date_key ] ) ) {
+        continue;
+      }
+
+      if ( strtotime( $dates[ $date_key ] ) < $mdp_today ) {
+        Wicket()->log()->error( 'Membership_Bundle: Rejected past date value', [
+          'source'   => 'wicket-memberships',
+          'post_id'  => $this->post_id,
+          'date_key' => $date_key,
+          'value'    => $dates[ $date_key ],
+        ] );
+        return false;
+      }
+    }
+
     $field_map = [
       'starts_at'      => 'membership_starts_at',
       'ends_at'        => 'membership_ends_at',

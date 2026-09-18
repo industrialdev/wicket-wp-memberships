@@ -501,6 +501,15 @@ class Membership_Bundle_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'End date must not be after expiration date.' ], 400 );
     }
 
+    // Past end/expiration dates silently break MDP record updates, so today is the earliest allowed value.
+    $mdp_today = Utilities::get_mdp_day_start()->getTimestamp();
+    if ( $ends_at && $ends_at < $mdp_today ) {
+      return new \WP_REST_Response( [ 'error' => 'End date cannot be before today.' ], 400 );
+    }
+    if ( $expires_at && $expires_at < $mdp_today ) {
+      return new \WP_REST_Response( [ 'error' => 'Expiration date cannot be before today.' ], 400 );
+    }
+
     $bundle             = new Membership_Bundle( $bundle_post_id );
     $pre_edit_renewal_type = (string) get_post_meta( $bundle_post_id, 'membership_renewal_type', true );
 
