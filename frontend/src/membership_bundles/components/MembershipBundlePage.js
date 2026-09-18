@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { __ } from "@wordpress/i18n";
+import { addQueryArgs } from "@wordpress/url";
 import styled from "styled-components";
 import AdminNoticeStack from "../../shared/components/AdminNoticeStack";
 import AdminPageErrorBoundary from "../../shared/components/AdminPageErrorBoundary";
@@ -24,8 +25,8 @@ const isNewlyCreated = () => {
   }
 };
 
-const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembersUrl }) => {
-  const { pageData, setPageData, requestState, retryLoad, renewalProcessingMeta } = useMembershipBundleBootstrap({ bundleGroupUuid });
+const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembersUrl, individualMemberEditUrl }) => {
+  const { pageData, setPageData, requestState, retryLoad, renewalProcessingMeta, renewalOrderCreationMeta } = useMembershipBundleBootstrap({ bundleGroupUuid });
   const [memberAddedNotice, setMemberAddedNotice]       = useState(null);
   const [groupCancelledNotice, setGroupCancelledNotice] = useState(null);
   const [newGroupNotice, setNewGroupNotice] = useState(
@@ -45,7 +46,27 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
     setPageData((prev) => prev ? { ...prev, owner: { ...prev.owner, ...newOwner } } : prev);
   };
 
-  const handleMemberAdded = () => {
+  const handleMemberAdded = (response) => {
+    if (response?.mdp_link_collision) {
+      const memberUrl = individualMemberEditUrl && response.person_uuid
+        ? addQueryArgs(individualMemberEditUrl, { id: response.person_uuid })
+        : null;
+
+      setMemberAddedNotice({
+        id: "member-added",
+        status: "error",
+        message: __(
+          "Member added, but the membership could not be linked to its MDP record — the WordPress ID was already claimed by a different MDP record. Contact an administrator.",
+          "wicket-memberships"
+        ),
+        action: memberUrl
+          ? { label: __("View membership", "wicket-memberships"), onClick: () => window.location.assign(memberUrl) }
+          : undefined,
+        onDismiss: () => setMemberAddedNotice(null),
+      });
+      return;
+    }
+
     setMemberAddedNotice({
       id: "member-added",
       status: "success",
@@ -89,7 +110,7 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
     <>
       <AdminNoticeStack notices={notices} />
       <ContentArea>
-        <RenewalProcessingOverlay processingMeta={renewalProcessingMeta} />
+        <RenewalProcessingOverlay processingMeta={renewalProcessingMeta} orderCreationMeta={renewalOrderCreationMeta} />
         <MembershipBundleForm
           pageData={pageData}
           isLoading={isLoading}
@@ -97,6 +118,7 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
           individualMembersUrl={individualMembersUrl}
           onMemberAdded={handleMemberAdded}
           onBundleCancelled={handleGroupCancelled}
+          onRenewalOrderQueued={retryLoad}
         />
       </ContentArea>
     </>
@@ -113,8 +135,9 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
  * @param {string} props.bundleGroupUuid      - membership_bundle_group_uuid for the series.
  * @param {string} props.listUrl              - URL of the membership bundle list page.
  * @param {string} props.individualMembersUrl - URL of the individual members list page.
+ * @param {string} props.individualMemberEditUrl - Base URL of the individual member edit page (append ?id=<person_uuid>).
  */
-const MembershipBundlePage = ({ bundleGroupUuid, listUrl, individualMembersUrl }) => {
+const MembershipBundlePage = ({ bundleGroupUuid, listUrl, individualMembersUrl, individualMemberEditUrl }) => {
   const [errorBoundaryResetKey, setErrorBoundaryResetKey] = useState(0);
 
   return (
@@ -143,6 +166,7 @@ const MembershipBundlePage = ({ bundleGroupUuid, listUrl, individualMembersUrl }
               listUrl={listUrl}
               bundleGroupUuid={bundleGroupUuid}
               individualMembersUrl={individualMembersUrl}
+              individualMemberEditUrl={individualMemberEditUrl}
             />
           </EditWrap>
         </AdminPageErrorBoundary>

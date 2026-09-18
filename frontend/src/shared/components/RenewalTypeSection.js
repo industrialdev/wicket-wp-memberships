@@ -20,6 +20,7 @@ const RenewalTypeSection = ({
   loadPostOptions,
   postTypeLabel = "Post",
 }) => {
+  const options = RENEWAL_TYPE_OPTIONS;
   if (isLoading) {
     return (
       <div style={{ marginTop: "15px" }}>
@@ -44,8 +45,8 @@ const RenewalTypeSection = ({
             isDisabled={disabled}
             isSearchable={false}
             onChange={(selected) => onRenewalTypeChange(selected.value)}
-            options={RENEWAL_TYPE_OPTIONS}
-            value={RENEWAL_TYPE_OPTIONS.find((o) => o.value === renewalType) ?? null}
+            options={options}
+            value={options.find((o) => o.value === renewalType) ?? null}
           />
         </FlexBlock>
       </div>

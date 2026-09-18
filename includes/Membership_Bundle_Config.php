@@ -6,7 +6,8 @@ namespace Wicket_Memberships;
  *
  * Combines the date/cycle/renewal-window logic of Membership_Config with the
  * approval and renewal-type logic of Membership_Tier, scoped specifically for
- * Membership Bundles. Renewal type is limited to 'subscription' and 'form_page'.
+ * Membership Bundles. Renewal type is limited to 'subscription' and
+ * 'form_page'.
  *
  * Meta layout
  * -----------
@@ -268,15 +269,11 @@ class Membership_Bundle_Config {
 
     $seasons = $this->cycle_data['calendar_items'];
 
-    // Raw stored dates are plain Y-m-d strings with no timezone. Convert to full
-    // ISO 8601 with the MDP timezone offset here so all callers receive a consistent
-    // format and never need to guess the implicit timezone.
+    // Pass the raw date straight through; collapsing via strtotime()/date('Y-m-d')
+    // first reads the UTC day and shifts the boundary a day forward.
     foreach ( $seasons as $key => $season ) {
-      $start_date = date( 'Y-m-d', strtotime( $season['start_date'] ) );
-      $end_date   = date( 'Y-m-d', strtotime( $season['end_date'] ) );
-
-      $seasons[ $key ]['start_date'] = Utilities::get_mdp_day_start( $start_date )->format( 'c' );
-      $seasons[ $key ]['end_date']   = Utilities::get_mdp_day_end( $end_date )->format( 'c' );
+      $seasons[ $key ]['start_date'] = Utilities::get_mdp_day_start( $season['start_date'] )->format( 'c' );
+      $seasons[ $key ]['end_date']   = Utilities::get_mdp_day_end( $season['end_date'] )->format( 'c' );
     }
 
     return $seasons;

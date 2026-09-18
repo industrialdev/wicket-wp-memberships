@@ -213,7 +213,15 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/cancel" \
 
 **`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/create_renewal_order`**
 
-Creates a WooCommerce renewal order for the bundle's linked subscription. Use this to manually trigger a renewal payment when automatic subscription renewal is not configured or when a manual renewal order is needed.
+Queues background creation of a WooCommerce renewal order for the bundle's linked subscription (Milestone 10). Use this to manually trigger a renewal payment when automatic subscription renewal is not configured or when a manual renewal order is needed.
+
+The order is not created synchronously in the request — `wcs_create_renewal_order()` plus Milestone 9's per-member repricing can take several seconds for a bundle with 100+ members, well past what a proxy or browser will hold an HTTP request open for. The endpoint instead validates the bundle/subscription, clears any *completed* renewal-order claim from a prior call against this same bundle post (this endpoint may legitimately be called again — e.g. to manually create a second ad-hoc renewal order), claims the renewal slot, queues the actual creation as an Action Scheduler job (`wicket_bundle_create_renewal_order`, group `wicket-memberships`), and returns immediately.
+
+Poll [`GET .../renewal_order_status`](#check-renewal-order-creation-status) for the job's outcome — `order_id` and `order_url` are not available in this endpoint's own response.
+
+WooCommerce Subscriptions' own native "Create pending renewal order" admin order action (on a subscription's wp-admin edit screen) is redirected into this same queued job for a bundle subscription — see `Membership_Bundle_Renewal_Order_Controller::intercept_wcs_create_pending_renewal_for_bundle()`. WCS's own handler would otherwise call `wcs_create_renewal_order()` synchronously on that admin request, running the same per-member repricing loop inline with no Action Scheduler involved. This endpoint and that admin action end up in the identical background job either way.
+
+**Prefer this endpoint (via the bundle's own admin edit page) over WCS's native subscription edit screen for a large bundle.** Loading or saving that native screen renders roughly a dozen form fields per line item; a bundle with hundreds of members can exceed PHP's `max_input_vars` limit on that screen's *own* form submission — a PHP-FPM request-startup check that runs before any WordPress or plugin code, including the redirect described above. This plugin warns admins away from that screen for a bundle with 250+ members (`maybe_render_large_bundle_subscription_notice()`), but cannot prevent or detect the truncation itself once it happens. This endpoint's own request body is always a single field (`bundle_post_id`) regardless of member count, so it is not affected.
 
 ### URL parameters
 
@@ -223,28 +231,37 @@ Creates a WooCommerce renewal order for the bundle's linked subscription. Use th
 
 ### Request body
 
-| Name | Type | Required | Description |
-|---|---|---|---|
-| `product_id` | `integer` | Yes | WC product ID to include in the renewal order. |
-| `variation_id` | `integer` | No | WC variation ID. Overrides `product_id` when provided. |
+None. (An earlier synchronous version of this endpoint took `product_id`/`variation_id`; the queued job resolves the term-ahead product itself via Milestone 9's repricing — see [Renewal Types](../concepts/renewal-types.md).)
 
 ### Response
 
-`200 OK`
+`202 Accepted` — creation has been queued:
 
 ```json
 {
-    "order_id": 500,
-    "order_url": "https://example.com/wp-admin/post.php?post=500&action=edit"
+    "success": "Renewal order creation has been queued.",
+    "bundle_post_id": 123
 }
 ```
+
+`409 Conflict` — creation is still in progress from an earlier request against this bundle post:
+
+```json
+{
+    "error": "Renewal order creation is already in progress for this membership bundle.",
+    "order_id": null
+}
+```
+
+A completed prior claim (a renewal order that already finished creating) does **not** produce a `409` here — it is cleared automatically before the new claim is made, so this endpoint can be called again on the same bundle post. `order_id` in the response body is only ever non-null in the rare case where a concurrent request's job completes in the brief window between the claim clear and the new claim.
 
 ### Errors
 
 | Status | Cause |
 |---|---|
-| `404` | Bundle post not found or no subscription linked |
-| `400` | Renewal order creation failed |
+| `400` | Invalid `bundle_post_id`, bundle has no linked subscription, or the linked subscription could not be loaded |
+| `404` | Bundle post not found |
+| `409` | Renewal order already exists for this cycle, or creation is already in progress (see response shape above) |
 
 ### Example
 
@@ -252,9 +269,69 @@ Creates a WooCommerce renewal order for the bundle's linked subscription. Use th
 ```bash
 curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/create_renewal_order" \
   -H "Content-Type: application/json" \
-  -H "X-WP-Nonce: {nonce}" \
-  -d '{
-    "product_id": 200
-  }'
+  -H "X-WP-Nonce: {nonce}"
+```
+:::
+
+---
+
+## Check renewal order creation status
+
+**`GET /wp-json/wicket_member/v1/bundle/{bundle_post_id}/renewal_order_status`**
+
+Poll target for the background job `create_renewal_order` queues (Milestone 10). Reads `membership_renewal_order_creation` post meta and reports whichever of three states that meta currently represents — there is no per-item progress to report, since `wcs_create_renewal_order()` runs as one atomic call, not a batch.
+
+Owner-gated — only the bundle's own owner may poll this.
+
+### URL parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundle_post_id` | `integer` | Yes | Post ID of the bundle. |
+
+### Response
+
+`200 OK` — no claim exists yet, or a claim is queued but the job hasn't run:
+
+```json
+{
+    "status": "pending"
+}
+```
+
+`200 OK` — the job created the order:
+
+```json
+{
+    "status": "complete",
+    "payment_url": "https://example.com/checkout/order-pay/500/?pay_for_order=true&key=wc_order_abc123"
+}
+```
+
+`payment_url` is `null` if the order ID recorded on the claim no longer resolves to a real order.
+
+`200 OK` — the job failed (e.g. the linked subscription could not be found, or `wcs_create_renewal_order()` errored):
+
+```json
+{
+    "status": "failed"
+}
+```
+
+A failed claim is cleared automatically on the next `create_renewal_order` call, so the admin can simply retry.
+
+### Errors
+
+| Status | Cause |
+|---|---|
+| `403` | Requesting user is not the bundle's owner |
+| `404` | Bundle post not found |
+
+### Example
+
+:::details Example
+```bash
+curl "https://example.com/wp-json/wicket_member/v1/bundle/123/renewal_order_status" \
+  -H "X-WP-Nonce: {nonce}"
 ```
 :::

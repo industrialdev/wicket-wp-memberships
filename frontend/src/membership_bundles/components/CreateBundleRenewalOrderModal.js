@@ -35,12 +35,10 @@ const CreateBundleRenewalOrderModal = ({
 }) => {
   const [error, setError]         = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [orderUrl, setOrderUrl]   = useState(null);
 
   const resetState = () => {
     setError(null);
     setSubmitting(false);
-    setOrderUrl(null);
   };
 
   const handleClose = () => {
@@ -52,9 +50,12 @@ const CreateBundleRenewalOrderModal = ({
     setSubmitting(true);
     setError(null);
     try {
-      const result = await createBundleRenewalOrder(bundlePostId);
-      setOrderUrl(result?.order_url ?? null);
-      if (onSuccess) onSuccess(result?.order_url ?? null);
+      // 202: creation is queued, not done — no order_url yet. RenewalProcessingOverlay
+      // picks up progress from here once membership_renewal_order_creation meta exists.
+      await createBundleRenewalOrder(bundlePostId);
+      resetState();
+      onRequestClose();
+      if (onSuccess) onSuccess();
     } catch (err) {
       setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));
       setSubmitting(false);
@@ -75,43 +76,20 @@ const CreateBundleRenewalOrderModal = ({
         />
       )}
 
-      {orderUrl ? (
-        <>
-          <Alert
-            saveResult={{
-              type: "success",
-              message: __("Renewal order created successfully.", "wicket-memberships"),
-            }}
-          />
-          <p>
-            <a href={orderUrl} target="_blank" rel="noreferrer">
-              {__("View renewal order in WooCommerce", "wicket-memberships")}
-            </a>
-          </p>
-          <ModalFooter>
-            <Button variant="secondary" onClick={handleClose}>
-              {__("Close", "wicket-memberships")}
-            </Button>
-          </ModalFooter>
-        </>
-      ) : (
-        <>
-          <p>
-            {__(
-              "This will create a renewal order off the existing bundle subscription. The subscription itself will not be changed.",
-              "wicket-memberships"
-            )}
-          </p>
-          <ModalFooter>
-            <Button variant="secondary" onClick={handleClose} disabled={submitting}>
-              {__("Cancel", "wicket-memberships")}
-            </Button>
-            <Button variant="primary" onClick={handleSubmit} isBusy={submitting} disabled={submitting}>
-              {__("Create Renewal Order", "wicket-memberships")}
-            </Button>
-          </ModalFooter>
-        </>
-      )}
+      <p>
+        {__(
+          "This will create a renewal order off the existing bundle subscription. The subscription itself will not be changed.",
+          "wicket-memberships"
+        )}
+      </p>
+      <ModalFooter>
+        <Button variant="secondary" onClick={handleClose} disabled={submitting}>
+          {__("Cancel", "wicket-memberships")}
+        </Button>
+        <Button variant="primary" onClick={handleSubmit} isBusy={submitting} disabled={submitting}>
+          {__("Create Renewal Order", "wicket-memberships")}
+        </Button>
+      </ModalFooter>
     </WicketModal>
   );
 };

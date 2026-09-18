@@ -635,50 +635,87 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   /**
    * POST /bundle/{bundle_post_id}/create_renewal_order
    *
-   * Creates a WooCommerce renewal order off the bundle's existing subscription
-   * using wcs_create_renewal_order(). Does not create a new subscription —
-   * the bundle subscription carries all member line items and must remain the
-   * parent so billing history stays intact.
+   * Queues the renewal order for background creation (Membership_Bundle_Cron_
+   * Controller::create_renewal_order_job()) instead of calling
+   * wcs_create_renewal_order() inline — large bundles can exceed a proxy's timeout.
+   * Returns 202 once queued, or 409 if already in-flight.
+   *
+   * This is an admin action and may legitimately be triggered again on the same
+   * bundle post — e.g. to manually create a second ad-hoc renewal order. A completed
+   * prior claim is therefore cleared before claiming again; an in-flight claim (no
+   * order_id yet) still blocks, so a genuine concurrent request is unaffected.
    */
   public function create_bundle_renewal_order( \WP_REST_Request $request ): \WP_REST_Response {
     $bundle_post_id = (int) ( $request->get_param( 'bundle_post_id' ) ?? 0 );
 
+    $validated = self::validate_bundle_and_subscription( $bundle_post_id );
+    if ( is_wp_error( $validated ) ) {
+      return new \WP_REST_Response( [ 'error' => $validated->get_error_message() ], (int) $validated->get_error_data()['status'] );
+    }
+    [ 'subscription' => $subscription ] = $validated;
+
+    Membership_Bundle_Renewal_Order_Controller::clear_completed_renewal_order_claim( $bundle_post_id );
+
+    $claim = Membership_Bundle_Renewal_Order_Controller::claim_renewal_order_creation( $bundle_post_id );
+    if ( $claim !== true ) {
+      return new \WP_REST_Response( [
+        'error'    => $claim['order_id']
+          ? __( 'A renewal order already exists for this membership bundle.', 'wicket-memberships' )
+          : __( 'Renewal order creation is already in progress for this membership bundle.', 'wicket-memberships' ),
+        'order_id' => $claim['order_id'],
+      ], $claim['status'] );
+    }
+
+    as_schedule_single_action(
+      time(),
+      'wicket_bundle_create_renewal_order',
+      [ 'bundle_post_id' => $bundle_post_id, 'subscription_id' => $subscription->get_id() ],
+      'wicket-memberships',
+      false
+    );
+
+    return new \WP_REST_Response( [
+      'success'        => __( 'Renewal order creation has been queued.', 'wicket-memberships' ),
+      'bundle_post_id' => $bundle_post_id,
+    ], 202 );
+  }
+
+  /**
+   * Shared defensive validation for any endpoint that needs to act on a bundle's
+   * linked WooCommerce subscription: bundle_post_id is valid, WCS is active, the
+   * post resolves to a membership bundle, it has a linked subscription, and that
+   * subscription loads. Purely defensive — no business/permission logic.
+   *
+   * @param int $bundle_post_id
+   * @return array{bundle: Membership_Bundle, subscription: \WC_Subscription}|\WP_Error
+   *         WP_Error's data carries ['status' => int] for the caller's REST response code.
+   */
+  private static function validate_bundle_and_subscription( int $bundle_post_id ) {
     if ( ! $bundle_post_id ) {
-      return new \WP_REST_Response( [ 'error' => 'Invalid bundle_post_id.' ], 400 );
+      return new \WP_Error( 'invalid_bundle_post_id', 'Invalid bundle_post_id.', [ 'status' => 400 ] );
     }
 
     if ( ! function_exists( 'wcs_get_subscription' ) || ! function_exists( 'wcs_create_renewal_order' ) ) {
-      return new \WP_REST_Response( [ 'error' => 'WooCommerce Subscriptions is not active.' ], 500 );
+      return new \WP_Error( 'wcs_unavailable', 'WooCommerce Subscriptions is not active.', [ 'status' => 500 ] );
     }
 
     if ( get_post_type( $bundle_post_id ) !== Helper::get_membership_bundle_cpt_slug() ) {
-      return new \WP_REST_Response( [ 'error' => 'Membership bundle not found.' ], 404 );
+      return new \WP_Error( 'bundle_not_found', 'Membership bundle not found.', [ 'status' => 404 ] );
     }
 
     $bundle = new Membership_Bundle( $bundle_post_id );
 
     $subscription_id = $bundle->get_subscription_id();
     if ( ! $subscription_id ) {
-      return new \WP_REST_Response( [ 'error' => 'This membership bundle has no linked WooCommerce subscription.' ], 400 );
+      return new \WP_Error( 'no_subscription', 'This membership bundle has no linked WooCommerce subscription.', [ 'status' => 400 ] );
     }
 
     $subscription = wcs_get_subscription( $subscription_id );
     if ( ! $subscription ) {
-      return new \WP_REST_Response( [ 'error' => 'The linked WooCommerce subscription could not be loaded.' ], 400 );
+      return new \WP_Error( 'subscription_not_found', 'The linked WooCommerce subscription could not be loaded.', [ 'status' => 400 ] );
     }
 
-    $renewal_order = wcs_create_renewal_order( $subscription );
-    if ( is_wp_error( $renewal_order ) ) {
-      return new \WP_REST_Response( [ 'error' => $renewal_order->get_error_message() ], 500 );
-    }
-
-    $order_url = admin_url( 'admin.php?page=wc-orders&action=edit&id=' . $renewal_order->get_id(), 'https' );
-
-    return new \WP_REST_Response( [
-      'success'   => __( 'Renewal order created successfully.', 'wicket-memberships' ),
-      'order_url' => $order_url,
-      'order_id'  => $renewal_order->get_id(),
-    ], 200 );
+    return [ 'bundle' => $bundle, 'subscription' => $subscription ];
   }
 
   /**
@@ -736,4 +773,5 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     }
     return $status;
   }
+
 }

@@ -19,6 +19,7 @@ import {
   updateMembershipBundle,
 } from "../../shared/services/api";
 import { BUNDLE_RENEWAL_TYPE_OPTIONS } from "../../shared/components/MembershipRenewalTypeSection";
+import { getRenewalOrderCreationMeta } from "../utils/renewalMeta";
 
 const DetailsWrap = styled.div`
   padding: 4px 0;
@@ -48,8 +49,9 @@ const DetailsWrap = styled.div`
  * @param {Function} props.onOwnerUpdated        - Called with new owner data after a successful ownership change.
  * @param {string}   props.individualMembersUrl  - URL of the individual members list page for bundle member links.
  * @param {Function} [props.onBundleCancelled]    - Called with a success message after the bundle is cancelled.
+ * @param {Function} [props.onRenewalOrderQueued] - Called after a renewal order is successfully queued.
  */
-const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl, onMemberAdded, onBundleCancelled }) => {
+const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated, onOwnerUpdated, individualMembersUrl, onMemberAdded, onBundleCancelled, onRenewalOrderQueued }) => {
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isCancelGroupOpen, setIsCancelGroupOpen] = useState(false);
   const [isCreateRenewalOrderOpen, setIsCreateRenewalOrderOpen] = useState(false);
@@ -102,6 +104,10 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
   };
 
   const isCancelled = record.status?.toLowerCase() === "cancelled";
+  // A creation already queued/in progress for this cycle — the REST layer
+  // would reject a second one via claim_renewal_order_creation() anyway, but
+  // the button shouldn't invite a click that's already known to fail.
+  const isRenewalOrderCreationPending = Boolean(getRenewalOrderCreationMeta(bundlePageData));
 
   const handleStatusUpdated = (_postId, newStatus) => {
     if (onRecordUpdated) {
@@ -164,7 +170,7 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
             {
               label: __("Create Renewal Order", "wicket-memberships"),
               onClick: () => setIsCreateRenewalOrderOpen(true),
-              disabled: isCancelled,
+              disabled: isCancelled || isRenewalOrderCreationPending,
             },
           ]}
         />
@@ -189,10 +195,10 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
         isOpen={isAddMemberOpen}
         bundlePostId={bundlePostId}
         onRequestClose={() => setIsAddMemberOpen(false)}
-        onSuccess={() => {
+        onSuccess={(response) => {
           setIsAddMemberOpen(false);
           setMemberRefreshKey((k) => k + 1);
-          if (onMemberAdded) onMemberAdded();
+          if (onMemberAdded) onMemberAdded(response);
         }}
       />
 
@@ -200,7 +206,10 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
         isOpen={isCreateRenewalOrderOpen}
         bundlePostId={bundlePostId}
         onRequestClose={() => setIsCreateRenewalOrderOpen(false)}
-        onSuccess={() => setIsCreateRenewalOrderOpen(false)}
+        onSuccess={() => {
+          setIsCreateRenewalOrderOpen(false);
+          if (onRenewalOrderQueued) onRenewalOrderQueued();
+        }}
       />
 
       <MembershipDetailsForm

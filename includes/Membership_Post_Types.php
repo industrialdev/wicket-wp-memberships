@@ -1174,7 +1174,7 @@ class Membership_Post_Types {
               }
 
               if ( empty( $value['renewal_type'] ) || ! in_array( $value['renewal_type'], [ 'subscription', 'form_page' ] ) ) {
-                $errors->add( 'rest_invalid_param_renewal_type', __( 'The renewal type must be either subscription or form_page.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                $errors->add( 'rest_invalid_param_renewal_type', __( 'The renewal type must be subscription or form_page.', 'wicket-memberships' ), array( 'status' => 400 ) );
               }
 
               if ( $value['renewal_type'] === 'form_page' ) {

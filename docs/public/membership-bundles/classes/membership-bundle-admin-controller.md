@@ -413,7 +413,7 @@ Updates editable fields on a bundle post. Validates date ordering before writing
 | `membership_starts_at` | No | ISO 8601. Must be before `membership_ends_at`. |
 | `membership_ends_at` | No | ISO 8601. Must not be after `membership_expires_at`. |
 | `membership_expires_at` | No | ISO 8601. |
-| `membership_renewal_type` | No | `'subscription'` or `'form_page'`. Changing this updates the WC subscription's `next_payment` date accordingly. |
+| `membership_renewal_type` | No | `'subscription'` or `'form_page'`. Changing this updates the WC subscription's `next_payment` date accordingly — set when the new value is `'subscription'`, removed for any other value. |
 
 :::details Example
 ```php

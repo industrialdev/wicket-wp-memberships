@@ -8,13 +8,17 @@ use Wicket_Memberships\Membership_Bundle;
 use Wicket_Memberships\Wicket_Memberships;
 
 /**
- * Daily cron handlers for membership bundle status transitions.
+ * Daily cron handlers for membership bundle status transitions, and the post-payment
+ * member-provisioning batch for bundle renewals.
  *
  * Mirrors the structure of Membership_Controller's three daily hooks but operates
  * exclusively on wicket_mship_bundle posts. Individual/org membership cron remains
- * in Membership_Controller.
+ * in Membership_Controller. Renewal-order creation (claim/queue, the WCS admin-action
+ * intercept, and per-member repricing) lives in Membership_Bundle_Renewal_Order_
+ * Controller instead — this class only re-provisions members once a renewal order
+ * has already been created and paid.
  *
- * Each handler queries for groups due for a status change, instantiates a
+ * Each daily handler queries for groups due for a status change, instantiates a
  * Membership_Bundle object per result, and delegates to transition_to() so lifecycle
  * guards, cascade to child memberships, and MDP sync are applied consistently.
  *
@@ -261,6 +265,35 @@ class Membership_Bundle_Cron_Controller {
     int $offset,
     int $batch_size
   ): void {
+    try {
+      self::process_bundle_renewal_members_batch( $old_bundle_post_id, $new_bundle_post_id, $renewal_order_id, $offset, $batch_size );
+    } catch ( \Throwable $e ) {
+      Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: uncaught error, marking processing failed', [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'new_bundle_post_id' => $new_bundle_post_id,
+        'offset'             => $offset,
+        'error'              => $e->getMessage(),
+      ] ] );
+      self::mark_renewal_processing_failed( $old_bundle_post_id, $new_bundle_post_id, $e->getMessage() );
+    }
+  }
+
+  private static function mark_renewal_processing_failed( int $old_bundle_post_id, int $new_bundle_post_id, string $error_message ): void {
+    foreach ( [ $old_bundle_post_id, $new_bundle_post_id ] as $post_id ) {
+      $pm               = json_decode( get_post_meta( $post_id, 'membership_renewal_processing', true ), true ) ?: [];
+      $pm['failed_at']  = current_time( 'c' );
+      $pm['error']      = $error_message;
+      update_post_meta( $post_id, 'membership_renewal_processing', wp_json_encode( $pm ) );
+    }
+  }
+
+  private static function process_bundle_renewal_members_batch(
+    int $old_bundle_post_id,
+    int $new_bundle_post_id,
+    int $renewal_order_id,
+    int $offset,
+    int $batch_size
+  ): void {
     $order = wc_get_order( $renewal_order_id );
     if ( ! $order ) {
       Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: renewal order not found', [
@@ -268,6 +301,7 @@ class Membership_Bundle_Cron_Controller {
         'old_bundle_post_id' => $old_bundle_post_id,
         'new_bundle_post_id' => $new_bundle_post_id,
       ] ] );
+      self::mark_renewal_processing_failed( $old_bundle_post_id, $new_bundle_post_id, 'renewal_order_not_found' );
       return;
     }
 
@@ -308,17 +342,51 @@ class Membership_Bundle_Cron_Controller {
 
     foreach ( $batch as $entry ) {
       $old_membership_post_id = $entry['membership_post_id'];
+      $item                   = $entry['item'];
 
-      // Resolve user_id, tier, and product from the old membership post meta.
-      // Keys match what create_local_membership_record() writes to post meta.
-      $user_id      = (int) get_post_meta( $old_membership_post_id, 'user_id',               true );
-      $tier_post_id = (int) get_post_meta( $old_membership_post_id, 'membership_tier_post_id', true );
-      $product_id   = (int) get_post_meta( $old_membership_post_id, 'membership_product_id',  true ) ?: null;
-      $variation_id = null; // Not stored as separate meta — product_id already reflects variation when applicable.
+      $user_id = (int) get_post_meta( $old_membership_post_id, 'user_id', true );
 
-      if ( ! $user_id || ! $tier_post_id ) {
-        Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: skipping item, missing user or tier', [
+      if ( ! $user_id ) {
+        Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: skipping item, missing user', [
           'old_membership_post_id' => $old_membership_post_id,
+          'new_bundle_post_id'     => $new_bundle_post_id,
+        ] ] );
+        $errors[] = $old_membership_post_id;
+        continue;
+      }
+
+      // Read the tier reprice_bundle_renewal_line_item() already decided and charged
+      // the customer for at order-creation time — this must never re-resolve after
+      // payment, or the record could disagree with what was actually billed. Product/
+      // variation come straight off the item, which set_product() already set correctly.
+      $tier_post_id = (int) $item->get_meta( '_wicket_bundle_renewal_resolved_tier_post_id' );
+      $product_id   = (int) $item->get_product_id();
+      $variation_id = (int) $item->get_variation_id() ?: null;
+
+      // resolved_tier_post_id is written on every successful repricing (unchanged or
+      // not) — its absence here means repricing never completed for this member (e.g.
+      // a renewal order created before this stamp existed, or reprice_bundle_renewal_
+      // line_item() failed and the order was held). Only fall back to the old
+      // membership's own tier/product when that tier was never expected to produce a
+      // new decision in the first place (current_tier/form_flow) — a sequential_logic
+      // tier's absence of a decision means its own succession genuinely failed (e.g. a
+      // misconfigured next tier), and must hard-fail rather than silently renew at the
+      // outgoing tier as if nothing was supposed to change.
+      if ( ! $tier_post_id ) {
+        $old_tier_post_id   = (int) get_post_meta( $old_membership_post_id, 'membership_tier_post_id', true );
+        $old_renewal_type   = $old_tier_post_id ? ( new Membership_Tier( $old_tier_post_id ) )->get_tier_renewal_type() : null;
+
+        if ( $old_renewal_type !== 'sequential_logic' ) {
+          $tier_post_id = $old_tier_post_id;
+          $product_id   = (int) get_post_meta( $old_membership_post_id, 'membership_product_id', true );
+          $variation_id = null;
+        }
+      }
+
+      if ( ! $tier_post_id || ! $product_id ) {
+        Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: missing charge-decision meta on renewal item and old membership', [
+          'old_membership_post_id' => $old_membership_post_id,
+          'item_id'                => $item->get_id(),
           'new_bundle_post_id'     => $new_bundle_post_id,
         ] ] );
         $errors[] = $old_membership_post_id;
@@ -354,6 +422,10 @@ class Membership_Bundle_Cron_Controller {
         // from the old membership post ID to the new one. The subscription is shared across
         // renewals so we never add or remove line items here; only the pointer changes.
         // This prevents duplicate line items building up across renewal terms.
+        //
+        // Other line-item meta (extra_meta filter, _member_name) is refreshed separately
+        // in refresh_bundle_renewal_line_item_meta(), not here — this runs before the new
+        // term's member is known, so it would read the outgoing member's data.
         if ( function_exists( 'wcs_get_subscription' ) ) {
           $sub_id = (int) get_post_meta( $new_bundle_post_id, 'membership_subscription_id', true );
           $sub    = $sub_id ? wcs_get_subscription( $sub_id ) : null;

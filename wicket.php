@@ -57,6 +57,7 @@ use Wicket_Memberships\Membership_Bundle_Config_WP_REST_Controller;
 use Wicket_Memberships\Membership_Bundle_WP_REST_Controller;
 use Wicket_Memberships\Membership_Subscription_Controller;
 use Wicket_Memberships\Membership_Bundle_Cron_Controller;
+use Wicket_Memberships\Membership_Bundle_Renewal_Order_Controller;
 use Wicket_Memberships\Import_Controller;
 use Wicket_Memberships\Settings;
 use Wicket_Memberships\Utilities;
@@ -263,6 +264,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
       // bundle cron: mirrors individual handlers above for wicket_mship_bundle posts
       new Membership_Bundle_Cron_Controller;
+
+      // bundle renewal-order creation: claim/queue, WCS admin-action intercept, per-member repricing
+      new Membership_Bundle_Renewal_Order_Controller;
 
       //checkbox toggle - can be used for view subscriptions
       add_action('init', [__NAMESPACE__.'\\Utilities', 'autorenew_checkbox_toggle_switch']);

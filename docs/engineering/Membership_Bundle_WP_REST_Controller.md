@@ -169,7 +169,17 @@ Validates `member_handling` and (when applicable) `timing`, then delegates to `M
 
 **Route:** `POST /bundle/{bundle_post_id}/create_renewal_order`
 
-Body: `bundle_post_id` (integer, required). Delegates to `Membership_Bundle_Admin_Controller::create_bundle_renewal_order()`. Returns `200` with the renewal order URL and ID on success.
+**Permission:** `permissions_check_write` (admin capability, unconditional override — no timing/config gating).
+
+Body: `bundle_post_id` (integer, required, from the URL). Validates via `validate_bundle_and_subscription()`, then calls `Membership_Bundle_Renewal_Order_Controller::clear_completed_renewal_order_claim()` before claiming the renewal slot via `claim_renewal_order_creation()` and queuing background creation — it does **not** call `wcs_create_renewal_order()` inline (Milestone 10: `wcs_create_renewal_order()` plus Milestone 9's per-member repricing can take several seconds for a 100+ member bundle, too long to hold an HTTP request open).
+
+This admin action may legitimately be triggered more than once against the same bundle post (e.g. to manually create a second ad-hoc renewal order), so a *completed* prior claim (one with `order_id` already set) is cleared before claiming again. An in-flight claim (queued or still creating, no `order_id` yet) is left alone and still blocks a concurrent request.
+
+On a successful claim: schedules `wicket_bundle_create_renewal_order` (group `wicket-memberships`, args `bundle_post_id` + `subscription_id`) via `as_schedule_single_action()` and returns `202` with `{success, bundle_post_id}` — no `order_id`/`order_url`, since the order does not exist yet. On a claim conflict: `409` with `{error, order_id}` — in practice this endpoint's conflict path now only occurs while a prior claim is genuinely still in flight (`order_id: null`), since a completed one is cleared beforehand; the `order_id`-populated response shape is retained for the rare race where a concurrent request completes between the clear and the re-claim.
+
+### `validate_bundle_and_subscription( int $bundle_post_id ): array{bundle: Membership_Bundle, subscription: \WC_Subscription}|\WP_Error` _(private, static)_
+
+Shared defensive validation used by `create_bundle_renewal_order`: `bundle_post_id` is non-zero, WCS is active, the post resolves to a membership bundle CPT, it has a linked `membership_subscription_id`, and that subscription loads via `wcs_get_subscription()`. Purely defensive — no business or permission logic. Returns a `WP_Error` with `['status' => int]` in its error data for the caller to use as the REST response code.
 
 ### `permissions_check_read( $request ): bool|\WP_REST_Response`
 

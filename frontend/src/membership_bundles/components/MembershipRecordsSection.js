@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { __ } from "@wordpress/i18n";
+import { Icon, Tooltip } from "@wordpress/components";
+import { warning } from "@wordpress/icons";
 import SharedMembershipRecordsSection from "../../shared/components/MembershipRecordsSection";
 import MembershipBundleRecordDetails from "./MembershipBundleRecordDetails";
 import { formatDateWithTooltip } from "../../shared/constants";
@@ -11,7 +13,23 @@ const buildColumns = (pageData) => [
   },
   {
     label: __("ID", "wicket-memberships"),
-    render: (record) => record.ID,
+    render: (record) => (
+      <>
+        {record.ID}
+        {record.mdp_link_collision && (
+          <Tooltip
+            text={__(
+              "This membership was created but could not be linked to its MDP record — the WordPress ID was already claimed by a different MDP record. Contact an administrator.",
+              "wicket-memberships"
+            )}
+          >
+            <span style={{ display: "inline-block", marginLeft: "4px", verticalAlign: "middle" }}>
+              <Icon icon={warning} style={{ fill: "#cc1818" }} size={18} />
+            </span>
+          </Tooltip>
+        )}
+      </>
+    ),
   },
   {
     label: __("Config", "wicket-memberships"),
@@ -51,8 +69,9 @@ const buildColumns = (pageData) => [
  * @param {string}       props.individualMembersUrl  - URL of the individual members list page, passed to the expanded panel.
  * @param {Function}     [props.onMemberAdded]       - Called after a member is successfully added to the bundle.
  * @param {Function}     [props.onBundleCancelled]    - Called with a success message after the bundle is cancelled.
+ * @param {Function}     [props.onRenewalOrderQueued] - Called after a renewal order is successfully queued.
  */
-const MembershipRecordsSection = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl, onMemberAdded, onBundleCancelled }) => {
+const MembershipRecordsSection = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl, onMemberAdded, onBundleCancelled, onRenewalOrderQueued }) => {
   // Keep a local copy of records so status/date changes update the collapsed
   // row summary (status badge, dates) without a full page reload.
   const [localRecords, setLocalRecords] = useState(null);
@@ -76,6 +95,7 @@ const MembershipRecordsSection = ({ pageData, isLoading, onOwnerUpdated, individ
       individualMembersUrl={individualMembersUrl}
       onMemberAdded={onMemberAdded}
       onBundleCancelled={onBundleCancelled}
+      onRenewalOrderQueued={onRenewalOrderQueued}
     />
   );
 

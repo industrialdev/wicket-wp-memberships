@@ -106,7 +106,7 @@ Creates a new membership bundle post and populates all required meta in a single
 | `$start_date` | `string` | ISO 8601 start date for the membership period (must be non-empty) |
 | `$sync_to_mdp` | `bool` | Default `true`. Set `false` when importing a bundle that already exists in MDP, to skip `sync_mdp_create()` and avoid creating a duplicate record there. The caller is then responsible for seeding `membership_bundle_mdp_uuid` directly. |
 
-Initial membership status: if `start_date` is in the future → `delayed`; otherwise → `active`. Bundles activate immediately on creation — `pending` is not assigned by `create()` and is only reached via manual admin action or approval-gated config. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. A pending WooCommerce subscription is created and linked via `membership_subscription_id` post meta; if subscription creation fails the bundle is still returned (non-fatal, logged). A fresh `membership_bundle_group_uuid` is generated — use `renew_bundle()` instead when creating a renewal term that must share the same series UUID.
+Initial membership status: if `start_date` is in the future → `delayed`; otherwise → `active`. Bundles activate immediately on creation — `pending` is not assigned by `create()` and is only reached via manual admin action or approval-gated config. Dates (end, expiry, early-renewal) are derived from the linked config via `get_membership_dates()`, anchored to the supplied `start_date`. A pending WooCommerce subscription is created via `create_bundle_subscription()` and linked via `membership_subscription_id` post meta; if subscription creation fails the bundle is still returned (non-fatal, logged). When the bundle's initial status is `active` (start date already reached), `create()` immediately promotes the new subscription to `active` too, via `activate_subscription_for_dates()` — the same method the `pending → active` admin transition uses — so an active bundle is never left with a subscription stuck in `pending`. A fresh `membership_bundle_group_uuid` is generated — use `renew_bundle()` instead when creating a renewal term that must share the same series UUID.
 
 ---
 
@@ -115,7 +115,7 @@ Initial membership status: if `start_date` is in the future → `delayed`; other
 Instance method. Creates a new bundle post for a renewal term of the current bundle. **Use this instead of `create()` for all renewal flows.**
 
 Key differences from `create()`:
-- Reuses the existing WC subscription (updates its `next_payment` and `end` dates to the new term) — no new subscription created.
+- Reuses the existing WC subscription (updates its `end` date, and its `next_payment` date only when the config's `renewal_type` is `'subscription'` — otherwise `next_payment` is explicitly deleted) — no new subscription created. Date writes for the `'subscription'` renewal type pass through `Subscription_Manager::prepare_dates()`, same as `create_bundle_subscription()`.
 - Carries the existing `membership_bundle_group_uuid` forward so all renewal posts share a series link.
 - Accepts pre-calculated `$new_dates` from `Membership_Bundle_Config::get_membership_dates()` rather than deriving internally.
 - Does **not** cancel the old bundle — that is handled by the caller (`handle_bundle_renewal`).
@@ -153,9 +153,9 @@ Creates a pending WooCommerce subscription for a freshly-created bundle and writ
 | `membership_bundle_id` | Bundle post ID |
 | `_org_uuid` | Org UUID from the bundle |
 
-`billing_period` and `billing_interval` are sourced from `$config->get_period_data()` so the values match the bundle config cycle (anniversary configs use their configured period; calendar configs fall back to `year` / `1`). `end` is set to `expires_at` (grace-period end), falling back to `ends_at` when no grace period is configured, mirroring `Membership_Subscription_Controller::create_subscriptions()`. `next_payment` is only set when `$config->is_renewal_subscription()` returns `true`; it maps to `ends_at` so WCS triggers renewal at the membership period end.
+`billing_period` and `billing_interval` are sourced from `$config->get_period_data()` so the values match the bundle config cycle (anniversary configs use their configured period; calendar configs fall back to `year` / `1`). `end` is set to `expires_at` (grace-period end), falling back to `ends_at` when no grace period is configured, mirroring `Membership_Subscription_Controller::create_subscriptions()`. `next_payment` is only set when `$config->is_renewal_subscription()` returns `true`; it maps to `ends_at` so WCS triggers renewal at the membership period end. Both dates are passed through `Subscription_Manager::prepare_dates()` before the write — when no grace period is configured (`end == next_payment`), it nudges `next_payment` a moment earlier rather than pushing `end` forward, so `end` always reflects the real configured expiration (see `Class-Subscription_Manager.md`).
 
-No product line items are added at creation — those are attached per member when `add_member()` is called. Called only from `create()` after `set_dates()` succeeds. Returns the subscription post ID on success, `false` on any failure.
+No product line items are added at creation — those are attached per member when `add_member()` is called. Called only from `create()` after `set_dates()` succeeds. Returns the subscription post ID on success, `false` on any failure. Always creates the subscription as `pending`, regardless of the bundle's own initial status — `create()` is responsible for promoting it to `active` afterward (see `create()` above) when the bundle itself starts active.
 
 ### `add_subscription_line_item( int $membership_post_id, int $product_id, int $user_id ): int|WP_Error` _(private)_
 
@@ -167,6 +167,9 @@ Adds a WooCommerce subscription line item to the group subscription for an indiv
 |---|---|
 | `_membership_post_id` | Individual membership post ID |
 | `_member_name` | Member's `display_name` (omitted if user cannot be resolved) |
+| _(filter-injected)_ | Whatever `wicket_mship_bundle_line_item_extra_meta` returns — see below |
+
+After the two meta keys above are written, fires `apply_filters( 'wicket_mship_bundle_line_item_extra_meta', [], $item_id, $user, $membership_post_id, $product_id )` and writes each `meta_key => meta_value` pair of the returned array via `wc_add_order_item_meta()`. Default (empty array) is a no-op. `$user` is the already-loaded `WP_User` (may be omitted from the array write if not resolved, same as `_member_name`). Does not re-fire on renewal — see `Membership_Bundle_Cron_Controller::process_bundle_renewal_members()`, which reuses this same physical line item across terms and only swaps `_membership_post_id`.
 
 `$product_id` must be the variation ID when a variation is in use (caller passes `$variation_id ?? $product_id`, matching the precedence rule used for `membership_product_id`). Price comes from the WC product — no custom pricing logic. Calls `$sub->calculate_totals()` and `$sub->save()` after adding the item.
 
@@ -190,6 +193,10 @@ Creates an individual membership record linked to a bundle. Used by `add_member(
 No personal WC order or subscription is created — the bundle's subscription covers billing for bundle-linked members.
 
 `$link_to_bundle_id` is required (non-nullable). `membership_bundle_id` is written to the membership post after creation. Line item failure is non-fatal. When `$is_renewal` is `true`, the subscription line item add is skipped — the renewal batch handler updates the existing line item in-place.
+
+`$product_id` validation accepts a variation: `Membership_Tier::get_product_ids()` returns parent IDs only, so a `$product_id` that is actually a variation is checked against `get_product_variation_ids()` (matched with `$variation_id`) before falling back to `product_tier_mismatch`.
+
+The tier/product cross-check is skipped entirely when `$is_renewal` is `true`: the renewal-order repricing phase (`Membership_Bundle_Renewal_Order_Controller::reprice_bundle_renewal_line_item()`) already validated and charged this exact product before payment, so the batch cron must trust that decision rather than re-check it against the tier's *current* config — which may have changed between order creation and this call.
 
 Renamed from `create_individual_membership_for_group()`. Fail states: `invalid_user`, `invalid_tier`, `ambiguous_product`, `no_product`, `product_tier_mismatch`, `mdp_create_failed`, `create_failed`.
 
@@ -511,6 +518,14 @@ Writes `membership_bundle_group_uuid` post meta. Returns `true` on success, `fal
 ### `cancel_for_renewal( bool $preserve_end_date = false ): bool`
 
 Cancels the bundle post as part of a renewal without cascading the cancellation status to child individual memberships. Child memberships are historical records of the old term and must remain accessible for per-bundle member count queries; the new term's members already exist on the new bundle post. When `$preserve_end_date` is `true` (early renewal path), the existing `ends_at` is preserved so the bundle record reflects the full paid term. When `false` (same-day renewal), `ends_at` is collapsed to now. Returns `true` on success, `false` if the status write failed.
+
+### `get_owner_callouts( int $user_id ): array{early_renewal: array, grace_period: array, pending_approval: array, group_owner: array, debug: array}` _(static)_
+
+Builds renewal/grace/pending callout arrays for every membership bundle owned by `$user_id`. Called from `Membership_Controller::get_membership_callouts()` (its results are merged into that method's `early_renewal`/`grace_period`/`pending_approval` arrays) — the REST-exposed source of the Account Center's `ac-callout` renewal nudges.
+
+Each bundle's `membership_data` entry is shaped to match the individual-membership format `Membership_Controller::get_membership_callouts()` already produces, specifically so the `ac-callout` block's rendering can dispatch on the same flags for both: `next_tier`, `form_page`, and `subscription_renewal` (always `false` for bundles today).
+
+Evaluates three callout types per bundle, using the same window rules as [Renewal Types](../public/membership-bundles/concepts/renewal-types.md): `pending_approval` (status is `pending`), `early_renewal` (`early_renew_at <= now < ends_at`), `grace_period` (`ends_at < now <= expires_at`). Skips bundles with no config. `group_owner` in the return value is reserved for future nested bundle-within-bundle callouts and is always empty today.
 
 ---
 
