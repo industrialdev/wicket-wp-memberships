@@ -2632,7 +2632,16 @@ class Membership_Bundle {
       'membership_grace_period_days' => get_post_meta( $member_id, 'membership_grace_period_days', true ),
     ];
 
-    ( new Membership_Controller() )->update_mdp_record( $membership, $meta_data );
+    $result = ( new Membership_Controller() )->update_mdp_record( $membership, $meta_data );
+
+    if ( ! empty( $result['error'] ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::sync_member_mdp_dates: MDP date sync failed', [
+        'source'    => 'wicket-memberships',
+        'bundle_id' => $this->post_id,
+        'member_id' => $member_id,
+        'error'     => $result['error'],
+      ] );
+    }
   }
 
   /**

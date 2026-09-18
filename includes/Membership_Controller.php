@@ -1342,6 +1342,14 @@ function get_item_data ( $other_data, $cart_item ) {
     }
     if( is_wp_error( $response ) ) {
       $error_msg = $response->get_error_message( 'wicket_api_error' );
+      // Bundle members have no individual subscription (membership_subscription_id = 0),
+      // so the order note below never fires for them - log unconditionally so a failed
+      // MDP write is never silent.
+      Utilities::wc_log_mship_error( [
+        'update_mdp_record failed',
+        'membership_wicket_uuid' => $membership['membership_wicket_uuid'] ?? '',
+        'error'                  => $error_msg,
+      ] );
       if(! empty($sub)) {
         $sub->add_order_note( "ERROR: Admin changing membership dates in MDP. ($starts_at - $ends_at)" . $error_msg );
       }
