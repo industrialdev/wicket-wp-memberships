@@ -896,6 +896,7 @@ class Membership_Bundle {
       // collision when multiple members share the same tier, starts_at, and ends_at in a
       // single batch (which would otherwise all match on parent_order_id=0).
       'membership_parent_order_id'                => $link_to_bundle_id,
+      'membership_bundle_id'                      => $link_to_bundle_id,
       'membership_subscription_id'                => 0,
       'membership_grace_period_days'              => 0,
       'membership_wp_user_display_name'           => $user->display_name,
@@ -2601,7 +2602,37 @@ class Membership_Bundle {
       if ( $write_expires ) {
         update_post_meta( $member_id, 'membership_expires_at', $new_expires_at );
       }
+
+      if ( $write_starts || $write_ends || $write_expires ) {
+        $this->sync_member_mdp_dates( $member_id );
+      }
     }
+  }
+
+  /**
+   * Push a cascaded date change to the member's own MDP person_membership record.
+   * Local post meta is already the source of truth by the time this runs — read it
+   * back rather than threading values through the cascade loop.
+   */
+  private function sync_member_mdp_dates( int $member_id ): void {
+    $membership_wicket_uuid = get_post_meta( $member_id, 'membership_wicket_uuid', true );
+    if ( empty( $membership_wicket_uuid ) ) {
+      return;
+    }
+
+    $membership = [
+      'membership_type'        => get_post_meta( $member_id, 'membership_type', true ),
+      'membership_wicket_uuid' => $membership_wicket_uuid,
+      'org_seats'              => get_post_meta( $member_id, 'org_seats', true ),
+    ];
+
+    $meta_data = [
+      'membership_starts_at'         => get_post_meta( $member_id, 'membership_starts_at', true ),
+      'membership_ends_at'           => get_post_meta( $member_id, 'membership_ends_at', true ),
+      'membership_grace_period_days' => get_post_meta( $member_id, 'membership_grace_period_days', true ),
+    ];
+
+    ( new Membership_Controller() )->update_mdp_record( $membership, $meta_data );
   }
 
   /**

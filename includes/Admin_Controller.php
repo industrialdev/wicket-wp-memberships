@@ -1419,7 +1419,13 @@ class Admin_Controller {
     // original, so unscheduling that key and re-adding it simply moves the same event to the new date.
     if ( ! empty( $old_membership_parent_order_id ) && ! empty( $old_membership_product_id )
          && strtotime( $new_membership_expires_at ) !== strtotime( (string) $old_membership_expires_at )
-         && function_exists( 'as_unschedule_action' ) && function_exists( 'as_schedule_single_action' ) ) {
+         && function_exists( 'as_unschedule_action' ) && function_exists( 'as_schedule_single_action' )
+         // Bundle members never had this job scheduled in the first place — see should_schedule_expiry_notification_jobs().
+         && Membership_Controller::should_schedule_expiry_notification_jobs( [
+              'membership_parent_order_id' => $old_membership_parent_order_id,
+              'membership_product_id'      => $old_membership_product_id,
+              'membership_bundle_id'       => get_post_meta( $new_post_id, 'membership_bundle_id', true ),
+            ] ) ) {
       $expiry_event_args = [
         'membership_parent_order_id' => $old_membership_parent_order_id,
         'membership_product_id'      => $old_membership_product_id,

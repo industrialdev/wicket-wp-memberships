@@ -820,7 +820,7 @@ function get_item_data ( $other_data, $cart_item ) {
     $membership_expires_at = strtotime( $membership['membership_expires_at'] );
     $order_note = 'New membership ID #'.$membership['membership_post_id'].' created from '.date('Y-m-d', $membership_starts_at).' to '.date('Y-m-d', $membership_ends_at);
 
-    if( !empty( $membership['membership_parent_order_id'] ) && !empty( $membership['membership_product_id'] ) ) {
+    if( self::should_schedule_expiry_notification_jobs( $membership ) ) {
       $args = [
         'membership_parent_order_id' => $membership['membership_parent_order_id'],
         'membership_product_id' => $membership['membership_product_id'],
@@ -889,6 +889,28 @@ function get_item_data ( $other_data, $cart_item ) {
           }
       */
       }
+  }
+
+  /**
+   * Determines whether a membership should have its individual early-renew/ends/expires
+   * Action Scheduler jobs scheduled. Under certain conditions we do not want to send these
+   * per-membership notifications at all.
+   *
+   * @param  array  $membership  Membership data array.
+   * @return bool  True if the individual notification jobs should be scheduled.
+   */
+  public static function should_schedule_expiry_notification_jobs( $membership ): bool {
+    // Notifications require an order and product to key the scheduled job on.
+    if ( empty( $membership['membership_parent_order_id'] ) || empty( $membership['membership_product_id'] ) ) {
+      return false;
+    }
+
+    // Bundle members should not get their own notifications - the owner gets them instead.
+    if ( ! empty( $membership['membership_bundle_id'] ) ) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
