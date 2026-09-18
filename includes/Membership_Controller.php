@@ -967,19 +967,41 @@ function get_item_data ( $other_data, $cart_item ) {
   public static function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_early_renew_at_date_reached( $membership );
   }
 
   public static function catch_membership_ends_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_ends_at_date_reached( $membership );
   }
 
   public static function catch_membership_expires_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_expires_at_date_reached( $membership );
+  }
+
+  /**
+   * Catches jobs scheduled before should_schedule_expiry_notification_jobs() existed.
+   * membership_bundle_id is not in the order/product JSON blob $membership is built
+   * from, so it is looked up on the membership post directly.
+   */
+  private static function is_bundle_member( $membership ): bool {
+    if ( empty( $membership['membership_post_id'] ) ) {
+      return false;
+    }
+
+    return ! empty( get_post_meta( $membership['membership_post_id'], 'membership_bundle_id', true ) );
   }
 
   public function membership_early_renew_at_date_reached( $membership ) {
