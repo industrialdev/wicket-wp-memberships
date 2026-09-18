@@ -195,10 +195,10 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
         isOpen={isAddMemberOpen}
         bundlePostId={bundlePostId}
         onRequestClose={() => setIsAddMemberOpen(false)}
-        onSuccess={() => {
+        onSuccess={(response) => {
           setIsAddMemberOpen(false);
           setMemberRefreshKey((k) => k + 1);
-          if (onMemberAdded) onMemberAdded();
+          if (onMemberAdded) onMemberAdded(response);
         }}
       />
 

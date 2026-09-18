@@ -161,7 +161,7 @@ const AddMemberToBundleModal = ({
     setSubmitting(true);
     setError(null);
     try {
-      await addMemberToBundle(bundlePostId, {
+      const response = await addMemberToBundle(bundlePostId, {
         mode: "new",
         person_uuid: selectedUser.value,
         tier_post_id: selectedTier.value,
@@ -169,7 +169,7 @@ const AddMemberToBundleModal = ({
         ...(selectedProduct.variationId ? { variation_id: selectedProduct.variationId } : {}),
       });
       resetState();
-      onSuccess();
+      onSuccess(response);
     } catch (err) {
       console.error("[AddMemberToBundleModal] add member failed", err);
       setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));

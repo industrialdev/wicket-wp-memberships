@@ -525,6 +525,7 @@ class Admin_Controller {
         }
       );
       $membership_item['ID'] = $membership->ID;
+      $membership_item['mdp_link_collision'] = ! empty( $meta_data['_wicket_membership_external_id_collision'] );
       if( !empty( $mdp_link )) {
         $membership_item['mdp_membership_link'] = $mdp_link . '/memberships/' . $meta['membership_wicket_uuid'];
         $membership_item['max_assignments'] = $org_memberships[ $meta['membership_wicket_uuid'] ]['membership']['attributes']['max_assignments'] ?? 0;

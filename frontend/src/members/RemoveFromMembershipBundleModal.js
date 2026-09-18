@@ -67,15 +67,29 @@ const RemoveFromMembershipBundleModal = ({
     setSubmitting(true);
     setError(null);
     try {
-      await removeMemberFromBundle(bundlePostId, {
+      const response = await removeMemberFromBundle(bundlePostId, {
         membership_post_id: membershipPostId,
         mode,
       });
+
+      if (response?.mdp_link_collision) {
+        resetState();
+        onSuccess({
+          status: "error",
+          message: __(
+            "Membership converted to individual, but it could not be linked to its MDP record — the WordPress ID was already claimed by a different MDP record. Contact an administrator.",
+            "wicket-memberships"
+          ),
+          personUuid: response.person_uuid,
+        });
+        return;
+      }
+
       const message = mode === MODE_KEEP
         ? __("Membership removed from bundle and converted to individual membership.", "wicket-memberships")
         : __("Membership removed from bundle and cancelled.", "wicket-memberships");
       resetState();
-      onSuccess(message);
+      onSuccess({ status: "success", message });
     } catch (err) {
       setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));
       setSubmitting(false);

@@ -73,12 +73,15 @@ class Membership_CPT_Hooks {
     $user = get_user_by( 'login', $record_id );
     $local_user_id = $user === false ? '' : $user->ID;
 
+    $individual_member_edit_url = esc_url( admin_url( 'admin.php?page=' . self::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG ) );
+
     echo <<<HTML
       <div
         id="edit_member"
         data-record-id="{$local_user_id}"
         data-membership-uuid="{$membership_uuid}"
-        data-member-type="individual"></div>
+        data-member-type="individual"
+        data-individual-member-edit-url="{$individual_member_edit_url}"></div>
     HTML;
   }
 
@@ -246,12 +249,14 @@ class Membership_CPT_Hooks {
 
     $list_url               = admin_url( 'admin.php?page=' . self::LIST_BUNDLE_MEMBER_PAGE_SLUG );
     $individual_members_url = admin_url( 'admin.php?page=' . self::LIST_INDIVIDUAL_MEMBER_PAGE_SLUG );
+    $individual_member_edit_url = admin_url( 'admin.php?page=' . self::EDIT_INDIVIDUAL_MEMBER_PAGE_SLUG );
 
     echo '<div
       id="bundle_member_edit"
       data-bundle-group-uuid="' . esc_attr( $bundle_group_uuid ) . '"
       data-list-url="' . esc_url( $list_url ) . '"
       data-individual-members-url="' . esc_url( $individual_members_url ) . '"
+      data-individual-member-edit-url="' . esc_url( $individual_member_edit_url ) . '"
     ></div>';
   }
 

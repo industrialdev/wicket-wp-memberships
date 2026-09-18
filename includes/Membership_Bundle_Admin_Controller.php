@@ -762,6 +762,7 @@ class Membership_Bundle_Admin_Controller {
         'renewal_type'           => (string) ( $b_meta['membership_renewal_type'] ?? '' ),
         'next_tier_form_page_id' => (int) ( $b_meta['membership_next_tier_form_page_id'] ?? 0 ) ?: null,
         'next_tier_id'           => (int) ( $b_meta['membership_next_tier_id'] ?? 0 ) ?: null,
+        'mdp_link_collision'     => (bool) get_post_meta( $series_post->ID, '_wicket_membership_external_id_collision', true ),
       ];
     }
 
@@ -966,7 +967,15 @@ class Membership_Bundle_Admin_Controller {
       return [ 'error' => $result->get_error_message(), 'code' => $result->get_error_code() ];
     }
 
-    return [ 'success' => 'Member added to bundle.', 'membership_post_id' => $result ];
+    $response = [ 'success' => 'Member added to bundle.', 'membership_post_id' => $result ];
+
+    if ( get_post_meta( $result, '_wicket_membership_external_id_collision', true ) ) {
+      $response['mdp_link_collision'] = true;
+      $member_user = get_user_by( 'id', $user_id );
+      $response['person_uuid'] = $member_user ? $member_user->user_login : '';
+    }
+
+    return $response;
   }
 
   /**
@@ -1000,7 +1009,19 @@ class Membership_Bundle_Admin_Controller {
       return [ 'error' => $result->get_error_message(), 'code' => $result->get_error_code() ];
     }
 
-    return [ 'success' => 'Member removed from bundle.', 'membership_post_id' => $result ];
+    $response = [ 'success' => 'Member removed from bundle.', 'membership_post_id' => $result ];
+
+    // 'keep_as_individual' provisions a new standalone membership record — check the
+    // same MDP external_id collision as add_member(). Plain 'cancel' returns the
+    // original (unchanged) membership_post_id, so nothing new was linked.
+    if ( $mode === 'keep_as_individual' && get_post_meta( $result, '_wicket_membership_external_id_collision', true ) ) {
+      $response['mdp_link_collision'] = true;
+      $member_user_id = (int) get_post_meta( $result, 'user_id', true );
+      $member_user    = $member_user_id ? get_user_by( 'id', $member_user_id ) : false;
+      $response['person_uuid'] = $member_user ? $member_user->user_login : '';
+    }
+
+    return $response;
   }
 
   // Move member
@@ -1040,7 +1061,18 @@ class Membership_Bundle_Admin_Controller {
       return [ 'error' => $result->get_error_message(), 'code' => $result->get_error_code() ];
     }
 
-    return [ 'success' => 'Member moved to new bundle.', 'membership_post_id' => $result ];
+    $response = [ 'success' => 'Member moved to new bundle.', 'membership_post_id' => $result ];
+
+    // The move creates a new membership record on the target bundle — same MDP
+    // external_id collision risk as add_member().
+    if ( get_post_meta( $result, '_wicket_membership_external_id_collision', true ) ) {
+      $response['mdp_link_collision'] = true;
+      $member_user_id = (int) get_post_meta( $result, 'user_id', true );
+      $member_user    = $member_user_id ? get_user_by( 'id', $member_user_id ) : false;
+      $response['person_uuid'] = $member_user ? $member_user->user_login : '';
+    }
+
+    return $response;
   }
 
   // Renewal order

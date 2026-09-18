@@ -70,12 +70,26 @@ const MoveToMembershipBundleModal = ({
     setSubmitting(true);
     setError(null);
     try {
-      await moveIndividualMembership(sourceBundlePostId, {
+      const response = await moveIndividualMembership(sourceBundlePostId, {
         membership_post_id:    membershipPostId,
         target_bundle_post_id: selectedBundle.value,
       });
+
+      if (response?.mdp_link_collision) {
+        resetState();
+        onSuccess({
+          status: "error",
+          message: __(
+            "Member moved, but the new membership could not be linked to its MDP record — the WordPress ID was already claimed by a different MDP record. Contact an administrator.",
+            "wicket-memberships"
+          ),
+          personUuid: response.person_uuid,
+        });
+        return;
+      }
+
       resetState();
-      onSuccess(__("Member moved to new bundle.", "wicket-memberships"));
+      onSuccess({ status: "success", message: __("Member moved to new bundle.", "wicket-memberships") });
     } catch (err) {
       setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));
       setSubmitting(false);

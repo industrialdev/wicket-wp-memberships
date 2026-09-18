@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { __ } from "@wordpress/i18n";
+import { Icon, Tooltip } from "@wordpress/components";
+import { warning } from "@wordpress/icons";
 import SharedMembershipRecordsSection from "../../shared/components/MembershipRecordsSection";
 import MembershipBundleRecordDetails from "./MembershipBundleRecordDetails";
 import { formatDateWithTooltip } from "../../shared/constants";
@@ -11,7 +13,23 @@ const buildColumns = (pageData) => [
   },
   {
     label: __("ID", "wicket-memberships"),
-    render: (record) => record.ID,
+    render: (record) => (
+      <>
+        {record.ID}
+        {record.mdp_link_collision && (
+          <Tooltip
+            text={__(
+              "This membership was created but could not be linked to its MDP record — the WordPress ID was already claimed by a different MDP record. Contact an administrator.",
+              "wicket-memberships"
+            )}
+          >
+            <span style={{ display: "inline-block", marginLeft: "4px", verticalAlign: "middle" }}>
+              <Icon icon={warning} style={{ fill: "#cc1818" }} size={18} />
+            </span>
+          </Tooltip>
+        )}
+      </>
+    ),
   },
   {
     label: __("Config", "wicket-memberships"),
