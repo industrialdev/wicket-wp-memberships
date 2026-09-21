@@ -301,7 +301,7 @@ if ( ! defined( 'ABSPATH' ) ) {
                     <td>
                       <?php
                       get_component( 'button', [
-                        'variant' => 'ghost',
+                        'variant' => 'secondary',
                         'size'    => 'sm',
                         'label'   => __( 'Remove', 'wicket-memberships' ),
                         'type'    => 'button',
@@ -327,6 +327,7 @@ if ( ! defined( 'ABSPATH' ) ) {
             <?php
             get_component( 'button', [
               'variant' => 'secondary',
+              'size'    => 'sm',
               'label'   => __( 'Back', 'wicket-memberships' ),
               'type'    => 'button',
               'atts'    => [
@@ -336,6 +337,7 @@ if ( ! defined( 'ABSPATH' ) ) {
             ] );
             get_component( 'button', [
               'variant' => 'primary',
+              'size'    => 'sm',
               'label'   => '',
               'type'    => 'button',
               'atts'    => [
