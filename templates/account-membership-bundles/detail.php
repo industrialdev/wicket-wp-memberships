@@ -282,34 +282,58 @@ $block_config = [
           <template x-if="members.length > 0">
             <div class="wicket-mship-bundle-detail__pagination-row">
               <nav class="wicket-mship-bundle-detail__pagination" aria-label="<?php echo esc_attr__( 'Members pages', 'wicket-memberships' ); ?>">
-                <button
-                  type="button"
-                  class="wicket-mship-bundle-detail__page-arrow"
-                  :disabled="membersPage <= 1"
-                  @click="goToMembersPage(membersPage - 1)"
-                >
-                  ← <?php esc_html_e( 'Previous', 'wicket-memberships' ); ?>
-                </button>
+                <?php
+                // get_component('button', ...) from wicket-wp-base-plugin, same
+                // pattern used elsewhere in this template and in
+                // add-member-modal.php: Alpine bindings passed through as raw
+                // strings in 'atts'. Sizing/color come from the component's
+                // own ghost/sm variant, so no custom classes are needed here
+                // other than the active-state override on the page-num button.
+                get_component( 'button', [
+                  'variant' => 'ghost',
+                  'size'    => 'sm',
+                  'label'   => __( '← Previous', 'wicket-memberships' ),
+                  'type'    => 'button',
+                  'atts'    => [
+                    ':disabled="membersPage <= 1"',
+                    '@click="goToMembersPage(membersPage - 1)"',
+                  ],
+                ] );
+                ?>
 
                 <template x-for="(pageNum, idx) in membersPageNumbers()" :key="idx">
-                  <button
-                    type="button"
-                    class="wicket-mship-bundle-detail__page-num"
-                    :class="{ 'wicket-mship-bundle-detail__page-num--active': pageNum === membersPage }"
-                    :disabled="pageNum === '…'"
-                    @click="pageNum !== '…' && goToMembersPage(pageNum)"
-                    x-text="pageNum"
-                  ></button>
+                  <?php
+                  // Rendered once; Alpine's x-for clones this single button per
+                  // page number, same as the plain <button> it replaces. The
+                  // active-page highlight isn't part of the component's
+                  // variants, so it's applied via its own modifier class.
+                  get_component( 'button', [
+                    'variant' => 'ghost',
+                    'size'    => 'sm',
+                    'label'   => '',
+                    'type'    => 'button',
+                    'atts'    => [
+                      ':class="{ \'wicket-mship-bundle-detail__page-num--active\': pageNum === membersPage }"',
+                      ':disabled="pageNum === \'…\'"',
+                      '@click="pageNum !== \'…\' && goToMembersPage(pageNum)"',
+                      'x-text' => 'pageNum',
+                    ],
+                  ] );
+                  ?>
                 </template>
 
-                <button
-                  type="button"
-                  class="wicket-mship-bundle-detail__page-arrow"
-                  :disabled="membersPage >= membersTotalPages"
-                  @click="goToMembersPage(membersPage + 1)"
-                >
-                  <?php esc_html_e( 'Next', 'wicket-memberships' ); ?> →
-                </button>
+                <?php
+                get_component( 'button', [
+                  'variant' => 'ghost',
+                  'size'    => 'sm',
+                  'label'   => __( 'Next →', 'wicket-memberships' ),
+                  'type'    => 'button',
+                  'atts'    => [
+                    ':disabled="membersPage >= membersTotalPages"',
+                    '@click="goToMembersPage(membersPage + 1)"',
+                  ],
+                ] );
+                ?>
               </nav>
 
               <p class="wicket-mship-bundle-detail__page-status">

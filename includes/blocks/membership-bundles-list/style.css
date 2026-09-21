@@ -438,7 +438,7 @@
 
 .wicket-mship-bundle-detail__members-table {
   width: 100%;
-  min-width: 640px;
+  min-width: 740px;
   border-collapse: collapse;
   font-size: var(--body-sm-font-size, 0.9rem);
 }
@@ -450,7 +450,7 @@
 }
 
 .wicket-mship-bundle-detail__members-table thead tr {
-  border-bottom: 2px solid var(--interactive-dark, #1e3a8a);
+  border-bottom: 2px solid var(--border-dark, #1e3a8a);
 }
 
 .wicket-mship-bundle-detail__members-table tbody tr {
@@ -510,41 +510,10 @@
   gap: var(--space-100, 0.5rem);
 }
 
-.wicket-mship-bundle-detail__page-arrow {
-  font-size: var(--body-sm-font-size, 0.9rem);
-  font-weight: 600;
-  color: var(--interactive, #2563eb);
-  background: none;
-  border: none;
-  padding: var(--space-100, 0.4rem) var(--space-100, 0.5rem);
-  cursor: pointer;
-}
-
-.wicket-mship-bundle-detail__page-arrow:disabled {
-  color: var(--text-disabled, #9ca3af);
-  cursor: not-allowed;
-}
-
-.wicket-mship-bundle-detail__page-num {
-  min-width: 2rem;
-  font-size: var(--body-sm-font-size, 0.9rem);
-  font-weight: 600;
-  color: var(--text-content, #111827);
-  background: none;
-  border: none;
-  border-radius: var(--border-radius-100, 0.4rem);
-  padding: var(--space-75, 0.35rem) var(--space-100, 0.5rem);
-  cursor: pointer;
-}
-
-.wicket-mship-bundle-detail__page-num:disabled {
-  cursor: default;
-  color: var(--text-disabled, #9ca3af);
-}
-
-.wicket-mship-bundle-detail__page-num--active {
-  background: var(--interactive, #2563eb);
-  color: var(--text-content-reversed, #ffffff);
+.wicket-mship-bundle-detail__pagination button.wicket-mship-bundle-detail__page-num--active {
+  background: var(--interactive, #2563eb) !important;
+  border-color: var(--interactive, #2563eb) !important;
+  color: var(--text-content-reversed, #ffffff) !important;
 }
 
 .wicket-mship-bundle-detail__page-status {
@@ -589,7 +558,7 @@
 
 .wicket-mship-add-member-modal__panel {
   position: relative;
-  background: var(--bg-surface, #ffffff);
+  background: white;
   border-radius: var(--card-accent-corner-radius, 0.85rem);
   width: 100%;
   max-width: 640px;
@@ -820,9 +789,9 @@
 
 .wicket-mship-add-member-modal__info-banner {
   background: var(--bg-accent-light, #dde6fc);
-  border-radius: var(--border-radius-100, 0.5rem);
+  border-radius: var(--alerts-corner-radius, 0);
+  border-left: var(--border-alert, 4px) solid var(--state-info-primary, #4AB2DE);
   padding: var(--space-150, 0.75rem) var(--space-200, 1rem);
   color: var(--text-content, #111827);
   font-size: var(--body-sm-font-size, 0.9rem);
-  line-height: var(--line-height-normal, 1.5);
 }
