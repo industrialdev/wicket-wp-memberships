@@ -196,14 +196,36 @@ if ( ! defined( 'ABSPATH' ) ) {
               <div class="wicket-mship-add-member-modal__tier-list" x-show="!tiersLoading && !tiersError && tiers.length > 0">
                 <template x-for="tier in tiers" :key="tier.id">
                   <div class="wicket-mship-add-member-modal__tier-row">
-                    <label class="wicket-mship-add-member-modal__tier-checkbox-label">
+                    <label
+                      class="wicket-mship-add-member-modal__tier-checkbox-label"
+                      :class="{ 'wicket-mship-add-member-modal__tier-checkbox-label--disabled': !isTierSelectable(tier) }"
+                    >
                       <input
                         type="checkbox"
-                        :checked="!!checkedTiers[tier.id]"
+                        :checked="tier.eligibility_status === 'in_bundle' || !!checkedTiers[tier.id]"
+                        :disabled="!isTierSelectable(tier)"
                         @change="toggleTier(tier)"
                       />
                       <span x-text="tier.name"></span>
                     </label>
+
+                    <div class="wicket-mship-add-member-modal__tier-meta" x-show="tier.eligibility_status">
+                      <span
+                        class="wicket-mship-add-member-modal__badge"
+                        :class="eligibilityBadgeClass(tier.eligibility_status)"
+                        x-text="eligibilityBadgeLabel(tier.eligibility_status)"
+                      ></span>
+                      <template x-if="tier.membership_status_label">
+                        <span
+                          class="wicket-mship-add-member-modal__badge"
+                          :class="statusBadgeClass(tier.membership_status)"
+                          x-text="tier.membership_status_label"
+                        ></span>
+                      </template>
+                      <template x-if="tier.starts_at || tier.ends_at">
+                        <span class="wicket-mship-add-member-modal__tier-dates" x-text="formatDate(tier.starts_at) + ' - ' + formatDate(tier.ends_at)"></span>
+                      </template>
+                    </div>
 
                     <select
                       class="wicket-mship-add-member-modal__product-select"
@@ -470,8 +492,11 @@ if ( ! defined( 'ABSPATH' ) ) {
         this.tiersError = '';
 
         try {
-          const url = this.restBase + '/bundle/' + this.bundlePostId + '/eligible_tiers/mine';
-          const response = await fetch( url, {
+          const url = new URL( this.restBase + '/bundle/' + this.bundlePostId + '/eligible_tiers/mine' );
+          if ( this.selectedPerson && this.selectedPerson.id ) {
+            url.searchParams.set( 'person_uuid', this.selectedPerson.id );
+          }
+          const response = await fetch( url.toString(), {
             headers: { 'X-WP-Nonce': this.restNonce },
             credentials: 'same-origin',
           } );
@@ -499,8 +524,41 @@ if ( ! defined( 'ABSPATH' ) ) {
       },
 
       toggleTier( tier ) {
+        if ( ! this.isTierSelectable( tier ) ) {
+          return;
+        }
         const isChecked = !! this.checkedTiers[ tier.id ];
         this.checkedTiers[ tier.id ] = ! isChecked;
+      },
+
+      // A tier the person is already in ('in_bundle') is shown checked but
+      // locked — it's already a bundle seat, not a new one to add. A tier
+      // they're 'not_eligible' for is shown unchecked and locked. Only
+      // 'eligible' tiers (or, with no person context at all, every tier)
+      // can actually be toggled/submitted.
+      isTierSelectable( tier ) {
+        if ( ! tier.eligibility_status ) {
+          return true;
+        }
+        return tier.eligibility_status === 'eligible';
+      },
+
+      eligibilityBadgeLabel( status ) {
+        if ( status === 'in_bundle' ) {
+          return <?php echo wp_json_encode( __( 'In Bundle', 'wicket-memberships' ) ); ?>;
+        }
+        if ( status === 'not_eligible' ) {
+          return <?php echo wp_json_encode( __( 'Not Eligible', 'wicket-memberships' ) ); ?>;
+        }
+        return <?php echo wp_json_encode( __( 'Eligible', 'wicket-memberships' ) ); ?>;
+      },
+
+      eligibilityBadgeClass( status ) {
+        return 'wicket-mship-add-member-modal__badge--' + ( status ? status.replace( /_/g, '-' ) : 'eligible' );
+      },
+
+      statusBadgeClass( rawStatus ) {
+        return 'wicket-mship-add-member-modal__badge--status-' + ( rawStatus ? rawStatus.replace( /_/g, '-' ) : 'unknown' );
       },
 
       selectedCount() {

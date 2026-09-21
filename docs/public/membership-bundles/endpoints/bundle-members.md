@@ -81,15 +81,25 @@ Lists the individual membership tiers eligible for this bundle, each with its re
 
 An empty eligible-tiers list on the bundle's config means every active individual tier is eligible — this endpoint reflects that fallback rule rather than returning an empty array in that case.
 
+When `person_uuid` is supplied, each tier is additionally annotated with that person's eligibility for the tier — this is what drives the Eligible/In Bundle/Not Eligible badges, the status badge, and the date range shown on each row of the add-member flow's results step.
+
+Eligibility rules:
+- **In Bundle** — the person already holds this tier's seat (membership not cancelled/expired) in a bundle whose own status is `active` — **this check isn't limited to the bundle in the URL**. A person already active-bundled into a *different* bundle for the same tier is flagged `in_bundle` here too, not just someone re-adding to the same bundle. Shown checked and locked.
+- **Eligible** — the person's MDP person record has `status = good_standing` **and** they hold an active individual membership for this tier (bundle-linked or standalone) that isn't already claimed by the In Bundle check above. That membership is what gets pulled into this bundle when the selection is confirmed.
+- **Not Eligible** — neither of the above. Shown unchecked and locked. If the person does hold an active membership for the tier but simply isn't in good standing, its status/dates are still shown on the row for context.
+
 ### URL parameters
 
 | Name | Type | Required | Description |
 |---|---|---|---|
 | `bundle_post_id` | `integer` | Yes | Post ID of the bundle to list eligible tiers for. |
+| `person_uuid` | `string` | No | MDP person UUID to compute per-tier eligibility/status/dates for. Omit for the plain tier list with no eligibility annotation (e.g. before a member has been selected in step 2 of the add-member flow). |
 
 ### Response
 
 `200 OK`
+
+Without `person_uuid`:
 
 ```json
 [
@@ -107,6 +117,25 @@ An empty eligible-tiers list on the bundle's config means every active individua
     }
 ]
 ```
+
+With `person_uuid`, each tier also carries:
+
+```json
+[
+    {
+        "id": 88,
+        "name": "Gold",
+        "products": [ { "product_id": 803, "variation_id": 805, "name": "Gold — Annual", "price": "150.00" } ],
+        "eligibility_status": "eligible",
+        "membership_status": "active",
+        "membership_status_label": "Active",
+        "starts_at": "2026-07-06T00:00:00+00:00",
+        "ends_at": "2026-12-31T23:59:59+00:00"
+    }
+]
+```
+
+`eligibility_status` is one of `eligible`, `in_bundle`, or `not_eligible`. `membership_status`, `membership_status_label`, `starts_at`, and `ends_at` come from whichever membership record backs that status (the in-bundle seat, or the person's active membership for the tier) and are all `null` when no such record exists.
 
 A tier with more than one entry in `products` requires the caller to choose one and pass its `product_id`/`variation_id` to [Add a member to a bundle (member-scoped)](#add-a-member-to-a-bundle-member-scoped). A tier with exactly one product can omit `product_id` there — it's auto-resolved from the tier.
 

@@ -120,9 +120,11 @@ Returns plain MDP person matches (`full_name`, `primary_email_address`, `id`) �
 
 ### `get_bundle_eligible_tiers( \WP_REST_Request $request )`
 
-**Route:** `GET /bundle/{bundle_post_id}/eligible_tiers/mine` — gated by `permissions_check_bundle_org_member`
+**Route:** `GET /bundle/{bundle_post_id}/eligible_tiers/mine` — gated by `permissions_check_bundle_org_member` — optional query param: `person_uuid`
 
 Delegates to `Membership_Bundle_Admin_Controller::get_eligible_tiers_for_bundle()`. Backs the account-center "Add Member" modal's results step: lists the bundle's eligible individual tiers with resolved WooCommerce product/variation names and prices, since the `wicket_mship_tier` CPT and the staff-only `/membership_products` route are both unreachable by a plain member. Returns `404` if the bundle post is not found; otherwise an array of `{ id, name, products: [{ product_id, variation_id, name, price }] }`.
+
+When `person_uuid` is passed (sanitized via `sanitize_text_field()` before being forwarded), each tier is additionally annotated with `eligibility_status` (`eligible` | `in_bundle` | `not_eligible`), `membership_status`, `membership_status_label`, `starts_at`, and `ends_at` for that person — see `get_eligible_tiers_for_bundle()` in `Membership_Bundle_Admin_Controller.md` for the eligibility rules. Modal step 2 re-calls this route with `person_uuid` once a person is selected, to drive the row badges/dates.
 
 ### `get_bundle_members( \WP_REST_Request $request )`
 

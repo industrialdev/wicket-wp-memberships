@@ -198,7 +198,7 @@ Ownership reassignment of linked WooCommerce order/subscription records is handl
 
 ---
 
-### `get_eligible_tiers_for_bundle( int $bundle_post_id ): array|\WP_REST_Response`
+### `get_eligible_tiers_for_bundle( int $bundle_post_id, string $person_uuid = '' ): array|\WP_REST_Response`
 
 Returns the individual `Membership_Tier` posts eligible for a bundle's add-member flow, each with its resolvable WooCommerce product/variation options. Backs the member-scoped `GET /bundle/{bundle_post_id}/eligible_tiers/mine` route used by the account-center "Add Member" modal's results step.
 
@@ -223,6 +223,28 @@ Returns `404` (`\WP_REST_Response`) if `$bundle_post_id` does not resolve to a `
       [ 'product_id' => 803, 'variation_id' => 805, 'name' => 'Gold — Annual', 'price' => '150.00' ],
     ],
   ],
+]
+```
+
+**Per-person eligibility annotation.** When `$person_uuid` is non-empty, each tier row is additionally merged with `eligibility_status`, `membership_status`, `membership_status_label`, `starts_at`, and `ends_at` — this is what drives the Eligible/In Bundle/Not Eligible badges, status badge, and date range in the add-member modal's results step. Skipped entirely (no extra keys) when `$person_uuid` is empty, e.g. the bundle-level tier listing before a member has been selected.
+
+Resolution, per tier:
+
+1. The MDP person's `status` attribute is fetched once via `wicket_get_person_by_id()` (base-plugin helper) — `good_standing` is the only value that counts as "in good standing"; a missing/failed lookup fails closed (not in good standing).
+2. `find_active_bundled_membership_for_person_and_tier()` looks for a `wicket_membership` post matching `membership_user_uuid` (the MDP person UUID — **not** a `person_uuid` meta key, which is never actually persisted; it's only an in-flight array key used en route to the MDP API call elsewhere in this class) + `membership_tier_uuid`, with a non-empty `membership_bundle_id` and a `membership_status` that isn't `cancelled`/`expired` — **not scoped to the bundle being added to**. Each match's containing `Membership_Bundle` (resolved via `Membership_Controller::get_membership_bundle()`) is checked; the first one whose own `get_membership_status()` is `active` wins → `eligibility_status = 'in_bundle'`. This means a person already holding this tier's seat in a *different* active bundle is flagged `in_bundle` here too, not just re-adds to the same bundle.
+3. Otherwise, `find_active_membership_for_person_and_tier()` looks for *any* `wicket_membership` post (bundle-linked or standalone) matching `membership_user_uuid` + `membership_tier_uuid` + `membership_status = Wicket_Memberships::STATUS_ACTIVE`. If found and the person is in good standing → `eligibility_status = 'eligible'`; otherwise → `'not_eligible'`.
+4. `membership_status`/`membership_status_label`/`starts_at`/`ends_at` are read from whichever membership post backed the status above (the in-bundle post, or the active-elsewhere post) — all `null` when neither was found. Note a `not_eligible` row can still carry a status/dates: that happens when the person holds an active membership for the tier but simply isn't in good standing.
+
+```php
+[
+  'id'                       => 88,
+  'name'                     => 'Gold',
+  'products'                 => [ /* ... */ ],
+  'eligibility_status'       => 'eligible', // 'eligible' | 'in_bundle' | 'not_eligible'
+  'membership_status'        => 'active',
+  'membership_status_label'  => 'Active',
+  'starts_at'                => '2026-07-06T00:00:00+00:00',
+  'ends_at'                  => '2026-12-31T23:59:59+00:00',
 ]
 ```
 

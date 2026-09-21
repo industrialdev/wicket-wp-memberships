@@ -743,6 +743,77 @@
   cursor: pointer;
 }
 
+/* 'In Bundle' (checked+locked) and 'Not Eligible' (unchecked+locked) rows
+   both render through this modifier — the checked/unchecked state itself
+   already communicates which one it is. */
+.wicket-mship-add-member-modal__tier-checkbox-label--disabled {
+  cursor: not-allowed;
+  color: var(--text-content-secondary, #6b7280);
+}
+
+.wicket-mship-add-member-modal__tier-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-100, 0.5rem);
+}
+
+.wicket-mship-add-member-modal__tier-dates {
+  font-size: var(--body-sm-font-size, 0.85rem);
+  color: var(--text-content-secondary, #6b7280);
+  white-space: nowrap;
+}
+
+.wicket-mship-add-member-modal__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-25, 0.15rem) var(--space-100, 0.55rem);
+  border-radius: var(--border-radius-200, 999px);
+  font-size: var(--label-xs-font-size, 0.75rem);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Eligibility badges */
+
+.wicket-mship-add-member-modal__badge--eligible {
+  background: var(--bg-accent-light, #dde6fc);
+  color: var(--interactive-dark, #1e3a8a);
+}
+
+.wicket-mship-add-member-modal__badge--in-bundle {
+  background: var(--bg-neutral-light, #e5e7eb);
+  color: var(--text-content-secondary, #4b5563);
+}
+
+.wicket-mship-add-member-modal__badge--not-eligible {
+  background: color-mix(in srgb, var(--state-error, #dc2626) 15%, white);
+  color: var(--state-error, #dc2626);
+}
+
+/* Membership status badges — 'active' is the common case; every other
+   status (pending, delayed, grace_period, expired, cancelled) shares the
+   same warning/neutral treatment as the bundle status dot elsewhere in this
+   file (see .wicket-mship-bundle-detail__status-dot--*). */
+
+.wicket-mship-add-member-modal__badge--status-active {
+  background: color-mix(in srgb, var(--state-success, #16a34a) 15%, white);
+  color: var(--state-success, #16a34a);
+}
+
+.wicket-mship-add-member-modal__badge--status-pending,
+.wicket-mship-add-member-modal__badge--status-delayed,
+.wicket-mship-add-member-modal__badge--status-grace_period {
+  background: color-mix(in srgb, var(--state-warning, #d97706) 15%, white);
+  color: var(--state-warning, #d97706);
+}
+
+.wicket-mship-add-member-modal__badge--status-expired,
+.wicket-mship-add-member-modal__badge--status-cancelled {
+  background: color-mix(in srgb, var(--state-error, #dc2626) 15%, white);
+  color: var(--state-error, #dc2626);
+}
+
 .wicket-mship-add-member-modal__product-select {
   border: 1px solid var(--border-light, #d1d5db);
   border-radius: var(--border-radius-100, 0.4rem);

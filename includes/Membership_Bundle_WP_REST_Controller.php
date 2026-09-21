@@ -427,6 +427,12 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
      * eligible_tier_ids (empty means all active individual tiers, per
      * Membership_Bundle_Config::get_eligible_tier_ids()'s own fallback rule)
      * and resolves each product/variation's name and price server-side.
+     *
+     * When person_uuid is supplied, each tier is additionally annotated with
+     * eligibility_status ('eligible' | 'in_bundle' | 'not_eligible') plus
+     * membership_status/starts_at/ends_at for that person's matching
+     * membership record — see
+     * Membership_Bundle_Admin_Controller::get_eligible_tiers_for_bundle().
      */
     register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/eligible_tiers/mine', [
       [
@@ -438,6 +444,11 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
             'required'    => true,
             'type'        => 'integer',
             'description' => 'Post ID of the membership bundle.',
+          ],
+          'person_uuid' => [
+            'required'    => false,
+            'type'        => 'string',
+            'description' => 'MDP person UUID to compute per-tier eligibility/status/dates for. Omit for the plain tier list with no eligibility annotation.',
           ],
         ],
       ],
@@ -994,7 +1005,8 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    */
   public function get_bundle_eligible_tiers( \WP_REST_Request $request ) {
     $bundle_post_id = (int) $request->get_param( 'bundle_post_id' );
-    $response = Membership_Bundle_Admin_Controller::get_eligible_tiers_for_bundle( $bundle_post_id );
+    $person_uuid    = sanitize_text_field( (string) $request->get_param( 'person_uuid' ) );
+    $response = Membership_Bundle_Admin_Controller::get_eligible_tiers_for_bundle( $bundle_post_id, $person_uuid );
     return rest_ensure_response( $response );
   }
 

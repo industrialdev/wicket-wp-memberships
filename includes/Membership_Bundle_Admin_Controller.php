@@ -924,10 +924,34 @@ class Membership_Bundle_Admin_Controller {
    * the staff-only /membership_products route cannot be reused to resolve
    * product names/prices for the same reason.
    *
-   * @param int $bundle_post_id
-   * @return array|\WP_REST_Response Array of { id, name, products: [{ product_id, variation_id, name, price }] }.
+   * When $person_uuid is supplied, each tier is additionally annotated for
+   * that specific person's Add Member review UI:
+   *  - eligibility_status: 'in_bundle'    — the person already holds this
+   *                                         tier's seat (membership_status
+   *                                         not cancelled/expired) in a
+   *                                         bundle whose own status is
+   *                                         'active' — this bundle, or any
+   *                                         other one.
+   *                        'eligible'     — the person's MDP person record
+   *                                         has status=good_standing AND
+   *                                         they hold an active individual
+   *                                         membership for this tier
+   *                                         (not already claimed by the
+   *                                         in_bundle check above) — that
+   *                                         membership is what gets pulled
+   *                                         in on confirm.
+   *                        'not_eligible' — neither of the above.
+   *  - membership_status/starts_at/ends_at: taken from whichever membership
+   *    record backs the eligibility_status above (the in-bundle one, or the
+   *    person's active membership for the tier); null when no such record
+   *    exists at all (a bare 'not_eligible' with nothing to show).
+   *
+   * @param int    $bundle_post_id
+   * @param string $person_uuid Optional MDP person UUID — omit for the plain
+   *                             tier list with no eligibility annotation.
+   * @return array|\WP_REST_Response Array of { id, name, products: [{ product_id, variation_id, name, price }], eligibility_status?, membership_status?, membership_status_label?, starts_at?, ends_at? }.
    */
-  public static function get_eligible_tiers_for_bundle( int $bundle_post_id ) {
+  public static function get_eligible_tiers_for_bundle( int $bundle_post_id, string $person_uuid = '' ) {
     $bundle = new Membership_Bundle( $bundle_post_id );
     if ( $bundle->post_id <= 0 ) {
       return new \WP_REST_Response( [ 'error' => 'Membership bundle not found.' ], 404 );
@@ -1019,7 +1043,135 @@ class Membership_Bundle_Admin_Controller {
     }
     unset( $tier_row );
 
+    // Skipped entirely when no person is selected yet (bundle-level tier
+    // listing before step 2 of the Add Member modal has a selectedPerson) —
+    // every tier keeps its plain { id, name, products } shape and the
+    // frontend simply doesn't render eligibility badges/dates.
+    if ( '' !== $person_uuid ) {
+      // MDP person status is fetched once, up front — it gates 'eligible'
+      // the same way for every tier, so there's no reason to re-fetch it
+      // per row. Missing status/lookup failure is treated as not in good
+      // standing (fail closed — see eligibility rules above).
+      $person_in_good_standing = false;
+      if ( function_exists( 'wicket_get_person_by_id' ) ) {
+        $person = wicket_get_person_by_id( $person_uuid );
+        if ( $person ) {
+          $person_in_good_standing = 'good_standing' === $person->getAttribute( 'status' );
+        }
+      }
+
+      foreach ( $tiers as &$tier_row ) {
+        $tier      = new Membership_Tier( $tier_row['id'] );
+        $tier_uuid = $tier->get_mdp_tier_uuid();
+
+        // 'In Bundle' checks across ALL bundles, not just this one — a
+        // person already holding this tier's seat in any *active* bundle
+        // (this one or a different one) is not re-addable, so the check
+        // isn't scoped to $bundle.
+        $in_bundle_post = self::find_active_bundled_membership_for_person_and_tier( $person_uuid, $tier_uuid );
+        $active_post    = $in_bundle_post ?: self::find_active_membership_for_person_and_tier( $person_uuid, $tier_uuid );
+
+        if ( $in_bundle_post ) {
+          $tier_row['eligibility_status'] = 'in_bundle';
+        } elseif ( $active_post && $person_in_good_standing ) {
+          $tier_row['eligibility_status'] = 'eligible';
+        } else {
+          $tier_row['eligibility_status'] = 'not_eligible';
+        }
+
+        $raw_status = $active_post ? get_post_meta( $active_post->ID, 'membership_status', true ) : null;
+
+        $tier_row['membership_status']       = $raw_status;
+        // Human-readable label for the UI's status badge — reuses the same
+        // status→label map as the admin status dropdown (Helper::get_all_status_names())
+        // instead of the frontend guessing at underscore/hyphen casing.
+        $tier_row['membership_status_label'] = $raw_status && isset( Helper::get_all_status_names()[ $raw_status ] )
+          ? Helper::get_all_status_names()[ $raw_status ]['name']
+          : null;
+        $tier_row['starts_at']               = $active_post ? get_post_meta( $active_post->ID, 'membership_starts_at', true ) : null;
+        $tier_row['ends_at']                 = $active_post ? get_post_meta( $active_post->ID, 'membership_ends_at', true ) : null;
+      }
+      unset( $tier_row );
+    }
+
     return $tiers;
+  }
+
+  /**
+   * Find the person's individual membership for a tier that is currently
+   * linked to a bundle whose own status is 'active' — the 'In Bundle' check.
+   *
+   * Deliberately not scoped to any one bundle: a person already holding this
+   * tier's seat in *any* active bundle (this one being added to, or a
+   * different one entirely) can't be re-added, so every bundle-linked
+   * membership for this person+tier is considered, and each candidate's
+   * containing bundle status is checked individually (a membership can only
+   * ever point at one bundle, but nothing stops a person having previously
+   * cancelled seats in several).
+   *
+   * @return \WP_Post|null
+   */
+  private static function find_active_bundled_membership_for_person_and_tier( string $person_uuid, string $tier_uuid ) {
+    $posts = get_posts( [
+      'post_type'   => Helper::get_membership_cpt_slug(),
+      'post_status' => 'any',
+      'numberposts' => -1,
+      'meta_query'  => [
+        // The MDP person UUID is persisted under 'membership_user_uuid' on
+        // wicket_membership posts (see Membership_Controller::create_membership_record()
+        // and Utilities::*) — NOT 'person_uuid', which is only an in-flight
+        // array key used en route to the MDP API call and never itself
+        // written as post meta. Querying 'person_uuid' here would silently
+        // match nothing for every person.
+        [ 'key' => 'membership_user_uuid', 'value' => $person_uuid ],
+        [ 'key' => 'membership_tier_uuid', 'value' => $tier_uuid ],
+        [ 'key' => 'membership_bundle_id', 'compare' => 'EXISTS' ],
+        // A membership whose own status is cancelled/expired isn't a seat
+        // the person actually still holds, regardless of what its bundle's
+        // status is — excluded before the (more expensive) per-bundle
+        // status check below.
+        [ 'key' => 'membership_status', 'value' => [ 'cancelled', 'expired' ], 'compare' => 'NOT IN' ],
+      ],
+    ] );
+
+    // Reuses Membership_Controller::get_membership_bundle() (reads the
+    // membership_bundle_id meta and resolves the Membership_Bundle object,
+    // or false when the membership isn't bundle-linked) instead of
+    // duplicating that lookup here.
+    $membership_controller = new Membership_Controller();
+
+    foreach ( $posts as $post ) {
+      $containing_bundle = $membership_controller->get_membership_bundle( $post->ID );
+      if ( $containing_bundle && $containing_bundle->get_membership_status() === Wicket_Memberships::STATUS_ACTIVE ) {
+        return $post;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Find the person's active individual membership for a given tier,
+   * anywhere — not scoped to any particular bundle. This is the membership
+   * record that would be pulled into the current bundle on confirm.
+   *
+   * @return \WP_Post|null
+   */
+  private static function find_active_membership_for_person_and_tier( string $person_uuid, string $tier_uuid ) {
+    $posts = get_posts( [
+      'post_type'   => Helper::get_membership_cpt_slug(),
+      'post_status' => 'any',
+      'numberposts' => 1,
+      'meta_query'  => [
+        // See find_active_bundled_membership_for_person_and_tier() above —
+        // 'membership_user_uuid' is the actual persisted meta key, not 'person_uuid'.
+        [ 'key' => 'membership_user_uuid', 'value' => $person_uuid ],
+        [ 'key' => 'membership_tier_uuid', 'value' => $tier_uuid ],
+        [ 'key' => 'membership_status', 'value' => Wicket_Memberships::STATUS_ACTIVE ],
+      ],
+    ] );
+
+    return $posts[0] ?? null;
   }
 
   /**
