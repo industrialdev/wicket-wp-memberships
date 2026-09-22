@@ -55,7 +55,7 @@ if ( ! defined( 'ABSPATH' ) ) {
   style="display: none;"
   role="dialog"
   aria-modal="true"
-  :aria-label="<?php echo esc_js( __( 'Remove member from bundle', 'wicket-memberships' ) ); ?>"
+  :aria-label="<?php echo esc_attr( wp_json_encode( __( 'Remove member from bundle', 'wicket-memberships' ) ) ); ?>"
   x-on:keydown.escape.window="closeModal()"
 >
   <div class="wicket-mship-remove-member-modal__overlay"></div>

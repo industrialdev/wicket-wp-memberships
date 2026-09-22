@@ -49,7 +49,7 @@ if ( ! defined( 'ABSPATH' ) ) {
   style="display: none;"
   role="dialog"
   aria-modal="true"
-  :aria-label="<?php echo esc_js( __( 'Add memberships to your bundle', 'wicket-memberships' ) ); ?>"
+  :aria-label="<?php echo esc_attr( wp_json_encode( __( 'Add memberships to your bundle', 'wicket-memberships' ) ) ); ?>"
   x-on:keydown.escape.window="closeModal()"
 >
   <div class="wicket-mship-add-member-modal__overlay"></div>
