@@ -58,7 +58,7 @@
   .select__value-container {
     padding: 0 8px;
   }
-`,ao=(Zb(Oo).attrs({...eo,isMulti:!0})`
+`,ao=(Zb(Oo).attrs({...eo,isMulti:!0,menuPlacement:"auto"})`
   .select__input-container {
     margin: 0;
     padding: 0;

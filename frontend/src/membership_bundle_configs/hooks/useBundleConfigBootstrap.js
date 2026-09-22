@@ -39,7 +39,7 @@ const mapTiersToOptions = (posts = []) =>
   posts
     .filter((post) => post.tier_data?.type === "individual")
     .map((post) => ({
-      label: he.decode(post.title.rendered),
+      label: `${he.decode(post.title.rendered)} | ID: ${post.id}`,
       value: post.id,
     }));
 

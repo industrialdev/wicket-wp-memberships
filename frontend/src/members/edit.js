@@ -806,6 +806,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                 isOpen={!!membership.isAddToBundleOpen}
                                 membershipPostId={membership.data.membership_post_id}
                                 tierPostId={membership.data.membership_tier_post_id}
+                                tierName={membership.data.membership_tier_name}
                                 onRequestClose={() => {
                                   membership.isAddToBundleOpen = false;
                                   setMemberships([...memberships]);

@@ -58,7 +58,7 @@
   .select__value-container {
     padding: 0 8px;
   }
-`,cc=(nt(YM).attrs({...bc,isMulti:!0})`
+`,cc=(nt(YM).attrs({...bc,isMulti:!0,menuPlacement:"auto"})`
   .select__input-container {
     margin: 0;
     padding: 0;

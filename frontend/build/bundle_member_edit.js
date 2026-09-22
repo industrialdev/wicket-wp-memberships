@@ -58,7 +58,7 @@
   .select__value-container {
     padding: 0 8px;
   }
-`,KM=(Vt(TM).attrs({...VM,isMulti:!0})`
+`,KM=(Vt(TM).attrs({...VM,isMulti:!0,menuPlacement:"auto"})`
   .select__input-container {
     margin: 0;
     padding: 0;

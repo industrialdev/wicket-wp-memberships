@@ -32,6 +32,7 @@ const ModalFooter = styled.div`
  * @param {bool}     props.isOpen
  * @param {number}   props.membershipPostId   - WP post ID of the existing membership.
  * @param {number}   props.tierPostId         - WP post ID of the membership tier (from membership meta).
+ * @param {string}   props.tierName           - Display name of the membership tier (from membership meta).
  * @param {Function} props.onRequestClose
  * @param {Function} props.onSuccess          - Called after a successful add; parent should refresh.
  */
@@ -39,6 +40,7 @@ const AddToMembershipBundleModal = ({
   isOpen,
   membershipPostId,
   tierPostId,
+  tierName,
   onRequestClose,
   onSuccess,
 }) => {
@@ -167,6 +169,17 @@ const AddToMembershipBundleModal = ({
           onDismiss={() => setError(null)}
         />
       )}
+
+      <p>
+        {sprintf(
+          // translators: %s is the tier name and ID of the membership being added, e.g. "Gold | ID: 123".
+          __(
+            "Current tier: %s",
+            "wicket-memberships"
+          ),
+          `${tierName} | ID: ${tierPostId}`
+        )}
+      </p>
 
       <p>
         {__(

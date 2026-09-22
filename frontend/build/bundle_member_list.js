@@ -58,7 +58,7 @@
   .select__value-container {
     padding: 0 8px;
   }
-`,to=(Mz(co).attrs({...no,isMulti:!0})`
+`,to=(Mz(co).attrs({...no,isMulti:!0,menuPlacement:"auto"})`
   .select__input-container {
     margin: 0;
     padding: 0;
