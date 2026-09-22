@@ -29,6 +29,7 @@ Membership_Bundle_WP_REST_Controller
   - [`remove_member()`](#remove_member) — Cancel a seat or release it as a standalone membership with the remaining term
   - [`move_individual_membership()`](#move_individual_membership) — Transfer a member from this bundle to another without losing their record
   - [`get_individual_memberships()`](#get_individual_memberships) — Retrieve active (or all) child membership posts belonging to this bundle
+  - [`get_eligible_memberships_for_user()`](#get_eligible_memberships_for_user) — Find a user's standalone individual memberships eligible to become a seat in this bundle
 
 - **[Lifecycle transitions](#lifecycle-transitions)**
   - [`transition_to()`](#transition_to) — Execute a status change with full lifecycle side effects (date recalc, subscription, cascade)
@@ -202,6 +203,8 @@ Adds an individual membership seat to this bundle. The `$existing_membership_pos
 | `product_tier_mismatch` | Supplied product does not belong to the tier |
 | `invalid_membership` | Existing membership post not found or wrong CPT |
 | `create_failed` | Downstream membership creation failed |
+| `bundle_not_synced_to_mdp` | Bundle has no `membership_bundle_mdp_uuid` — never synced to MDP |
+| `tier_not_found_in_mdp` | Tier's stored `mdp_tier_uuid` no longer resolves in MDP |
 :::
 
 :::details Example
@@ -298,6 +301,28 @@ $active_count = count( $bundle->get_individual_memberships() );
 $all_seats = $bundle->get_individual_memberships( active_only: false );
 ```
 :::
+
+### `get_eligible_memberships_for_user()`
+
+```php
+public function get_eligible_memberships_for_user(
+    int $user_id
+): array
+```
+
+Finds a WP user's **standalone** (not already in any bundle) individual memberships whose tier is eligible for this bundle's config. This is the discovery step behind the `existing` mode of `add_member()` — it answers "which of this person's current memberships could become a seat here?" without changing anything.
+
+A membership qualifies when it: belongs to `$user_id`, has status `pending`, `active`, or `delayed`, has no `membership_bundle_id` set, and passes `Membership_Bundle_Config::is_tier_eligible_for_bundle()` for this bundle.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$user_id` | `int` | Yes | WP user ID. Callers resolving from an MDP person UUID must look up the WP user first — see [`Membership_Bundle_Admin_Controller::get_eligible_memberships_for_person()`](./membership-bundle-admin-controller.md). |
+
+**Returns:** array of `{ membership_post_id, tier_post_id, tier_name, starts_at, ends_at, status }`. Empty array when none qualify.
+
+See [Member Handling](../concepts/member-handling.md#discovering-eligible-existing-memberships) for the full discovery flow.
 
 ## Lifecycle transitions
 

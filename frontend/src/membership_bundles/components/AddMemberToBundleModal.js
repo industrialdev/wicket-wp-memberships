@@ -1,6 +1,6 @@
-import { useState } from "@wordpress/element";
+import { useRef, useState } from "@wordpress/element";
 import { __ } from "@wordpress/i18n";
-import { Button } from "@wordpress/components";
+import { Button, Spinner, Tooltip } from "@wordpress/components";
 import apiFetch from "@wordpress/api-fetch";
 import { addQueryArgs } from "@wordpress/url";
 import styled from "styled-components";
@@ -10,7 +10,12 @@ import Alert from "../../shared/components/Alert";
 import AddMemberErrorMessage from "../../shared/components/AddMemberErrorMessage";
 import { AsyncSelectWpStyled, LabelWpStyled } from "../../shared/styled_elements";
 import { API_URL, TIER_CPT_SLUG } from "../../shared/constants";
-import { fetchMdpPersons, fetchMembershipProducts, addMemberToBundle } from "../../shared/services/api";
+import {
+  fetchMdpPersons,
+  fetchMembershipProducts,
+  fetchBundleEligibleMemberships,
+  addMemberToBundle,
+} from "../../shared/services/api";
 
 const ModalFooter = styled.div`
   display: flex;
@@ -21,12 +26,46 @@ const ModalFooter = styled.div`
   border-top: 1px solid #e0e0e0;
 `;
 
+const LoadingRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #757575;
+  font-size: 13px;
+`;
+
+// Two-option segmented switch for the new-vs-existing membership choice.
+const SegmentedSwitch = styled.div`
+  display: inline-flex;
+  border: 1px solid #949494;
+  border-radius: 4px;
+  overflow: hidden;
+  width: 100%;
+`;
+
+const SegmentedSwitchOption = styled.button`
+  flex: 1;
+  border: none;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: ${(props) => (props.disabled ? "not-allowed" : "pointer")};
+  background: ${(props) => (props.$active ? "#2271b1" : "#fff")};
+  color: ${(props) => (props.$active ? "#fff" : "#1e1e1e")};
+  opacity: ${(props) => (props.disabled ? 0.5 : 1)};
+
+  &:not(:last-child) {
+    border-right: 1px solid #949494;
+  }
+`;
+
 /**
  * AddMemberToBundleModal — Flow B
  *
  * Opens from the Membership Actions dropdown on the membership bundle page.
- * Lets an admin add a new member (MDP person) to a membership bundle by
- * selecting user, tier, and (when needed) product.
+ * Adds an MDP person to a bundle, either as a new membership (tier + product)
+ * or by reusing an existing eligible membership (mode = "existing", same
+ * backend path as AddToMembershipBundleModal).
  *
  * @param {bool}     props.isOpen
  * @param {number}   props.bundlePostId
@@ -49,12 +88,28 @@ const AddMemberToBundleModal = ({
   const [error, setError]                     = useState(null);
   const [submitting, setSubmitting]           = useState(false);
 
+  // Existing-membership discovery, keyed off the selected person.
+  const [eligibleMemberships, setEligibleMemberships]           = useState([]);
+  const [loadingEligibleMemberships, setLoadingEligibleMemberships] = useState(false);
+  // null | 'new' | 'existing' — null means the admin hasn't chosen yet, so
+  // neither the tier/product fields nor the existing-membership picker show.
+  const [addMode, setAddMode]                             = useState(null);
+  const [selectedExistingMembership, setSelectedExistingMembership] = useState(null);
+  // Guards against an out-of-order response overwriting state after a newer
+  // person selection has already fired its own lookup.
+  const eligibleMembershipsRequestId = useRef(0);
+
   const resetState = () => {
     setSelectedUser(null);
     setSelectedTier(null);
     setSelectedProduct(null);
     setError(null);
     setSubmitting(false);
+    setEligibleMemberships([]);
+    setLoadingEligibleMemberships(false);
+    setAddMode(null);
+    setSelectedExistingMembership(null);
+    eligibleMembershipsRequestId.current++;
   };
 
   const handleClose = () => {
@@ -80,6 +135,38 @@ const AddMemberToBundleModal = ({
     setSelectedUser(option);
     setSelectedTier(null);
     setSelectedProduct(null);
+    setEligibleMemberships([]);
+    setAddMode(null);
+    setSelectedExistingMembership(null);
+    setError(null);
+
+    if (!option) return;
+
+    const requestId = ++eligibleMembershipsRequestId.current;
+    setLoadingEligibleMemberships(true);
+    fetchBundleEligibleMemberships(bundlePostId, option.value)
+      .then((response) => {
+        if (requestId !== eligibleMembershipsRequestId.current) return;
+        const memberships = response?.memberships ?? [];
+        setEligibleMemberships(memberships);
+        // Default to "existing" when eligible memberships are found, else "new".
+        setAddMode(memberships.length > 0 ? "existing" : "new");
+      })
+      .catch((err) => {
+        if (requestId !== eligibleMembershipsRequestId.current) return;
+        // A person with no WP account surfaces here as an error — show it inline.
+        console.error("[AddMemberToBundleModal] fetchBundleEligibleMemberships error", err);
+        setError(err);
+        setAddMode("new");
+      })
+      .finally(() => {
+        if (requestId !== eligibleMembershipsRequestId.current) return;
+        setLoadingEligibleMemberships(false);
+      });
+  };
+
+  const handleExistingMembershipChange = (option) => {
+    setSelectedExistingMembership(option);
   };
 
   // Load WP tier CPT posts, then resolve all product/variation names in one
@@ -93,9 +180,7 @@ const AddMemberToBundleModal = ({
     }).then(async (posts) => {
       const tiers = posts
         .filter((post) => post.tier_data?.type === "individual")
-        // Empty eligibleTierIds means all active individual tiers are
-        // eligible (the config field's own fallback rule) — this filter
-        // is a no-op in that case, not an empty result.
+        // Empty eligibleTierIds means all tiers are eligible — no-op filter.
         .filter(
           (post) =>
             eligibleTierIds.length === 0 || eligibleTierIds.includes(post.id),
@@ -137,9 +222,8 @@ const AddMemberToBundleModal = ({
       }));
     });
 
-  // Each productData entry is one selectable option. value is variation_id when
-  // present (uniquely identifies the variation), else product_id. Both IDs are
-  // carried so the submit handler can send them separately to the backend.
+  // value is variation_id when present, else product_id; both are carried
+  // separately for the submit handler.
   const resolveProductValue = (product) => ({
     value: product.variation_id || product.product_id,
     title: product.name,
@@ -165,21 +249,34 @@ const AddMemberToBundleModal = ({
   const showProductSelector =
     selectedTier?.productData && selectedTier.productData.length > 1;
 
+  const hasEligibleMemberships = eligibleMemberships.length > 0;
+
   const canSubmit =
-    selectedUser && selectedTier && selectedProduct && !submitting;
+    !submitting &&
+    selectedUser &&
+    ((addMode === "existing" && !!selectedExistingMembership) ||
+      (addMode === "new" && selectedTier && selectedProduct));
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
     setSubmitting(true);
     setError(null);
     try {
-      await addMemberToBundle(bundlePostId, {
-        mode: "new",
-        person_uuid: selectedUser.value,
-        tier_post_id: selectedTier.value,
-        product_id: selectedProduct.productId,
-        ...(selectedProduct.variationId ? { variation_id: selectedProduct.variationId } : {}),
-      });
+      if (addMode === "existing") {
+        await addMemberToBundle(bundlePostId, {
+          mode: "existing",
+          existing_membership_post_id: selectedExistingMembership.value,
+          tier_post_id: selectedExistingMembership.tierPostId,
+        });
+      } else {
+        await addMemberToBundle(bundlePostId, {
+          mode: "new",
+          person_uuid: selectedUser.value,
+          tier_post_id: selectedTier.value,
+          product_id: selectedProduct.productId,
+          ...(selectedProduct.variationId ? { variation_id: selectedProduct.variationId } : {}),
+        });
+      }
       resetState();
       onSuccess();
     } catch (err) {
@@ -223,23 +320,110 @@ const AddMemberToBundleModal = ({
         />
       </div>
 
-      <div style={{ marginBottom: "16px" }}>
-        <ModalPostSelector
-          id="add_member_tier_selector"
-          label={__("Membership Tier", "wicket-memberships")}
-          modalTitle={__("Select Membership Tier", "wicket-memberships")}
-          value={selectedTier}
-          onChange={handleTierChange}
-          disabled={!selectedUser}
-          loadOptions={loadTierOptions}
-          emptyMessage={__("No eligible options available.", "wicket-memberships")}
-          columns={[
-            { key: "title", label: __("Tier Name", "wicket-memberships"), flex: 1, searchable: true },
-          ]}
-        />
-      </div>
+      {loadingEligibleMemberships && (
+        <LoadingRow style={{ marginBottom: "16px" }}>
+          <Spinner />
+          {__("Checking for existing eligible memberships…", "wicket-memberships")}
+        </LoadingRow>
+      )}
 
-      {showProductSelector && (
+      {!loadingEligibleMemberships && selectedUser && (
+        <div style={{ marginBottom: "16px" }}>
+          <LabelWpStyled>
+            {__("Membership", "wicket-memberships")}
+          </LabelWpStyled>
+          <Tooltip
+            text={
+              hasEligibleMemberships
+                ? undefined
+                : __("No eligible memberships exist for this user.", "wicket-memberships")
+            }
+          >
+            {/* A plain div (not the disabled buttons themselves) is what
+                receives pointer events, so the tooltip fires while disabled. */}
+            <div>
+              <SegmentedSwitch>
+                <SegmentedSwitchOption
+                  type="button"
+                  $active={addMode === "existing"}
+                  disabled={!hasEligibleMemberships}
+                  onClick={() => {
+                    if (!hasEligibleMemberships) return;
+                    setAddMode("existing");
+                    setSelectedExistingMembership(null);
+                    setSelectedTier(null);
+                    setSelectedProduct(null);
+                  }}
+                >
+                  {__("Use an existing membership", "wicket-memberships")}
+                </SegmentedSwitchOption>
+                <SegmentedSwitchOption
+                  type="button"
+                  $active={addMode === "new"}
+                  onClick={() => {
+                    setAddMode("new");
+                    setSelectedExistingMembership(null);
+                    setSelectedTier(null);
+                    setSelectedProduct(null);
+                  }}
+                >
+                  {__("Create a new membership", "wicket-memberships")}
+                </SegmentedSwitchOption>
+              </SegmentedSwitch>
+            </div>
+          </Tooltip>
+        </div>
+      )}
+
+      {addMode === "existing" && hasEligibleMemberships && (
+        <div style={{ marginBottom: "16px" }}>
+          <ModalPostSelector
+            id="add_member_existing_membership_selector"
+            label={__("Existing Membership", "wicket-memberships")}
+            modalTitle={__("Select Existing Membership", "wicket-memberships")}
+            value={selectedExistingMembership}
+            onChange={handleExistingMembershipChange}
+            loadOptions={() =>
+              Promise.resolve(
+                eligibleMemberships.map((membership) => ({
+                  value: membership.membership_post_id,
+                  tierPostId: membership.tier_post_id,
+                  title: membership.tier_name,
+                  starts_at: membership.starts_at,
+                  ends_at: membership.ends_at,
+                  status: membership.status,
+                }))
+              )
+            }
+            columns={[
+              { key: "title",      label: __("Tier Name",    "wicket-memberships"), flex: 1,   searchable: true },
+              { key: "starts_at",  label: __("Start Date",   "wicket-memberships"), width: 160, format: "date" },
+              { key: "ends_at",    label: __("End Date",     "wicket-memberships"), width: 160, format: "date" },
+              { key: "status",     label: __("Status",       "wicket-memberships"), width: 120 },
+            ]}
+          />
+        </div>
+      )}
+
+      {addMode === "new" && (
+        <div style={{ marginBottom: "16px" }}>
+          <ModalPostSelector
+            id="add_member_tier_selector"
+            label={__("Membership Tier", "wicket-memberships")}
+            modalTitle={__("Select Membership Tier", "wicket-memberships")}
+            value={selectedTier}
+            onChange={handleTierChange}
+            disabled={!selectedUser}
+            loadOptions={loadTierOptions}
+            emptyMessage={__("No eligible options available.", "wicket-memberships")}
+            columns={[
+              { key: "title", label: __("Tier Name", "wicket-memberships"), flex: 1, searchable: true },
+            ]}
+          />
+        </div>
+      )}
+
+      {addMode === "new" && showProductSelector && (
         <div style={{ marginBottom: "16px" }}>
           <ModalPostSelector
             id="add_member_product_selector"

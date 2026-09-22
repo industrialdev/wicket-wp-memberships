@@ -977,6 +977,41 @@ class Membership_Bundle_Admin_Controller {
   }
 
   /**
+   * List a person's active individual memberships whose tier is eligible for
+   * a bundle's config — the discovery step behind the bundle-side "Add
+   * Member" existing-membership option (mirrors add_member()'s mode =
+   * 'existing' path, but read-only and from the person's side).
+   *
+   * @param int    $bundle_post_id Post ID of the Membership_Bundle.
+   * @param string $person_uuid    MDP person UUID.
+   * @return array{memberships: array}|array{error: string, code: string, status: int}
+   */
+  public static function get_eligible_memberships_for_person( int $bundle_post_id, string $person_uuid ): array {
+    $bundle = new Membership_Bundle( $bundle_post_id );
+    if ( $bundle->post_id <= 0 ) {
+      return [ 'error' => 'Membership bundle not found.', 'code' => 'bundle_not_found', 'status' => 404 ];
+    }
+
+    if ( '' === $person_uuid ) {
+      return [ 'error' => 'person_uuid is required.', 'code' => 'missing_person_uuid', 'status' => 400 ];
+    }
+
+    // Read-only lookup — do not create a WP user here, unlike add_member()'s
+    // mode = 'new' path. A person who has never logged in has no local
+    // account to attach an existing membership to.
+    $user = get_user_by( 'login', $person_uuid );
+    if ( ! $user ) {
+      return [
+        'error'  => 'This member does not have a WordPress account and cannot be added to this bundle from an existing membership.',
+        'code'   => 'wicket_membership_no_wp_user',
+        'status' => 400,
+      ];
+    }
+
+    return [ 'memberships' => $bundle->get_eligible_memberships_for_user( $user->ID ) ];
+  }
+
+  /**
    * Resolve the display names of a bundle's config's eligible tiers.
    *
    * @param Membership_Bundle $bundle Bundle whose config's eligible tiers to list.

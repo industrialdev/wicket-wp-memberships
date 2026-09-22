@@ -353,6 +353,65 @@ class Membership_Bundle {
   }
 
   /**
+   * Find a WP user's standalone (not already in any bundle) active individual
+   * memberships whose tier is eligible for this bundle's config — the
+   * discovery step behind the bundle-side "Add Member" existing-membership
+   * option (mirrors add_member()'s mode = 'existing' path, but read-only and
+   * queried from the person's side rather than by a known membership post ID).
+   *
+   * @param int $user_id WP user ID (already resolved from an MDP person_uuid by the caller).
+   * @return array Each entry: membership_post_id, tier_post_id, tier_name, starts_at, ends_at, status.
+   */
+  public function get_eligible_memberships_for_user( int $user_id ): array {
+    $valid_statuses = [ Wicket_Memberships::STATUS_PENDING, Wicket_Memberships::STATUS_ACTIVE, Wicket_Memberships::STATUS_DELAYED ];
+
+    $posts = get_posts( [
+      'post_type'      => Helper::get_membership_cpt_slug(),
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+      'fields'         => 'ids',
+      'meta_query'     => [
+        'relation' => 'AND',
+        [ 'key' => 'user_id',           'value' => $user_id ],
+        [ 'key' => 'membership_type',   'value' => 'individual' ],
+        [ 'key' => 'membership_status', 'value' => $valid_statuses, 'compare' => 'IN' ],
+      ],
+    ] );
+
+    $memberships = [];
+    foreach ( $posts as $membership_post_id ) {
+      // Exclude memberships already linked to a bundle (this one or any
+      // other) — a membership already in a bundle is moved via
+      // move_individual_membership(), not re-offered here as "existing."
+      // Selecting one through this flow would call add_member(existing),
+      // which cancels it under its current bundle with no warning. Cast +
+      // compare against 0, matching assert_individual_membership_in_bundle()'s
+      // own convention, since the meta row may exist but be empty/'0'
+      // rather than absent.
+      $linked_bundle_id = (int) get_post_meta( $membership_post_id, 'membership_bundle_id', true );
+      if ( $linked_bundle_id !== 0 ) {
+        continue;
+      }
+
+      $tier_post_id = (int) get_post_meta( $membership_post_id, 'membership_tier_post_id', true );
+      if ( ! Membership_Bundle_Config::is_tier_eligible_for_bundle( $this, $tier_post_id ) ) {
+        continue;
+      }
+
+      $memberships[] = [
+        'membership_post_id' => $membership_post_id,
+        'tier_post_id'       => $tier_post_id,
+        'tier_name'          => (string) get_post_meta( $membership_post_id, 'membership_tier_name', true ),
+        'starts_at'          => (string) get_post_meta( $membership_post_id, 'membership_starts_at', true ),
+        'ends_at'            => (string) get_post_meta( $membership_post_id, 'membership_ends_at', true ),
+        'status'             => (string) get_post_meta( $membership_post_id, 'membership_status', true ),
+      ];
+    }
+
+    return $memberships;
+  }
+
+  /**
    * Add an individual membership to this bundle.
    *
    * Single entry point for both the "new member" and "existing member" flows:
@@ -544,7 +603,8 @@ class Membership_Bundle {
   // ---------------------------------------------------------------------------
 
   /**
-   * Assert this bundle is in a status that allows member operations (pending/active/delayed).
+   * Assert this bundle is in a status that allows member operations (pending/active/delayed),
+   * and — outside bypass_wicket dev/test mode — that it has actually been synced to the MDP.
    *
    * @return \WP_Error|null WP_Error on failure, null on pass.
    */
@@ -558,6 +618,62 @@ class Membership_Bundle {
       ] );
       return new \WP_Error( 'invalid_bundle_status', __( 'Member operations are only allowed on a pending, active, or delayed membership bundle.', 'wicket-memberships' ) );
     }
+
+    // A bundle with no MDP-side counterpart (sync_mdp_create() never ran, or ran
+    // and silently failed — see its error log) cannot accept members: MDP rejects
+    // the person-to-bundle assignment with a "membership not found" error deep in
+    // the request, which previously surfaced late as an opaque failure instead of
+    // failing fast here. bypass_wicket dev/test environments never sync to MDP by
+    // design, so this check does not apply to them.
+    if ( empty( $this->bypass_wicket ) && empty( get_post_meta( $this->post_id, 'membership_bundle_mdp_uuid', true ) ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::assert_bundle_is_manageable: bundle has no membership_bundle_mdp_uuid — not synced to MDP', [
+        'source'  => 'wicket-memberships',
+        'post_id' => $this->post_id,
+      ] );
+      return new \WP_Error( 'bundle_not_synced_to_mdp', __( 'This membership bundle has not been synced to the MDP and cannot accept members. Contact support.', 'wicket-memberships' ) );
+    }
+
+    return null;
+  }
+
+  /**
+   * Assert a tier's stored MDP UUID resolves to a real "memberships" resource
+   * in the MDP, so a stale UUID (e.g. from a reseeded MDP environment) fails
+   * fast with a clear, tier-specific error instead of the opaque MDP error
+   * that person_memberships assignment would otherwise return.
+   *
+   * @param Membership_Tier $tier
+   * @param int             $tier_post_id WP post ID of the tier (for logging; Membership_Tier::$post_id is private).
+   * @return \WP_Error|null WP_Error on failure, null on pass or when the check
+   *   cannot run (no MDP client, or the tier has no mdp_tier_uuid stored yet —
+   *   an unrelated, pre-existing failure mode this method does not own).
+   */
+  private function assert_tier_resolves_in_mdp( Membership_Tier $tier, int $tier_post_id ): ?\WP_Error {
+    $tier_uuid = $tier->get_mdp_tier_uuid();
+    if ( empty( $tier_uuid ) || ! \function_exists( 'wicket_api_client' ) ) {
+      return null;
+    }
+
+    try {
+      wicket_api_client()->get( 'memberships/' . $tier_uuid );
+    } catch ( \Exception $e ) {
+      Wicket()->log()->error( 'Membership_Bundle::assert_tier_resolves_in_mdp: tier mdp_tier_uuid does not resolve in MDP', [
+        'source'       => 'wicket-memberships',
+        'post_id'      => $this->post_id,
+        'tier_post_id' => $tier_post_id,
+        'tier_uuid'    => $tier_uuid,
+        'error'        => $e->getMessage(),
+      ] );
+      return new \WP_Error(
+        'tier_not_found_in_mdp',
+        sprintf(
+          /* translators: %s: membership tier name */
+          __( 'The membership tier "%s" is not recognized by the MDP (its stored MDP reference no longer resolves). Contact support to re-sync this tier.', 'wicket-memberships' ),
+          $tier->get_mdp_tier_name() ?: $tier_post_id
+        )
+      );
+    }
+
     return null;
   }
 
@@ -793,6 +909,20 @@ class Membership_Bundle {
         'tier_post_id' => $tier_post_id,
       ] );
       return new \WP_Error( 'invalid_tier', __( 'The specified tier is not an individual membership tier.', 'wicket-memberships' ) );
+    }
+
+    // Verify the tier's stored MDP UUID still resolves to a real "memberships"
+    // resource before attempting the assignment call. Without this, a stale
+    // mdp_tier_uuid (e.g. from a reseeded/reset MDP environment) surfaces only
+    // as an opaque "Failed to add member in MDP: Membership not found" late in
+    // the request, with no indication the tier — not the person or bundle —
+    // is the actual problem. Skipped in bypass_wicket mode, which never talks
+    // to MDP at all.
+    if ( empty( $this->bypass_wicket ) ) {
+      $tier_mdp_error = $this->assert_tier_resolves_in_mdp( $tier, $tier_post_id );
+      if ( $tier_mdp_error ) {
+        return $tier_mdp_error;
+      }
     }
 
     $tier_product_ids = array_map( 'intval', $tier->get_product_ids() );

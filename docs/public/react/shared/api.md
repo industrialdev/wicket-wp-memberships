@@ -42,6 +42,7 @@ Three namespaced base paths are exported from `shared/constants.js` and used int
 | `createMembershipBundle` | POST | `/wicket_member/v1/bundle` | Newly created bundle object |
 | `createBundleRenewalOrder` | POST | `/wicket_member/v1/bundle/<id>/create_renewal_order` | New renewal order data |
 | `fetchBundleMembersByTier` | GET | `/wicket_member/v1/bundle/<id>/members_by_tier` | Bundle members keyed by tier |
+| `fetchBundleEligibleMemberships` | GET | `/wicket_member/v1/bundle/<id>/eligible_memberships` | Person's memberships eligible for this bundle |
 | `addMemberToBundle` | POST | `/wicket_member/v1/bundle/<id>/add_member` | New or linked membership record |
 | `removeMemberFromBundle` | POST | `/wicket_member/v1/bundle/<id>/remove_member` | Operation result |
 | `moveIndividualMembership` | POST | `/wicket_member/v1/bundle/<id>/move_individual_membership` | Operation result |
@@ -307,6 +308,21 @@ Fetches bundle member records broken down by tier.
 **Endpoint:** `GET /wicket_member/v1/bundle/<bundlePostId>/members_by_tier`
 
 **Returns:** Promise resolving to an object keyed by tier with arrays of member records.
+
+---
+
+### `fetchBundleEligibleMemberships(bundlePostId, personUuid)`
+
+Finds a person's standalone individual memberships eligible to become a seat in a bundle — used by the "Add Member" flow to offer an existing membership instead of creating a new one.
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundlePostId` | `number` | Yes | WP post ID of the membership bundle |
+| `personUuid` | `string` | Yes | MDP person UUID |
+
+**Endpoint:** `GET /wicket_member/v1/bundle/<bundlePostId>/eligible_memberships`
+
+**Returns:** Promise resolving to `{ memberships: array }`, each entry `{ membership_post_id, tier_post_id, tier_name, starts_at, ends_at, status }`.
 
 ---
 

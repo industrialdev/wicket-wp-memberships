@@ -92,6 +92,66 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/add_member
 
 ---
 
+## Find a person's eligible existing memberships
+
+**`GET /wp-json/wicket_member/v1/bundle/{bundle_post_id}/eligible_memberships`**
+
+Looks up a person's standalone individual memberships that are eligible to become a seat in this bundle — the discovery step behind `add_member`'s `"existing"` mode. Read-only; does not create a WordPress user.
+
+### URL parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundle_post_id` | `integer` | Yes | Post ID of the bundle. |
+
+### Query parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `person_uuid` | `string` | Yes | MDP person UUID to look up eligible active memberships for. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+    "memberships": [
+        {
+            "membership_post_id": 456,
+            "tier_post_id": 88,
+            "tier_name": "Individual — Gold",
+            "starts_at": "2026-01-01T00:00:00Z",
+            "ends_at": "2026-12-31T23:59:59Z",
+            "status": "active"
+        }
+    ]
+}
+```
+
+A membership qualifies when it belongs to the resolved user, has status `pending`, `active`, or `delayed`, is not already linked to any bundle, and its tier is eligible for this bundle's config. Empty array when none qualify.
+
+### Errors
+
+:::details Error codes
+| Status | Code | Cause |
+|---|---|---|
+| `404` | `bundle_not_found` | `bundle_post_id` does not resolve to a bundle |
+| `400` | `missing_person_uuid` | `person_uuid` is empty |
+| `400` | `wicket_membership_no_wp_user` | Person has no WordPress account yet |
+:::
+
+### Example
+
+:::details Example
+```bash
+curl -X GET "https://example.com/wp-json/wicket_member/v1/bundle/123/eligible_memberships?person_uuid=member-person-uuid" \
+  -H "X-WP-Nonce: {nonce}"
+```
+:::
+
+---
+
 ## Remove a member from a bundle
 
 **`POST /wp-json/wicket_member/v1/bundle/{bundle_post_id}/remove_member`**

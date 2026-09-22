@@ -327,6 +327,33 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
+     * List a person's active individual memberships whose tier is eligible
+     * for a bundle's config, for the bundle-side "Add Member" existing-
+     * membership option.
+     *
+     * GET /wicket_member/v1/bundle/{bundle_post_id}/eligible_memberships?person_uuid=...
+     */
+    register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/eligible_memberships', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_bundle_eligible_memberships' ],
+        'permission_callback' => [ $this, 'permissions_check_read' ],
+        'args'                => [
+          'bundle_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'Post ID of the membership bundle.',
+          ],
+          'person_uuid' => [
+            'required'    => true,
+            'type'        => 'string',
+            'description' => 'MDP person UUID to look up eligible active memberships for.',
+          ],
+        ],
+      ],
+    ] );
+
+    /**
      * Remove an individual membership from a bundle (cancel or keep as individual).
      *
      * POST /wicket_member/v1/bundle/{bundle_post_id}/remove_member
@@ -593,6 +620,23 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       }
 
       return new WP_REST_Response( $error_response, 400 );
+    }
+
+    return new WP_REST_Response( $result, 200 );
+  }
+
+  /**
+   * GET /bundle/{bundle_post_id}/eligible_memberships
+   */
+  public function get_bundle_eligible_memberships( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $result = Membership_Bundle_Admin_Controller::get_eligible_memberships_for_person(
+      (int) ( $params['bundle_post_id'] ?? 0 ),
+      sanitize_text_field( $params['person_uuid'] ?? '' )
+    );
+
+    if ( isset( $result['error'] ) ) {
+      return new WP_REST_Response( [ 'error' => $result['error'], 'code' => $result['code'] ?? '' ], $result['status'] ?? 400 );
     }
 
     return new WP_REST_Response( $result, 200 );

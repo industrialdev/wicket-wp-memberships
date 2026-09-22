@@ -38,6 +38,7 @@ Membership_Bundle_WP_REST_Controller
   - [`update_bundle_change_ownership()`](#update_bundle_change_ownership) — Reassign a bundle to a different org contact
 
 - **[Member operations](#member-operations)**
+  - [`get_eligible_memberships_for_person()`](#get_eligible_memberships_for_person) — Find a person's standalone memberships eligible to become a seat in a bundle
   - [`add_member()`](#add_member) — Enrol a person in a bundle, or pull an existing standalone membership into it
   - [`remove_member()`](#remove_member) — Remove a person from a bundle — either cancelling their membership or preserving it as a standalone
   - [`move_individual_membership()`](#move_individual_membership) — Transfer a member from one bundle to another without losing their membership record
@@ -456,6 +457,34 @@ $response = Membership_Bundle_Admin_Controller::update_bundle_change_ownership([
 :::
 
 ## Member operations
+
+### `get_eligible_memberships_for_person()`
+
+```php
+public static function get_eligible_memberships_for_person(
+    int    $bundle_post_id,
+    string $person_uuid
+): array
+```
+
+Looks up a person's standalone individual memberships that could become a seat in the given bundle — the discovery step behind `add_member()`'s `"existing"` mode. Resolves the WP user from the MDP person UUID (read-only; does not create a user), then delegates to `Membership_Bundle::get_eligible_memberships_for_user()`.
+
+**Parameters**
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `$bundle_post_id` | `int` | Yes | Post ID of the bundle. |
+| `$person_uuid` | `string` | Yes | MDP person UUID. |
+
+**Returns:** `['memberships' => array]` on success — see [`Membership_Bundle::get_eligible_memberships_for_user()`](./membership-bundle.md#get_eligible_memberships_for_user) for the shape of each entry. On failure: `['error' => string, 'code' => string, 'status' => int]`.
+
+:::details Error codes
+| Error code | Status | Cause |
+|---|---|---|
+| `bundle_not_found` | 404 | `bundle_post_id` does not resolve to a bundle |
+| `missing_person_uuid` | 400 | `person_uuid` is empty |
+| `wicket_membership_no_wp_user` | 400 | Person has no WordPress account yet |
+:::
 
 ### `add_member()`
 

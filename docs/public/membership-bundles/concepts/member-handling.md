@@ -55,6 +55,26 @@ The `person_uuid` parameter is ignored in `existing` mode — the user is resolv
 
 Cancelling the existing membership also cancels its own WooCommerce subscription (via `membership_subscription_id` post meta), if it has one. This prevents the member's original personal subscription from continuing to renew after their seat moves into the bundle.
 
+### Discovering eligible existing memberships
+
+Before calling `add_member` in `existing` mode, look up which of a person's standalone individual memberships are actually eligible for a given bundle:
+
+```php
+use Wicket_Memberships\Membership_Bundle_Admin_Controller;
+
+$result = Membership_Bundle_Admin_Controller::get_eligible_memberships_for_person(
+    123,                    // bundle_post_id
+    'member-person-uuid'
+);
+
+// $result['memberships'] is an array of:
+// { membership_post_id, tier_post_id, tier_name, starts_at, ends_at, status }
+```
+
+A membership qualifies when it: belongs to that person, has status `pending`, `active`, or `delayed`, is not already linked to any bundle, and has a tier eligible for this bundle's config (see [Membership_Bundle_Config](../classes/membership-bundle-config.md)).
+
+The person must already have a WordPress account — this lookup is read-only and does not create one (unlike `add_member` in `new` mode). If the person has no WP account yet, the call returns `{ error, code: 'wicket_membership_no_wp_user', status: 400 }`.
+
 ### Start date resolution
 
 When adding a new member, the seat's start date is derived from the bundle's current date window:
@@ -68,6 +88,15 @@ Pass `start_date_override` to bypass this logic (used internally by the renewal 
 ::: info Import path
 The bundle CSV import (see [Bundle Import](./bundle-import.md)) calls `Membership_Bundle::add_member()` directly with `skip_status_guard: true`, bypassing the `pending`/`active`/`delayed` bundle-status requirement described below. This lets historical members be attached to bundles imported as `expired`, `cancelled`, or `grace-period`. This bypass is reserved for the import path — `Membership_Bundle_Admin_Controller::add_member()` does not expose it.
 :::
+
+### Preflight checks (MDP sync)
+
+Before creating a member, `add_member` verifies the MDP side is in a state that will actually accept the assignment — otherwise the failure would only surface deep inside the MDP call, as an opaque "membership not found" error:
+
+- **Bundle synced to MDP**: the bundle must have a `membership_bundle_mdp_uuid`. A bundle where `sync_mdp_create()` never ran (or ran and failed) returns `bundle_not_synced_to_mdp` immediately.
+- **Tier resolves in MDP**: the tier's stored `mdp_tier_uuid` must still resolve to a real MDP membership resource. A stale UUID (e.g. from a reseeded MDP environment) returns `tier_not_found_in_mdp`, naming the tier so the error is actionable.
+
+Both checks are skipped in `BYPASS_WICKET` mode, which never talks to MDP.
 
 ### What gets created
 

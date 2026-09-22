@@ -59,6 +59,10 @@ These error codes appear across multiple endpoints:
 | `bundle_ended` | Today is past the bundle's end date |
 | `bundle_no_dates` | The bundle has no date meta |
 | `missing_user_id` | A user ID is required but was not provided |
+| `bundle_not_synced_to_mdp` | The bundle has no MDP UUID — never synced to MDP |
+| `tier_not_found_in_mdp` | The tier's stored MDP UUID no longer resolves in MDP |
+| `missing_person_uuid` | An MDP person UUID is required but was not provided |
+| `wicket_membership_no_wp_user` | The person has no WordPress account yet |
 
 ## Endpoint groups
 
