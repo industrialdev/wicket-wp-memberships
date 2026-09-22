@@ -886,6 +886,12 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     $meta_query = [
       [ 'key' => 'membership_type', 'value' => 'individual', 'compare' => '=' ],
       [ 'key' => 'membership_bundle_id', 'value' => $bundle_post_id, 'compare' => '=' ],
+      // Mirrors Membership_Bundle::get_individual_memberships()'s $active_only=true
+      // default (used by the tier summary endpoint) — without this, a membership
+      // removed via remove_member/mine (mode "cancel", or the old bundle seat left
+      // behind by "keep_as_individual") keeps its membership_bundle_id meta and
+      // would otherwise still match this query and show up as a live row here.
+      [ 'key' => 'membership_status', 'value' => [ 'cancelled', 'expired' ], 'compare' => 'NOT IN' ],
     ];
 
     if ( ! empty( $params['tier_uuid'] ) ) {

@@ -156,6 +156,8 @@ Returns a paginated list of individual member seats within a bundle, for the bun
 
 Purpose-built for member-facing use: `bundle_post_id` is resolved server-side from the URL and cannot be overridden by request data, and each row is a minimal, explicit shape — it does not include the MDP admin link or the cross-bundle/cross-org membership history that the staff-only members list exposes.
 
+Only currently-in-the-bundle seats are returned: memberships with `membership_status` `cancelled` or `expired` are excluded, mirroring `Membership_Bundle::get_individual_memberships()`'s default `$active_only = true` behavior (also used by [Get member count by tier](#get-member-count-by-tier)). This matters after `POST /bundle/{bundle_post_id}/remove_member/mine` (not yet documented on this page — see `Membership_Bundle::remove_member()`): both its `cancel` mode and its `keep_as_individual` mode leave the original seat's `wicket_membership` post behind with `membership_status` set to `cancelled` (and, for `keep_as_individual`, its `membership_bundle_id` meta still pointing at this bundle) — without this status filter that leftover record would keep showing up as a live row here.
+
 ### URL parameters
 
 | Name | Type | Required | Description |

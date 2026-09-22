@@ -136,9 +136,13 @@ The new standalone membership's status follows the same tier-approval rule as ad
 
 Both modes require the bundle to be in `pending`, `active`, or `delayed` status. Attempting to remove from an `expired` or `cancelled` bundle returns `invalid_bundle_status`.
 
+::: tip MDP: the bundle assignment is deleted, not date-collapsed
+Cancelling a bundle-linked membership (either mode) deletes its MDP `person_memberships` record outright via `wicket_delete_person_membership()`, instead of collapsing its dates the way a plain standalone membership cancellation does. A bundle seat's MDP record only exists because of the bundle assignment (`wicket_assign_person_to_bundle_membership()`), so removing the member is an unassignment. `keep_as_individual` still gets its own fresh MDP record from `provision_standalone_individual_membership()` — only the old bundle-linked record is removed.
+:::
+
 ## Moving a member between bundles
 
-Moving cancels the seat in the source bundle (including its own WooCommerce subscription, if any — see note above) and creates a new seat in the target bundle. The member retains the same tier and product; the start date is resolved against the target bundle's date window.
+Moving cancels the seat in the source bundle (including its own WooCommerce subscription, if any — see note above, and deleting its MDP `person_memberships` record the same way `remove_member` does) and creates a new seat in the target bundle, with its own fresh MDP assignment under the target bundle. The member retains the same tier and product; the start date is resolved against the target bundle's date window.
 
 ```php
 $result = Membership_Bundle_Admin_Controller::move_individual_membership([
@@ -174,6 +178,8 @@ foreach ( $memberships as $membership_post ) {
     $status    = get_post_meta( $membership_post->ID, 'membership_status', true );
 }
 ```
+
+The same `cancelled`/`expired` exclusion is duplicated in `Membership_Bundle_WP_REST_Controller::get_bundle_members()` (the `GET /bundle/{bundle_post_id}/members/mine` endpoint backing the member-facing bundle-detail table) rather than calling `get_individual_memberships()` itself — that endpoint needs one row per membership record (not deduplicated per person; see its own doc comment) and builds its own `WP_Query` for that reason. Any change to which statuses count as "still in the bundle" needs to be made in both places, or a member removed via `remove_member`'s `keep_as_individual` mode (which cancels the old seat but leaves its `membership_bundle_id` meta pointing at the bundle) will keep showing up as a live row in that table.
 
 For a grouped summary by tier (total count per tier type):
 

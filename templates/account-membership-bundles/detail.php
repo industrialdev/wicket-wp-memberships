@@ -54,6 +54,7 @@ $block_config = [
   x-data="wicketMembershipBundleDetail(<?php echo esc_attr( wp_json_encode( $block_config ) ); ?>)"
   x-init="init()"
   x-on:wicket-mship-bundle-member-added.window="fetchTiers(); fetchMembers(1)"
+  x-on:wicket-mship-bundle-member-removed.window="fetchTiers(); fetchMembers(membersPage)"
 >
   <a class="wicket-mship-bundle-detail__back" :href="backUrl">
     <?php esc_html_e( '← Back to Membership Bundles', 'wicket-memberships' ); ?>
@@ -263,6 +264,7 @@ $block_config = [
                       <span class="wicket-mship-bundle-detail__sort-icon" aria-hidden="true">⇅</span>
                     </button>
                   </th>
+                  <th><?php esc_html_e( 'Action', 'wicket-memberships' ); ?></th>
                 </tr>
               </thead>
               <tbody>
@@ -273,6 +275,28 @@ $block_config = [
                     <td x-text="member.email"></td>
                     <td x-text="tierName(member.tier_uuid)"></td>
                     <td :title="isoTooltip(member.membership_starts_at)" x-text="formatDate(member.membership_starts_at)"></td>
+                    <td>
+                      <?php
+                      // Dispatches to the sibling remove-member-modal.php component
+                      // (decoupled via window event, same pattern as the "Add
+                      // Member" button above) rather than removing inline —
+                      // the member needs to confirm first, and the modal
+                      // needs this row's identity plus the bundle's own end
+                      // date (already loaded here in `bundle`) to render its
+                      // confirmation copy without a second REST round trip.
+                      get_component( 'button', [
+                        'variant'     => 'ghost',
+                        'size'        => 'sm',
+                        'label'       => __( 'Remove', 'wicket-memberships' ),
+                        'type'        => 'button',
+                        'prefix_icon' => 'fa-solid fa-trash',
+                        'classes'     => [ 'wicket-mship-bundle-detail__remove-btn' ],
+                        'atts'        => [
+                          'x-on:click' => "window.dispatchEvent(new CustomEvent('wicket-mship-open-remove-member-modal', { detail: { membershipPostId: member.ID, firstName: member.first_name, lastName: member.last_name, email: member.email, tierName: tierName(member.tier_uuid), bundleEndsAt: bundle.data.membership_ends_at } }))",
+                        ],
+                      ] );
+                      ?>
+                    </td>
                   </tr>
                 </template>
               </tbody>
@@ -354,6 +378,13 @@ $block_config = [
 // its restBase/restNonce/bundlePostId/mdpTimezone already match what the
 // modal needs.
 require __DIR__ . '/add-member-modal.php';
+
+// Sibling Alpine component, decoupled the same way as add-member-modal.php —
+// see that file's header comment. On success dispatches
+// `wicket-mship-bundle-member-removed` on window; detail.php listens for it
+// to refresh the members table and tier summary (see the x-on binding on
+// the root element above).
+require __DIR__ . '/remove-member-modal.php';
 ?>
 
 <script>

@@ -255,6 +255,8 @@ Removes an individual membership from this group. Two modes:
 
 In both modes, after cancellation, calls `remove_subscription_line_item()` to remove the matching line item from the bundle subscription. Failure to remove the line item is non-fatal — it is logged and the method continues.
 
+The cancellation step (`cancel_individual_membership()`, `$sync_mdp = true`) deletes the MDP `person_memberships` record via `wicket_delete_person_membership()` rather than date-collapsing it — a bundle seat's MDP record only exists because of the bundle assignment (created via `wicket_assign_person_to_bundle_membership()`), so removing the member is an unassignment, not a dated cancellation. Failure to delete is logged and non-fatal; the local WP membership is still cancelled and, for `keep_as_individual`, the new standalone membership is still provisioned with its own fresh MDP record.
+
 Bundle must be in `pending`, `active`, or `delayed` status; returns `WP_Error('invalid_bundle_status')` otherwise. An expired or cancelled bundle is blocked by the status gate before any date checks run.
 
 Fail states: `invalid_bundle_status`, `invalid_membership`, `membership_not_in_bundle`, `invalid_user`, `wcs_unavailable`, `order_create_failed`, `subscription_create_failed`, `membership_post_not_found`.
@@ -263,7 +265,7 @@ Fail states: `invalid_bundle_status`, `invalid_membership`, `membership_not_in_b
 
 ### `move_individual_membership( int $membership_post_id, Membership_Bundle $target_bundle ): int|WP_Error`
 
-Moves an individual membership from this bundle to a target bundle. Cancels the source membership, removes its line item from the source bundle subscription, then creates a new membership linked to the target bundle. The new membership inherits the same user, tier, and product; start date is resolved against the target bundle's date window via `resolve_member_start_date()`. The target bundle's `add_member()` path adds a new line item to the target bundle subscription.
+Moves an individual membership from this bundle to a target bundle. Cancels the source membership (via `cancel_individual_membership()`, which deletes its MDP `person_memberships` assignment — see `remove_member()` above), removes its line item from the source bundle subscription, then creates a new membership linked to the target bundle. The new membership inherits the same user, tier, and product; start date is resolved against the target bundle's date window via `resolve_member_start_date()`. The target bundle's `add_member()` path adds a new line item to the target bundle subscription, and MDP-syncs a fresh assignment under the target bundle.
 
 Both the source and target bundles must be in `pending`, `active`, or `delayed` status. The membership must belong to the source bundle.
 

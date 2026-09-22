@@ -634,6 +634,22 @@ class Membership_Bundle {
    *   MDP propagates the cancellation automatically from the bundle org record — a per-member
    *   call would be redundant and risk double-processing.
    *
+   * When $sync_mdp is true, the MDP call itself branches on whether the membership being
+   * cancelled has a `membership_bundle_id` — i.e. whether it's an MDP `person_memberships`
+   * record created under a bundle assignment (via wicket_assign_person_to_bundle_membership(),
+   * see Membership_Controller::create_mdp_record()) rather than a plain standalone one:
+   *
+   * - Bundle-linked: deleted outright via wicket_delete_person_membership(). A bundle seat has
+   *   no meaning outside the bundle, so removing the member is an unassignment, not a dated
+   *   cancellation — collapsing its dates via wicket_update_individual_membership_dates() (as
+   *   used to happen here unconditionally) leaves a live `person_memberships` record in MDP
+   *   that never gets removed, which is why members previously stayed visible there after
+   *   being removed from a bundle.
+   *
+   * - Not bundle-linked (e.g. add_member's existing_membership_post_id path, which may cancel a
+   *   standalone membership that was never in any bundle): the original date-collapse update
+   *   behavior is preserved, matching how non-bundle membership cancellation already works.
+   *
    * @param int  $membership_post_id
    * @param bool $sync_mdp Whether to push the cancellation to MDP. Default true.
    */
@@ -700,13 +716,43 @@ class Membership_Bundle {
     if ( $sync_mdp ) {
       $wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
       if ( ! empty( $wicket_uuid ) && empty( $this->bypass_wicket ) ) {
-        $membership_data = [
-          'membership_type'        => get_post_meta( $membership_post_id, 'membership_type', true ),
-          'membership_wicket_uuid' => $wicket_uuid,
-          'membership_starts_at'   => get_post_meta( $membership_post_id, 'membership_starts_at', true ),
-          'org_seats'              => get_post_meta( $membership_post_id, 'org_seats', true ),
-        ];
-        $mc->update_mdp_record( $membership_data, $meta_data );
+        // A bundle-linked seat's MDP record is a person_memberships assignment created via
+        // wicket_assign_person_to_bundle_membership() (see create_mdp_record()) — it represents
+        // membership in this bundle specifically, so removing the member means deleting that
+        // assignment, not date-collapsing a record meant to be kept around. Check the meta on
+        // membership_post_id itself, not $this->post_id: this method also cancels standalone
+        // memberships that were never in any bundle (add_member's existing_membership_post_id
+        // path), which must keep the original update-dates behavior instead.
+        $linked_bundle_id = (int) get_post_meta( $membership_post_id, 'membership_bundle_id', true );
+
+        if ( $linked_bundle_id > 0 ) {
+          if ( function_exists( 'wicket_delete_person_membership' ) ) {
+            $response = wicket_delete_person_membership( $wicket_uuid );
+            if ( is_wp_error( $response ) ) {
+              Wicket()->log()->error( 'Membership_Bundle::cancel_individual_membership: failed to delete bundle-linked person_membership from MDP', [
+                'source'             => 'wicket-memberships',
+                'bundle_post_id'     => $this->post_id,
+                'membership_post_id' => $membership_post_id,
+                'wicket_uuid'        => $wicket_uuid,
+                'error'              => $response->get_error_message(),
+              ] );
+            }
+          } else {
+            Wicket()->log()->error( 'Membership_Bundle::cancel_individual_membership: wicket_delete_person_membership() not available, skipping MDP unassignment', [
+              'source'             => 'wicket-memberships',
+              'bundle_post_id'     => $this->post_id,
+              'membership_post_id' => $membership_post_id,
+            ] );
+          }
+        } else {
+          $membership_data = [
+            'membership_type'        => get_post_meta( $membership_post_id, 'membership_type', true ),
+            'membership_wicket_uuid' => $wicket_uuid,
+            'membership_starts_at'   => get_post_meta( $membership_post_id, 'membership_starts_at', true ),
+            'org_seats'              => get_post_meta( $membership_post_id, 'org_seats', true ),
+          ];
+          $mc->update_mdp_record( $membership_data, $meta_data );
+        }
       } elseif ( empty( $wicket_uuid ) ) {
         Wicket()->log()->error( 'Membership_Bundle::cancel_individual_membership: no membership_wicket_uuid, skipping MDP sync', [
           'source'             => 'wicket-memberships',
