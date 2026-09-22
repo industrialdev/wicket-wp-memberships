@@ -208,6 +208,30 @@ $block_config = [
       </template>
 
       <!-- Members table -->
+      <div class="wicket-mship-bundle-detail__members-filters">
+        <div class="wicket-mship-bundle-detail__members-search">
+          <input
+            type="search"
+            placeholder="<?php echo esc_attr__( 'Search by name or Email', 'wicket-memberships' ); ?>"
+            aria-label="<?php echo esc_attr__( 'Search members by name or email', 'wicket-memberships' ); ?>"
+            x-model="membersSearchInput"
+            x-on:input.debounce.400ms="onMembersSearchInput()"
+          />
+        </div>
+
+        <select
+          class="wicket-mship-bundle-detail__members-tier-filter"
+          aria-label="<?php echo esc_attr__( 'Filter members by tier', 'wicket-memberships' ); ?>"
+          x-model="membersTierFilter"
+          x-on:change="onMembersTierFilterChange()"
+        >
+          <option value=""><?php esc_html_e( 'All Tiers', 'wicket-memberships' ); ?></option>
+          <template x-for="tier in tiers" :key="tier.tier_uuid">
+            <option :value="tier.tier_uuid" x-text="tier.tier_name"></option>
+          </template>
+        </select>
+      </div>
+
       <template x-if="membersLoading">
         <div class="wicket-mship-skeleton-stack" aria-hidden="true" aria-label="<?php echo esc_attr__( 'Loading members…', 'wicket-memberships' ); ?>">
           <div class="wicket-mship-skeleton-bar" style="height:11px;width:140px;border-radius:999px;"></div>
@@ -231,7 +255,8 @@ $block_config = [
         <div>
           <template x-if="members.length === 0">
             <p class="wicket-mship-bundle-detail__empty">
-              <?php esc_html_e( 'No members have been added to this bundle yet.', 'wicket-memberships' ); ?>
+              <span x-show="!membersSearch && !membersTierFilter"><?php esc_html_e( 'No members have been added to this bundle yet.', 'wicket-memberships' ); ?></span>
+              <span x-show="membersSearch || membersTierFilter"><?php esc_html_e( 'No members match your search.', 'wicket-memberships' ); ?></span>
             </p>
           </template>
 
@@ -421,6 +446,9 @@ require __DIR__ . '/remove-member-modal.php';
       membersTotalPages: 1,
       membersOrderCol: '',
       membersOrderDir: 'asc',
+      membersSearchInput: '',
+      membersSearch: '',
+      membersTierFilter: '',
 
       // The three sections are independent REST calls with independent
       // loading/error state, so a slow or failing one (e.g. the members
@@ -499,6 +527,12 @@ require __DIR__ . '/remove-member-modal.php';
             url.searchParams.set( 'order_col', this.membersOrderCol );
             url.searchParams.set( 'order_dir', this.membersOrderDir );
           }
+          if ( this.membersSearch ) {
+            url.searchParams.set( 'search', this.membersSearch );
+          }
+          if ( this.membersTierFilter ) {
+            url.searchParams.set( 'tier_uuid', this.membersTierFilter );
+          }
 
           const response = await fetch( url.toString(), {
             headers: { 'X-WP-Nonce': this.restNonce },
@@ -519,6 +553,19 @@ require __DIR__ . '/remove-member-modal.php';
         } finally {
           this.membersLoading = false;
         }
+      },
+
+      // Alpine's .debounce.400ms modifier delays the DOM event, not the
+      // x-model write — membersSearchInput updates on every keystroke so the
+      // input stays responsive, and only this (debounced) handler commits it
+      // to membersSearch and triggers the actual REST call.
+      onMembersSearchInput() {
+        this.membersSearch = this.membersSearchInput.trim();
+        this.fetchMembers( 1 );
+      },
+
+      onMembersTierFilterChange() {
+        this.fetchMembers( 1 );
       },
 
       goToMembersPage( page ) {

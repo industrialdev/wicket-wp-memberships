@@ -417,6 +417,36 @@
 
 /* Members table */
 
+.wicket-mship-bundle-detail__members-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-150, 0.75rem);
+  margin-bottom: var(--space-200, 1rem);
+}
+
+.wicket-mship-bundle-detail__members-search {
+  flex: 1 1 260px;
+  min-width: 200px;
+}
+
+.wicket-mship-bundle-detail__members-search input[type="search"] {
+  width: 100%;
+  border: 1px solid var(--border-light, #d1d5db);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-100, 0.55rem) var(--space-150, 0.75rem);
+  font-size: var(--body-sm-font-size, 0.9rem);
+}
+
+.wicket-mship-bundle-detail__members-tier-filter {
+  flex: 0 1 200px;
+  min-width: 160px;
+  border: 1px solid var(--border-light, #d1d5db);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-100, 0.55rem) var(--space-150, 0.75rem);
+  font-size: var(--body-sm-font-size, 0.9rem);
+  background: var(--surface, #fff);
+}
+
 .wicket-mship-bundle-detail__members-table-wrap {
   overflow-x: auto;
   margin-bottom: var(--space-200, 1rem);

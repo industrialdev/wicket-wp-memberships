@@ -171,6 +171,7 @@ Only currently-in-the-bundle seats are returned: memberships with `membership_st
 | `page` | `integer` | No | Page number. Default `1`. |
 | `posts_per_page` | `integer` | No | Results per page. Default `25`. |
 | `tier_uuid` | `string` | No | Restrict results to one tier. |
+| `search` | `string` | No | Free-text search matched against the member's first name, last name, and email (case-insensitive substring). Bar ID is not searchable yet. |
 | `order_col` | `string` | No | Column to sort by. |
 | `order_dir` | `string` | No | `ASC` or `DESC`. |
 

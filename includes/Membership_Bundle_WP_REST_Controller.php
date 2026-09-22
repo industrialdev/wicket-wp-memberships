@@ -369,6 +369,10 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
             'type'        => 'string',
             'description' => 'Restrict results to one tier (matches membership_tier_uuid).',
           ],
+          'search' => [
+            'type'        => 'string',
+            'description' => 'Free-text search matched against the member\'s first name, last name, and email (name/email only — bar ID is not searchable yet).',
+          ],
           'order_col' => [
             'type'        => 'string',
             'description' => 'Order by column name.',
@@ -913,6 +917,15 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     // post-meta dump — a staff-only MDP admin link and cross-bundle/cross-org
     // membership data have no place in a member-facing response.
     $rows = array_map( [ $this, 'shape_member_row_for_member' ], $query->posts );
+
+    // Name/email live on wp_users, not on the wicket_membership post's own
+    // meta, so this can't be pushed into the meta_query above — it's applied
+    // in PHP against the already-shaped rows instead, before pagination.
+    $search = sanitize_text_field( $params['search'] ?? '' );
+    if ( '' !== $search ) {
+      $rows = $this->filter_bundle_member_rows_by_search( $rows, $search );
+    }
+
     $rows = $this->sort_bundle_member_rows( $rows, $order_col, $order_dir );
 
     $total     = count( $rows );
@@ -949,6 +962,28 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       'membership_expires_at'  => $meta['membership_expires_at'][0] ?? '',
       'tier_uuid'              => $meta['membership_tier_uuid'][0] ?? '',
     ];
+  }
+
+  /**
+   * Case-insensitive substring match against first name, last name, and
+   * email — the three columns the bundle-detail members table exposes a
+   * search box for. Bar ID is intentionally excluded: there's no bar-number
+   * field wired into this row shape yet (see shape_member_row_for_member()).
+   *
+   * @param array<int, array<string, mixed>> $rows
+   * @return array<int, array<string, mixed>>
+   */
+  private function filter_bundle_member_rows_by_search( array $rows, string $search ): array {
+    $needle = mb_strtolower( $search );
+
+    return array_values( array_filter( $rows, function ( $row ) use ( $needle ) {
+      foreach ( [ 'first_name', 'last_name', 'email' ] as $field ) {
+        if ( false !== mb_strpos( mb_strtolower( (string) ( $row[ $field ] ?? '' ) ), $needle ) ) {
+          return true;
+        }
+      }
+      return false;
+    } ) );
   }
 
   /**
