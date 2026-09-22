@@ -14,11 +14,14 @@
  * Decoupled from detail.php's own Alpine component the same way
  * add-member-modal.php is (see that file's header comment): opened via a
  * global window event carrying the membership post ID/first name/last
- * name/email/tier name/bundle end date in event.detail, rather than shared
- * x-data. The bundle end date is passed through from detail.php's own
- * already-loaded bundle entity rather than re-fetched here — this modal has
- * no other need for a network round trip before the member even confirms
- * anything. On a successful removal, this dispatches
+ * name/email/tier name/bundle end date/extra fields in event.detail, rather
+ * than shared x-data. The bundle end date is passed through from
+ * detail.php's own already-loaded bundle entity rather than re-fetched here
+ * — this modal has no other need for a network round trip before the member
+ * even confirms anything. `extraFields` carries any client-specific columns
+ * (e.g. "Bar ID") registered via the wicket_mship_bundle_member_extra_columns
+ * filter — see detail.php's buildExtraFields(). On a successful removal,
+ * this dispatches
  * `wicket-mship-bundle-member-removed` on window; detail.php listens for it
  * to refresh the members table and tier summary.
  *
@@ -84,6 +87,12 @@ if ( ! defined( 'ABSPATH' ) ) {
           <p class="wicket-mship-remove-member-modal__summary-label"><?php esc_html_e( 'Tier', 'wicket-memberships' ); ?></p>
           <p class="wicket-mship-remove-member-modal__summary-value" x-text="tierName"></p>
         </div>
+        <template x-for="col in extraColumns" :key="col.key">
+          <div class="wicket-mship-remove-member-modal__summary-field">
+            <p class="wicket-mship-remove-member-modal__summary-label" x-text="col.label"></p>
+            <p class="wicket-mship-remove-member-modal__summary-value" x-text="extraFields[col.key] || '—'"></p>
+          </div>
+        </template>
       </div>
 
       <template x-if="error">
@@ -144,12 +153,19 @@ if ( ! defined( 'ABSPATH' ) ) {
       // the "kept as individual until <date>" copy below.
       bundleEndsAt: null,
 
+      // Same [{ key, label }, ...] shape as detail.php's own extraColumns —
+      // passed through unchanged via $block_config since both templates
+      // resolve wicket_mship_bundle_member_extra_columns from the same
+      // bundle_post_id and should never disagree on the column list.
+      extraColumns: config.extraColumns || [],
+
       open: false,
       membershipPostId: null,
       firstName: '',
       lastName: '',
       email: '',
       tierName: '',
+      extraFields: {},
       error: '',
       submitting: false,
 
@@ -160,6 +176,7 @@ if ( ! defined( 'ABSPATH' ) ) {
         this.email = detail?.email ?? '';
         this.tierName = detail?.tierName ?? '';
         this.bundleEndsAt = detail?.bundleEndsAt ?? null;
+        this.extraFields = detail?.extraFields ?? {};
         this.error = '';
         this.submitting = false;
         this.open = true;

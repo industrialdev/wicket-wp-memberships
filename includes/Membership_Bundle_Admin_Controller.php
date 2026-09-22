@@ -1055,6 +1055,7 @@ class Membership_Bundle_Admin_Controller {
       $person_in_good_standing = false;
       if ( function_exists( 'wicket_get_person_by_id' ) ) {
         $person = wicket_get_person_by_id( $person_uuid );
+
         if ( $person ) {
           $person_in_good_standing = 'good_standing' === $person->getAttribute( 'status' );
         }
@@ -1070,6 +1071,8 @@ class Membership_Bundle_Admin_Controller {
         // isn't scoped to $bundle.
         $in_bundle_post = self::find_active_bundled_membership_for_person_and_tier( $person_uuid, $tier_uuid );
         $active_post    = $in_bundle_post ?: self::find_active_membership_for_person_and_tier( $person_uuid, $tier_uuid );
+
+        var_dump($person_uuid);
 
         if ( $in_bundle_post ) {
           $tier_row['eligibility_status'] = 'in_bundle';

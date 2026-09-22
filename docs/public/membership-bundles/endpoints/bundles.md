@@ -171,7 +171,7 @@ Only currently-in-the-bundle seats are returned: memberships with `membership_st
 | `page` | `integer` | No | Page number. Default `1`. |
 | `posts_per_page` | `integer` | No | Results per page. Default `25`. |
 | `tier_uuid` | `string` | No | Restrict results to one tier. |
-| `search` | `string` | No | Free-text search matched against the member's first name, last name, and email (case-insensitive substring). Bar ID is not searchable yet. |
+| `search` | `string` | No | Free-text search matched against the member's first name, last name, and email (case-insensitive substring) by default. A child theme can add its own field(s) — e.g. Bar ID — to this list; see [Extending the members table with custom fields](#extending-the-members-table-with-custom-fields) below. |
 | `order_col` | `string` | No | Column to sort by. |
 | `order_dir` | `string` | No | `ASC` or `DESC`. |
 
@@ -204,6 +204,20 @@ Only currently-in-the-bundle seats are returned: memberships with `membership_st
 `ID` is the `wicket_membership` post ID. `tier_uuid` matches a `tier_uuid` in [Get member count by tier](#get-member-count-by-tier)'s `tiers[]` — join client-side to display the tier name rather than re-fetching it. Dates are raw ISO 8601 strings in the MDP timezone — never pre-formatted.
 
 This returns one row per individual `wicket_membership` record, not one row per person — a member holding more than one tier in this bundle (added via the add-member modal's multi-tier selection, for example) appears as multiple rows, one per tier, each with its own `ID` and `tier_uuid`. The client-side table (`templates/account-membership-bundles/detail.php`) visually groups consecutive rows sharing the same email to signal they belong to the same person.
+
+### Extending the members table with custom fields
+
+This plugin has no generic concept of client-specific member fields (e.g. a bar-association "Bar ID"), so support for them is a child-theme-only extension point built on three filters, none hooked by default:
+
+| Filter | Where | Purpose |
+|---|---|---|
+| `wicket_mship_bundle_member_row` | `Membership_Bundle_WP_REST_Controller::shape_member_row_for_member()` | `apply_filters( 'wicket_mship_bundle_member_row', $row, $post )` — add a key (e.g. `bar_id`) to each row before it's returned from this endpoint. |
+| `wicket_mship_bundle_member_searchable_fields` | `Membership_Bundle_WP_REST_Controller::filter_bundle_member_rows_by_search()` | `apply_filters( 'wicket_mship_bundle_member_searchable_fields', [ 'first_name', 'last_name', 'email' ] )` — append the new key so the `search` query parameter above matches it too. |
+| `wicket_mship_bundle_member_extra_columns` | `templates/account-membership-bundles/detail.php` | `apply_filters( 'wicket_mship_bundle_member_extra_columns', [], $bundle_post_id )` — return `[ [ 'key' => 'bar_id', 'label' => 'Bar ID' ], ... ]` to render an extra `<th>`/`<td>` in the members table (`key` must match the field added via `wicket_mship_bundle_member_row`) and to show the field on the [Remove Member modal](../concepts/member-handling.md)'s summary card. |
+
+All three must be hooked together for a field to appear consistently across the row data, the search box, and the table column. See [Search for a person to add](bundle-members.md#search-for-a-person-to-add) for the equivalent extension point on the add-member flow's MDP search step.
+
+Registering a column via `wicket_mship_bundle_member_extra_columns` also updates the UI copy that tells members they can search by it: `detail.php` builds a `(or by <label>[, <label>...])` hint from every registered column's `label` and appends it to the members table's search placeholder/aria-label (`.wicket-mship-bundle-detail__members-search input[type="search"]`) and to the Add-Member modal's search label and placeholder (`.wicket-mship-add-member-modal__label`, `.wicket-mship-add-member-modal__search-input`). This assumes a registered column is actually searchable in both places — pair it with `wicket_mship_bundle_member_searchable_fields` and/or `wicket_mship_bundle_eligible_member_search` so the hint isn't advertising a search capability that isn't wired up. A display-only column (registered here but not made searchable anywhere) will still show up in the hint text with no way to opt it out short of not registering it.
 
 ### Errors
 

@@ -1005,6 +1005,9 @@
   font-weight: 600;
   color: var(--text-content, #111827);
   margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .wicket-mship-remove-member-modal__description {

@@ -38,6 +38,34 @@ $mdp_timezone = $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC';
 // switches render.php into detail mode.
 $back_url = esc_url_raw( remove_query_arg( 'bundle_post_id' ) );
 
+// Extension point for client-specific member columns (e.g. a "Bar ID" a
+// child theme appends to each row via wicket_mship_bundle_member_row in
+// Membership_Bundle_WP_REST_Controller). Each entry is [ 'key' => ..., 'label' => ... ];
+// 'key' must match a field name present on the member row JSON. Resolved
+// once here (server-rendered, not reactive) since it decides both the
+// static <thead>/<tbody> markup below and the fields threaded through the
+// Remove button's event payload to remove-member-modal.php's summary card.
+$extra_columns = apply_filters( 'wicket_mship_bundle_member_extra_columns', [], $bundle_post_id );
+
+// Appended to the members-search placeholder/aria-label below, and (via
+// plain PHP scope — add-member-modal.php is require()'d further down, not
+// a separate template load) to the Add-Member modal's search label and
+// placeholder too, so registering an extra column surfaces it as
+// searchable in both places from one filter. This assumes any registered
+// extra column really is searchable — pair wicket_mship_bundle_member_extra_columns
+// with wicket_mship_bundle_member_searchable_fields (local table search)
+// and/or wicket_mship_bundle_eligible_member_search (Add-Member modal
+// search) so that assumption holds; a display-only extra column would
+// otherwise advertise a search capability that isn't actually wired up.
+$extra_columns_search_hint = '';
+if ( ! empty( $extra_columns ) ) {
+  $extra_columns_search_hint = sprintf(
+    /* translators: %s: comma-separated list of extra searchable field labels, e.g. "Bar ID, Salesforce Number" */
+    __( ' (or by %s)', 'wicket-memberships' ),
+    implode( ', ', wp_list_pluck( $extra_columns, 'label' ) )
+  );
+}
+
 // Same single-JSON-blob-via-esc_attr() pattern as list.php — see that file's
 // comment for why several separate wp_json_encode() calls in one HTML
 // attribute is unsafe once any value contains a literal double quote.
@@ -47,6 +75,7 @@ $block_config = [
   'mdpTimezone'  => $mdp_timezone,
   'bundlePostId' => $bundle_post_id,
   'backUrl'      => $back_url,
+  'extraColumns' => $extra_columns,
 ];
 ?>
 <div
@@ -212,8 +241,8 @@ $block_config = [
         <div class="wicket-mship-bundle-detail__members-search">
           <input
             type="search"
-            placeholder="<?php echo esc_attr__( 'Search by name or Email', 'wicket-memberships' ); ?>"
-            aria-label="<?php echo esc_attr__( 'Search members by name or email', 'wicket-memberships' ); ?>"
+            placeholder="<?php echo esc_attr( __( 'Search by name or Email', 'wicket-memberships' ) . $extra_columns_search_hint ); ?>"
+            aria-label="<?php echo esc_attr( __( 'Search members by name or email', 'wicket-memberships' ) . $extra_columns_search_hint ); ?>"
             x-model="membersSearchInput"
             x-on:input.debounce.400ms="onMembersSearchInput()"
           />
@@ -289,6 +318,9 @@ $block_config = [
                       <span class="wicket-mship-bundle-detail__sort-icon" aria-hidden="true">⇅</span>
                     </button>
                   </th>
+                  <?php foreach ( $extra_columns as $extra_column ) : ?>
+                    <th><?php echo esc_html( $extra_column['label'] ); ?></th>
+                  <?php endforeach; ?>
                   <th><?php esc_html_e( 'Action', 'wicket-memberships' ); ?></th>
                 </tr>
               </thead>
@@ -300,6 +332,9 @@ $block_config = [
                     <td x-text="member.email"></td>
                     <td x-text="tierName(member.tier_uuid)"></td>
                     <td :title="isoTooltip(member.membership_starts_at)" x-text="formatDate(member.membership_starts_at)"></td>
+                    <?php foreach ( $extra_columns as $extra_column ) : ?>
+                      <td x-text="member['<?php echo esc_js( $extra_column['key'] ); ?>']"></td>
+                    <?php endforeach; ?>
                     <td>
                       <?php
                       // Dispatches to the sibling remove-member-modal.php component
@@ -317,7 +352,7 @@ $block_config = [
                         'prefix_icon' => 'fa-solid fa-trash',
                         'classes'     => [ 'wicket-mship-bundle-detail__remove-btn' ],
                         'atts'        => [
-                          'x-on:click' => "window.dispatchEvent(new CustomEvent('wicket-mship-open-remove-member-modal', { detail: { membershipPostId: member.ID, firstName: member.first_name, lastName: member.last_name, email: member.email, tierName: tierName(member.tier_uuid), bundleEndsAt: bundle.data.membership_ends_at } }))",
+                          'x-on:click' => "window.dispatchEvent(new CustomEvent('wicket-mship-open-remove-member-modal', { detail: { membershipPostId: member.ID, firstName: member.first_name, lastName: member.last_name, email: member.email, tierName: tierName(member.tier_uuid), bundleEndsAt: bundle.data.membership_ends_at, extraFields: buildExtraFields(member) } }))",
                         ],
                       ] );
                       ?>
@@ -423,6 +458,13 @@ require __DIR__ . '/remove-member-modal.php';
       mdpTimezone: config.mdpTimezone,
       bundlePostId: config.bundlePostId,
       backUrl: config.backUrl,
+
+      // [{ key, label }, ...] — resolved server-side once via the
+      // wicket_mship_bundle_member_extra_columns filter (see detail.php's
+      // PHP header). Only used here by buildExtraFields(); the <thead>/
+      // <tbody> extra columns themselves are rendered directly in PHP
+      // since they don't change after page load.
+      extraColumns: config.extraColumns || [],
 
       // Bundle entity (status/dates)
       loading: true,
@@ -625,9 +667,10 @@ require __DIR__ . '/remove-member-modal.php';
 
       // Visually clusters consecutive rows belonging to the same person (a
       // left accent border) with a shared blue accent, matching the mockup's
-      // grouping of a member's multiple tier records. Grouped by email since
-      // that's the closest stable per-person identifier this table currently
-      // has — there's no external member/bar-number field wired in yet.
+      // grouping of a member's multiple tier records. Grouped by email —
+      // deliberately not by any wicket_mship_bundle_member_row-injected
+      // field like Bar ID, since that field is optional/child-theme-defined
+      // and email is guaranteed present on every row.
       isGroupedMemberRow( index ) {
         const member = this.members[ index ];
         if ( ! member || ! member.email ) {
@@ -644,6 +687,19 @@ require __DIR__ . '/remove-member-modal.php';
       tierName( tierUuid ) {
         const tier = this.tiers.find( ( t ) => t.tier_uuid === tierUuid );
         return tier ? tier.tier_name : '—';
+      },
+
+      // Pulls this row's extra (child-theme-injected) field values, keyed
+      // the same way as extraColumns[].key, so the Remove button's event
+      // payload can carry them through to remove-member-modal.php's summary
+      // card without that modal needing its own copy of extraColumns'
+      // resolution logic.
+      buildExtraFields( member ) {
+        const fields = {};
+        this.extraColumns.forEach( ( col ) => {
+          fields[ col.key ] = member[ col.key ];
+        } );
+        return fields;
       },
 
       // Mirrors the "always show raw ISO in a tooltip, never render a bare

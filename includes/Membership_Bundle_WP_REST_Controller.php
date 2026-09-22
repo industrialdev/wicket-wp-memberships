@@ -950,7 +950,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     $status_slug = $meta['membership_status'][0] ?? '';
     $statuses    = Helper::get_all_status_names();
 
-    return [
+    $row = [
       'ID'                     => $post->ID,
       'first_name'             => $user ? $user->first_name : '',
       'last_name'              => $user ? $user->last_name : '',
@@ -962,22 +962,34 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       'membership_expires_at'  => $meta['membership_expires_at'][0] ?? '',
       'tier_uuid'              => $meta['membership_tier_uuid'][0] ?? '',
     ];
+
+    // Extension point for client-specific fields (e.g. a "Bar ID" sourced
+    // from local usermeta or an MDP service-identity lookup) that this
+    // plugin has no generic concept of. A key added here is picked up by
+    // the members table once the same key is also registered via the
+    // wicket_mship_bundle_member_extra_columns filter (detail.php), and
+    // becomes searchable via wicket_mship_bundle_member_searchable_fields
+    // below — no fork of this method required.
+    return apply_filters( 'wicket_mship_bundle_member_row', $row, $post );
   }
 
   /**
    * Case-insensitive substring match against first name, last name, and
-   * email — the three columns the bundle-detail members table exposes a
-   * search box for. Bar ID is intentionally excluded: there's no bar-number
-   * field wired into this row shape yet (see shape_member_row_for_member()).
+   * email by default — the columns the bundle-detail members table exposes
+   * a search box for. A child theme appending a field to a row via
+   * wicket_mship_bundle_member_row (e.g. "bar_id") can add its key to
+   * wicket_mship_bundle_member_searchable_fields so the same search box
+   * matches it too.
    *
    * @param array<int, array<string, mixed>> $rows
    * @return array<int, array<string, mixed>>
    */
   private function filter_bundle_member_rows_by_search( array $rows, string $search ): array {
     $needle = mb_strtolower( $search );
+    $fields = apply_filters( 'wicket_mship_bundle_member_searchable_fields', [ 'first_name', 'last_name', 'email' ] );
 
-    return array_values( array_filter( $rows, function ( $row ) use ( $needle ) {
-      foreach ( [ 'first_name', 'last_name', 'email' ] as $field ) {
+    return array_values( array_filter( $rows, function ( $row ) use ( $needle, $fields ) {
+      foreach ( $fields as $field ) {
         if ( false !== mb_strpos( mb_strtolower( (string) ( $row[ $field ] ?? '' ) ), $needle ) ) {
           return true;
         }
@@ -1021,15 +1033,34 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   /**
    * POST /bundle/{bundle_post_id}/search_eligible_members
    *
-   * bundle_post_id is only used by the permission_callback (to resolve the
-   * bundle's org for the org-membership check) — the search itself is a
-   * plain MDP person lookup, not scoped to the bundle's existing members.
+   * bundle_post_id is otherwise only used by the permission_callback (to
+   * resolve the bundle's org for the org-membership check) — the default
+   * search itself is a plain MDP person lookup, not scoped to the bundle's
+   * existing members.
    */
   public function search_eligible_members( \WP_REST_Request $request ) {
-    $term = sanitize_text_field( (string) $request->get_param( 'term' ) );
+    $term           = sanitize_text_field( (string) $request->get_param( 'term' ) );
+    $bundle_post_id = (int) $request->get_param( 'bundle_post_id' );
 
     if ( '' === $term ) {
       return new WP_REST_Response( [ 'error' => 'term is required.' ], 400 );
+    }
+
+    // Short-circuit, WP-core "pre_" style: lets a child theme replace the
+    // default MDP name/email autocomplete (wicket_search_person()) with a
+    // single, different MDP lookup instead — e.g. an exact
+    // `/people?filter[service_identities_namespace_eq]=...&filter[service_identities_external_id_eq]=...`
+    // query for a client-specific "Bar ID" field, via wicket_api_client().
+    // There is no UI toggle for this: the hooked callback alone decides,
+    // by sniffing $term's format, which single request to make, and must
+    // return results already shaped like wicket_search_person()'s own
+    // [{ id, full_name, primary_email_address }, ...] (plus whatever extra
+    // fields the callback wants to carry through to the add-member modal).
+    // Returning anything other than null here skips wicket_search_person()
+    // entirely — the two are never both called for the same request.
+    $override = apply_filters( 'wicket_mship_bundle_eligible_member_search', null, $term, $bundle_post_id );
+    if ( null !== $override ) {
+      return rest_ensure_response( $override );
     }
 
     $response = wicket_search_person( $term );

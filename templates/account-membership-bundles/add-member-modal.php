@@ -35,9 +35,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * @var int   $bundle_post_id Set by detail.php before requiring this file.
- * @var array $block_config   Set by detail.php before requiring this file — reused
- *                             as-is (restBase/restNonce/bundlePostId already match).
+ * @var int    $bundle_post_id             Set by detail.php before requiring this file.
+ * @var array  $block_config               Set by detail.php before requiring this file — reused
+ *                                          as-is (restBase/restNonce/bundlePostId already match).
+ * @var string $extra_columns_search_hint  Set by detail.php before requiring this file — see that
+ *                                          file's header for how it's built from wicket_mship_bundle_member_extra_columns.
  */
 ?>
 <div
@@ -84,14 +86,14 @@ if ( ! defined( 'ABSPATH' ) ) {
           </p>
 
           <label class="wicket-mship-add-member-modal__label" for="wicket-mship-add-member-search">
-            <?php esc_html_e( 'Search Members by Name', 'wicket-memberships' ); ?>
+            <?php echo esc_html( __( 'Search Members by Name or Email', 'wicket-memberships' ) . $extra_columns_search_hint ); ?>
           </label>
           <div class="wicket-mship-add-member-modal__search-row">
             <input
               id="wicket-mship-add-member-search"
               type="text"
               class="wicket-mship-add-member-modal__search-input"
-              placeholder="<?php echo esc_attr__( 'Search by name…', 'wicket-memberships' ); ?>"
+              placeholder="<?php echo esc_attr( __( 'Search members by name or email...', 'wicket-memberships' ) . $extra_columns_search_hint ); ?>"
               x-model="searchTerm"
               @keydown.enter.prevent="search()"
             />

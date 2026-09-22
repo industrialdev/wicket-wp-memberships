@@ -114,7 +114,18 @@ Delegates to `Membership_Bundle_Admin_Controller::get_bundle_members_by_tier()`.
 
 **Route:** `POST /bundle/{bundle_post_id}/search_eligible_members` — body: `term`
 
-Member-scoped counterpart to `Membership_WP_REST_Controller::mdp_person_lookup()` (`/mdp_person/search`), gated by `permissions_check_bundle_org_member` instead of the staff-only capability check. `bundle_post_id` is used only by the permission callback to resolve the bundle's org for the org-membership check; the handler itself ignores it and delegates the raw `term` straight to `wicket_search_person()` (base plugin), same as the staff route. Returns `400` if `term` is empty, `500` if `wicket_search_person()` returns `false`.
+Member-scoped counterpart to `Membership_WP_REST_Controller::mdp_person_lookup()` (`/mdp_person/search`), gated by `permissions_check_bundle_org_member` instead of the staff-only capability check. `bundle_post_id` is used by the permission callback to resolve the bundle's org for the org-membership check, and is now also passed (read-only) to the `wicket_mship_bundle_eligible_member_search` filter below. Returns `400` if `term` is empty, `500` if `wicket_search_person()` returns `false`.
+
+Before calling `wicket_search_person()`, the handler runs a WP-core "pre_"-style short-circuit filter:
+
+```php
+$override = apply_filters( 'wicket_mship_bundle_eligible_member_search', null, $term, $bundle_post_id );
+if ( null !== $override ) {
+    return rest_ensure_response( $override );
+}
+```
+
+Unhooked, this is a no-op and the handler falls through to `wicket_search_person( $term )` exactly as before. A child theme can hook it to replace the default MDP name/email autocomplete with a different single MDP lookup — e.g. an exact `/people?filter[service_identities_namespace_eq]=...&filter[service_identities_external_id_eq]=...` query via `wicket_api_client()` for a client-specific field like Bar ID. There's no search-type toggle in the request: the hooked callback alone decides, from `$term`'s format, which one request to issue, and must return results already shaped like `wicket_search_person()`'s own array. `wicket_search_person()` and the override are mutually exclusive per request.
 
 Returns plain MDP person matches (`full_name`, `primary_email_address`, `id`) — no eligibility computation. Tier eligibility is still enforced only by `add_member` at submit time via `Membership_Bundle_Config::is_tier_eligible_for_bundle()`; there is no person-level duplicate-membership check for new members anywhere in this flow (see `add_member_to_bundle()` above).
 
@@ -154,6 +165,8 @@ Unlike the other `/mine` routes, this is **not** a permission-only variant of an
 ```
 
 `tier_uuid` is meant to be joined client-side against `members_by_tier`'s `tiers[].tier_uuid`/`tier_name` (already fetched for the summary counts) rather than resolving the tier name server-side a second time. `membership_status_slug` uses `Helper::get_all_status_names()`, the same slug/label source as `Membership_Bundle_Admin_Controller::get_bundle_entity_records()`.
+
+Before returning, `shape_member_row_for_member()` passes the row through `apply_filters( 'wicket_mship_bundle_member_row', $row, $post )` — unhooked by default, this is a no-op. A child theme can hook it to append client-specific fields (e.g. `bar_id`) this plugin has no generic concept of. A key added this way only becomes searchable (via the `search` query param) once also added to `apply_filters( 'wicket_mship_bundle_member_searchable_fields', [ 'first_name', 'last_name', 'email' ] )` in `filter_bundle_member_rows_by_search()`, and only appears as a table column once registered via the separate `wicket_mship_bundle_member_extra_columns` filter in `templates/account-membership-bundles/detail.php` (see [Extending the members table with custom fields](../public/membership-bundles/endpoints/bundles.md#extending-the-members-table-with-custom-fields)).
 
 Sorting and pagination both happen in PHP after the full (unpaged) result set is fetched and shaped — there's no SQL `ORDER BY` left to attach once rows have been reshaped, and a bundle's member count is small enough that this is cheap. `sort_bundle_member_rows()` maps `order_col` to the shaped row's own field (`user_name` → `first_name`, `user_last_name` → `last_name`, `membership_tier_uuid` → `tier_uuid`, `start_date` → `membership_starts_at` — the same `order_col` values detail.php's `sortMembersBy()` already sends) and falls back to newest-start-date-first when `order_col` is empty or unrecognized.
 

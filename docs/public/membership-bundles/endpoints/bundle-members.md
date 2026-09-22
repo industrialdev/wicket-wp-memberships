@@ -18,6 +18,16 @@ Searches MDP people by name or email for the add-member flow. Member-scoped coun
 
 `bundle_post_id` is only used to resolve the bundle's org for that authorization check — it does not scope or filter the search results themselves, and results are not pre-checked against tier eligibility or existing memberships. [Add a member to a bundle](#add-a-member-to-a-bundle) still performs the authoritative tier-eligibility check at submit time.
 
+### Overriding the search (child themes)
+
+By default this endpoint always calls `wicket_search_person( $term )`, an MDP name/email autocomplete lookup. A child theme can replace that entirely — e.g. to search MDP by a client-specific field such as Bar ID via `GET /people?filter[service_identities_namespace_eq]=bar_number&filter[service_identities_external_id_eq]=...` — with the short-circuit filter:
+
+```php
+apply_filters( 'wicket_mship_bundle_eligible_member_search', null, $term, $bundle_post_id )
+```
+
+There is no search-type toggle: the hooked callback alone decides, by inspecting `$term`, which single MDP request to make, and must return results already shaped like `wicket_search_person()`'s own array (`id`, `full_name`, `primary_email_address`, plus any extra fields the callback wants to include). Returning anything other than `null` skips `wicket_search_person()` for that request — the two are never both called. See [List bundle members (member-scoped)](bundles.md#extending-the-members-table-with-custom-fields) for the equivalent extension points on the members table.
+
 ### URL parameters
 
 | Name | Type | Required | Description |
