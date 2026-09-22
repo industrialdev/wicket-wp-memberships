@@ -112,10 +112,44 @@
   padding: var(--space-250, 1.25rem) var(--space-300, 1.5rem);
 }
 
+.wicket-mship-bundle-card__title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-400, 2rem);
+  margin-bottom: var(--space-100, 0.4rem);
+}
+
 .wicket-mship-bundle-card__title {
   font-size: var(--heading-xs-font-size, 1.05rem);
   font-weight: 700;
-  margin: 0 0 var(--space-100, 0.4rem);
+  margin: 0;
+}
+
+/* "Requires attention" badge — shown next to the card title when the bundle
+   is in grace-period or expired status (see attentionBadgeLabel() below and
+   Membership_Bundle_Block_Controller::get_bundles_requiring_attention_count(),
+   which defines "requires attention" the same way). */
+.wicket-mship-bundle-card__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-100, 0.3rem);
+  border-radius: var(--tag-corner-radius, 0px);
+  border-width: 1px;
+  border-color: white;
+  font-size: var(--label-xs-font-size, 0.75rem);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.wicket-mship-bundle-card__badge--grace_period {
+  background: var(--state-warning-light, #FFECB5);
+  border-color: var(--state-warning, #d97706);
+}
+
+.wicket-mship-bundle-card__badge--expired {
+  background: var(--state-error-light, #F5C2C7);
+  border-color: var(--state-error, #DC3545);
 }
 
 .wicket-mship-bundle-card__status {

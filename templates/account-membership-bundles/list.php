@@ -97,7 +97,16 @@ $block_config = [
       <div class="wicket-mship-bundle-list__cards">
         <template x-for="bundle in bundles" :key="bundle.post_id">
           <div class="wicket-mship-bundle-card">
-            <h3 class="wicket-mship-bundle-card__title" x-text="cardTitle(bundle)"></h3>
+            <div class="wicket-mship-bundle-card__title-row">
+              <h3 class="wicket-mship-bundle-card__title" x-text="cardTitle(bundle)"></h3>
+              <template x-if="attentionBadgeLabel(bundle)">
+                <span
+                  class="wicket-mship-bundle-card__badge"
+                  :class="'wicket-mship-bundle-card__badge--' + bundle.status.slug"
+                  x-text="attentionBadgeLabel(bundle)"
+                ></span>
+              </template>
+            </div>
 
             <div class="wicket-mship-bundle-card__status">
               <span
@@ -217,6 +226,22 @@ $block_config = [
       cardTitle( bundle ) {
         const parts = [ bundle.org_name, bundle.bundle_name ].filter( Boolean );
         return parts.join( ' – ' );
+      },
+
+      // Mirrors Membership_Bundle_Block_Controller::get_bundles_requiring_attention_count()'s
+      // definition of "requires attention": grace-period or expired bundle status,
+      // since both mean the owner needs to take a renewal action. Labels match
+      // that method's doc comment. Returns '' (falsy, so the badge stays hidden)
+      // for every other status.
+      attentionBadgeLabel( bundle ) {
+        const slug = bundle?.status?.slug;
+        if ( slug === 'grace_period' ) {
+          return <?php echo wp_json_encode( __( 'Renew Memberships', 'wicket-memberships' ) ); ?>;
+        }
+        if ( slug === 'expired' ) {
+          return <?php echo wp_json_encode( __( 'Lapsed - Renew Memberships', 'wicket-memberships' ) ); ?>;
+        }
+        return '';
       },
 
       // Mirrors the "always show raw ISO in a tooltip, never render a bare
