@@ -876,6 +876,13 @@ function wicket_sub_org_select_callback( $subscription ) {
    * SPECIFICALLY: Associate-Retailer and Associate-Clinic will try to renew an existing subscription
    * if the subscription does not yet exist it must be created and assigned the product with the custom price
    * once it is created this method allows you to assign it to a membership and then the renewal order will get generated correctly.
+   *
+   * @see Helper::is_in_membership_category()
+   *
+   * @param  int       $membership_subscription_id  Subscription to attach the membership to.
+   * @param  int|null  $membership_id               Membership post ID; read from the admin field when null.
+   *
+   * @return void
    */
   public function wicket_assign_subscription_to_membership($membership_subscription_id, $membership_id = null) {
     if (! class_exists('Wicket_Memberships\Membership_Controller') || !$membership_subscription_id || ( empty($membership_id) && empty($_REQUEST['wicket_subscription_add_membership_id']) )) {
@@ -894,9 +901,10 @@ function wicket_sub_org_select_callback( $subscription ) {
       foreach ($subscription->get_items() as $item_id => $subscription_item) {
         $product_id = $subscription_item->get_product_id();
         $product = wc_get_product($product_id);
-        if (has_term('Membership', 'product_cat', $product_id) && $product->get_sku() != 'LBM') {
+        if (Helper::is_in_membership_category($product_id) && ( ! $product || $product->get_sku() != 'LBM' )) {
           $membership_product_id = $product_id;
-          wc_add_order_item_meta($item_id, '_membership_post_id_renew', $membership_id);
+          // Update, not add: a second row would be ignored by single-value reads.
+          wc_update_order_item_meta($item_id, '_membership_post_id_renew', $membership_id);
         }
       }
 
