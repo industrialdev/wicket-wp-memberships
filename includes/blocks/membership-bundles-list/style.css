@@ -142,12 +142,12 @@
   white-space: nowrap;
 }
 
-.wicket-mship-bundle-card__badge--grace_period {
+.wicket-mship-bundle-card__badge--early_renewal {
   background: var(--state-warning-light, #FFECB5);
   border-color: var(--state-warning, #d97706);
 }
 
-.wicket-mship-bundle-card__badge--expired {
+.wicket-mship-bundle-card__badge--grace_period {
   background: var(--state-error-light, #F5C2C7);
   border-color: var(--state-error, #DC3545);
 }
@@ -174,10 +174,11 @@
 
 .wicket-mship-bundle-card__status-dot--pending,
 .wicket-mship-bundle-card__status-dot--delayed,
-.wicket-mship-bundle-card__status-dot--grace_period {
+.wicket-mship-bundle-card__status-dot--early_renewal {
   background: var(--state-warning, #d97706);
 }
 
+.wicket-mship-bundle-card__status-dot--grace_period,
 .wicket-mship-bundle-card__status-dot--expired,
 .wicket-mship-bundle-card__status-dot--cancelled {
   background: var(--state-error, #dc2626);

@@ -235,10 +235,10 @@ $block_config = [
       // for every other status.
       attentionBadgeLabel( bundle ) {
         const slug = bundle?.status?.slug;
-        if ( slug === 'grace_period' ) {
+        if ( slug === 'early_renewal' ) {
           return <?php echo wp_json_encode( __( 'Renew Memberships', 'wicket-memberships' ) ); ?>;
         }
-        if ( slug === 'expired' ) {
+        if ( slug === 'grace_period' ) {
           return <?php echo wp_json_encode( __( 'Lapsed - Renew Memberships', 'wicket-memberships' ) ); ?>;
         }
         return '';
