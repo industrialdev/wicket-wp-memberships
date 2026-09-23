@@ -60,7 +60,8 @@ These error codes appear across multiple endpoints:
 | `bundle_no_dates` | The bundle has no date meta |
 | `missing_user_id` | A user ID is required but was not provided |
 | `bundle_not_synced_to_mdp` | The bundle has no MDP UUID — never synced to MDP |
-| `tier_not_found_in_mdp` | The tier's stored MDP UUID no longer resolves in MDP |
+| `tier_not_found_in_mdp` | The tier's stored MDP UUID no longer resolves in MDP (confirmed via a 404) |
+| `mdp_unreachable` | The MDP could not be reached to verify a tier — a transient failure, not a stale tier reference |
 | `missing_person_uuid` | An MDP person UUID is required but was not provided |
 | `wicket_membership_no_wp_user` | The person has no WordPress account yet |
 

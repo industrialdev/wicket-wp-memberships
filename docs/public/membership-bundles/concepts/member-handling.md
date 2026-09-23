@@ -94,7 +94,7 @@ The bundle CSV import (see [Bundle Import](./bundle-import.md)) calls `Membershi
 Before creating a member, `add_member` verifies the MDP side is in a state that will actually accept the assignment — otherwise the failure would only surface deep inside the MDP call, as an opaque "membership not found" error:
 
 - **Bundle synced to MDP**: the bundle must have a `membership_bundle_mdp_uuid`. A bundle where `sync_mdp_create()` never ran (or ran and failed) returns `bundle_not_synced_to_mdp` immediately.
-- **Tier resolves in MDP**: the tier's stored `mdp_tier_uuid` must still resolve to a real MDP membership resource. A stale UUID (e.g. from a reseeded MDP environment) returns `tier_not_found_in_mdp`, naming the tier so the error is actionable.
+- **Tier resolves in MDP**: the tier's stored `mdp_tier_uuid` must still resolve to a real MDP membership resource. A confirmed 404 (e.g. from a reseeded MDP environment) returns `tier_not_found_in_mdp`, naming the tier so the error is actionable. Any other MDP failure (timeout, 5xx, rate limit) returns `mdp_unreachable` instead — a stale UUID and a transient outage are different problems with different fixes, so they're not collapsed into one error code.
 
 Both checks are skipped in `BYPASS_WICKET` mode, which never talks to MDP.
 

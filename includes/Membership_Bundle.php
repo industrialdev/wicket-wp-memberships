@@ -642,39 +642,63 @@ class Membership_Bundle {
    * fast with a clear, tier-specific error instead of the opaque MDP error
    * that person_memberships assignment would otherwise return.
    *
+   * Delegates to the base plugin's wicket_get_membership_by_uuid(), which
+   * distinguishes a confirmed 404 from any other MDP failure — this method
+   * maps that distinction onto its own tier-specific error codes.
+   *
    * @param Membership_Tier $tier
    * @param int             $tier_post_id WP post ID of the tier (for logging; Membership_Tier::$post_id is private).
-   * @return \WP_Error|null WP_Error on failure, null on pass or when the check
-   *   cannot run (no MDP client, or the tier has no mdp_tier_uuid stored yet —
-   *   an unrelated, pre-existing failure mode this method does not own).
+   * @return \WP_Error|null WP_Error on failure (`tier_not_found_in_mdp` for a
+   *   confirmed stale UUID, `mdp_unreachable` for a transient MDP failure),
+   *   null on pass or when the check cannot run (helper unavailable, or the
+   *   tier has no mdp_tier_uuid stored yet — an unrelated, pre-existing
+   *   failure mode this method does not own).
    */
   private function assert_tier_resolves_in_mdp( Membership_Tier $tier, int $tier_post_id ): ?\WP_Error {
     $tier_uuid = $tier->get_mdp_tier_uuid();
-    if ( empty( $tier_uuid ) || ! \function_exists( 'wicket_api_client' ) ) {
+    if ( empty( $tier_uuid ) || ! \function_exists( 'wicket_get_membership_by_uuid' ) ) {
       return null;
     }
 
-    try {
-      wicket_api_client()->get( 'memberships/' . $tier_uuid );
-    } catch ( \Exception $e ) {
-      Wicket()->log()->error( 'Membership_Bundle::assert_tier_resolves_in_mdp: tier mdp_tier_uuid does not resolve in MDP', [
+    $result = wicket_get_membership_by_uuid( $tier_uuid );
+
+    if ( ! is_wp_error( $result ) ) {
+      return null;
+    }
+
+    // Only a confirmed 404 (wicket_membership_not_found) means the stored
+    // UUID is actually stale. Anything else (client unavailable, timeout,
+    // 5xx, rate limit — wicket_api_error) is a transient MDP problem, not a
+    // bad tier reference — misreporting it as one blocks adds on a wrong fix.
+    if ( 'wicket_membership_not_found' !== $result->get_error_code() ) {
+      Wicket()->log()->error( 'Membership_Bundle::assert_tier_resolves_in_mdp: MDP request failed (not a stale tier)', [
         'source'       => 'wicket-memberships',
         'post_id'      => $this->post_id,
         'tier_post_id' => $tier_post_id,
         'tier_uuid'    => $tier_uuid,
-        'error'        => $e->getMessage(),
+        'error'        => $result->get_error_message(),
       ] );
       return new \WP_Error(
-        'tier_not_found_in_mdp',
-        sprintf(
-          /* translators: %s: membership tier name */
-          __( 'The membership tier "%s" is not recognized by the MDP (its stored MDP reference no longer resolves). Contact support to re-sync this tier.', 'wicket-memberships' ),
-          $tier->get_mdp_tier_name() ?: $tier_post_id
-        )
+        'mdp_unreachable',
+        __( 'The MDP could not be reached to verify this membership tier. Please try again.', 'wicket-memberships' )
       );
     }
 
-    return null;
+    Wicket()->log()->error( 'Membership_Bundle::assert_tier_resolves_in_mdp: tier mdp_tier_uuid does not resolve in MDP', [
+      'source'       => 'wicket-memberships',
+      'post_id'      => $this->post_id,
+      'tier_post_id' => $tier_post_id,
+      'tier_uuid'    => $tier_uuid,
+      'error'        => $result->get_error_message(),
+    ] );
+    return new \WP_Error(
+      'tier_not_found_in_mdp',
+      sprintf(
+        /* translators: %s: membership tier name */
+        __( 'The membership tier "%s" is not recognized by the MDP (its stored MDP reference no longer resolves). Contact support to re-sync this tier.', 'wicket-memberships' ),
+        $tier->get_mdp_tier_name() ?: $tier_post_id
+      )
+    );
   }
 
   /**

@@ -331,6 +331,13 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
      * for a bundle's config, for the bundle-side "Add Member" existing-
      * membership option.
      *
+     * Scoped the same as every other route in this controller: capability
+     * gate only, no per-person/org scoping on `person_uuid`. That matches
+     * `add_member` (above), a write route on this same person-identifying
+     * flow with the same capability gate and no scoping — this read route
+     * is not more sensitive than that one, so it does not get a stricter
+     * check.
+     *
      * GET /wicket_member/v1/bundle/{bundle_post_id}/eligible_memberships?person_uuid=...
      */
     register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/eligible_memberships', [

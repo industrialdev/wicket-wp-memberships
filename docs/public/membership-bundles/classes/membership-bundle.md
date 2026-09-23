@@ -204,7 +204,8 @@ Adds an individual membership seat to this bundle. The `$existing_membership_pos
 | `invalid_membership` | Existing membership post not found or wrong CPT |
 | `create_failed` | Downstream membership creation failed |
 | `bundle_not_synced_to_mdp` | Bundle has no `membership_bundle_mdp_uuid` — never synced to MDP |
-| `tier_not_found_in_mdp` | Tier's stored `mdp_tier_uuid` no longer resolves in MDP |
+| `tier_not_found_in_mdp` | Tier's stored `mdp_tier_uuid` confirmed not to resolve in MDP (404) |
+| `mdp_unreachable` | MDP could not be reached to verify the tier — transient, not a stale UUID |
 :::
 
 :::details Example

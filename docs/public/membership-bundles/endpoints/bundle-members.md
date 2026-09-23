@@ -98,6 +98,10 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/add_member
 
 Looks up a person's standalone individual memberships that are eligible to become a seat in this bundle — the discovery step behind `add_member`'s `"existing"` mode. Read-only; does not create a WordPress user.
 
+Resolves the WP user by `user_login` (the MDP UUID) first, then by the MDP person's primary email — the same fallback `add_member`'s `"new"` mode uses when creating a user, so this lookup and that write path agree on which WP account a person maps to.
+
+Gated by the same admin capability as every other route on this controller, with no additional per-person or per-org scoping — consistent with `add_member`, a write route on this same `person_uuid` input under the same gate.
+
 ### URL parameters
 
 | Name | Type | Required | Description |

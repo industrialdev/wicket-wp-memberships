@@ -469,6 +469,8 @@ public static function get_eligible_memberships_for_person(
 
 Looks up a person's standalone individual memberships that could become a seat in the given bundle — the discovery step behind `add_member()`'s `"existing"` mode. Resolves the WP user from the MDP person UUID (read-only; does not create a user), then delegates to `Membership_Bundle::get_eligible_memberships_for_user()`.
 
+Resolution order mirrors `wicket_create_wp_user_if_not_exist()` (base plugin): match by `user_login` (the MDP UUID) first, then fall back to matching by the MDP person's primary email. The email fallback exists for legacy accounts whose `user_login` isn't the MDP UUID — without it, this method would misreport `wicket_membership_no_wp_user` for a person who does have an account, and the caller would create a duplicate membership instead of reusing the existing one.
+
 **Parameters**
 
 | Name | Type | Required | Description |
