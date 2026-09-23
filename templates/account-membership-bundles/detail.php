@@ -14,6 +14,11 @@
  *   - GET /wicket_member/v1/bundle/{id}/members_by_tier/mine (tier summary)
  *   - GET /wicket_member/v1/bundle/{id}/members/mine          (members table)
  *
+ * The renewal callout (renewal-callout.php) and its confirmation modal
+ * (renew-modal.php) are the exception: rendered server-side here from
+ * Membership_Bundle::get_renewal_callout() / get_renewal_summary(), for the
+ * bundle owner only.
+ *
  * Included by includes/blocks/membership-bundles-list/render.php, which has
  * already verified the requester is logged in, that Alpine.js is available
  * on the page, and that $bundle_post_id is a positive integer. Do not
@@ -66,6 +71,35 @@ if ( ! empty( $extra_columns ) ) {
   );
 }
 
+// Renewal callout (early_renewal / grace_period) + its confirmation modal are
+// server-rendered: they depend only on bundle/config/subscription data that is
+// already available here, so there is no reason to wait on a REST round trip.
+// Owner-only — the renewal order belongs to the subscription customer, and
+// WooCommerce only lets that customer pay it. The org-connection check is the
+// same one the member REST routes apply (cached per request).
+$renewal_callout = null;
+$renewal_summary = null;
+$renewal_bundle  = new Membership_Bundle( $bundle_post_id );
+
+if (
+  $renewal_bundle->post_id
+  && $renewal_bundle->is_current_user_owner()
+  && ! is_wp_error( Membership_Bundle::check_current_user_access( $bundle_post_id ) )
+) {
+  $renewal_callout = $renewal_bundle->get_renewal_callout();
+
+  if ( $renewal_callout && $renewal_callout['flow'] === Membership_Bundle::RENEWAL_FLOW_SUBSCRIPTION ) {
+    $renewal_summary = $renewal_bundle->get_renewal_summary();
+  }
+}
+
+// Set by Membership_Bundle_Block_Controller::handle_renewal_order_request() when
+// "Generate Order" fails; shown whether or not the callout is still showing
+// (e.g. the bundle was renewed elsewhere between page load and submit).
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- display-only error code.
+$renewal_error_code    = isset( $_GET[ Membership_Bundle_Block_Controller::RENEWAL_ERROR_QUERY_ARG ] ) ? sanitize_key( wp_unslash( $_GET[ Membership_Bundle_Block_Controller::RENEWAL_ERROR_QUERY_ARG ] ) ) : '';
+$renewal_error_message = Membership_Bundle_Block_Controller::get_renewal_error_message( $renewal_error_code );
+
 // Same single-JSON-blob-via-esc_attr() pattern as list.php — see that file's
 // comment for why several separate wp_json_encode() calls in one HTML
 // attribute is unsafe once any value contains a literal double quote.
@@ -88,6 +122,17 @@ $block_config = [
   <a class="wicket-mship-bundle-detail__back" :href="backUrl">
     <?php esc_html_e( '← Back to Membership Bundles', 'wicket-memberships' ); ?>
   </a>
+
+  <?php if ( $renewal_error_message !== '' ) : ?>
+    <p class="wicket-mship-bundle-detail__renewal-error" role="alert"><?php echo esc_html( $renewal_error_message ); ?></p>
+  <?php endif; ?>
+
+  <?php
+
+  if ( $renewal_callout ) {
+    require __DIR__ . '/renewal-callout.php';
+  }
+  ?>
 
   <template x-if="loading">
     <div class="wicket-mship-skeleton-stack" aria-hidden="true" aria-label="<?php echo esc_attr__( 'Loading bundle…', 'wicket-memberships' ); ?>">
@@ -445,6 +490,13 @@ require __DIR__ . '/add-member-modal.php';
 // to refresh the members table and tier summary (see the x-on binding on
 // the root element above).
 require __DIR__ . '/remove-member-modal.php';
+
+// Server-rendered renewal confirmation modal, opened by renewal-callout.php's
+// button via a window event. Subscription flow only — form-page renewals link
+// straight to the form instead.
+if ( $renewal_summary !== null ) {
+  require __DIR__ . '/renew-modal.php';
+}
 ?>
 
 <script>

@@ -83,7 +83,7 @@ $is_valid = $config->is_valid_renewal_date(
 
 ## Grace period (late fee window)
 
-The grace period is the window after `ends_at` during which a bundle is still considered accessible, though the membership period has technically ended. The bundle moves to `grace-period` status when `ends_at` passes, and to `expired` when `expires_at` passes.
+The grace period is the window after `ends_at` during which a bundle is still considered accessible, though the membership period has technically ended. The bundle moves to `grace_period` status when `ends_at` passes, and to `expired` when `expires_at` passes.
 
 The number of days in the grace period comes from `late_fee_window_days` on the config:
 
@@ -105,6 +105,15 @@ $button  = $config->get_late_fee_window_callout_button_label( 'en' );
 ::: tip
 The late fee product field (`get_late_fee_window_product_id()`) exists in the data structure and is readable, but the late fee product UI is currently not surfaced in the admin. The field will return `false` unless it was populated directly.
 :::
+
+## Member-portal renewal callouts
+
+The Membership Bundles List block's detail view uses both windows. It shows the bundle owner a yellow `early_renewal` callout inside the renewal window and a red `grace_period` callout during the grace period, using the callout copy above. What the button does depends on the renewal type:
+
+- **`subscription`:** opens a summary modal listing how many memberships of each tier will be renewed. "Generate Order" creates (or reuses) a renewal order on the bundle subscription and sends the owner to pay it. During the grace period, the late fee product is added when one is configured.
+- **`form_page`:** links straight to the form page with `bundle_post_id_renew`, `org_uuid` and, in grace period, `late_fee_product_id`.
+
+When the subscription will renew automatically, the early-renewal callout is not shown. The grace-period callout still is. See `Membership_Bundle::get_renewal_callout()` in the [class reference](../classes/membership-bundle.md#renewal-callouts-and-member-portal-renewal).
 
 ## Calendar vs. anniversary cycles
 

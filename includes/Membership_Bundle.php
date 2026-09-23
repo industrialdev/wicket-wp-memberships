@@ -11,6 +11,27 @@ use Wicket_Memberships\Utilities;
  */
 class Membership_Bundle {
 
+  /**
+   * Renewal callout types — same strings as the individual-membership callout
+   * types returned by Membership_Controller::get_membership_callouts(), so ACC
+   * and the Membership Bundles List block share one vocabulary.
+   */
+  public const CALLOUT_EARLY_RENEWAL = 'early_renewal';
+  public const CALLOUT_GRACE_PERIOD  = 'grace_period';
+
+  /** Renewal flows a bundle can resolve to (see get_renewal_flow()). */
+  public const RENEWAL_FLOW_SUBSCRIPTION = 'subscription';
+  public const RENEWAL_FLOW_FORM_PAGE    = 'form_page';
+
+  /**
+   * Per-request cache for check_current_user_access(): the org-connection
+   * lookup is a live MDP call, and the detail template + admin-post handler
+   * may both ask for the same bundle in one request.
+   *
+   * @var array<string, true|\WP_Error>
+   */
+  private static array $access_cache = [];
+
   public readonly int $post_id;
   public $meta_data;
 
@@ -2864,13 +2885,19 @@ class Membership_Bundle {
    * Build renewal/grace/pending callout arrays for all membership bundles owned by a user.
    *
    * Mirrors the shape of Membership_Controller::get_membership_callouts() so the ACC plugin
-   * can consume both with the same renderer. Called by the REST handler for
-   * GET /get_membership_bundle_callouts.
+   * can consume both with the same renderer. Called from
+   * Membership_Controller::get_membership_callouts(), which merges the result into the
+   * individual-membership callout feed ACC's ac-callout block reads.
    *
    * Three callout types are evaluated per bundle:
    * - pending_approval: status === 'pending' (no is_approval_required() gate — mirrors individual behavior)
-   * - early_renewal:    now >= early_renew_at && now < ends_at (skipped when early_renew_at is empty)
-   * - grace_period:     now > ends_at && now <= expires_at     (skipped when expires_at is empty)
+   * - early_renewal / grace_period: delegated to get_renewal_callout(), the same rules the
+   *   Membership Bundles List block's detail view uses, so both surfaces always agree.
+   *
+   * Renewal entries carry a `subscription_renewal.permalink` pointing at the configured
+   * "Manage Membership Bundles" page for that bundle, so ACC renders a button that lands
+   * the owner on the detail view — where the renewal summary modal / form-page link lives
+   * — instead of starting a renewal (and creating orders) from the ACC dashboard itself.
    *
    * @param int $user_id WP user ID of the bundle owner.
    * @return array{early_renewal: array, grace_period: array, pending_approval: array, group_owner: array, debug: array}
@@ -2881,10 +2908,7 @@ class Membership_Bundle {
     $pending_approval = [];
     $debug            = [];
 
-    $iso_code = apply_filters( 'wpml_current_language', null );
-    if ( empty( $iso_code ) ) {
-      $iso_code = substr( get_locale(), 0, 2 );
-    }
+    $iso_code = self::get_callout_language();
 
     // Find all bundles this user owns that are in a relevant status.
     $bundle_posts = get_posts( [
@@ -2899,19 +2923,25 @@ class Membership_Bundle {
         ],
         [
           'key'     => 'membership_status',
-          'value'   => [ 'active', 'delayed', 'grace-period', 'pending' ],
+          'value'   => [
+            Wicket_Memberships::STATUS_ACTIVE,
+            Wicket_Memberships::STATUS_DELAYED,
+            Wicket_Memberships::STATUS_GRACE,
+            Wicket_Memberships::STATUS_PENDING,
+          ],
           'compare' => 'IN',
         ],
       ],
     ] );
 
-    $current_time = current_time( 'timestamp' );
-    if ( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && ! empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
-      $current_time = strtotime( date( 'Y-m-d' ) . '+' . (int) $_REQUEST['wicket_wp_membership_debug_days'] . ' days' );
-    }
+    $current_time    = self::get_renewal_reference_time();
+    $manage_page_id  = Helper::get_membership_bundles_manage_page_id();
+    $manage_page_url = ( $manage_page_id > 0 && get_post_status( $manage_page_id ) === 'publish' )
+      ? get_permalink( $manage_page_id )
+      : '';
 
     foreach ( $bundle_posts as $post ) {
-      $bundle  = new self( $post->ID );
+      $bundle = new self( $post->ID );
       $config = $bundle->get_config();
       if ( ! $config ) {
         continue;
@@ -2938,13 +2968,14 @@ class Membership_Bundle {
           'membership_expires_at'     => $dates['expires_at'] ?? '',
           'membership_early_renew_at' => $dates['early_renew_at'] ?? '',
           'membership_parent_order_id' => '',
+          'org_uuid'                  => $bundle->get_org_uuid() ?: '',
         ],
       ];
 
       // Pending: fires on status alone — no is_approval_required() gate.
       // Note: ACC's renewal block skips pending status (handled by become_member block).
       // Group owner pending callouts are surfaced here but may not render in all ACC configs.
-      if ( $status === 'pending' ) {
+      if ( $status === Wicket_Memberships::STATUS_PENDING ) {
         $callout = [
           'type'         => 'pending_approval',
           'header'       => $config->get_approval_callout_header( $iso_code ),
@@ -2956,39 +2987,36 @@ class Membership_Bundle {
         continue;
       }
 
-      // Early renewal: skip if early_renew_at is not set.
-      if ( ! empty( $dates['early_renew_at'] ) ) {
-        $early_renew_at = strtotime( $dates['early_renew_at'] );
-        $ends_at        = $ends_at_ts;
-        if ( $current_time >= $early_renew_at && $current_time < $ends_at ) {
-          $callout = [
-            'type'         => 'early_renewal',
-            'header'       => $config->get_renewal_window_callout_header( $iso_code ),
-            'content'      => $config->get_renewal_window_callout_content( $iso_code ),
-            'button_label' => $config->get_renewal_window_callout_button_label( $iso_code ),
-          ];
-          $early_renewal[] = [ 'membership' => $membership_data, 'callout' => $callout ];
-          continue;
-        }
+      $renewal_callout = $bundle->get_renewal_callout( $iso_code, $current_time );
+      if ( ! $renewal_callout ) {
+        continue;
       }
 
-      // Grace period: skip if expires_at is not set.
-      if ( ! empty( $dates['expires_at'] ) ) {
-        $ends_at    = $ends_at_ts;
-        $expires_at = strtotime( $dates['expires_at'] );
-        if ( $current_time > $ends_at && $current_time <= $expires_at ) {
-          $callout = [
-            'type'         => 'grace_period',
-            'header'       => $config->get_late_fee_window_callout_header( $iso_code ),
-            'content'      => $config->get_late_fee_window_callout_content( $iso_code ),
-            'button_label' => $config->get_late_fee_window_callout_button_label( $iso_code ),
-          ];
-          $grace_period[] = [
-            'membership'          => $membership_data,
-            'callout'             => $callout,
-            'late_fee_product_id' => $config->get_late_fee_window_product_id(),
-          ];
-        }
+      // Without a configured manage page there is nowhere to send the owner, so the
+      // entry is still emitted (ACC shows the header/content) but with no button —
+      // the same behaviour this feed had before links were wired up.
+      if ( $manage_page_url ) {
+        $membership_data['subscription_renewal'] = [
+          'title'     => $renewal_callout['button_label'],
+          'permalink' => add_query_arg( 'bundle_post_id', $post->ID, $manage_page_url ),
+        ];
+      }
+
+      $entry = [
+        'membership' => $membership_data,
+        'callout'    => [
+          'type'         => $renewal_callout['type'],
+          'header'       => $renewal_callout['header'],
+          'content'      => $renewal_callout['content'],
+          'button_label' => $renewal_callout['button_label'],
+        ],
+      ];
+
+      if ( $renewal_callout['type'] === self::CALLOUT_GRACE_PERIOD ) {
+        $entry['late_fee_product_id'] = $renewal_callout['late_fee_product_id'];
+        $grace_period[]               = $entry;
+      } else {
+        $early_renewal[] = $entry;
       }
     }
 
@@ -2999,6 +3027,592 @@ class Membership_Bundle {
       'group_owner'      => [],  // reserved for future nested bundle-within-bundle callouts
       'debug'            => $debug,
     ];
+  }
+
+  // Renewal callouts (member-facing).
+
+  /**
+   * Resolve the language code used to pick localized callout copy from the bundle config.
+   *
+   * Same resolution as Membership_Controller::get_membership_callouts(): WPML's current
+   * language when available, otherwise the two-letter prefix of the site locale.
+   *
+   * @return string
+   */
+  public static function get_callout_language(): string {
+    $iso_code = apply_filters( 'wpml_current_language', null );
+    if ( empty( $iso_code ) ) {
+      $iso_code = substr( get_locale(), 0, 2 );
+    }
+    return (string) $iso_code;
+  }
+
+  /**
+   * "Now" as a UTC timestamp for renewal-window checks.
+   *
+   * Honors the existing QA override used by individual-membership callouts: when
+   * WICKET_MEMBERSHIPS_DEBUG_RENEW is enabled, `?wicket_wp_membership_debug_days=N`
+   * (GET or POST) shifts "now" by N days so the renewal window / grace period can be
+   * exercised without editing dates.
+   *
+   * Uses time() rather than current_time( 'timestamp' ): bundle dates are stored as
+   * ISO 8601 strings with an offset, so strtotime() on them already yields a true UTC
+   * timestamp, and current_time( 'timestamp' ) would skew the comparison by the site's
+   * GMT offset.
+   *
+   * @return int
+   */
+  public static function get_renewal_reference_time(): int {
+    $now = time();
+
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- debug-only read, gated by env flag.
+    if ( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && ! empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
+      $days = (int) $_REQUEST['wicket_wp_membership_debug_days']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+      $now  = (int) strtotime( sprintf( '%+d days', $days ), $now );
+    }
+
+    return $now;
+  }
+
+  /**
+   * Determine which renewal callout (if any) applies to this bundle right now.
+   *
+   * - grace_period:  membership_status is grace_period. Status is the source of truth —
+   *   the status cron owns the active → grace_period → expired transitions, so dates are
+   *   not re-checked here.
+   * - early_renewal: membership_status is active or delayed AND
+   *   early_renew_at <= now < ends_at. There is no "renewal window" status, so this is
+   *   the one state that has to be derived from dates.
+   *
+   * @param int|null $now UTC timestamp; defaults to get_renewal_reference_time(). Only
+   *                      affects early_renewal.
+   * @return string|null self::CALLOUT_EARLY_RENEWAL, self::CALLOUT_GRACE_PERIOD, or null.
+   */
+  public function get_renewal_state( ?int $now = null ): ?string {
+    if ( ! $this->post_id ) {
+      return null;
+    }
+
+    $status = $this->get_membership_status();
+
+    if ( $status === Wicket_Memberships::STATUS_GRACE ) {
+      return self::CALLOUT_GRACE_PERIOD;
+    }
+
+    if ( ! in_array( $status, [ Wicket_Memberships::STATUS_ACTIVE, Wicket_Memberships::STATUS_DELAYED ], true ) ) {
+      return null;
+    }
+
+    $dates          = $this->get_dates();
+    $ends_at        = ! empty( $dates['ends_at'] ) ? strtotime( $dates['ends_at'] ) : false;
+    $early_renew_at = ! empty( $dates['early_renew_at'] ) ? strtotime( $dates['early_renew_at'] ) : false;
+
+    // No renewal window configured (or no end date) — nothing to open early.
+    if ( ! $ends_at || ! $early_renew_at ) {
+      return null;
+    }
+
+    $now = $now ?? self::get_renewal_reference_time();
+
+    return ( $now >= $early_renew_at && $now < $ends_at ) ? self::CALLOUT_EARLY_RENEWAL : null;
+  }
+
+  /**
+   * Build the renewal callout for this bundle, or null when none should be shown.
+   *
+   * Single source of truth for both the Membership Bundles List block's detail view
+   * (templates/account-membership-bundles/renewal-callout.php) and the ACC feed
+   * (get_owner_callouts()). Does not check who is viewing — callers are responsible for
+   * restricting it to the bundle owner.
+   *
+   * @param string   $iso_code Language for config callout copy; defaults to get_callout_language().
+   * @param int|null $now      UTC timestamp; defaults to get_renewal_reference_time().
+   * @return array{
+   *   type: string,
+   *   header: string,
+   *   content: string,
+   *   button_label: string,
+   *   flow: string,
+   *   form_url: string,
+   *   late_fee_product_id: int
+   * }|null
+   */
+  public function get_renewal_callout( string $iso_code = '', ?int $now = null ): ?array {
+    // Same global kill switch as individual-membership callouts
+    // (Settings > "Disable Renewal Callouts").
+    if ( ! empty( $_ENV['WICKET_MSHIP_DISABLE_RENEWALS'] ) ) {
+      return null;
+    }
+
+    $config = $this->get_config();
+    if ( ! $config ) {
+      return null;
+    }
+
+    $state = $this->get_renewal_state( $now );
+    if ( ! $state ) {
+      return null;
+    }
+
+    // An order has already been paid for this term (or the renewal batch is running) —
+    // prompting again would invite a second payment for the same period.
+    if ( $this->is_renewal_underway() ) {
+      return null;
+    }
+
+    $flow = $this->get_renewal_flow();
+    if ( ! $flow ) {
+      return null;
+    }
+
+    // Autopay will renew the bundle on its own at ends_at; an early-renewal prompt would
+    // only duplicate that. Grace period is still shown — being in grace means autopay
+    // did not complete. Form-page renewals can't be completed by autopay at all, so
+    // they are never suppressed here (same rule as individual Form Flow renewals).
+    if ( $state === self::CALLOUT_EARLY_RENEWAL && $flow === self::RENEWAL_FLOW_SUBSCRIPTION && $this->is_autopay_active() ) {
+      return null;
+    }
+
+    $iso_code = $iso_code !== '' ? $iso_code : self::get_callout_language();
+
+    if ( $state === self::CALLOUT_GRACE_PERIOD ) {
+      $header       = $config->get_late_fee_window_callout_header( $iso_code );
+      $content      = $config->get_late_fee_window_callout_content( $iso_code );
+      $button_label = $config->get_late_fee_window_callout_button_label( $iso_code );
+      $default_head = __( 'Lapsed - Renew your Bundle Membership', 'wicket-memberships' );
+    } else {
+      $header       = $config->get_renewal_window_callout_header( $iso_code );
+      $content      = $config->get_renewal_window_callout_content( $iso_code );
+      $button_label = $config->get_renewal_window_callout_button_label( $iso_code );
+      $default_head = __( 'Renew your Bundle Membership', 'wicket-memberships' );
+    }
+
+    $late_fee_product_id = $state === self::CALLOUT_GRACE_PERIOD
+      ? (int) $config->get_late_fee_window_product_id()
+      : 0;
+
+    $callout = [
+      'type'                => $state,
+      'header'              => trim( (string) $header ) !== '' ? (string) $header : $default_head,
+      'content'             => (string) ( $content ?: '' ),
+      'button_label'        => trim( (string) $button_label ) !== '' ? (string) $button_label : __( 'Renew your membership', 'wicket-memberships' ),
+      'flow'                => $flow,
+      'form_url'            => $flow === self::RENEWAL_FLOW_FORM_PAGE ? $this->get_renewal_form_url( $late_fee_product_id ) : '',
+      'late_fee_product_id' => $late_fee_product_id,
+    ];
+
+    /**
+     * Filter the membership bundle renewal callout before it is rendered.
+     *
+     * Return null to hide the callout for this bundle.
+     *
+     * @param array|null        $callout Callout data (see get_renewal_callout() return shape).
+     * @param Membership_Bundle $bundle  The bundle being evaluated.
+     */
+    $callout = apply_filters( 'wicket_mship_bundle_renewal_callout', $callout, $this );
+
+    return is_array( $callout ) ? $callout : null;
+  }
+
+  /**
+   * Resolve how this bundle is renewed: via a renewal order on its subscription, or via a form page.
+   *
+   * A bundle-level renewal type (set on the admin edit screen) overrides the config;
+   * 'inherited' (or no value) defers to the config's renewal_type.
+   *
+   * @return string self::RENEWAL_FLOW_FORM_PAGE, self::RENEWAL_FLOW_SUBSCRIPTION, or '' when neither is usable.
+   */
+  public function get_renewal_flow(): string {
+    if ( $this->get_renewal_form_page_id() > 0 ) {
+      return self::RENEWAL_FLOW_FORM_PAGE;
+    }
+
+    return $this->get_subscription_id() ? self::RENEWAL_FLOW_SUBSCRIPTION : '';
+  }
+
+  /**
+   * Get the published form page used to renew this bundle, if the bundle renews via form page.
+   *
+   * @return int Page ID, or 0 when the bundle does not renew via a (published) form page.
+   */
+  public function get_renewal_form_page_id(): int {
+    $renewal_type = (string) get_post_meta( $this->post_id, 'membership_renewal_type', true );
+
+    if ( $renewal_type !== '' && $renewal_type !== 'inherited' ) {
+      // Bundle-level override. build_normalized_bundle_edit_fields() keeps these two
+      // meta values mutually exclusive, so the form page wins only when subscription
+      // renewal is not flagged.
+      $page_id = ! empty( get_post_meta( $this->post_id, 'membership_next_tier_subscription_renewal', true ) )
+        ? 0
+        : (int) get_post_meta( $this->post_id, 'membership_next_tier_form_page_id', true );
+    } else {
+      $config  = $this->get_config();
+      $page_id = ( $config && $config->get_renewal_type() === 'form_page' )
+        ? (int) $config->get_renewal_form_page_id()
+        : 0;
+    }
+
+    return ( $page_id > 0 && get_post_status( $page_id ) === 'publish' ) ? $page_id : 0;
+  }
+
+  /**
+   * Build the renewal form page URL for this bundle.
+   *
+   * Query args follow the individual Form Flow renewal link built by ACC
+   * (org_uuid, late_fee_product_id), with bundle_post_id_renew identifying the bundle.
+   *
+   * @param int $late_fee_product_id Appended only when > 0 (grace period with a late fee product).
+   * @return string Empty string when the bundle has no form page.
+   */
+  public function get_renewal_form_url( int $late_fee_product_id = 0 ): string {
+    $page_id = $this->get_renewal_form_page_id();
+
+    if ( ! $page_id ) {
+      return '';
+    }
+
+    $args = [ 'bundle_post_id_renew' => $this->post_id ];
+
+    $org_uuid = $this->get_org_uuid();
+    if ( $org_uuid ) {
+      $args['org_uuid'] = $org_uuid;
+    }
+    if ( $late_fee_product_id > 0 ) {
+      $args['late_fee_product_id'] = $late_fee_product_id;
+    }
+
+    return add_query_arg( $args, get_permalink( $page_id ) );
+  }
+
+  /**
+   * Whether this bundle's current term has already been renewed (or a renewal payment is in flight).
+   *
+   * True when either:
+   * - handle_bundle_renewal() has stamped membership_renewal_processing with this bundle as the
+   *   old term (the meta is written to both old and new posts; only the old one is "renewed"), or
+   * - a renewal order on the bundle subscription, created inside the current renewal window, is
+   *   already paid or awaiting payment confirmation (processing / on-hold / completed).
+   *
+   * Orders created before the window opened belong to a previous term and are ignored — the
+   * subscription is reused across terms, so its renewal history spans every year of the bundle.
+   *
+   * @return bool
+   */
+  public function is_renewal_underway(): bool {
+    $processing = json_decode( (string) get_post_meta( $this->post_id, 'membership_renewal_processing', true ), true );
+    if ( is_array( $processing ) && (int) ( $processing['old_bundle_post_id'] ?? 0 ) === $this->post_id ) {
+      return true;
+    }
+
+    foreach ( $this->get_current_term_renewal_orders() as $order ) {
+      if ( $order->has_status( [ 'processing', 'on-hold', 'completed' ] ) ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Whether the bundle subscription will renew itself automatically at ends_at.
+   *
+   * Same checks as the individual-membership autopay skip in
+   * Membership_Controller::get_membership_callouts(): automatic (not manual) renewal, an
+   * upcoming next_payment date, and a subscription status that WCS will actually process.
+   *
+   * @return bool
+   */
+  public function is_autopay_active(): bool {
+    $subscription = $this->get_subscription();
+    if ( ! $subscription ) {
+      return false;
+    }
+
+    if ( $subscription->get_requires_manual_renewal() ) {
+      return false;
+    }
+
+    if ( ! $subscription->has_status( 'active' ) ) {
+      return false;
+    }
+
+    $next_payment = (int) $subscription->get_time( 'next_payment' );
+    return $next_payment > time();
+  }
+
+  /**
+   * Load the bundle's WooCommerce subscription.
+   *
+   * @return \WC_Subscription|null
+   */
+  public function get_subscription(): ?\WC_Subscription {
+    $subscription_id = $this->get_subscription_id();
+    if ( ! $subscription_id || ! function_exists( 'wcs_get_subscription' ) ) {
+      return null;
+    }
+
+    $subscription = wcs_get_subscription( $subscription_id );
+    return $subscription instanceof \WC_Subscription ? $subscription : null;
+  }
+
+  /**
+   * Renewal orders on the bundle subscription created since this term's renewal window opened.
+   *
+   * @return \WC_Order[]
+   */
+  private function get_current_term_renewal_orders(): array {
+    $subscription = $this->get_subscription();
+    if ( ! $subscription ) {
+      return [];
+    }
+
+    // The term's renewal window opens at the earlier of early_renew_at and ends_at. Taking
+    // the minimum guards against an early_renew_at that was left pointing past ends_at
+    // (e.g. after a date edit), which would otherwise hide every order for this term.
+    $dates      = $this->get_dates();
+    $candidates = array_filter( [
+      ! empty( $dates['early_renew_at'] ) ? (int) strtotime( $dates['early_renew_at'] ) : 0,
+      ! empty( $dates['ends_at'] ) ? (int) strtotime( $dates['ends_at'] ) : 0,
+    ] );
+    if ( ! $candidates ) {
+      return [];
+    }
+    $window_ts = min( $candidates );
+
+    $orders = [];
+    foreach ( $subscription->get_related_orders( 'ids', 'renewal' ) as $order_id ) {
+      $order = wc_get_order( $order_id );
+      if ( ! $order || ! $order->get_date_created() ) {
+        continue;
+      }
+      if ( $order->get_date_created()->getTimestamp() < $window_ts ) {
+        continue;
+      }
+      $orders[] = $order;
+    }
+
+    return $orders;
+  }
+
+  /**
+   * Summarize the memberships a renewal order would bill, grouped by tier.
+   *
+   * Counts the bundle subscription's line items that carry _membership_post_id — the same
+   * set handle_bundle_renewal() provisions from — rather than get_individual_memberships(),
+   * so the number shown in the renewal modal is exactly what the order will contain.
+   *
+   * @return array{total: int, tiers: array<int, array{name: string, count: int}>}
+   */
+  public function get_renewal_summary(): array {
+    $summary      = [ 'total' => 0, 'tiers' => [] ];
+    $subscription = $this->get_subscription();
+    if ( ! $subscription ) {
+      return $summary;
+    }
+
+    $counts = [];
+    foreach ( $subscription->get_items() as $item ) {
+      $membership_post_id = (int) $item->get_meta( '_membership_post_id', true );
+      if ( $membership_post_id <= 0 ) {
+        continue;
+      }
+
+      $tier_name = (string) get_post_meta( $membership_post_id, 'membership_tier_name', true );
+      if ( $tier_name === '' ) {
+        $tier_name = $item->get_name();
+      }
+
+      $counts[ $tier_name ] = ( $counts[ $tier_name ] ?? 0 ) + 1;
+      $summary['total']++;
+    }
+
+    ksort( $counts, SORT_NATURAL | SORT_FLAG_CASE );
+    foreach ( $counts as $name => $count ) {
+      $summary['tiers'][] = [ 'name' => (string) $name, 'count' => (int) $count ];
+    }
+
+    return $summary;
+  }
+
+  /**
+   * Get a payable renewal order for this bundle, creating one only when none is pending.
+   *
+   * Member-facing counterpart of POST /bundle/{id}/create_renewal_order (admin), which always
+   * creates a new order. Here a pending/failed renewal order from the current renewal window is
+   * reused, so clicking "Generate Order" more than once (or abandoning checkout and coming back)
+   * never stacks up duplicate invoices for the same term.
+   *
+   * Validation is repeated server-side rather than trusting that the callout was showing: the
+   * window may have closed, or the bundle been renewed elsewhere, since the page was rendered.
+   *
+   * @return \WC_Order|\WP_Error
+   */
+  public function get_or_create_renewal_order() {
+    if ( ! function_exists( 'wcs_create_renewal_order' ) ) {
+      return new \WP_Error( 'wcs_inactive', 'WooCommerce Subscriptions is not active.' );
+    }
+
+    // Callout rules are the gate: if the owner would not see a callout, they cannot order.
+    $callout = $this->get_renewal_callout();
+    if ( ! $callout ) {
+      return new \WP_Error( 'not_renewable', 'This membership bundle is not currently open for renewal.' );
+    }
+
+    if ( $callout['flow'] !== self::RENEWAL_FLOW_SUBSCRIPTION ) {
+      return new \WP_Error( 'form_page_flow', 'This membership bundle renews through a form.' );
+    }
+
+    $subscription = $this->get_subscription();
+    if ( ! $subscription ) {
+      return new \WP_Error( 'no_subscription', 'This membership bundle has no linked WooCommerce subscription.' );
+    }
+
+    if ( $this->get_renewal_summary()['total'] === 0 ) {
+      return new \WP_Error( 'no_members', 'This membership bundle has no memberships to renew.' );
+    }
+
+    // Reuse an unpaid order from this term before creating another.
+    $order = null;
+    foreach ( $this->get_current_term_renewal_orders() as $candidate ) {
+      if ( $candidate->has_status( [ 'pending', 'failed' ] ) ) {
+        $order = $candidate;
+        break;
+      }
+    }
+
+    if ( ! $order ) {
+      $order = wcs_create_renewal_order( $subscription );
+      if ( is_wp_error( $order ) ) {
+        return $order;
+      }
+      if ( ! $order instanceof \WC_Order ) {
+        return new \WP_Error( 'order_failed', 'The renewal order could not be created.' );
+      }
+
+      $order->add_order_note( sprintf(
+        'Membership bundle renewal order generated by the bundle owner from the member portal (bundle ID: %d).',
+        $this->post_id
+      ) );
+    }
+
+    // Late fee applies only in grace period; added once, also to a reused order that was
+    // generated before the bundle crossed from the renewal window into grace.
+    if ( $callout['type'] === self::CALLOUT_GRACE_PERIOD && $callout['late_fee_product_id'] > 0 ) {
+      $this->maybe_add_late_fee_item( $order, (int) $callout['late_fee_product_id'] );
+    }
+
+    return $order;
+  }
+
+  /**
+   * Add the config's late fee product to a renewal order, unless it is already on it.
+   *
+   * @param \WC_Order $order
+   * @param int       $product_id
+   * @return void
+   */
+  private function maybe_add_late_fee_item( \WC_Order $order, int $product_id ): void {
+    foreach ( $order->get_items() as $item ) {
+      if ( (int) $item->get_product_id() === $product_id || (int) $item->get_variation_id() === $product_id ) {
+        return;
+      }
+    }
+
+    $product = wc_get_product( $product_id );
+    if ( ! $product ) {
+      Utilities::wc_log_mship_error( [ 'Membership_Bundle: late fee product not found', [
+        'bundle_post_id' => $this->post_id,
+        'product_id'     => $product_id,
+      ] ] );
+      return;
+    }
+
+    $order->add_product( $product, 1 );
+    $order->calculate_totals();
+    $order->add_order_note( sprintf( 'Grace period late fee added to bundle renewal order (product ID: %d).', $product_id ) );
+    $order->save();
+  }
+
+  // Member-facing access.
+
+  /**
+   * Whether the current logged-in user is this bundle's owner (billing contact).
+   *
+   * Renewal is owner-only: the renewal order belongs to the subscription customer, and
+   * WooCommerce only lets that customer pay it.
+   *
+   * @return bool
+   */
+  public function is_current_user_owner(): bool {
+    $owner_id = $this->get_owner_id();
+    return $owner_id && is_user_logged_in() && (int) $owner_id === get_current_user_id();
+  }
+
+  /**
+   * Check whether the current user may manage a bundle from the member portal.
+   *
+   * Allows any logged-in member with an active MDP connection to the bundle's organisation
+   * (e.g. an org delegate who did not personally purchase the bundle). MDP is queried live
+   * rather than trusting locally cached relationship data. Shared by the member-scoped REST
+   * routes (Membership_Bundle_WP_REST_Controller::permissions_check_bundle_org_member()), the
+   * detail template, and the renewal order handler, so every entry point applies the same rule.
+   *
+   * @param int $bundle_post_id
+   * @return true|\WP_Error WP_Error data carries the HTTP status to return.
+   */
+  public static function check_current_user_access( int $bundle_post_id ) {
+    if ( ! is_user_logged_in() ) {
+      return new \WP_Error( 'not_logged_in', 'Authentication required.', [ 'status' => 401 ] );
+    }
+
+    $cache_key = get_current_user_id() . ':' . $bundle_post_id;
+    if ( isset( self::$access_cache[ $cache_key ] ) ) {
+      return self::$access_cache[ $cache_key ];
+    }
+
+    $result = self::resolve_current_user_access( $bundle_post_id );
+
+    self::$access_cache[ $cache_key ] = $result;
+
+    return $result;
+  }
+
+  /**
+   * Uncached body of check_current_user_access().
+   *
+   * @param int $bundle_post_id
+   * @return true|\WP_Error
+   */
+  private static function resolve_current_user_access( int $bundle_post_id ) {
+    $bundle = new self( $bundle_post_id );
+
+    // Reject unknown/wrong-CPT IDs here rather than letting a handler's own
+    // 404 fire after the request has already been treated as authorized.
+    if ( ! $bundle->post_id ) {
+      return new \WP_Error( 'not_found', 'Membership bundle not found.', [ 'status' => 404 ] );
+    }
+
+    $org_uuid = $bundle->get_org_uuid();
+
+    if ( ! $org_uuid ) {
+      // A bundle with no linked org has no member to authorize against.
+      return new \WP_Error( 'forbidden', 'You do not have access to this membership bundle.', [ 'status' => 403 ] );
+    }
+
+    $person_uuid = function_exists( 'wicket_current_person_uuid' ) ? wicket_current_person_uuid() : '';
+    if ( empty( $person_uuid ) ) {
+      return new \WP_Error( 'no_person', 'Unable to resolve current member.', [ 'status' => 403 ] );
+    }
+
+    $connections = function_exists( 'wicket_get_active_person_org_connections' )
+      ? wicket_get_active_person_org_connections( $person_uuid, $org_uuid )
+      : [];
+
+    if ( is_wp_error( $connections ) || empty( $connections ) ) {
+      return new \WP_Error( 'forbidden', 'You do not have access to this membership bundle.', [ 'status' => 403 ] );
+    }
+
+    return true;
   }
 
   /**

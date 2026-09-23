@@ -127,9 +127,10 @@
 }
 
 /* "Requires attention" badge — shown next to the card title when the bundle
-   is in grace-period or expired status (see attentionBadgeLabel() below and
+   has a renewal callout (early_renewal or grace_period; see
+   attentionBadgeLabel() in list.php and
    Membership_Bundle_Block_Controller::get_bundles_requiring_attention_count(),
-   which defines "requires attention" the same way). */
+   which counts the same bundles). Modifier = the row's renewal_callout. */
 .wicket-mship-bundle-card__badge {
   display: inline-flex;
   align-items: center;
@@ -298,10 +299,11 @@
 
 .wicket-mship-bundle-detail__status-dot--pending,
 .wicket-mship-bundle-detail__status-dot--delayed,
-.wicket-mship-bundle-detail__status-dot--grace_period {
+.wicket-mship-bundle-detail__status-dot--early_renewal {
   background: var(--state-warning, #d97706);
 }
 
+.wicket-mship-bundle-detail__status-dot--grace_period,
 .wicket-mship-bundle-detail__status-dot--expired,
 .wicket-mship-bundle-detail__status-dot--cancelled {
   background: var(--state-error, #dc2626);
@@ -1077,4 +1079,170 @@
 
 .wicket-mship-remove-member-modal__confirm-btn:hover {
   background: white !important;
+}
+
+/* Renewal callout
+   ------------------------------------------------------------------------
+   Server-rendered callout at the top of the detail view — see
+   templates/account-membership-bundles/renewal-callout.php. Colors match
+   wicket-wp-account-centre's ac-callout block (.callout-renewal
+   .callout-early_renewal / .callout-grace_period) so bundle and individual
+   membership renewal prompts look the same, but are redefined here because
+   that block's stylesheet only loads on pages that contain it. */
+
+.wicket-mship-bundle-renewal-callout {
+  margin-bottom: var(--space-300, 1.5rem);
+}
+
+.wicket-mship-bundle-renewal-callout .component-card-call-out {
+  padding: var(--space-250, 1.25rem) var(--space-300, 1.5rem);
+  border-radius: var(--card-accent-corner-radius, 12px);
+}
+
+.wicket-mship-bundle-renewal-callout--early_renewal .component-card-call-out {
+  border: var(--border-call-out, 1px) solid var(--state-warning, #FFC107);
+  background-color: var(--state-warning-light, #FFECB5);
+}
+
+.wicket-mship-bundle-renewal-callout--grace_period .component-card-call-out {
+  border: var(--border-call-out, 1px) solid rgba(220, 53, 69, 1);
+  background-color: rgba(245, 194, 199, 1);
+}
+
+.wicket-mship-bundle-renewal-callout__title {
+  margin-bottom: var(--space-150, 0.75rem);
+}
+
+.wicket-mship-bundle-renewal-callout__content {
+  margin-bottom: var(--space-150, 0.75rem);
+}
+
+.wicket-mship-bundle-renewal-callout__content > :last-child {
+  margin-bottom: 0;
+}
+
+.wicket-mship-bundle-renewal-callout__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-100, 0.5rem);
+}
+
+.wicket-mship-bundle-detail__renewal-error {
+  color: var(--state-error, #991b1b);
+  background: var(--state-error-light, #fef2f2);
+  border: 1px solid var(--state-error-light, #fecaca);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-150, 0.75rem) var(--space-200, 1rem);
+  margin-bottom: var(--space-200, 1rem);
+}
+
+/* Renew modal
+   ------------------------------------------------------------------------
+   Confirmation modal opened from the renewal callout — see
+   templates/account-membership-bundles/renew-modal.php. Outer chrome
+   mirrors .wicket-mship-remove-member-modal__* above, under its own prefix
+   since it is a separate, independently-opened component. */
+
+.wicket-mship-renew-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-200, 1rem);
+}
+
+.wicket-mship-renew-modal[x-cloak] {
+  display: none !important;
+}
+
+.wicket-mship-renew-modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.55);
+}
+
+.wicket-mship-renew-modal__panel {
+  position: relative;
+  background: white;
+  border-radius: var(--card-accent-corner-radius, 0.85rem);
+  width: 100%;
+  max-width: 815px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--space-300, 1.5rem) var(--space-400, 2rem);
+  box-shadow: 0 20px 40px rgba(17, 24, 39, 0.25);
+}
+
+.wicket-mship-renew-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-200, 1rem);
+  margin-bottom: var(--space-300, 1.5rem);
+}
+
+.wicket-mship-renew-modal__title {
+  margin: 0;
+}
+
+.wicket-mship-renew-modal__close {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-50, 0.3rem);
+  flex-shrink: 0;
+  font-size: var(--body-sm-font-size, 0.9rem);
+  font-weight: 700;
+  color: var(--interactive, #2563eb);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.wicket-mship-renew-modal__summary-heading {
+  font-size: var(--body-sm-font-size, 0.9rem);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin: 0 0 var(--space-150, 0.75rem);
+}
+
+.wicket-mship-renew-modal__summary {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.wicket-mship-renew-modal__summary td {
+  padding: var(--space-150, 0.75rem) var(--space-50, 0.3rem);
+  border-top: 1px solid var(--border-light, #e5e7eb);
+  font-size: var(--body-sm-font-size, 0.9rem);
+}
+
+.wicket-mship-renew-modal__tier-count {
+  width: 40%;
+  font-weight: 700;
+}
+
+.wicket-mship-renew-modal__empty {
+  color: var(--text-content-secondary, #4b5563);
+  margin: 0;
+}
+
+.wicket-mship-renew-modal__footer {
+  display: flex;
+  gap: var(--space-150, 0.75rem);
+  margin-top: var(--space-300, 1.5rem);
+}
+
+@media (max-width: 600px) {
+  .wicket-mship-renew-modal__panel {
+    padding: var(--space-200, 1rem);
+  }
+
+  .wicket-mship-renew-modal__tier-count {
+    width: auto;
+    text-align: right;
+  }
 }

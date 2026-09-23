@@ -787,6 +787,21 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       $params['order_dir'] ?? 'desc',
       get_current_user_id()
     );
+
+    // Owner-scoped rows only: tag each with the renewal callout its detail view
+    // would show (early_renewal | grace_period | null), so the list card badge
+    // agrees with the detail callout and the account-menu count. Added here
+    // rather than in build_membership_bundles_row() so the admin list — up to
+    // 25 rows, none of them the viewer's own — doesn't pay for subscription
+    // and renewal-order lookups it never displays.
+    if ( ! empty( $response['results'] ) ) {
+      foreach ( $response['results'] as &$row ) {
+        $callout                = ( new Membership_Bundle( (int) $row['post_id'] ) )->get_renewal_callout();
+        $row['renewal_callout'] = $callout ? $callout['type'] : null;
+      }
+      unset( $row );
+    }
+
     return rest_ensure_response( $response );
   }
 
@@ -1310,38 +1325,18 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    *
    * Deliberately does not honor ALLOW_LOCAL_IMPORTS: that flag exists for CSV
    * import automation, not member-facing browsing.
+   *
+   * The rule itself lives in Membership_Bundle::check_current_user_access() so
+   * the server-rendered detail template and the renewal order handler apply
+   * exactly the same check; this method only adapts its WP_Error to the
+   * { error } response shape the member-facing templates expect.
    */
   public function permissions_check_bundle_org_member( \WP_REST_Request $request ) {
-    if ( ! is_user_logged_in() ) {
-      return new WP_REST_Response( [ 'error' => 'Authentication required.' ], 401 );
-    }
+    $access = Membership_Bundle::check_current_user_access( (int) $request->get_param( 'bundle_post_id' ) );
 
-    $bundle_post_id = (int) $request->get_param( 'bundle_post_id' );
-    $bundle = new Membership_Bundle( $bundle_post_id );
-
-    // Reject unknown/wrong-CPT IDs here rather than letting the handler's own
-    // 404 fire after we've already treated the request as authorized.
-    if ( ! $bundle->post_id ) {
-      return new WP_REST_Response( [ 'error' => 'Membership bundle not found.' ], 404 );
-    }
-
-    $org_uuid = $bundle->get_org_uuid();
-    if ( ! $org_uuid ) {
-      // A bundle with no linked org has no member to authorize against.
-      return new WP_REST_Response( [ 'error' => 'You do not have access to this membership bundle.' ], 403 );
-    }
-
-    $person_uuid = wicket_current_person_uuid();
-    if ( empty( $person_uuid ) ) {
-      return new WP_REST_Response( [ 'error' => 'Unable to resolve current member.' ], 403 );
-    }
-
-    // MDP is the source of truth for org membership — query live rather than
-    // trusting any locally cached role/relationship data.
-    $connections = wicket_get_active_person_org_connections( $person_uuid, $org_uuid );
-
-    if ( is_wp_error( $connections ) || empty( $connections ) ) {
-      return new WP_REST_Response( [ 'error' => 'You do not have access to this membership bundle.' ], 403 );
+    if ( is_wp_error( $access ) ) {
+      $data = $access->get_error_data();
+      return new WP_REST_Response( [ 'error' => $access->get_error_message() ], (int) ( $data['status'] ?? 403 ) );
     }
 
     return true;

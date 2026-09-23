@@ -29,9 +29,107 @@ class Membership_Bundle_Block_Controller {
     'wicket-acc-menu-mobile-two',
   ];
 
+  /**
+   * admin-post.php action (and nonce action prefix) for the renewal modal's
+   * "Generate Order" form in templates/account-membership-bundles/renew-modal.php.
+   */
+  public const RENEWAL_ORDER_ACTION = 'wicket_mship_bundle_renewal_order';
+
+  /**
+   * Query arg the renewal order handler adds to the return URL on failure;
+   * read back by detail.php to show get_renewal_error_message().
+   */
+  public const RENEWAL_ERROR_QUERY_ARG = 'bundle_renewal_error';
+
   public function __construct() {
     add_action( 'init', [ $this, 'register_block' ] );
     add_action( 'wp_head', [ $this, 'render_nav_badge_style' ] );
+    // Logged-in only: no nopriv hook, so an anonymous POST never reaches the handler.
+    add_action( 'admin_post_' . self::RENEWAL_ORDER_ACTION, [ $this, 'handle_renewal_order_request' ] );
+  }
+
+  /**
+   * Handle the renewal modal's "Generate Order" submission.
+   *
+   * A plain form POST (not REST) since the whole detail view's renewal UI is
+   * server-rendered: on success the owner is redirected straight to the
+   * WooCommerce pay-for-order page; on failure back to the detail view with
+   * RENEWAL_ERROR_QUERY_ARG set so the template can explain what happened.
+   *
+   * @return void
+   */
+  public function handle_renewal_order_request(): void {
+    // phpcs:disable WordPress.Security.NonceVerification.Missing -- nonce verified below, once bundle_post_id is known.
+    $bundle_post_id = isset( $_POST['bundle_post_id'] ) ? absint( $_POST['bundle_post_id'] ) : 0;
+    $return_url     = isset( $_POST['return_url'] ) ? esc_url_raw( wp_unslash( $_POST['return_url'] ) ) : '';
+    // phpcs:enable WordPress.Security.NonceVerification.Missing
+
+    // Only ever send the owner back to a same-site URL, whatever was posted.
+    $return_url = wp_validate_redirect( $return_url, home_url( '/' ) );
+    $return_url = remove_query_arg( self::RENEWAL_ERROR_QUERY_ARG, $return_url );
+
+    // Nonce is scoped to the bundle so a token rendered for one bundle can't be replayed on another.
+    check_admin_referer( self::RENEWAL_ORDER_ACTION . '_' . $bundle_post_id );
+
+    $bundle = new Membership_Bundle( $bundle_post_id );
+    if ( ! $bundle->post_id ) {
+      $this->redirect_with_renewal_error( $return_url, 'not_found' );
+    }
+
+    // Owner first (cheap, local): the order is the subscription customer's to pay.
+    // Then the same org-connection check the member REST routes use.
+    if ( ! $bundle->is_current_user_owner() || is_wp_error( Membership_Bundle::check_current_user_access( $bundle_post_id ) ) ) {
+      $this->redirect_with_renewal_error( $return_url, 'forbidden' );
+    }
+
+    $order = $bundle->get_or_create_renewal_order();
+    if ( is_wp_error( $order ) ) {
+      Utilities::wc_log_mship_error( [ 'handle_renewal_order_request: renewal order failed', [
+        'bundle_post_id' => $bundle_post_id,
+        'user_id'        => get_current_user_id(),
+        'error'          => $order->get_error_code() . ': ' . $order->get_error_message(),
+      ] ] );
+      $this->redirect_with_renewal_error( $return_url, $order->get_error_code() );
+    }
+
+    wp_safe_redirect( $order->get_checkout_payment_url() );
+    exit;
+  }
+
+  /**
+   * Redirect back to the detail view with a renewal error code and stop.
+   *
+   * @param string $return_url
+   * @param string $code
+   * @return never
+   */
+  private function redirect_with_renewal_error( string $return_url, string $code ): never {
+    wp_safe_redirect( add_query_arg( self::RENEWAL_ERROR_QUERY_ARG, sanitize_key( $code ), $return_url ) );
+    exit;
+  }
+
+  /**
+   * Member-facing message for a renewal error code set by handle_renewal_order_request().
+   *
+   * Plain language only — the underlying WP_Error message is logged, never shown.
+   *
+   * @param string $code
+   * @return string Empty string for an unknown/empty code.
+   */
+  public static function get_renewal_error_message( string $code ): string {
+    switch ( $code ) {
+      case '':
+        return '';
+      case 'not_renewable':
+        return __( 'This membership bundle is not currently open for renewal. It may already have been renewed.', 'wicket-memberships' );
+      case 'no_members':
+        return __( 'There are no memberships in this bundle to renew.', 'wicket-memberships' );
+      case 'forbidden':
+      case 'not_found':
+        return __( 'You do not have permission to renew this membership bundle.', 'wicket-memberships' );
+      default:
+        return __( "We couldn't generate your renewal order. Please try again, or contact us if the problem continues.", 'wicket-memberships' );
+    }
   }
 
   /**
@@ -69,18 +167,19 @@ class Membership_Bundle_Block_Controller {
 
   /**
    * Count the current member's owned membership bundles that require
-   * attention: bundles sitting in grace-period ("Renew Memberships") or
-   * expired ("Lapsed - Renew Memberships") status, since both of those
-   * statuses mean the member needs to take a renewal action.
+   * attention: bundles currently showing a renewal callout on the detail
+   * view — early_renewal (inside the renewal window) or grace_period.
    *
-   * Reuses Membership_Bundle_Admin_Controller::get_membership_bundles_list()
-   * (owner-scoped via $owner_user_id, same query/dedup path the member-facing
-   * "mine" REST endpoint already relies on) instead of a bespoke WP_Query, so
-   * this stays in sync with however that method defines "owned by" and
-   * "matches this status" going forward. Called once per status and summed,
-   * since that method only supports a single equality status filter, not an
-   * IN comparison across both at once. $posts_per_page is 1 since only the
-   * returned 'count' (pre-pagination total) is used.
+   * Delegates the decision to Membership_Bundle::get_renewal_callout() rather
+   * than matching statuses here, so the account-menu badge counts exactly the
+   * bundles the owner will find a "Renew" prompt on: already-renewed terms,
+   * autopay early renewals, bundles with no usable renewal flow, and the
+   * global "Disable Renewal Callouts" setting are all excluded the same way.
+   * Expired bundles are not counted — they get no renewal callout.
+   *
+   * Only bundles in a status get_renewal_state() can match (active, delayed,
+   * grace_period) are loaded, keeping the per-bundle work to the few that can
+   * actually qualify.
    *
    * @return int
    */
@@ -89,21 +188,34 @@ class Membership_Bundle_Block_Controller {
       return 0;
     }
 
-    $user_id = get_current_user_id();
-    $count   = 0;
+    $bundle_ids = get_posts( [
+      'post_type'   => Helper::get_membership_bundle_cpt_slug(),
+      'post_status' => 'publish',
+      'numberposts' => -1,
+      'fields'      => 'ids',
+      'meta_query'  => [
+        'relation' => 'AND',
+        [
+          'key'   => 'user_id',
+          'value' => get_current_user_id(),
+        ],
+        [
+          'key'     => 'membership_status',
+          'value'   => [
+            Wicket_Memberships::STATUS_ACTIVE,
+            Wicket_Memberships::STATUS_DELAYED,
+            Wicket_Memberships::STATUS_GRACE,
+          ],
+          'compare' => 'IN',
+        ],
+      ],
+    ] );
 
-    foreach ( [ Wicket_Memberships::STATUS_GRACE, Wicket_Memberships::STATUS_EXPIRED ] as $status ) {
-      $list = Membership_Bundle_Admin_Controller::get_membership_bundles_list(
-        1,
-        1,
-        $status,
-        '',
-        [],
-        null,
-        null,
-        $user_id
-      );
-      $count += (int) ( $list['count'] ?? 0 );
+    $count = 0;
+    foreach ( $bundle_ids as $bundle_id ) {
+      if ( ( new Membership_Bundle( (int) $bundle_id ) )->get_renewal_callout() !== null ) {
+        $count++;
+      }
     }
 
     return $count;

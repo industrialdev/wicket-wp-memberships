@@ -455,7 +455,11 @@ Returns a paginated, filterable list of membership bundles owned by the current 
 
 `200 OK`
 
-Same shape as [List bundles](#list-bundles) — `results`, `page`, `posts_per_page`, `count`.
+Same shape as [List bundles](#list-bundles) — `results`, `page`, `posts_per_page`, `count`. Each row also carries:
+
+| Field | Type | Description |
+|---|---|---|
+| `renewal_callout` | `string\|null` | `early_renewal`, `grace_period`, or `null`: the renewal callout the bundle's detail view shows the owner (`Membership_Bundle::get_renewal_callout()`). Drives the list card badge. Honors `?wicket_wp_membership_debug_days=N` when `WICKET_MEMBERSHIPS_DEBUG_RENEW` is on. |
 
 ### Errors
 

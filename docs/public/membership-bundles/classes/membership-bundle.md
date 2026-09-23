@@ -61,6 +61,13 @@ Membership_Bundle_WP_REST_Controller
   - [`get_name()`](#get_name) — Get the bundle's display name (post title)
   - [`get_bundle_group_uuid()`](#get_bundle_group_uuid) — Get the series UUID shared across all renewal-term posts
 
+- **[Renewal callouts and member-portal renewal](#renewal-callouts-and-member-portal-renewal)**
+  - [`get_renewal_callout()`](#get_renewal_callout) — The early-renewal / grace-period callout to show the owner, or `null`
+  - [`get_renewal_state()`](#get_renewal_state) — Which renewal window (if any) the bundle is in, from status and dates
+  - [`get_renewal_summary()`](#get_renewal_summary) — Memberships a renewal order will bill, grouped by tier
+  - [`get_or_create_renewal_order()`](#get_or_create_renewal_order) — Reuse or create the renewal order the owner pays
+  - [`check_current_user_access()`](#check_current_user_access) — The member-portal access rule shared by REST, templates and handlers
+
 ## Basic usage
 
 Instantiate the class with a post ID to load an existing bundle:
@@ -570,6 +577,78 @@ public function get_bundle_group_uuid(): string|false
 
 Returns the `membership_bundle_group_uuid` meta value. This UUID is shared across all renewal-term posts in the same series. Use it to retrieve the full renewal history of a bundle.
 
+## Renewal callouts and member-portal renewal
+
+The Membership Bundles List block's detail view shows the bundle owner a renewal callout while the bundle is in its renewal window or grace period. Clicking it either opens a summary modal and generates a renewal order (subscription flow), or links to the renewal form (form-page flow). The same data feeds the bundle-owner entries in ACC's callout block via `get_owner_callouts()`.
+
+| Callout | When | Copy source (config) |
+|---|---|---|
+| `early_renewal` | status `active`/`delayed` and `early_renew_at <= now < ends_at` | Renewal window callout |
+| `grace_period` | status `grace_period` | Late fee window callout |
+ No callout is shown when renewal callouts are disabled in Settings, when the term is already renewed or a renewal payment is in progress, or, for `early_renewal` only, when the subscription will renew automatically.
+
+### `get_renewal_callout()`
+
+```php
+public function get_renewal_callout( string $iso_code = '', ?int $now = null ): ?array
+```
+
+Returns `null` or:
+
+```php
+[
+    'type'                => 'early_renewal', // or 'grace_period'
+    'header'              => 'Renew your Bundle Membership',
+    'content'             => '',
+    'button_label'        => 'Renew your membership',
+    'flow'                => 'subscription',  // or 'form_page'
+    'form_url'            => '',              // form page URL for 'form_page'
+    'late_fee_product_id' => 0,               // grace period only
+]
+```
+
+It does not check who is viewing, so restrict it to the owner (`is_current_user_owner()`). Filter or hide it with `wicket_mship_bundle_renewal_callout`:
+
+```php
+add_filter( 'wicket_mship_bundle_renewal_callout', function( ?array $callout, \Wicket_Memberships\Membership_Bundle $bundle ): ?array {
+    return $callout; // return null to hide
+}, 10, 2 );
+```
+
+The form-page URL carries `bundle_post_id_renew`, `org_uuid` and, in grace period, `late_fee_product_id`.
+
+### `get_renewal_state()`
+
+```php
+public function get_renewal_state( ?int $now = null ): ?string
+```
+
+Returns `'grace_period'` when the status is `grace_period`, `'early_renewal'` when an `active`/`delayed` bundle is inside its renewal window, otherwise `null`. No suppression rules are applied.
+
+### `get_renewal_summary()`
+
+```php
+public function get_renewal_summary(): array // { total: int, tiers: [ { name, count } ] }
+```
+
+Built from the bundle subscription's line items that carry `_membership_post_id`, which is exactly what a renewal order will bill.
+
+### `get_or_create_renewal_order()`
+
+```php
+public function get_or_create_renewal_order(): \WC_Order|\WP_Error
+```
+
+Re-validates with `get_renewal_callout()`. It then reuses a `pending`/`failed` renewal order from the current term, or creates one with `wcs_create_renewal_order()`. In grace period it adds the config's late fee product once. Paying the order runs the normal [renewal process](../concepts/renewal-process.md). Error codes: `wcs_inactive`, `not_renewable`, `form_page_flow`, `no_subscription`, `no_members`, `order_failed`.
+
+### `check_current_user_access()`
+
+```php
+public static function check_current_user_access( int $bundle_post_id ): true|\WP_Error
+```
+
+The member must be logged in and have an active MDP connection to the bundle's organization. The result is cached per request, and the `WP_Error` data carries an HTTP `status`. Every member-scoped `/mine` route uses it, as do the detail template and the renewal order handler.
+
 ## Post meta reference
 
 | Key | Type | Description |
@@ -592,6 +671,7 @@ Returns the `membership_bundle_group_uuid` meta value. This UUID is shared acros
 | Hook | Type | When fired | Args |
 |---|---|---|---|
 | `wicket_memberships_individual_membership_created_for_bundle` | filter | After a new member seat is created by `add_member()` | `array $result` |
+| `wicket_mship_bundle_renewal_callout` | filter | `get_renewal_callout()` builds a callout | `?array $callout, Membership_Bundle $bundle` |
 | `wicket_memberships_bundle_renewal_period_open` | action | `early_renew_at` date reached | `int $bundle_post_id` |
 | `wicket_memberships_bundle_end_date_reached` | action | `ends_at` date reached | `int $bundle_post_id` |
 | `wicket_memberships_bundle_grace_period_expired` | action | `expires_at` date reached | `int $bundle_post_id` |

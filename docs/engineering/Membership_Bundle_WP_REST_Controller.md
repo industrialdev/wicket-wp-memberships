@@ -61,6 +61,12 @@ Sets `$this->namespace = 'wicket_member/v1'` and hooks `register_routes` to `res
 
 Registers all bundle REST routes.
 
+### `get_my_membership_bundles( \WP_REST_Request $request )`
+
+**Route:** `GET /membership_bundles/mine`, gated by `permissions_check_member_read` (owner-only).
+
+Delegates to `Membership_Bundle_Admin_Controller::get_membership_bundles_list()` with `$owner_user_id = get_current_user_id()`. It then adds `renewal_callout` (`early_renewal` | `grace_period` | `null`, from `Membership_Bundle::get_renewal_callout()`) to each row; the list card badge in `templates/account-membership-bundles/list.php` uses this field. The field is added here rather than in the shared row builder, so the admin list doesn't pay for subscription and renewal-order lookups it never displays.
+
 ### `get_bundle_entity( \WP_REST_Request $request )`
 
 **Route:** `GET /membership_bundle_entity?bundle_post_id={id}`
@@ -255,9 +261,9 @@ Same logic as `permissions_check_read`. Applied to all `CREATABLE` routes.
 
 ### `permissions_check_bundle_org_member( \WP_REST_Request $request ): bool|\WP_REST_Response`
 
-Member-scoped authorization for the `/mine` bundle-detail and members-by-tier routes. Requires `is_user_logged_in()` (`401` otherwise), then loads the bundle via `new Membership_Bundle( $bundle_post_id )` and checks `$bundle->post_id` (`404` if the post doesn't exist or isn't the bundle CPT). Resolves the bundle's `get_org_uuid()` (`403` if unset — a bundle with no linked org has no member to authorize) and the current user's `wicket_current_person_uuid()` (`403` if unresolved), then calls `wicket_get_active_person_org_connections( $person_uuid, $org_uuid )` (base plugin) and requires a non-empty, non-`WP_Error` result (`403` otherwise).
+Member-scoped authorization for the `/mine` bundle-detail and members-by-tier routes. Delegates to `Membership_Bundle::check_current_user_access( $bundle_post_id )` and converts a returned `WP_Error` into `{ error }` with the status from its error data. The rule lives on `Membership_Bundle` so the server-rendered detail template and `Membership_Bundle_Block_Controller::handle_renewal_order_request()` apply exactly the same check. The rule: requires `is_user_logged_in()` (`401` otherwise); `404` if the post doesn't exist or isn't the bundle CPT; `403` if the bundle has no `get_org_uuid()` (no member to authorize) or `wicket_current_person_uuid()` is unresolved; then `wicket_get_active_person_org_connections( $person_uuid, $org_uuid )` (base plugin) must return a non-empty, non-`WP_Error` result (`403` otherwise).
 
-Queries MDP live on every request rather than caching org membership locally — MDP is the source of truth and connections can change independently of anything cached on the bundle or WP user. Does not honor `ALLOW_LOCAL_IMPORTS`, matching `permissions_check_member_read`.
+Queries MDP live (cached only for the duration of one PHP request) rather than caching org membership locally — MDP is the source of truth and connections can change independently of anything cached on the bundle or WP user. Does not honor `ALLOW_LOCAL_IMPORTS`, matching `permissions_check_member_read`.
 
 Distinct from `permissions_check_member_read` (used by `/membership_bundles/mine`): that check is owner-only (WP `user_id` meta match), while this check authorizes any member with an active connection to the bundle's org — e.g. an org delegate who didn't personally purchase the bundle.
 

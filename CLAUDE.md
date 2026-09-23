@@ -53,7 +53,9 @@ For full implementation details refer to `docs/engineering/Membership_Bundle.md`
 
 Use these exact status strings consistently — they appear in meta, REST responses, UI labels, and MDP sync logic:
 
-`pending` | `active` | `delayed` | `grace-period` | `expired` | `cancelled`
+`pending` | `active` | `delayed` | `grace_period` | `expired` | `cancelled`
+
+These match the `Wicket_Memberships::STATUS_*` constants in `wicket.php` — use the constants in PHP rather than string literals.
 
 Do not invent synonyms.
 

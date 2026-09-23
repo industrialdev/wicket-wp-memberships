@@ -21,6 +21,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 $rest_url  = esc_url_raw( rest_url( 'wicket_member/v1/membership_bundles/mine' ) );
+
+// Forward the QA date override to the REST call so the card badges shift with
+// the same ?wicket_wp_membership_debug_days=N the detail view honors (see
+// Membership_Bundle::get_renewal_reference_time()).
+// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- debug-only read, gated by env flag.
+if ( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && ! empty( $_GET['wicket_wp_membership_debug_days'] ) ) {
+  $rest_url = add_query_arg( 'wicket_wp_membership_debug_days', (int) $_GET['wicket_wp_membership_debug_days'], $rest_url ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+}
 $rest_nonce = wp_create_nonce( 'wp_rest' );
 $mdp_timezone = $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC';
 
@@ -102,7 +110,7 @@ $block_config = [
               <template x-if="attentionBadgeLabel(bundle)">
                 <span
                   class="wicket-mship-bundle-card__badge"
-                  :class="'wicket-mship-bundle-card__badge--' + bundle.status.slug"
+                  :class="'wicket-mship-bundle-card__badge--' + bundle.renewal_callout"
                   x-text="attentionBadgeLabel(bundle)"
                 ></span>
               </template>
@@ -228,17 +236,17 @@ $block_config = [
         return parts.join( ' – ' );
       },
 
-      // Mirrors Membership_Bundle_Block_Controller::get_bundles_requiring_attention_count()'s
-      // definition of "requires attention": grace-period or expired bundle status,
-      // since both mean the owner needs to take a renewal action. Labels match
-      // that method's doc comment. Returns '' (falsy, so the badge stays hidden)
-      // for every other status.
+      // Driven by the row's renewal_callout (added to GET /membership_bundles/mine
+      // from Membership_Bundle::get_renewal_callout()), so the badge appears on
+      // exactly the bundles whose detail view shows a renewal callout — and that
+      // Membership_Bundle_Block_Controller::get_bundles_requiring_attention_count()
+      // counts for the account-menu badge. Returns '' (falsy, so the badge stays
+      // hidden) when there is no callout.
       attentionBadgeLabel( bundle ) {
-        const slug = bundle?.status?.slug;
-        if ( slug === 'early_renewal' ) {
+        if ( bundle?.renewal_callout === 'early_renewal' ) {
           return <?php echo wp_json_encode( __( 'Renew Memberships', 'wicket-memberships' ) ); ?>;
         }
-        if ( slug === 'grace_period' ) {
+        if ( bundle?.renewal_callout === 'grace_period' ) {
           return <?php echo wp_json_encode( __( 'Lapsed - Renew Memberships', 'wicket-memberships' ) ); ?>;
         }
         return '';

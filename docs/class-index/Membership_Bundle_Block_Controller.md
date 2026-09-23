@@ -27,9 +27,9 @@ Callers (currently `includes/blocks/membership-bundles-list/render.php`) must tr
 
 ### `get_bundles_requiring_attention_count(): int` (static)
 
-Counts the current WP user's owned `wicket_mship_bundle` posts whose `membership_status` meta is `Wicket_Memberships::STATUS_GRACE` ("Renew Memberships") or `Wicket_Memberships::STATUS_EXPIRED` ("Lapsed - Renew Memberships") — the two statuses that mean the member needs to take a renewal action. Returns `0` when nobody is logged in.
+Counts the current WP user's owned `wicket_mship_bundle` posts that are currently showing a renewal callout: `early_renewal` (inside the renewal window) or `grace_period`. Returns `0` when nobody is logged in.
 
-Reuses `Membership_Bundle_Admin_Controller::get_membership_bundles_list()` (owner-scoped via its `$owner_user_id` param, the same query/dedup path the member-facing "mine" REST endpoint relies on) rather than a bespoke `WP_Query`, so it stays in sync with that method's definition of "owned by" and "matches this status". Calls it once per status (`posts_per_page` of 1, since only the returned `count` — the pre-pagination total — is used) and sums the two counts, since that method only supports a single equality status filter, not an `IN` comparison across both at once.
+Loads the owner's bundles in status `active`, `delayed` or `grace_period` (the only statuses `Membership_Bundle::get_renewal_state()` can match) and counts those where `Membership_Bundle::get_renewal_callout()` is not `null`. The account-menu badge therefore matches the detail view exactly. Already-renewed terms, autopay early renewals, bundles with no usable renewal flow, and the global "Disable Renewal Callouts" setting are all excluded. Expired bundles are not counted.
 
 ### `get_nav_badge_href_fragments(): array` (static, private)
 
@@ -49,6 +49,35 @@ Hooked to `wp_head`. Calls `get_bundles_requiring_attention_count()` and, only w
 Renders nothing at zero count, and also renders nothing when no "Manage Membership Bundles" page is configured (or it no longer resolves), so no empty/zero/unmatchable badge ever appears. The menu IDs come from the `NAV_BADGE_MENU_IDS` class constant; the href fragment(s) come from `get_nav_badge_href_fragments()` — the selector list is their cross product.
 
 Badge styling uses theme v2 CSS custom properties (`--spacing-200`, `--spacing-75`, `--spacing-50`, `--border-radius-600`, `--state-error`, `--text-content-reversed`, `--label-sm-font-size`), each with a hardcoded fallback value so the badge still renders correctly on a page/theme where those tokens aren't defined.
+
+## Renewal (detail view)
+
+When the bundle is in its renewal window (`early_renewal`) or grace period (`grace_period`), `detail.php` renders a renewal callout (`templates/account-membership-bundles/renewal-callout.php`) above the bundle title, server-side, from `Membership_Bundle::get_renewal_callout()`. Owner-only: `detail.php` requires `Membership_Bundle::is_current_user_owner()` and a passing `Membership_Bundle::check_current_user_access()` first.
+
+- **Form-page flow:** the callout button links straight to `get_renewal_form_url()`.
+- **Subscription flow:** the button opens `templates/account-membership-bundles/renew-modal.php`, which shows the membership count and a per-tier summary from `Membership_Bundle::get_renewal_summary()`. Its "Generate Order" button is a plain form POST to `admin-post.php`, handled below.
+
+Styles (`.wicket-mship-bundle-renewal-callout--early_renewal` / `--grace_period`, `.wicket-mship-renew-modal__*`) live in the block's `style.css`. Colors match ACC's `ac-callout` renewal callouts.
+
+### Constants
+
+- `RENEWAL_ORDER_ACTION` = `wicket_mship_bundle_renewal_order`: the admin-post action, and the nonce action prefix (`{action}_{bundle_post_id}`).
+- `RENEWAL_ERROR_QUERY_ARG` = `bundle_renewal_error`: the query arg carrying a failure code back to the detail view.
+
+### `handle_renewal_order_request(): void`
+
+Hooked to `admin_post_wicket_mship_bundle_renewal_order` (logged-in only; there is no `nopriv` hook).
+
+1. Reads `bundle_post_id` and `return_url` from the POST, and passes `return_url` through `wp_validate_redirect()` so only same-site URLs are used.
+2. Verifies the bundle-scoped nonce.
+3. Requires `is_current_user_owner()` and `check_current_user_access()`.
+4. Calls `Membership_Bundle::get_or_create_renewal_order()`.
+5. On success, `wp_safe_redirect()`s to the order's `get_checkout_payment_url()`.
+6. On failure, logs the `WP_Error` and redirects back to `return_url` with `?bundle_renewal_error={code}`.
+
+### `get_renewal_error_message( string $code ): string` (static)
+
+Maps a renewal error code to plain-language copy for `detail.php`. `not_renewable`, `no_members` and `forbidden`/`not_found` each get a specific message; anything else gets a generic "try again" message. An empty code returns `''`.
 
 ## Related
 
