@@ -24,7 +24,7 @@ An async search field queries `fetchMdpPersons` with a minimum of 3 characters. 
 
 Selecting a person triggers `fetchBundleEligibleMemberships(bundlePostId, personUuid)` to discover any of that person's standalone individual memberships that are eligible for this bundle (see [`fetchBundleEligibleMemberships`](../../shared/api.md#fetchbundleeligiblemembershipsbundlepostid-personuuid)). A request-ID ref guards against an out-of-order response overwriting state if the admin picks a different person before the lookup finishes.
 
-If the lookup fails (most commonly because the person has no WordPress account yet), the error is shown inline and the flow falls back to "new membership."
+A person with no WordPress account yet returns an empty list, so the flow defaults to "new membership" with no error. If the lookup itself fails, the error is shown inline and the flow falls back to "new membership."
 
 ### Step 2 — Choose new vs. existing membership
 

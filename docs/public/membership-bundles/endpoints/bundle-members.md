@@ -54,7 +54,11 @@ Adds an individual member seat to a bundle. Supports two modes: enrolling a new 
 | `400` | `bundle_ended` | Today is past the bundle's end date |
 | `400` | `ambiguous_product` | Tier has multiple products and `product_id` was not supplied |
 | `400` | `invalid_user` | MDP person UUID could not be resolved to a WP user |
-| `400` | `invalid_tier` | Tier post not found or wrong CPT |
+| `400` | `invalid_tier` | Tier post not found, wrong CPT, or not an individual tier |
+| `400` | `invalid_membership` | `existing_membership_post_id` not found or wrong CPT |
+| `400` | `invalid_membership_type` | Existing membership is not an individual membership |
+| `400` | `membership_already_in_bundle` | Existing membership already belongs to a bundle — move it instead |
+| `400` | `invalid_membership_status` | Existing membership is not `pending`, `active`, or `delayed` |
 | `400` | `create_failed` | Membership record creation failed |
 :::
 
@@ -133,7 +137,7 @@ Gated by the same admin capability as every other route on this controller, with
 }
 ```
 
-A membership qualifies when it belongs to the resolved user, has status `pending`, `active`, or `delayed`, is not already linked to any bundle, and its tier is eligible for this bundle's config. Empty array when none qualify.
+A membership qualifies when it belongs to the resolved user, has status `pending`, `active`, or `delayed`, is not already linked to any bundle, and its tier is eligible for this bundle's config. Empty array when none qualify, including when the person has no WordPress account yet.
 
 ### Errors
 
@@ -142,7 +146,6 @@ A membership qualifies when it belongs to the resolved user, has status `pending
 |---|---|---|
 | `404` | `bundle_not_found` | `bundle_post_id` does not resolve to a bundle |
 | `400` | `missing_person_uuid` | `person_uuid` is empty |
-| `400` | `wicket_membership_no_wp_user` | Person has no WordPress account yet |
 :::
 
 ### Example

@@ -73,7 +73,7 @@ $result = Membership_Bundle_Admin_Controller::get_eligible_memberships_for_perso
 
 A membership qualifies when it: belongs to that person, has status `pending`, `active`, or `delayed`, is not already linked to any bundle, and has a tier eligible for this bundle's config (see [Membership_Bundle_Config](../classes/membership-bundle-config.md)).
 
-The person must already have a WordPress account — this lookup is read-only and does not create one (unlike `add_member` in `new` mode). If the person has no WP account yet, the call returns `{ error, code: 'wicket_membership_no_wp_user', status: 400 }`.
+The person must already have a WordPress account — this lookup is read-only and does not create one (unlike `add_member` in `new` mode). If the person has no WP account yet, the call returns an empty `memberships` array, the same as a person with no eligible memberships.
 
 ### Start date resolution
 

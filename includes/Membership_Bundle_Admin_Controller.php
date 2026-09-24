@@ -998,7 +998,7 @@ class Membership_Bundle_Admin_Controller {
 
     // Read-only lookup — do not create a WP user here, unlike add_member()'s
     // mode = 'new' path. A person who has never logged in has no local
-    // account to attach an existing membership to.
+    // account, so no existing membership to reuse.
     //
     // Mirrors wicket_create_wp_user_if_not_exist()'s resolution order (base
     // plugin helper-persons.php): login first, then email. Legacy accounts
@@ -1019,12 +1019,9 @@ class Membership_Bundle_Admin_Controller {
       }
     }
 
+    // No account is the normal case for a new person, not an error.
     if ( ! $user ) {
-      return [
-        'error'  => 'This member does not have a WordPress account and cannot be added to this bundle from an existing membership.',
-        'code'   => 'wicket_membership_no_wp_user',
-        'status' => 400,
-      ];
+      return [ 'memberships' => [] ];
     }
 
     return [ 'memberships' => $bundle->get_eligible_memberships_for_user( $user->ID ) ];

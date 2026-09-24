@@ -469,7 +469,7 @@ public static function get_eligible_memberships_for_person(
 
 Looks up a person's standalone individual memberships that could become a seat in the given bundle — the discovery step behind `add_member()`'s `"existing"` mode. Resolves the WP user from the MDP person UUID (read-only; does not create a user), then delegates to `Membership_Bundle::get_eligible_memberships_for_user()`.
 
-Resolution order mirrors `wicket_create_wp_user_if_not_exist()` (base plugin): match by `user_login` (the MDP UUID) first, then fall back to matching by the MDP person's primary email. The email fallback exists for legacy accounts whose `user_login` isn't the MDP UUID — without it, this method would misreport `wicket_membership_no_wp_user` for a person who does have an account, and the caller would create a duplicate membership instead of reusing the existing one.
+Resolution order mirrors `wicket_create_wp_user_if_not_exist()` (base plugin): match by `user_login` (the MDP UUID) first, then fall back to matching by the MDP person's primary email. The email fallback exists for legacy accounts whose `user_login` isn't the MDP UUID — without it, this method would report no eligible memberships for a person who does have an account, and the caller would create a duplicate membership instead of reusing the existing one.
 
 **Parameters**
 
@@ -478,14 +478,13 @@ Resolution order mirrors `wicket_create_wp_user_if_not_exist()` (base plugin): m
 | `$bundle_post_id` | `int` | Yes | Post ID of the bundle. |
 | `$person_uuid` | `string` | Yes | MDP person UUID. |
 
-**Returns:** `['memberships' => array]` on success — see [`Membership_Bundle::get_eligible_memberships_for_user()`](./membership-bundle.md#get_eligible_memberships_for_user) for the shape of each entry. On failure: `['error' => string, 'code' => string, 'status' => int]`.
+**Returns:** `['memberships' => array]` on success (empty when none qualify or the person has no WP account yet) — see [`Membership_Bundle::get_eligible_memberships_for_user()`](./membership-bundle.md#get_eligible_memberships_for_user) for the shape of each entry. On failure: `['error' => string, 'code' => string, 'status' => int]`.
 
 :::details Error codes
 | Error code | Status | Cause |
 |---|---|---|
 | `bundle_not_found` | 404 | `bundle_post_id` does not resolve to a bundle |
 | `missing_person_uuid` | 400 | `person_uuid` is empty |
-| `wicket_membership_no_wp_user` | 400 | Person has no WordPress account yet |
 :::
 
 ### `add_member()`

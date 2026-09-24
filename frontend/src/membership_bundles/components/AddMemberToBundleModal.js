@@ -140,7 +140,12 @@ const AddMemberToBundleModal = ({
     setSelectedExistingMembership(null);
     setError(null);
 
-    if (!option) return;
+    if (!option) {
+      // Invalidate any in-flight lookup for the person just cleared.
+      eligibleMembershipsRequestId.current++;
+      setLoadingEligibleMemberships(false);
+      return;
+    }
 
     const requestId = ++eligibleMembershipsRequestId.current;
     setLoadingEligibleMemberships(true);
@@ -154,7 +159,6 @@ const AddMemberToBundleModal = ({
       })
       .catch((err) => {
         if (requestId !== eligibleMembershipsRequestId.current) return;
-        // A person with no WP account surfaces here as an error — show it inline.
         console.error("[AddMemberToBundleModal] fetchBundleEligibleMemberships error", err);
         setError(err);
         setAddMode("new");

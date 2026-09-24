@@ -11,6 +11,13 @@ use Wicket_Memberships\Utilities;
  */
 class Membership_Bundle {
 
+  // Statuses an existing standalone membership may have to be converted into a bundle seat.
+  private const EXISTING_MEMBER_STATUSES = [
+    Wicket_Memberships::STATUS_PENDING,
+    Wicket_Memberships::STATUS_ACTIVE,
+    Wicket_Memberships::STATUS_DELAYED,
+  ];
+
   public readonly int $post_id;
   public $meta_data;
 
@@ -363,7 +370,7 @@ class Membership_Bundle {
    * @return array Each entry: membership_post_id, tier_post_id, tier_name, starts_at, ends_at, status.
    */
   public function get_eligible_memberships_for_user( int $user_id ): array {
-    $valid_statuses = [ Wicket_Memberships::STATUS_PENDING, Wicket_Memberships::STATUS_ACTIVE, Wicket_Memberships::STATUS_DELAYED ];
+    $valid_statuses = self::EXISTING_MEMBER_STATUSES;
 
     $posts = get_posts( [
       'post_type'      => Helper::get_membership_cpt_slug(),
@@ -451,36 +458,23 @@ class Membership_Bundle {
       return $err;
     }
 
-    // Existing-member path: cancel old membership, resolve user_id from it.
-    if ( $existing_membership_post_id !== null ) {
-      // Only check post existence here — bundle ownership is not required for add_member's
-      // existing path (the membership may be standalone, not yet in any bundle).
-      if ( ! get_post( $existing_membership_post_id ) || get_post_type( $existing_membership_post_id ) !== Helper::get_membership_cpt_slug() ) {
-        Wicket()->log()->error( 'Membership_Bundle::add_member: existing_membership_post_id does not resolve to a valid membership', [
-          'source'  => 'wicket-memberships',
-          'post_id' => $this->post_id,
-          'target'  => $existing_membership_post_id,
-        ] );
-        return new \WP_Error( 'invalid_membership', __( 'The specified membership record does not exist.', 'wicket-memberships' ) );
-      }
-
-      $resolved_user_id = (int) get_post_meta( $existing_membership_post_id, 'user_id', true );
-      if ( $resolved_user_id <= 0 ) {
-        Wicket()->log()->error( 'Membership_Bundle::add_member: existing membership has no user_id meta', [
-          'source'             => 'wicket-memberships',
-          'post_id'            => $this->post_id,
-          'membership_post_id' => $existing_membership_post_id,
-        ] );
-        return new \WP_Error( 'missing_user_id', __( 'The existing membership record does not have a valid user_id.', 'wicket-memberships' ) );
-      }
-
-      $this->cancel_individual_membership( $existing_membership_post_id );
-      $user_id = $resolved_user_id;
+    // Checks that can fail run before the existing-path cancel below, which has no rollback.
+    if ( $existing_membership_post_id !== null && ( $err = $this->assert_existing_membership_is_convertible( $existing_membership_post_id ) ) ) {
+      return $err;
     }
 
-    // New-member path: user_id must be supplied.
-    if ( $user_id === null ) {
-      return new \WP_Error( 'missing_user_id', __( 'user_id is required when not providing an existing membership.', 'wicket-memberships' ) );
+    if ( ! ( new Membership_Tier( $tier_post_id ) )->is_individual_tier() ) {
+      Wicket()->log()->error( 'Membership_Bundle::add_member: tier_post_id does not resolve to an individual tier', [
+        'source'       => 'wicket-memberships',
+        'post_id'      => $this->post_id,
+        'tier_post_id' => $tier_post_id,
+      ] );
+      return new \WP_Error( 'invalid_tier', __( 'The specified tier is not an individual membership tier.', 'wicket-memberships' ) );
+    }
+
+    // Renewals skip the MDP tier check: the batch handler owns MDP sync for them.
+    if ( ! $is_renewal && ( $err = $this->assert_tier_resolves_in_mdp( $tier_post_id ) ) ) {
+      return $err;
     }
 
     // Use explicit override when provided (renewal path — anchors to bundle starts_at).
@@ -492,6 +486,16 @@ class Membership_Bundle {
       if ( is_wp_error( $start_date ) ) {
         return $start_date;
       }
+    }
+
+    if ( $existing_membership_post_id !== null ) {
+      $this->cancel_individual_membership( $existing_membership_post_id );
+      $user_id = (int) get_post_meta( $existing_membership_post_id, 'user_id', true );
+    }
+
+    // New-member path: user_id must be supplied.
+    if ( $user_id === null ) {
+      return new \WP_Error( 'missing_user_id', __( 'user_id is required when not providing an existing membership.', 'wicket-memberships' ) );
     }
 
     return $this->provision_individual_membership_record( $user_id, $tier_post_id, $product_id, $variation_id, $start_date, $this->post_id, $is_renewal );
@@ -558,6 +562,10 @@ class Membership_Bundle {
         'duplicate_membership_in_target_bundle',
         __( 'This member already has an active membership with the same tier in the destination bundle.', 'wicket-memberships' )
       );
+    }
+
+    if ( $err = $target_bundle->assert_tier_resolves_in_mdp( (int) $meta['tier_post_id'] ) ) {
+      return $err;
     }
 
     $this->cancel_individual_membership( $membership_post_id );
@@ -637,6 +645,51 @@ class Membership_Bundle {
   }
 
   /**
+   * Assert a membership can be converted into a seat via add_member()'s existing path:
+   * a standalone individual membership with a user, in a pending/active/delayed status.
+   * Mirrors the filter in get_eligible_memberships_for_user().
+   *
+   * @param int $membership_post_id Existing wicket_membership post ID.
+   * @return \WP_Error|null WP_Error on failure, null on pass.
+   */
+  private function assert_existing_membership_is_convertible( int $membership_post_id ): ?\WP_Error {
+    $log_context = [
+      'source'             => 'wicket-memberships',
+      'post_id'            => $this->post_id,
+      'membership_post_id' => $membership_post_id,
+    ];
+
+    if ( ! get_post( $membership_post_id ) || get_post_type( $membership_post_id ) !== Helper::get_membership_cpt_slug() ) {
+      Wicket()->log()->error( 'Membership_Bundle::add_member: existing_membership_post_id does not resolve to a valid membership', $log_context );
+      return new \WP_Error( 'invalid_membership', __( 'The specified membership record does not exist.', 'wicket-memberships' ) );
+    }
+
+    if ( (int) get_post_meta( $membership_post_id, 'user_id', true ) <= 0 ) {
+      Wicket()->log()->error( 'Membership_Bundle::add_member: existing membership has no user_id meta', $log_context );
+      return new \WP_Error( 'missing_user_id', __( 'The existing membership record does not have a valid user_id.', 'wicket-memberships' ) );
+    }
+
+    if ( get_post_meta( $membership_post_id, 'membership_type', true ) !== 'individual' ) {
+      Wicket()->log()->error( 'Membership_Bundle::add_member: existing membership is not an individual membership', $log_context );
+      return new \WP_Error( 'invalid_membership_type', __( 'Only an individual membership can be added to a membership bundle.', 'wicket-memberships' ) );
+    }
+
+    // Cast + compare against 0: the meta row may exist but be empty/'0'.
+    if ( (int) get_post_meta( $membership_post_id, 'membership_bundle_id', true ) !== 0 ) {
+      Wicket()->log()->error( 'Membership_Bundle::add_member: existing membership is already in a bundle', $log_context );
+      return new \WP_Error( 'membership_already_in_bundle', __( 'This membership already belongs to a membership bundle. Move it from that bundle instead.', 'wicket-memberships' ) );
+    }
+
+    $status = get_post_meta( $membership_post_id, 'membership_status', true );
+    if ( ! \in_array( $status, self::EXISTING_MEMBER_STATUSES, true ) ) {
+      Wicket()->log()->error( 'Membership_Bundle::add_member: existing membership status does not allow conversion', $log_context + [ 'status' => $status ] );
+      return new \WP_Error( 'invalid_membership_status', __( 'Only a pending, active, or delayed membership can be added to a membership bundle.', 'wicket-memberships' ) );
+    }
+
+    return null;
+  }
+
+  /**
    * Assert a tier's stored MDP UUID resolves to a real "memberships" resource
    * in the MDP, so a stale UUID (e.g. from a reseeded MDP environment) fails
    * fast with a clear, tier-specific error instead of the opaque MDP error
@@ -646,15 +699,19 @@ class Membership_Bundle {
    * distinguishes a confirmed 404 from any other MDP failure — this method
    * maps that distinction onto its own tier-specific error codes.
    *
-   * @param Membership_Tier $tier
-   * @param int             $tier_post_id WP post ID of the tier (for logging; Membership_Tier::$post_id is private).
+   * @param int $tier_post_id WP post ID of the individual Membership_Tier CPT.
    * @return \WP_Error|null WP_Error on failure (`tier_not_found_in_mdp` for a
    *   confirmed stale UUID, `mdp_unreachable` for a transient MDP failure),
-   *   null on pass or when the check cannot run (helper unavailable, or the
-   *   tier has no mdp_tier_uuid stored yet — an unrelated, pre-existing
-   *   failure mode this method does not own).
+   *   null on pass or when the check cannot run (bypass_wicket mode, helper
+   *   unavailable, or the tier has no mdp_tier_uuid stored yet — an unrelated,
+   *   pre-existing failure mode this method does not own).
    */
-  private function assert_tier_resolves_in_mdp( Membership_Tier $tier, int $tier_post_id ): ?\WP_Error {
+  private function assert_tier_resolves_in_mdp( int $tier_post_id ): ?\WP_Error {
+    if ( ! empty( $this->bypass_wicket ) ) {
+      return null;
+    }
+
+    $tier      = new Membership_Tier( $tier_post_id );
     $tier_uuid = $tier->get_mdp_tier_uuid();
     if ( empty( $tier_uuid ) || ! \function_exists( 'wicket_get_membership_by_uuid' ) ) {
       return null;
@@ -933,20 +990,6 @@ class Membership_Bundle {
         'tier_post_id' => $tier_post_id,
       ] );
       return new \WP_Error( 'invalid_tier', __( 'The specified tier is not an individual membership tier.', 'wicket-memberships' ) );
-    }
-
-    // Verify the tier's stored MDP UUID still resolves to a real "memberships"
-    // resource before attempting the assignment call. Without this, a stale
-    // mdp_tier_uuid (e.g. from a reseeded/reset MDP environment) surfaces only
-    // as an opaque "Failed to add member in MDP: Membership not found" late in
-    // the request, with no indication the tier — not the person or bundle —
-    // is the actual problem. Skipped in bypass_wicket mode, which never talks
-    // to MDP at all.
-    if ( empty( $this->bypass_wicket ) ) {
-      $tier_mdp_error = $this->assert_tier_resolves_in_mdp( $tier, $tier_post_id );
-      if ( $tier_mdp_error ) {
-        return $tier_mdp_error;
-      }
     }
 
     $tier_product_ids = array_map( 'intval', $tier->get_product_ids() );

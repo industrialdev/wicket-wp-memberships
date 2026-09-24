@@ -172,7 +172,9 @@ public function add_member(
 Adds an individual membership seat to this bundle. The `$existing_membership_post_id` parameter switches between two flows:
 
 - **New member** (`$existing_membership_post_id = null`): `$user_id` is required. A new `wicket_membership` post is created and linked to the bundle.
-- **Existing member** (`$existing_membership_post_id` provided): the existing membership is cancelled and replaced with a new one using the bundle's dates. `$user_id` is ignored — it is read from the existing membership.
+- **Existing member** (`$existing_membership_post_id` provided): the existing membership is cancelled and replaced with a new one using the bundle's dates. `$user_id` is ignored — it is read from the existing membership. The existing membership must be a standalone individual membership in `pending`, `active`, or `delayed` status.
+
+All validation, including the tier and MDP checks, runs before the existing membership is cancelled, so a failed call leaves it untouched.
 
 **Parameters**
 
@@ -197,11 +199,14 @@ Adds an individual membership seat to this bundle. The `$existing_membership_pos
 | `bundle_ended` | Today is past the bundle's end date |
 | `bundle_no_dates` | Bundle has no date meta |
 | `invalid_user` | WP user cannot be resolved |
-| `invalid_tier` | Tier post not found or wrong CPT |
+| `invalid_tier` | Tier post not found, wrong CPT, or not an individual tier |
 | `ambiguous_product` | Tier has more than one product and `$product_id` was not supplied |
 | `no_product` | No product found for tier |
 | `product_tier_mismatch` | Supplied product does not belong to the tier |
 | `invalid_membership` | Existing membership post not found or wrong CPT |
+| `invalid_membership_type` | Existing membership is not an individual membership |
+| `membership_already_in_bundle` | Existing membership already belongs to a bundle — move it instead |
+| `invalid_membership_status` | Existing membership is not `pending`, `active`, or `delayed` |
 | `create_failed` | Downstream membership creation failed |
 | `bundle_not_synced_to_mdp` | Bundle has no `membership_bundle_mdp_uuid` — never synced to MDP |
 | `tier_not_found_in_mdp` | Tier's stored `mdp_tier_uuid` confirmed not to resolve in MDP (404) |

@@ -54,6 +54,9 @@ These error codes appear across multiple endpoints:
 |---|---|
 | `invalid_bundle_status` | The bundle is not in a status that permits the requested operation |
 | `invalid_membership` | The membership post was not found or is the wrong CPT |
+| `invalid_membership_type` | The membership is not an individual membership |
+| `membership_already_in_bundle` | The membership already belongs to a bundle |
+| `invalid_membership_status` | The membership is not `pending`, `active`, or `delayed` |
 | `membership_not_in_bundle` | The membership does not belong to the specified bundle |
 | `invalid_user` | The WP user could not be resolved |
 | `bundle_ended` | Today is past the bundle's end date |
@@ -63,7 +66,6 @@ These error codes appear across multiple endpoints:
 | `tier_not_found_in_mdp` | The tier's stored MDP UUID no longer resolves in MDP (confirmed via a 404) |
 | `mdp_unreachable` | The MDP could not be reached to verify a tier — a transient failure, not a stale tier reference |
 | `missing_person_uuid` | An MDP person UUID is required but was not provided |
-| `wicket_membership_no_wp_user` | The person has no WordPress account yet |
 
 ## Endpoint groups
 
