@@ -54,11 +54,18 @@ These error codes appear across multiple endpoints:
 |---|---|
 | `invalid_bundle_status` | The bundle is not in a status that permits the requested operation |
 | `invalid_membership` | The membership post was not found or is the wrong CPT |
+| `invalid_membership_type` | The membership is not an individual membership |
+| `membership_already_in_bundle` | The membership already belongs to a bundle |
+| `invalid_membership_status` | The membership is not `pending`, `active`, or `delayed` |
 | `membership_not_in_bundle` | The membership does not belong to the specified bundle |
 | `invalid_user` | The WP user could not be resolved |
 | `bundle_ended` | Today is past the bundle's end date |
 | `bundle_no_dates` | The bundle has no date meta |
 | `missing_user_id` | A user ID is required but was not provided |
+| `bundle_not_synced_to_mdp` | The bundle has no MDP UUID — never synced to MDP |
+| `tier_not_found_in_mdp` | The tier's stored MDP UUID no longer resolves in MDP (confirmed via a 404) |
+| `mdp_unreachable` | The MDP could not be reached to verify a tier — a transient failure, not a stale tier reference |
+| `missing_person_uuid` | An MDP person UUID is required but was not provided |
 
 ## Endpoint groups
 
