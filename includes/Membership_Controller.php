@@ -1379,7 +1379,9 @@ function get_item_data ( $other_data, $cart_item ) {
     // the QA harness would shadow an unqualified call. In production both
     // resolve to WordPress's apply_filters.
     if ( \apply_filters( 'wicket_skip_membership_external_id_assignment', false, $membership_wicket_uuid, $wicket_membership_type, $membership_post_id ) ) {
-      $logger->info(
+      // Warning, not info: a skip firing on PRODUCTION by misconfiguration
+      // (shared mu-plugin, wrong environment check) must be scannable in wc-logs.
+      $logger->warning(
         sprintf(
           'Membership external_id assignment skipped by wicket_skip_membership_external_id_assignment filter for WP post %1$s (target %2$s/%3$s).',
           $membership_post_id,
@@ -1409,6 +1411,10 @@ function get_item_data ( $other_data, $cart_item ) {
           ),
           $log_context
         );
+        // The two flags are mutually exclusive and describe the LATEST
+        // attempt: repair_membership_external_id() classifies by re-reading
+        // them, so a stale flag from an older run must not survive.
+        delete_post_meta( $membership_post_id, '_wicket_membership_external_id_failed' );
         update_post_meta( $membership_post_id, '_wicket_membership_external_id_collision', [
           'external_id' => $membership_post_id,
           'type'        => $wicket_membership_type,
@@ -1436,6 +1442,9 @@ function get_item_data ( $other_data, $cart_item ) {
         ),
         $log_context
       );
+      // Mirror of the collision branch: clear the opposite flag so the meta
+      // pair always describes this attempt only.
+      delete_post_meta( $membership_post_id, '_wicket_membership_external_id_collision' );
       update_post_meta( $membership_post_id, '_wicket_membership_external_id_failed', [
         'external_id' => $membership_post_id,
         'type'        => $wicket_membership_type,
@@ -1446,7 +1455,7 @@ function get_item_data ( $other_data, $cart_item ) {
       return false;
     }
 
-    // Success: clear stale flags from a prior failed attempt.
+    // Success: clear both flags from any prior attempt.
     delete_post_meta( $membership_post_id, '_wicket_membership_external_id_failed' );
     delete_post_meta( $membership_post_id, '_wicket_membership_external_id_collision' );
     return true;

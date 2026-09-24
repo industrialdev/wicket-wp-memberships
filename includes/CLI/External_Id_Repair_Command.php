@@ -102,6 +102,10 @@ class External_Id_Repair_Command {
 
     WP_CLI::log( sprintf( 'Found %d flagged membership post(s).', count( $post_ids ) ) );
 
+    if ( $single < 1 && count( $post_ids ) >= 500 ) {
+      WP_CLI::warning( 'Scan cap reached (500). More flagged posts may exist; rerun until the count drops, or repair targeted posts with --post=<id>.' );
+    }
+
     if ( $dry_run ) {
       $this->render( array_map( [ $this, 'describe' ], $post_ids ), $format );
       WP_CLI::success( 'Dry run complete — nothing was written. Clear the squatter external_ids on the MDP first, then run without --dry-run.' );
