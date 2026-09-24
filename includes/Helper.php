@@ -683,8 +683,8 @@ class Helper {
   public static function is_in_membership_category( $product_id ) {
     $options = get_option( 'wicket_membership_plugin_options' );
     $categories = (array) ( $options['wicket_show_mship_order_org_search']['categorychoice'] ?? [] );
-    // has_term() treats numeric strings as names, so cast the stored term IDs.
-    $categories = array_map( 'intval', $categories );
+    // has_term() treats numeric strings as names, so cast the stored term IDs; drop empties that cast to 0.
+    $categories = array_filter( array_map( 'absint', $categories ) );
     $categories[] = 'Membership';
 
     return has_term( $categories, 'product_cat', $product_id );
