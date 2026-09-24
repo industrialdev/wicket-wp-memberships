@@ -1667,8 +1667,13 @@ function get_item_data ( $other_data, $cart_item ) {
    * It is possible the subscription membership item will be missing the renewal meta so we will add it
    * If we are reusing the same subscription we need to change it from the last post id from the last renewal to the current one
    *
-   * @param mixed $membership_subscription_id
-   * @param mixed $membership_post_id
+   * @see Helper::is_in_membership_category()
+   *
+   * @param  int    $membership_post_id   Membership post ID to stamp on the subscription items.
+   * @param  array  $membership           Membership data, including membership_subscription_id.
+   * @param  bool   $new_order_processed  True right after an order creates the membership; only then
+   *                                      is an existing pointer replaced if it names the previous membership.
+   *
    * @return void
    */
   public function wicket_update_subscription_meta_membership_post_id( $membership_post_id, $membership, $new_order_processed = false ) {
@@ -1705,9 +1710,7 @@ function get_item_data ( $other_data, $cart_item ) {
          * Verification only (no behaviour change): captures whether the category check passes for the id we
          * resolved, so we can confirm the cause on a real order before changing any logic.
          *
-         * Possible fix (not applied here): resolve $product_id from $item->get_product_id() (the parent),
-         * which is persisted on the line item and survives a failed product-object load, so the category check
-         * runs against the parent as intended.
+         * The check below now uses the line item's stored parent ID, so this path no longer skips the item.
          */
         Utilities::wc_log_mship_error( ['renewal-meta-stamp diagnostic: product object failed to load', [
           'subscription_id'            => is_object( $sub ) ? $sub->get_id() : ( $membership['membership_subscription_id'] ?? null ),
@@ -1716,7 +1719,7 @@ function get_item_data ( $other_data, $cart_item ) {
           'item_id'                    => $item_id,
           'product_id_checked'         => $product_id,
           'membership_product_id'      => $membership['membership_product_id'] ?? null,
-          'passes_membership_category' => has_term( 'Membership', 'product_cat', $product_id ),
+          'passes_membership_category' => Helper::is_in_membership_category( $item->get_product_id() ),
         ]] );
       } else {
         $product_id = $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
@@ -1727,7 +1730,8 @@ function get_item_data ( $other_data, $cart_item ) {
         continue;
       }
 
-      if ( ! has_term( 'Membership', 'product_cat', $product_id) ) {
+      // $product_id is the variation ID when the product fails to load, so use the stored parent ID.
+      if ( ! Helper::is_in_membership_category( $item->get_product_id() ) ) {
         continue;
       }
       //add or update membership renewal post id meta on item

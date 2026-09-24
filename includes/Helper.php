@@ -669,6 +669,27 @@ class Helper {
     return ! empty( $posts ) ? (int) $posts[0] : null;
   }
 
+  /**
+   * Determine whether a product is in a membership product category.
+   *
+   * Uses the categories selected in the plugin settings, plus the legacy "Membership" category.
+   *
+   * @since 1.0.123
+   *
+   * @param  int  $product_id  Parent product ID; categories are stored on the parent.
+   *
+   * @return bool  True when the product is in a membership category.
+   */
+  public static function is_in_membership_category( $product_id ) {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    $categories = (array) ( $options['wicket_show_mship_order_org_search']['categorychoice'] ?? [] );
+    // has_term() treats numeric strings as names, so cast the stored term IDs; drop empties that cast to 0.
+    $categories = array_filter( array_map( 'absint', $categories ) );
+    $categories[] = 'Membership';
+
+    return has_term( $categories, 'product_cat', $product_id );
+  }
+
   public static function get_user_switch_to_url($user_id) {
     if ( method_exists( 'user_switching', 'maybe_switch_url' ) ) {
       $target_user = get_user_by( 'id', $user_id );
