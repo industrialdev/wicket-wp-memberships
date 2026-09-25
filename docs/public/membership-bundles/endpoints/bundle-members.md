@@ -95,8 +95,35 @@ When `person_uuid` is supplied, each tier is additionally annotated with that pe
 
 Eligibility rules:
 - **In Bundle** — the person already holds this tier's seat (membership not cancelled/expired) in a bundle whose own status is `active` — **this check isn't limited to the bundle in the URL**. A person already active-bundled into a *different* bundle for the same tier is flagged `in_bundle` here too, not just someone re-adding to the same bundle. Shown checked and locked.
-- **Eligible** — the person's MDP person record has `status = good_standing` **and** they hold an active individual membership for this tier (bundle-linked or standalone) that isn't already claimed by the In Bundle check above. That membership is what gets pulled into this bundle when the selection is confirmed.
-- **Not Eligible** — neither of the above. Shown unchecked and locked. If the person does hold an active membership for the tier but simply isn't in good standing, its status/dates are still shown on the row for context.
+- **Eligible** — the person holds an active individual membership for this tier (bundle-linked or standalone) that isn't already claimed by the In Bundle check above. That membership is what gets pulled into this bundle when the selection is confirmed.
+- **Not Eligible** — neither of the above. Shown unchecked and locked. If a site filter rejected a person who does hold an active membership for the tier, its status/dates are still shown on the row for context.
+
+#### Customising eligibility
+
+Site-specific rules belong in the child theme or a site plugin, via the `wicket_mship_bundle_tier_eligibility_status` filter. It runs once per tier row for every status, and only `'eligible'`, `'in_bundle'` or `'not_eligible'` return values are accepted (anything else keeps the default). Overriding **In Bundle** only changes the badge — [Add a member](#add-a-member-to-a-bundle) still rejects a duplicate seat with `already_in_bundle`.
+
+```php
+apply_filters( 'wicket_mship_bundle_tier_eligibility_status', $eligibility_status, $tier_row, $person_uuid, $user_id, $bundle_post_id, $active_post );
+```
+
+Example — require the MDP person to be in good standing:
+
+```php
+add_filter( 'wicket_mship_bundle_tier_eligibility_status', function ( $status, $tier_row, $person_uuid, $user_id, $bundle_post_id, $active_post ) {
+    if ( 'eligible' !== $status || ! function_exists( 'wicket_get_person_by_id' ) ) {
+        return $status;
+    }
+
+    // The filter runs once per tier — cache the MDP lookup per person.
+    static $standing = [];
+    if ( ! isset( $standing[ $person_uuid ] ) ) {
+        $person                   = wicket_get_person_by_id( $person_uuid );
+        $standing[ $person_uuid ] = $person && 'good_standing' === $person->getAttribute( 'status' );
+    }
+
+    return $standing[ $person_uuid ] ? 'eligible' : 'not_eligible';
+}, 10, 6 );
+```
 
 ### URL parameters
 
@@ -215,6 +242,7 @@ Adds an individual member seat to a bundle. Supports two modes: enrolling a new 
 | `400` | `ambiguous_product` | Tier has multiple products and `product_id` was not supplied |
 | `400` | `invalid_user` | MDP person UUID could not be resolved to a WP user |
 | `400` | `invalid_tier` | Tier post not found or wrong CPT |
+| `400` | `already_in_bundle` | The person already holds a seat for this tier in an active bundle (this one or another). Uses the same check as the [In Bundle](#list-eligible-tiers-member-scoped) badge, and is enforced even if a site filter changed that badge. In `existing` mode the person is read from the existing membership. |
 | `400` | `create_failed` | Membership record creation failed |
 :::
 
@@ -282,7 +310,7 @@ Same as [Add a member to a bundle](#add-a-member-to-a-bundle): `mode`, `tier_pos
 | `404` | Bundle post not found |
 :::
 
-Also returns the same `400` business-logic errors as [Add a member to a bundle](#add-a-member-to-a-bundle) (`invalid_bundle_status`, `bundle_ended`, `ambiguous_product`, `invalid_user`, `invalid_tier`, `create_failed`).
+Also returns the same `400` business-logic errors as [Add a member to a bundle](#add-a-member-to-a-bundle) (`invalid_bundle_status`, `bundle_ended`, `ambiguous_product`, `invalid_user`, `invalid_tier`, `already_in_bundle`, `create_failed`).
 
 ### Example
 

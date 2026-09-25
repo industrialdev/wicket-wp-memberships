@@ -230,10 +230,29 @@ Returns `404` (`\WP_REST_Response`) if `$bundle_post_id` does not resolve to a `
 
 Resolution, per tier:
 
-1. The MDP person's `status` attribute is fetched once via `wicket_get_person_by_id()` (base-plugin helper) — `good_standing` is the only value that counts as "in good standing"; a missing/failed lookup fails closed (not in good standing).
+1. The local WP user is resolved once via `get_user_by( 'login', $person_uuid )` so it can be passed to the eligibility filter (`0` when no local user exists).
 2. `find_active_bundled_membership_for_person_and_tier()` looks for a `wicket_membership` post matching `membership_user_uuid` (the MDP person UUID — **not** a `person_uuid` meta key, which is never actually persisted; it's only an in-flight array key used en route to the MDP API call elsewhere in this class) + `membership_tier_uuid`, with a non-empty `membership_bundle_id` and a `membership_status` that isn't `cancelled`/`expired` — **not scoped to the bundle being added to**. Each match's containing `Membership_Bundle` (resolved via `Membership_Controller::get_membership_bundle()`) is checked; the first one whose own `get_membership_status()` is `active` wins → `eligibility_status = 'in_bundle'`. This means a person already holding this tier's seat in a *different* active bundle is flagged `in_bundle` here too, not just re-adds to the same bundle.
-3. Otherwise, `find_active_membership_for_person_and_tier()` looks for *any* `wicket_membership` post (bundle-linked or standalone) matching `membership_user_uuid` + `membership_tier_uuid` + `membership_status = Wicket_Memberships::STATUS_ACTIVE`. If found and the person is in good standing → `eligibility_status = 'eligible'`; otherwise → `'not_eligible'`.
-4. `membership_status`/`membership_status_label`/`starts_at`/`ends_at` are read from whichever membership post backed the status above (the in-bundle post, or the active-elsewhere post) — all `null` when neither was found. Note a `not_eligible` row can still carry a status/dates: that happens when the person holds an active membership for the tier but simply isn't in good standing.
+3. Otherwise, `find_active_membership_for_person_and_tier()` looks for *any* `wicket_membership` post (bundle-linked or standalone) matching `membership_user_uuid` + `membership_tier_uuid` + `membership_status = Wicket_Memberships::STATUS_ACTIVE`. If found → `eligibility_status = 'eligible'`; otherwise → `'not_eligible'`.
+4. `membership_status`/`membership_status_label`/`starts_at`/`ends_at` are read from whichever membership post backed the status above (the in-bundle post, or the active-elsewhere post) — all `null` when neither was found.
+5. The status is passed through the `wicket_mship_bundle_tier_eligibility_status` filter (see below). A `not_eligible` row can therefore still carry a status/dates when a filter rejected a person who does hold an active membership for the tier.
+
+**Filter: `wicket_mship_bundle_tier_eligibility_status`.** Site-specific eligibility rules (e.g. requiring an MDP person status of `good_standing`) are not built into the plugin — add them in the child theme or a site plugin.
+
+```php
+apply_filters(
+  'wicket_mship_bundle_tier_eligibility_status',
+  string   $eligibility_status, // 'eligible' | 'in_bundle' | 'not_eligible' (plugin default)
+  array    $tier_row,           // fully built row incl. membership_status, starts_at, ends_at
+  string   $person_uuid,        // MDP person UUID
+  int      $user_id,            // local WP user ID, 0 if none
+  int      $bundle_post_id,
+  ?WP_Post $active_post         // the active membership backing 'eligible', or null
+);
+```
+
+- Applied to every status, including `in_bundle`. Overriding `in_bundle` only changes what the modal shows — `add_member()` still rejects a duplicate seat with `already_in_bundle`.
+- Return values other than `'eligible'`/`'in_bundle'`/`'not_eligible'` are ignored and the default is kept.
+- Runs once per tier row, so callbacks making remote calls (e.g. `wicket_get_person_by_id()`) should cache per `$person_uuid`.
 
 ```php
 [
@@ -267,6 +286,8 @@ For `mode = "new"`: resolves a WP user from `person_uuid` before delegating to `
 
 - **Normal mode:** calls `wicket_create_wp_user_if_not_exist()` — creates the WP user from MDP if not already present.
 - **Bypass mode (`BYPASS_WICKET`):** calls `get_user_by( 'login', $person_uuid )` only — no MDP API call. Returns `user_resolve_failed` error if the user does not already exist locally.
+
+**Duplicate-seat guard (both modes).** After the tier-eligibility gate and before any user creation, `find_active_bundled_membership_for_person_and_tier()` (the same check that produces the `in_bundle` badge) is run for the person + tier. If the person already holds this tier's seat in *any* active bundle, the request is rejected with code `already_in_bundle`. The person is taken from `person_uuid` in `new` mode, and from the existing membership's `membership_user_uuid` meta in `existing` mode (the request value is not trusted there). This is the server-side guarantee behind the `in_bundle` lock in the modal, which is otherwise UI-only and filterable.
 
 Returns `['success' => '...', 'membership_post_id' => int]` on success or `['error' => '...', 'code' => '...']` on failure. All model `WP_Error` values are mapped to the error-array shape so callers never receive a `WP_Error` directly.
 

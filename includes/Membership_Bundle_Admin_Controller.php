@@ -932,15 +932,16 @@ class Membership_Bundle_Admin_Controller {
    *                                         bundle whose own status is
    *                                         'active' — this bundle, or any
    *                                         other one.
-   *                        'eligible'     — the person's MDP person record
-   *                                         has status=good_standing AND
-   *                                         they hold an active individual
-   *                                         membership for this tier
-   *                                         (not already claimed by the
-   *                                         in_bundle check above) — that
-   *                                         membership is what gets pulled
-   *                                         in on confirm.
+   *                        'eligible'     — the person holds an active
+   *                                         individual membership for this
+   *                                         tier (not already claimed by
+   *                                         the in_bundle check above) —
+   *                                         that membership is what gets
+   *                                         pulled in on confirm.
    *                        'not_eligible' — neither of the above.
+   *    Any of these can be overridden per site via the
+   *    `wicket_mship_bundle_tier_eligibility_status` filter; add_member()
+   *    still rejects a duplicate seat regardless ('already_in_bundle').
    *  - membership_status/starts_at/ends_at: taken from whichever membership
    *    record backs the eligibility_status above (the in-bundle one, or the
    *    person's active membership for the tier); null when no such record
@@ -1048,18 +1049,12 @@ class Membership_Bundle_Admin_Controller {
     // every tier keeps its plain { id, name, products } shape and the
     // frontend simply doesn't render eligibility badges/dates.
     if ( '' !== $person_uuid ) {
-      // MDP person status is fetched once, up front — it gates 'eligible'
-      // the same way for every tier, so there's no reason to re-fetch it
-      // per row. Missing status/lookup failure is treated as not in good
-      // standing (fail closed — see eligibility rules above).
-      $person_in_good_standing = false;
-      if ( function_exists( 'wicket_get_person_by_id' ) ) {
-        $person = wicket_get_person_by_id( $person_uuid );
-
-        if ( $person ) {
-          $person_in_good_standing = 'good_standing' === $person->getAttribute( 'status' );
-        }
-      }
+      // Resolved once so the eligibility filter below can receive a WP user
+      // ID without every callback repeating the lookup. 0 when the person
+      // has no local WP user yet (e.g. never logged in) — callbacks must
+      // handle that rather than assume a user exists.
+      $local_user = get_user_by( 'login', $person_uuid );
+      $user_id    = $local_user ? (int) $local_user->ID : 0;
 
       foreach ( $tiers as &$tier_row ) {
         $tier      = new Membership_Tier( $tier_row['id'] );
@@ -1074,7 +1069,7 @@ class Membership_Bundle_Admin_Controller {
 
         if ( $in_bundle_post ) {
           $tier_row['eligibility_status'] = 'in_bundle';
-        } elseif ( $active_post && $person_in_good_standing ) {
+        } elseif ( $active_post ) {
           $tier_row['eligibility_status'] = 'eligible';
         } else {
           $tier_row['eligibility_status'] = 'not_eligible';
@@ -1091,6 +1086,28 @@ class Membership_Bundle_Admin_Controller {
           : null;
         $tier_row['starts_at']               = $active_post ? get_post_meta( $active_post->ID, 'membership_starts_at', true ) : null;
         $tier_row['ends_at']                 = $active_post ? get_post_meta( $active_post->ID, 'membership_ends_at', true ) : null;
+
+        // Instance-specific eligibility rules (e.g. requiring an MDP person
+        // status such as good standing) belong in the site's theme/plugin,
+        // not here. Applied after the row is fully built so callbacks see
+        // the membership status/dates. Safe to apply to every status,
+        // including 'in_bundle': add_member() independently rejects a
+        // duplicate seat ('already_in_bundle'), so a filter can only change
+        // what the modal shows, not create a second seat. Unknown return
+        // values are discarded (fall back to the default).
+        $filtered_status = apply_filters(
+          'wicket_mship_bundle_tier_eligibility_status',
+          $tier_row['eligibility_status'],
+          $tier_row,
+          $person_uuid,
+          $user_id,
+          $bundle_post_id,
+          $active_post
+        );
+
+        if ( in_array( $filtered_status, [ 'eligible', 'in_bundle', 'not_eligible' ], true ) ) {
+          $tier_row['eligibility_status'] = $filtered_status;
+        }
       }
       unset( $tier_row );
     }
@@ -1244,6 +1261,26 @@ class Membership_Bundle_Admin_Controller {
         'error'               => self::build_tier_not_eligible_message( $eligible_tier_names ),
         'code'                => 'tier_not_eligible',
         'eligible_tier_names' => $eligible_tier_names,
+      ];
+    }
+
+    // The add-member modal's 'in_bundle' lock is UI-only and its status can be
+    // overridden via the wicket_mship_bundle_tier_eligibility_status filter,
+    // so the server is the only real guard against a duplicate seat. Uses the
+    // same cross-bundle check as get_eligible_tiers_for_bundle() so the UI
+    // badge and this rejection can never disagree. In existing mode the
+    // person is read from the membership being pulled in, not trusted from
+    // the request.
+    $seat_person_uuid = $mode === 'existing' && $existing_membership_post_id
+      ? (string) get_post_meta( $existing_membership_post_id, 'membership_user_uuid', true )
+      : sanitize_text_field( $params['person_uuid'] ?? '' );
+    $seat_tier_uuid   = $tier_post_id > 0 ? ( new Membership_Tier( $tier_post_id ) )->get_mdp_tier_uuid() : '';
+
+    if ( '' !== $seat_person_uuid && ! empty( $seat_tier_uuid )
+      && self::find_active_bundled_membership_for_person_and_tier( $seat_person_uuid, $seat_tier_uuid ) ) {
+      return [
+        'error' => 'This person already holds a seat for this tier in an active membership bundle.',
+        'code'  => 'already_in_bundle',
       ];
     }
 

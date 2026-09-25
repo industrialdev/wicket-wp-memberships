@@ -26,6 +26,10 @@ The account-center bundle detail screen (`templates/account-membership-bundles/d
 Once a person is selected in the results step, the tier list is re-fetched with that person's `person_uuid`, and each row renders an eligibility badge (Eligible / In Bundle / Not Eligible), a membership-status badge, and a date range — see [List eligible tiers](../endpoints/bundle-members.md#list-eligible-tiers-member-scoped) for the eligibility rules. Only `eligible` rows are selectable; `in_bundle` rows show checked-and-locked, `not_eligible` rows show unchecked-and-locked.
 :::
 
+::: warning One seat per person per tier
+In both modes, the add is rejected with `already_in_bundle` if the person already holds a seat for the tier in any active bundle. This server-side check backs the modal's In Bundle lock, which sites can change with the `wicket_mship_bundle_tier_eligibility_status` filter.
+:::
+
 ### Mode: `new`
 
 Creates a fresh individual membership and links it to the bundle. You must supply the MDP person UUID and the `Membership_Tier` post ID. The tier determines what type of seat is being added and which WooCommerce product covers it.
