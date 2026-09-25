@@ -549,18 +549,19 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
      * Add an individual membership to a bundle (member-scoped).
      *
      * POST /wicket_member/v1/bundle/{bundle_post_id}/add_member/mine
-     * Body: { mode, tier_post_id, person_uuid|existing_membership_post_id, product_id? }
+     * Body: { mode: "new", tier_post_id, person_uuid, product_id?, variation_id? }
      *
      * Member-scoped counterpart to /bundle/{bundle_post_id}/add_member: gated
      * by permissions_check_bundle_org_member instead of the staff-only
-     * capability check. Reuses add_member_to_bundle() and
-     * Membership_Bundle_Admin_Controller::add_member() as-is — no new
-     * business logic, only the permission layer differs.
+     * capability check, and limited to mode "new". "existing" mode cancels
+     * an arbitrary membership post by ID, and nothing on this route ties that
+     * post to the caller's org — so it stays staff-only. The account-center
+     * modal only ever sends "new".
      */
     register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/add_member/mine', [
       [
         'methods'             => \WP_REST_Server::CREATABLE,
-        'callback'            => [ $this, 'add_member_to_bundle' ],
+        'callback'            => [ $this, 'add_member_to_bundle_mine' ],
         'permission_callback' => [ $this, 'permissions_check_bundle_org_member' ],
         'args'                => [
           'bundle_post_id' => [
@@ -569,8 +570,10 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
             'description' => 'Post ID of the membership bundle.',
           ],
           'mode' => [
+            'required'    => true,
             'type'        => 'string',
-            'description' => '"new" to create a fresh membership, "existing" to cancel an existing membership and create a new one.',
+            'enum'        => [ 'new' ],
+            'description' => 'Must be "new". "existing" is only available on the staff route.',
           ],
           'tier_post_id' => [
             'required'    => true,
@@ -578,12 +581,9 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
             'description' => 'Post ID of the individual Membership_Tier CPT.',
           ],
           'person_uuid' => [
+            'required'    => true,
             'type'        => 'string',
-            'description' => 'MDP person UUID. Required when mode = "new".',
-          ],
-          'existing_membership_post_id' => [
-            'type'        => 'integer',
-            'description' => 'Existing wicket_membership post ID to cancel. Required when mode = "existing".',
+            'description' => 'MDP person UUID.',
           ],
           'product_id' => [
             'type'        => 'integer',
@@ -1166,6 +1166,25 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     }
 
     return new WP_REST_Response( $result, 200 );
+  }
+
+  /**
+   * POST /bundle/{bundle_post_id}/add_member/mine
+   *
+   * Member-scoped wrapper around add_member_to_bundle(). The route schema
+   * already pins mode to "new"; this re-checks it and strips
+   * existing_membership_post_id, because get_params() still carries
+   * unregistered body keys and Membership_Bundle::add_member() takes the
+   * cancel-and-replace path whenever that ID is present, whatever the mode.
+   */
+  public function add_member_to_bundle_mine( \WP_REST_Request $request ) {
+    if ( 'new' !== sanitize_text_field( (string) $request->get_param( 'mode' ) ) ) {
+      return new WP_REST_Response( [ 'error' => 'mode must be "new".', 'code' => 'invalid_mode' ], 400 );
+    }
+
+    $request->set_param( 'existing_membership_post_id', null );
+
+    return $this->add_member_to_bundle( $request );
   }
 
   /**

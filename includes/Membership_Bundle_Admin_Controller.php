@@ -1185,7 +1185,9 @@ class Membership_Bundle_Admin_Controller {
    * @param array $params {
    *   @type int    $bundle_post_id               Post ID of the Membership_Bundle.
    *   @type string $mode                        'new' or 'existing'.
-   *   @type int    $tier_post_id                Post ID of the individual Membership_Tier.
+   *   @type int    $tier_post_id                Post ID of the individual Membership_Tier. In 'existing' mode
+   *                                             the existing membership's stored tier wins; a
+   *                                             differing value is rejected with code 'tier_mismatch'.
    *   @type string $person_uuid                 MDP person UUID. Required when mode = 'new'.
    *   @type int    $existing_membership_post_id Existing membership post ID to cancel. Required when mode = 'existing'.
    *   @type int    $product_id                  Optional WC product ID. Auto-resolved from tier when omitted.
@@ -1198,11 +1200,38 @@ class Membership_Bundle_Admin_Controller {
     $tier_post_id                = (int) ( $params['tier_post_id'] ?? 0 );
     $product_id                  = ! empty( $params['product_id'] ) ? (int) $params['product_id'] : null;
     $variation_id                = ! empty( $params['variation_id'] ) ? (int) $params['variation_id'] : null;
-    $existing_membership_post_id = ! empty( $params['existing_membership_post_id'] ) ? (int) $params['existing_membership_post_id'] : null;
+    // Only honour existing_membership_post_id in 'existing' mode:
+    // Membership_Bundle::add_member() cancels that membership whenever the ID
+    // is non-null, so a stray value on a 'new' request must not reach it.
+    $existing_membership_post_id = ( $mode === 'existing' && ! empty( $params['existing_membership_post_id'] ) )
+      ? (int) $params['existing_membership_post_id']
+      : null;
 
     $bundle = new Membership_Bundle( $bundle_post_id );
     if ( $bundle->post_id <= 0 ) {
       return [ 'error' => 'Membership bundle not found.', 'code' => 'bundle_not_found' ];
+    }
+
+    // In existing mode the membership being pulled in already has a tier, and
+    // Membership_Bundle::add_member() re-provisions it at whatever
+    // tier_post_id it is handed. Trusting the caller's value would let a
+    // crafted request both slip past the eligibility gate below (send an
+    // eligible tier for an ineligible membership) and silently change the
+    // member's tier. The stored tier is authoritative: fill it in when the
+    // caller omits it, reject a mismatch outright. Legacy records with no
+    // stored tier fall back to the caller's value, as before.
+    if ( $mode === 'existing' && $existing_membership_post_id ) {
+      $stored_tier_post_id = (int) get_post_meta( $existing_membership_post_id, 'membership_tier_post_id', true );
+
+      if ( $stored_tier_post_id > 0 ) {
+        if ( $tier_post_id > 0 && $tier_post_id !== $stored_tier_post_id ) {
+          return [
+            'error' => 'tier_post_id does not match the tier of the existing membership.',
+            'code'  => 'tier_mismatch',
+          ];
+        }
+        $tier_post_id = $stored_tier_post_id;
+      }
     }
 
     // Gate both 'new' and 'existing' modes against the bundle config's eligible
