@@ -58,7 +58,7 @@
   .select__value-container {
     padding: 0 8px;
   }
-`,Wo=($b(zo).attrs({...to,isMulti:!0})`
+`,Wo=($b(zo).attrs({...to,isMulti:!0,menuPlacement:"auto"})`
   .select__input-container {
     margin: 0;
     padding: 0;

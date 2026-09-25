@@ -141,6 +141,7 @@ export const SelectWpStyled = styled(Select).attrs(selectPortalProps)`
 export const MultiSelectWpStyled = styled(Select).attrs({
   ...selectPortalProps,
   isMulti: true,
+  menuPlacement: "auto",
 })`
   .select__input-container {
     margin: 0;
