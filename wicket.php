@@ -428,6 +428,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 	// the class autoloads via the composer PSR-4 map (Wicket_Memberships\ => includes/).
 	if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		\WP_CLI::add_command( 'wicket-mship tier', \Wicket_Memberships\CLI\Tier_Sync_Command::class );
+		\WP_CLI::add_command( 'wicket-mship external-id', \Wicket_Memberships\CLI\External_Id_Repair_Command::class );
 	}
 }
 

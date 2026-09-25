@@ -1368,6 +1368,31 @@ function get_item_data ( $other_data, $cart_item ) {
     $logger = wc_get_logger();
     $log_context = [ 'source' => 'wicket-memberships' ];
 
+    // Opt-out for environments whose post IDs must not claim external_id values
+    // in a SHARED MDP tenant (QA/staging clones). external_id is the WP post ID,
+    // unique per install but not per tenant, so two sites pointing at one MDP
+    // tenant steal each other's IDs (WWID-2629: a QA run blocked 35 OBA staging
+    // PATCHes). Returns false WITHOUT flagging the post — this is policy, not a
+    // broken state.
+    // Fully qualified on purpose: unit tests patch the GLOBAL apply_filters
+    // (Brain Monkey), while the Wicket_Memberships\-namespaced fallback stub in
+    // the QA harness would shadow an unqualified call. In production both
+    // resolve to WordPress's apply_filters.
+    if ( \apply_filters( 'wicket_skip_membership_external_id_assignment', false, $membership_wicket_uuid, $wicket_membership_type, $membership_post_id ) ) {
+      // Warning, not info: a skip firing on PRODUCTION by misconfiguration
+      // (shared mu-plugin, wrong environment check) must be scannable in wc-logs.
+      $logger->warning(
+        sprintf(
+          'Membership external_id assignment skipped by wicket_skip_membership_external_id_assignment filter for WP post %1$s (target %2$s/%3$s).',
+          $membership_post_id,
+          $wicket_membership_type,
+          $membership_wicket_uuid
+        ),
+        $log_context
+      );
+      return false;
+    }
+
     // Pre-flight: detect an external_id already owned by a different membership.
     // The helper ships in wicket-wp-base-plugin; guard with function_exists so
     // this plugin stays safe if a site runs an older base plugin.
@@ -1386,6 +1411,10 @@ function get_item_data ( $other_data, $cart_item ) {
           ),
           $log_context
         );
+        // The two flags are mutually exclusive and describe the LATEST
+        // attempt: repair_membership_external_id() classifies by re-reading
+        // them, so a stale flag from an older run must not survive.
+        delete_post_meta( $membership_post_id, '_wicket_membership_external_id_failed' );
         update_post_meta( $membership_post_id, '_wicket_membership_external_id_collision', [
           'external_id' => $membership_post_id,
           'type'        => $wicket_membership_type,
@@ -1413,6 +1442,9 @@ function get_item_data ( $other_data, $cart_item ) {
         ),
         $log_context
       );
+      // Mirror of the collision branch: clear the opposite flag so the meta
+      // pair always describes this attempt only.
+      delete_post_meta( $membership_post_id, '_wicket_membership_external_id_collision' );
       update_post_meta( $membership_post_id, '_wicket_membership_external_id_failed', [
         'external_id' => $membership_post_id,
         'type'        => $wicket_membership_type,
@@ -1423,10 +1455,78 @@ function get_item_data ( $other_data, $cart_item ) {
       return false;
     }
 
-    // Success: clear stale flags from a prior failed attempt.
+    // Success: clear both flags from any prior attempt.
     delete_post_meta( $membership_post_id, '_wicket_membership_external_id_failed' );
     delete_post_meta( $membership_post_id, '_wicket_membership_external_id_collision' );
     return true;
+  }
+
+  /**
+   * Re-attempt external_id assignment for a membership post left unlinked by a
+   * prior collision or PATCH failure (WWID-2629).
+   *
+   * A collision means a foreign MDP membership owned the post ID when the row
+   * was created — commonly a QA install claiming the same post IDs in a shared
+   * MDP staging tenant. Once the squatter's external_id is cleared, re-running
+   * this heals the post: the PATCH succeeds and both flags are deleted by
+   * assign_membership_external_id(). A still-present squatter reports as
+   * 'blocked' with the owning record; nothing is written in that case.
+   *
+   * Read-only wrt MDP except the standard external_id PATCH on our OWN target
+   * membership; the MDP-side squatter cleanup is a human decision, not ours.
+   *
+   * @param int $membership_post_id WP membership post ID.
+   * @return array{status: string, reason?: string, owner?: string, error?: string, type?: string}
+   *   status: reassigned|blocked|failed|invalid.
+   */
+  public function repair_membership_external_id( $membership_post_id ) {
+    $membership_post_id = (int) $membership_post_id;
+    $post = get_post( $membership_post_id );
+
+    // Duck-typed on post_type rather than instanceof WP_Post: unit tests stub
+    // get_post() with plain objects, and only post_type matters here.
+    if ( ! is_object( $post ) || ( $post->post_type ?? '' ) !== $this->membership_cpt_slug ) {
+      return [ 'status' => 'invalid', 'reason' => 'not a membership post' ];
+    }
+
+    $membership_wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
+    if ( empty( $membership_wicket_uuid ) ) {
+      return [ 'status' => 'invalid', 'reason' => 'post has no MDP membership uuid (membership_wicket_uuid meta)' ];
+    }
+
+    $wicket_membership_type = get_post_meta( $membership_post_id, 'wicket_membership_type', true );
+    if ( empty( $wicket_membership_type ) ) {
+      // Match create_local_membership_record(): the meta is the source of truth
+      // for the MDP membership type; older rows default to person_memberships.
+      $wicket_membership_type = 'person_memberships';
+    }
+
+    $assigned = $this->assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post_id );
+
+    if ( $assigned ) {
+      return [ 'status' => 'reassigned', 'type' => $wicket_membership_type ];
+    }
+
+    // False without a flag means the skip filter (policy) declined the run.
+    $collision = get_post_meta( $membership_post_id, '_wicket_membership_external_id_collision', true );
+    if ( ! empty( $collision['owner'] ) ) {
+      return [
+        'status' => 'blocked',
+        'owner'  => (string) $collision['owner'],
+        'type'   => $wicket_membership_type,
+      ];
+    }
+
+    $failed = get_post_meta( $membership_post_id, '_wicket_membership_external_id_failed', true );
+    if ( ! empty( $failed['error'] ) ) {
+      return [
+        'status' => 'failed',
+        'error'  => (string) $failed['error'],
+        'type'   => $wicket_membership_type,
+      ];
+    }
+
+    return [ 'status' => 'blocked', 'reason' => 'skipped by wicket_skip_membership_external_id_assignment filter', 'type' => $wicket_membership_type ];
   }
 
   /**
