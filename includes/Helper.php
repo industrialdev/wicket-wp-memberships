@@ -178,8 +178,21 @@ class Helper {
     return 'wicket_mship_tier';
   }
 
+  /**
+   * Whether the post ID is a published membership post.
+   *
+   * Checks the post type as well as the status: without the type check any
+   * published post of any type validated, despite the guard's name.
+   *
+   * @param int|string $membership_post_id Post ID to validate.
+   * @return bool True when the post exists, is the membership CPT, and is published.
+   */
   public static function is_valid_membership_post( $membership_post_id ) {
-    return ( !empty( get_post_status( $membership_post_id ) ) && get_post_status( $membership_post_id ) == 'publish' );
+    $post = get_post( $membership_post_id );
+
+    return ( $post !== null
+      && $post->post_type === self::get_membership_cpt_slug()
+      && $post->post_status === 'publish' );
   }
 
   public static function get_all_status_names() {
@@ -256,7 +269,10 @@ class Helper {
         ],
       ];
     } else {
-      return new \StdClass();
+      // Terminal and unknown statuses have no forward transitions. Return an
+      // array like every other branch: a StdClass here fataled array
+      // consumers (foreach, array keys) downstream.
+      return [];
     }
   }
 
@@ -275,7 +291,9 @@ class Helper {
     } else {
       $membership_array = $membership_json;
     }
-    if($dir = 'post') {
+    // Comparison, not assignment: this used to be if($dir = 'post'), which
+    // always took the post-mapping branch and made 'order' unreachable.
+    if($dir === 'post') {
       $mapping_keys = [
         'membership_wp_user_display_name' => 'user_name',
         'membership_wp_user_email' => 'user_email',
