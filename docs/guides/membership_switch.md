@@ -34,7 +34,10 @@ When it finishes, the page opens the new membership so you can confirm everythin
   - uses the member's saved payment method and automatic-renewal setting;
   - bills next when the member's next payment is due, at the **new tier's price**;
   - keeps the old subscription's status if it was **on hold** or **pending cancellation**.
+- Any **unpaid renewal invoice** on the old subscription is cancelled, so the member can't pay for the tier they left.
+- If the old subscription also pays for **another membership**, it isn't cancelled. Only the switched membership is removed from it, and from any unpaid renewal invoice, so the other membership keeps billing.
 - The member keeps the time they have already paid for. There is no refund or extra charge for the switch.
+- If you switch with **Create Order** instead, the same happens to the old subscription once the member pays the order. The order's subscription becomes their billing for the new tier.
 
 ## Tips and Warnings
 
@@ -44,3 +47,4 @@ When it finishes, the page opens the new membership so you can confirm everythin
 - If the switch stops with a message that the tier has **no subscription product**, link a subscription product to that tier first. Members who pay through a subscription can only switch to a tier the new subscription can bill for.
 - Cancelling the old subscription sends the usual cancellation email to your store admin, and any automated "subscription cancelled" emails you have set up for members.
 - If the **Manage Membership** button will not open, check that the membership is active and has already started.
+- If a paid switch order shows a note that the **membership switch failed**, the member has paid but has no new membership. Check the order and its subscription before taking further action.

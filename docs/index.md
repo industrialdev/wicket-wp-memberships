@@ -16,7 +16,7 @@ audience: [implementer, support, developer, end-user]
 
 ### Features
 - [Membership Transfer — Engineering Reference](engineering/membership_transfer.md) — Move an individual membership's term to a different owner; new record minted, order stays with the payer
-- [Membership Switch — Engineering Reference](engineering/membership_switch.md) — Switch a membership to a different tier; preserves end date, replaces the member's subscription, re-keys the scheduler events
+- [Membership Switch — Engineering Reference](engineering/membership_switch.md) — Switch a membership to a different tier; preserves end date, replaces or retires the member's subscription, re-keys the scheduler events
 
 ### Tools
 - [Subscription Sync Tool — Engineering Reference](engineering/memberships_sync.md) — How `custom/memberships-sync.php` links subscriptions to memberships and syncs per-seat MDP seat counts

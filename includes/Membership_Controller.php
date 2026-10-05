@@ -384,7 +384,9 @@ function get_item_data ( $other_data, $cart_item ) {
    * Walks every subscription line on the order and resolves each product to its membership tier.
    * A line carrying `_membership_post_id_switch` is diverted to the order-based tier switch (subject
    * to should_trigger_order_switch()) and never enters the normal creation pipeline; every other line
-   * is turned into the membership payload the caller creates records from.
+   * is turned into the membership payload the caller creates records from. A failed switch is logged
+   * and noted on the order and its subscription. When a switch order is re-cycled, its line is skipped:
+   * the switch already created the membership.
    *
    * @param  \WC_Abstract_Order $order  The paid order being processed.
    *
@@ -436,12 +438,32 @@ function get_item_data ( $other_data, $cart_item ) {
                 if ( $this->should_trigger_order_switch( $membership_post_id_switch, $membership_tier->get_tier_type(), $switch_membership_status, $switch_membership_type, $order_owns_membership ) ) {
                   // Same method the admin REST switch calls; pass the paying order id for §9.5 linkage
                   // + §9.9 meta hand-off. Instance call — the method is non-static (design delta D1).
-                  ( new Admin_Controller() )->create_switch_membership(
+                  $switch_response = ( new Admin_Controller() )->create_switch_membership(
                     $membership_post_id_switch,
                     $membership_tier->get_membership_tier_post_id(),
                     null,
                     $order_id
                   );
+                  // A failed switch leaves a paid order and an active subscription with no membership
+                  // attached; surface it in the log and on both records so an admin can resolve it.
+                  $switch_data = $switch_response instanceof \WP_REST_Response ? $switch_response->get_data() : [];
+                  if ( empty( $switch_data['success'] ) ) {
+                    Utilities::wc_log_mship_error( [ 'Order-based switch failed: paid order and subscription have no membership', [
+                      'order_id'        => $order_id,
+                      'subscription_id' => $subscription_id,
+                      'switch_post_id'  => $membership_post_id_switch,
+                      'error'           => $switch_data['error'] ?? '',
+                      'wicket_api_error'=> $switch_data['wicket_api_error'] ?? '',
+                    ] ] );
+                    $switch_failure_note = sprintf(
+                      /* translators: 1: membership post ID being switched, 2: error message. */
+                      __( 'Membership switch failed for membership #%1$d: %2$s The order is paid but no new membership was created. Review this order and its subscription.', 'wicket-memberships' ),
+                      (int) $membership_post_id_switch,
+                      $switch_data['error'] ?? ''
+                    );
+                    $order->add_order_note( $switch_failure_note );
+                    $subscription->add_order_note( $switch_failure_note );
+                  }
                 } else {
                   // Guard failed (owner mismatch, cross-family/non-tier target, non-switchable status,
                   // or already switched): log and skip, never fall through to build a normal/renewal
@@ -490,6 +512,15 @@ function get_item_data ( $other_data, $cart_item ) {
                 $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $membership_user_id );
                 Utilities::wc_log_mship_error( ['processing order - membership_current object from user meta ', $membership_current]);
                 if(/*empty($membership_current['membership_parent_order_id']) ||*/ $membership_current['membership_parent_order_id'] == $order_id) {
+                  // A switch order re-cycled: the switch already created this membership with inherited
+                  // dates, which the status-cycle rebuild below would not match, creating a duplicate.
+                  if ( self::order_is_switch_order( $order ) ) {
+                    Utilities::wc_log_mship_error( [ 'Switch order status re-cycled; membership already created, skipping', [
+                      'order_id'           => $order_id,
+                      'membership_post_id' => $membership_post_id_renew,
+                    ] ] );
+                    continue;
+                  }
                   //this is just an order having their status cycled so we should not create a renewal order on it BUT because
                   //we are storing the current renewal id on the current subscription item we need to prevent it processing a renewal
                   unset($membership_post_id_renew);
@@ -592,6 +623,30 @@ function get_item_data ( $other_data, $cart_item ) {
         }
       }
       return $memberships;
+  }
+
+  /**
+   * Whether an order paid for a tier switch.
+   *
+   * The switch order's own line items keep `_membership_post_id_switch` as a permanent record (only the
+   * subscription's lines are handed off to `_membership_post_id_renew`), and renewal orders copy the
+   * subscription's lines, so only the original switch order carries it.
+   *
+   * @since 1.0.123
+   *
+   * @param  \WC_Abstract_Order $order  The order being processed.
+   *
+   * @return bool  True when any line item carries the switch marker.
+   *
+   * @see Admin_Controller::handoff_switch_meta_to_renewal()
+   */
+  private static function order_is_switch_order( $order ) {
+    foreach ( $order->get_items() as $item_id => $item ) {
+      if ( wc_get_order_item_meta( $item_id, '_membership_post_id_switch', true ) ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

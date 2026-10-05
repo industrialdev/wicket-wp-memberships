@@ -56,7 +56,7 @@ Behaviour:
 ## Switch Flow (`create_switch_membership`)
 
 1. **Validate & resolve dates** — resolve `$switch_iso_date` (immediate = `Utilities::get_mdp_now()`; the method also accepts an optional future `$switch_date`, though the REST layer never passes one). Load user (owner UUID = `user_login`), target `Membership_Tier`, its `Membership_Config`, and type. New start = switch date; **new end = the preserved old `membership_ends_at`**; grace = target config's `get_late_fee_window_days()`.
-2. **Resolve the replacement subscription** (only when the member has a live one — see [Subscription Replacement](#subscription-replacement)). If the target tier has no subscription product, return `400` before anything is created.
+2. **Resolve the old subscription** — the member's live subscription for the switched membership, if any. Admin path: also resolve the replacement product; none → `400` before anything is created (see [Subscriptions](#subscriptions)).
 3. **Capture old MDP identity before mutation** — `membership_wicket_uuid`, `membership_starts_at`, `membership_expires_at`, `membership_parent_order_id`, `membership_product_id`.
 4. **Create new MDP membership:**
    - **Organization** → `wicket_assign_organization_membership()`, passing seats, grace, and the **old UUID as `previous_membership_uuid`** (triggers `copy_previous_assignments` so seat assignments carry forward). `grant_owner_assignment` follows the **new** tier's setting (base > 2.0.108).
@@ -64,37 +64,70 @@ Behaviour:
    - `WP_Error` → abort `400` with payload.
 5. **Create new WP post** — clone type/title/status/content (author 0), **copy all post meta**, then overwrite tier-identity meta (`membership_tier_post_id`, `membership_tier_uuid`, `membership_tier_name`, `membership_next_tier_*`, `membership_type`, `membership_wicket_uuid`, `membership_starts_at`, `membership_grace_period_days`).
 6. **Recompute expiry** — `derive_switch_expiry(new ends_at, grace)` → new `membership_expires_at`. End date is inherited unchanged; only the expiry can shift because the target tier may carry a different grace period.
-7. **Replace the subscription** — create the new subscription and point the new membership's `membership_subscription_id` / `membership_product_id` at it (see [Subscription Replacement](#subscription-replacement)).
+7. **New subscription** — admin path: create the replacement and point the new membership's `membership_subscription_id` / `membership_product_id` at it. Order path: re-point the new membership at the paying order, its subscription and product, and hand the subscription line off from switch to renewal (see [Subscriptions](#subscriptions)).
 8. **Re-key the scheduled events** (see [Advanced Scheduler Date Handling](#advanced-scheduler-date-handling)).
 9. **Cancel old post** — `membership_status = STATUS_CANCELLED`, `membership_ends_at`/`membership_expires_at` = switch date, `membership_grace_period_days = 0`.
 10. **MDP sync of cancelled membership** — org → `wicket_update_organization_membership_dates(old_uuid, old_start, switch_date, false, 0)`; individual → `wicket_update_individual_membership_dates(old_uuid, old_start, switch_date, 0)`. Failure is logged via `Utilities::wc_log_mship_error()` and **does not block** the switch.
-11. **Complete the subscription replacement** — align dates, match status, write membership records, cancel the old subscription (see below).
+11. **Complete subscriptions** — align dates, match status (admin only), write membership records, retire the old subscription (see [Subscriptions](#subscriptions)).
 12. **Return** — `success`, `membership_wicket_uuid`, and a `redirect_url` to the org or individual member edit screen.
 
 ### `derive_switch_expiry($end_date_iso, $grace_days)` (`:1423`)
 
 Pure helper mirroring `Membership_Config::get_membership_dates()`: expiry = end date + grace days, snapped to end-of-day in the MDP timezone. Grace `<= 0` returns the end date unchanged. Kept separate so the offset math is testable independently.
 
-## Subscription Replacement
+## Subscriptions
 
-Admin immediate switch only (`$order_id` null). Runs when the old membership's `membership_subscription_id` resolves to a subscription that is `active`, `on-hold` or `pending-cancel` (`get_switch_replaceable_subscription()`). Otherwise the membership switches as before and keeps the inherited subscription link.
+Both triggers end with the same subscription handling. They differ only in where the new subscription comes from.
+
+| Trigger | New subscription | Key order (events + order record) | Status |
+|---|---|---|---|
+| Admin **Create Membership** (`$order_id` null) | Replacement created by the switch (below) | Original `membership_parent_order_id` (no new order) | Takes the old subscription's `on-hold` / `pending-cancel` status |
+| Order-based (admin **Create Order**, self-serve) | The paying order's subscription (`get_order_switch_linkage()`) | The paying order | Kept as WooCommerce set it — a paid switch order is a fresh decision |
+
+The "old subscription" is the switched membership's `membership_subscription_id`, when it is `active`, `on-hold` or `pending-cancel` (`get_switch_replaceable_subscription()`).
+
+### Replacement subscription (admin Create Membership only)
 
 | Step | Method | What it does |
 |---|---|---|
 | Product | `resolve_switch_target_product()` | Picks the target tier product/variation whose billing period and interval match the old subscription; falls back to the tier's first subscription product. None → switch returns `400` before the MDP call. |
-| Create | `create_switch_replacement_subscription()` | `wcs_create_subscription()` for the same customer, **no parent order**, billing from the product. Copies addresses (`wcs_copy_order_address()`), payment method **with gateway meta** (`set_payment_method( $method, $old->get_payment_method_meta() )`) and the old autopay setting (`set_requires_manual_renewal()`). Adds the product (quantity = carried-forward `org_seats` for per-seat org tiers, else 1), sets `_membership_post_id_renew` = new post (and `_org_uuid` for org) on the line, activates it, and carries over the old next payment date. Any failure deletes the partial subscription, logs, and the switch continues with the inherited subscription. |
+| Create | `create_switch_replacement_subscription()` | `wcs_create_subscription()` for the same customer, **no parent order**, billing from the product. Copies addresses (`wcs_copy_order_address()`), payment method **with gateway meta** (`set_payment_method( $method, $old->get_payment_method_meta() )`) and the old autopay setting (`set_requires_manual_renewal()`). Adds the product (quantity = carried-forward `org_seats` for per-seat org tiers, else 1), sets `_membership_post_id_renew` = new post (and `_org_uuid` for org) on the line, activates it, and carries over the old next payment date. Any failure deletes the partial subscription, logs, notes the old subscription, and the switch continues with the inherited subscription. |
 | Link | `create_switch_membership()` | New membership `membership_subscription_id` = new subscription, `membership_product_id` = new product. `membership_parent_order_id` is unchanged. |
-| Complete | `complete_switch_replacement_subscription()` | Aligns dates with `Membership_Controller::update_membership_subscription()` using the same flags as a new purchase. Gives the new subscription the old one's status when that was `on-hold` or `pending-cancel` (pending-cancel: next payment cleared, ends with the paid term). Writes the membership record (`build_switch_membership_record()`) as `_wicket_membership_{product_id}` on the new subscription and the parent order, and as `_wicket_membership_{post_id}` user meta. Marks the old post's user-meta record `cancelled`. **Cancels the old subscription last**; any earlier failure is logged and leaves it live. |
 
-Notes are added to both subscriptions linking each other and the new membership. Cancellation emails and AutomateWoo "subscription cancelled" workflows fire as normal.
+Without a live old subscription the admin switch creates no replacement and keeps the inherited link.
+
+### Completion (both triggers) — `complete_switch_subscription()`
+
+Runs after the old membership is cancelled and synced to the MDP.
+
+1. **Dates** — `Membership_Controller::update_membership_subscription()` with the same flags as a new purchase. Annual: next payment = membership end, end = expiry. Monthly subscription renewal: end = membership end; next payment untouched.
+2. **Status** (admin only) — matches the old subscription's `on-hold` / `pending-cancel` (pending-cancel: next payment cleared, ends with the paid term).
+3. **Records** — `build_switch_membership_record()` written as `_wicket_membership_{product_id}` on the new subscription and the key order, and as `_wicket_membership_{post_id}` user meta. The old post's user-meta record is marked `cancelled`.
+4. **Retire the old subscription, last** — `retire_switched_subscription()`, below. Any failure in steps 1–3 is logged, noted on the new subscription, and leaves the old subscription live.
+
+### Retiring the old subscription — `retire_switched_subscription()`
+
+| Old subscription | What happens |
+|---|---|
+| Bills only the switched membership | Unpaid renewal orders (`pending`, `failed`, `on-hold`) are cancelled first — paying one would renew the cancelled membership — then the subscription is cancelled. |
+| Also bills another live membership (`get_other_live_memberships_on_subscription()`: active, grace, delayed or pending, linked by `membership_subscription_id`) | Only the switched membership's line is removed (`find_switched_membership_items()`: `_membership_post_id_renew` = switched post, or an unlinked line on its product/variation), totals recalculated, subscription stays live. The same line is removed from unpaid renewal orders; an order left with no lines is cancelled. Logged and noted for audit. |
+| Shared, but the switched line cannot be identified | Left untouched; logged and noted for an admin to review. |
+
+Any failure is logged and noted on the old subscription. Notes on both subscriptions link each other and the new membership. Cancellation emails and AutomateWoo "subscription cancelled" workflows fire as normal.
+
+### Order-based switch: failures and re-runs
+
+- **Switch fails after payment** (e.g. MDP error) — `Membership_Controller::get_memberships_data_from_subscription_products()` logs it and notes the paid order and its subscription ("Membership switch failed …"): the subscription is active with no membership. The old subscription is left live.
+- **Order has no subscription** — logged; the old subscription is left live.
+- **Switch order re-cycled** (e.g. on-hold → processing) — the line is skipped (`order_is_switch_order()`: the order's own lines keep `_membership_post_id_switch`), so no duplicate membership is created.
 
 ## Advanced Scheduler Date Handling
 
 Lifecycle events (`add_membership_early_renew_at`, `add_membership_ends_at`, `add_membership_expires_at`) are keyed by `membership_parent_order_id` + `membership_product_id`, and find their membership through the `_wicket_membership_{product_id}` JSON on that order (`Membership_Controller::get_membership_array_from_order_and_product_id()`). Keying is defined in `Membership_Controller::scheduler_dates_for_expiry()`, group `wicket-membership-plugin`.
 
-**With a replacement subscription** — `rekey_switch_scheduled_events()`. The product half of the key changes, so all three events move from *parent order + old product* to *parent order + new product*: early-renew and end keep their timestamps; expiry moves to the recomputed expiry (and is created if none was pending). Action Scheduler matches args by their JSON encoding, so the old key is looked up with integer and string IDs; new events use integers, like the order pipeline.
+**When the key changes** — `reschedule_switch_lifecycle_events()`. Admin replacement: *parent order + old product* → *parent order + new product*. Order-based: *old parent order + old product* → *paying order + purchased product*. All pending events under the old key are removed (Action Scheduler matches args by JSON encoding, so integer and string IDs are both cleared), and the three events are scheduled under the new key from the new membership's dates, as integers. A date already passed is scheduled only if its event was still pending under the old key, so a trigger that already fired never fires again.
 
-**Without a replacement subscription** — the key is unchanged, so only the expiry event is re-pointed, and only when the expiry actually moved:
+**Admin switch without a replacement subscription** — the key is unchanged, so only the expiry event is re-pointed, and only when the expiry actually moved:
 
 ```php
 if ( ! empty( $old_membership_parent_order_id ) && ! empty( $old_membership_product_id )
@@ -110,7 +143,7 @@ if ( ! empty( $old_membership_parent_order_id ) && ! empty( $old_membership_prod
 
 ## External Dependencies
 
-`wicket_assign_organization_membership`, `wicket_assign_individual_membership`, `wicket_update_organization_membership_dates`, `wicket_update_individual_membership_dates` (base plugin); `Utilities::get_mdp_now()/get_mdp_day_end()/wc_log_mship_error()`; `Membership_Config::get_late_fee_window_days()`; `Membership_Tier` accessors; `Helper::is_valid_membership_post()/get_post_meta()`; Action Scheduler `as_next_scheduled_action`/`as_unschedule_action`/`as_schedule_single_action`; WooCommerce Subscriptions `wcs_create_subscription`/`wcs_copy_order_address`/`wcs_get_subscription`, `WC_Subscriptions_Product`; `Membership_Controller::update_membership_subscription()`; `Helper::has_next_payment_date()`.
+`wicket_assign_organization_membership`, `wicket_assign_individual_membership`, `wicket_update_organization_membership_dates`, `wicket_update_individual_membership_dates` (base plugin); `Utilities::get_mdp_now()/get_mdp_day_end()/wc_log_mship_error()`; `Membership_Config::get_late_fee_window_days()`; `Membership_Tier` accessors; `Helper::is_valid_membership_post()/get_post_meta()`; Action Scheduler `as_next_scheduled_action`/`as_unschedule_action`/`as_unschedule_all_actions`/`as_schedule_single_action`; WooCommerce Subscriptions `wcs_create_subscription`/`wcs_copy_order_address`/`wcs_get_subscription`, `WC_Subscriptions_Product`; `Membership_Controller::update_membership_subscription()`; `Helper::has_next_payment_date()`.
 
 ## Hooks
 
@@ -120,5 +153,5 @@ The switch method fires no `do_action`/`apply_filters` of its own. Creating, act
 
 - **No server-side active-status/date guard** — the active-and-started check is client-side only. A direct REST switch bypasses it.
 - **No proration** — the member keeps the term already paid at the old tier's price; the new tier's price applies from the next payment.
-- **On-hold renewal orders stay on the old subscription** — an unpaid renewal order belonging to the cancelled subscription is not moved to the replacement.
-- **Without a replacement subscription, expiry re-pointing uses post-meta (string) IDs**, which do not match events the order pipeline scheduled with integer IDs, so the old expiry event may not be moved. Pre-existing; the replacement path handles both.
+- **Admin switch without a replacement subscription: expiry re-pointing uses post-meta (string) IDs**, which do not match events the order pipeline scheduled with integer IDs, so the old expiry event may not be moved. Pre-existing; the replacement path handles both.
+- **Shared-subscription detection relies on `membership_subscription_id`** on the other memberships; memberships imported without that link are not seen, and the subscription would be cancelled.
