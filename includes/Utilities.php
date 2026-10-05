@@ -230,12 +230,21 @@ class Utilities {
     }
     $memberships =  wicket_get_person_memberships( $person_uuid );
 
+    // Shape guard (WWID-2665): the SDK can return junk for non-person and
+    // non-org membership types; never iterate an unvalidated payload.
+    if ( ! is_array( $memberships ) || ! isset( $memberships['data'] ) || ! is_array( $memberships['data'] ) ) {
+      return 'failed';
+    }
+
+    $response = [];
     foreach($memberships['data'] as $membership) {
       $membership_wicket_uuid = $membership['id'];
       if($membership['type'] == 'person_memberships') {
         $response_api = wicket_delete_person_membership( $membership_wicket_uuid );
       } elseif($membership['type'] == 'organization_memberships') {
         $response_api = wicket_delete_organization_membership( $membership_wicket_uuid );
+      } else {
+        continue;
       }
       if(is_wp_error( $response_api )) {
         $response[$membership_wicket_uuid] = $response_api->get_error_message( 'wicket_api_error' );
@@ -966,7 +975,8 @@ function wicket_sub_org_select_callback( $subscription ) {
       add_action('wp', [__NAMESPACE__.'\\Utilities', 'wc_autorenew_toggle_filters']);
       add_action('wp_footer', [__NAMESPACE__.'\\Utilities', 'wicket_wc_enqueue_scripts_autorenew_toggle']);
       add_action('wp_ajax_auto_renew_enabled_for_user', [__NAMESPACE__.'\\Utilities', 'handle_user_auto_renew_toggle']);
-      add_action('wp_ajax_nopriv_auto_renew_enabled_for_user', [__NAMESPACE__.'\\Utilities', 'handle_user_auto_renew_toggle']); // Allow guests if needed
+      // No nopriv registration (WWID-2665): the toggle mutates a user's autopay
+      // flag, so anonymous visitors never get an endpoint.
       add_action('wp_enqueue_scripts', [__NAMESPACE__.'\\Utilities', 'enqueue_mship_ajax_script']);
     }
   }
@@ -1023,7 +1033,8 @@ function wicket_sub_org_select_callback( $subscription ) {
     wp_localize_script('auto_renew_enabled_for_user',
       'wicket_mship_ajax_object',
       ['ajaxurl' => admin_url('admin-ajax.php'),
-      'user_id' => get_current_user_id()
+      'user_id' => get_current_user_id(),
+      'autorenew_nonce' => wp_create_nonce('wicket_mship_autorenew_toggle')
       ]
     );
     ?>
@@ -1101,6 +1112,7 @@ function wicket_sub_org_select_callback( $subscription ) {
                   type: 'POST',
                   data: {
                       action: 'auto_renew_enabled_for_user',
+                      nonce: wicket_mship_ajax_object.autorenew_nonce,
                       user_id: wicket_mship_ajax_object.user_id,
                       <?php
                         if(isset($_REQUEST['subscription_id']) && !empty($_REQUEST['subscription_id'])) {
@@ -1126,10 +1138,19 @@ function wicket_sub_org_select_callback( $subscription ) {
   }
 
   public static function handle_user_auto_renew_toggle() {
+    // WWID-2665 gate: logged-in callers only, valid nonce, and a user may
+    // flip only their own flag unless they hold manage_woocommerce.
+    if (!is_user_logged_in()) {
+        wp_send_json_error(['message' => 'Authentication required.'], 403);
+    }
+    check_ajax_referer('wicket_mship_autorenew_toggle', 'nonce');
     if (!isset($_POST['user_id']) || !isset($_POST['enabled'])) {
         wp_send_json_error(['message' => 'Invalid request.']);
     }
     $user_id = intval($_POST['user_id']);
+    if ($user_id !== get_current_user_id() && !current_user_can('manage_woocommerce')) {
+        wp_send_json_error(['message' => 'You are not allowed to change this setting.'], 403);
+    }
     $enabled = $_POST['enabled'] == 1 ? 'yes' : 'no';
     if( isset($_POST['subscription_id']) ) {
       $subscription_id = $_POST['subscription_id'];
