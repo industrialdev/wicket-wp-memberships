@@ -5,7 +5,7 @@ namespace Wicket_Memberships;
  * Plugin Name: Wicket Memberships
  * Plugin URI: http://wicket.io
  * Description: Wicket memberships addon to provide memberships functionality
- * Version: 1.0.121
+ * Version: 1.0.122
  * Author: Wicket Inc.
  * Author URI: https://wicket.io/
  * Text Domain: wicket-memberships
@@ -433,6 +433,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 	// the class autoloads via the composer PSR-4 map (Wicket_Memberships\ => includes/).
 	if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		\WP_CLI::add_command( 'wicket-mship tier', \Wicket_Memberships\CLI\Tier_Sync_Command::class );
+		\WP_CLI::add_command( 'wicket-mship external-id', \Wicket_Memberships\CLI\External_Id_Repair_Command::class );
 	}
 }
 
