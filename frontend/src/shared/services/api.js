@@ -442,6 +442,24 @@ export const addMemberToBundle = (bundlePostId, data) => {
 };
 
 /**
+ * List a person's active individual memberships whose tier is eligible for
+ * a bundle's config — feeds the bundle-side "Add Member" existing-membership
+ * option.
+ *
+ * GET /wicket_member/v1/bundle/{bundlePostId}/eligible_memberships
+ *
+ * @param {number} bundlePostId
+ * @param {string} personUuid MDP person UUID.
+ */
+export const fetchBundleEligibleMemberships = (bundlePostId, personUuid) => {
+  return apiFetch({
+    path: addQueryArgs(`${PLUGIN_API_URL}/bundle/${bundlePostId}/eligible_memberships`, {
+      person_uuid: personUuid,
+    }),
+  });
+};
+
+/**
  * Remove an individual membership from a membership bundle.
  *
  * POST /wicket_member/v1/bundle/{bundlePostId}/remove_member

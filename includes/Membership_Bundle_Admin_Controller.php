@@ -977,6 +977,57 @@ class Membership_Bundle_Admin_Controller {
   }
 
   /**
+   * List a person's active individual memberships whose tier is eligible for
+   * a bundle's config — the discovery step behind the bundle-side "Add
+   * Member" existing-membership option (mirrors add_member()'s mode =
+   * 'existing' path, but read-only and from the person's side).
+   *
+   * @param int    $bundle_post_id Post ID of the Membership_Bundle.
+   * @param string $person_uuid    MDP person UUID.
+   * @return array{memberships: array}|array{error: string, code: string, status: int}
+   */
+  public static function get_eligible_memberships_for_person( int $bundle_post_id, string $person_uuid ): array {
+    $bundle = new Membership_Bundle( $bundle_post_id );
+    if ( $bundle->post_id <= 0 ) {
+      return [ 'error' => 'Membership bundle not found.', 'code' => 'bundle_not_found', 'status' => 404 ];
+    }
+
+    if ( '' === $person_uuid ) {
+      return [ 'error' => 'person_uuid is required.', 'code' => 'missing_person_uuid', 'status' => 400 ];
+    }
+
+    // Read-only lookup — do not create a WP user here, unlike add_member()'s
+    // mode = 'new' path. A person who has never logged in has no local
+    // account, so no existing membership to reuse.
+    //
+    // Mirrors wicket_create_wp_user_if_not_exist()'s resolution order (base
+    // plugin helper-persons.php): login first, then email. Legacy accounts
+    // can have a WP user matched by email with a user_login that isn't the
+    // MDP UUID; matching only on login would miss them here, tell the admin
+    // to create a new membership, and add_member() would then resolve the
+    // same person by email and create a duplicate seat.
+    $user = get_user_by( 'login', $person_uuid );
+    if ( ! $user && \function_exists( 'wicket_get_person_by_id' ) ) {
+      try {
+        $mdp_person = wicket_get_person_by_id( $person_uuid );
+      } catch ( \Throwable $e ) {
+        $mdp_person = null;
+      }
+
+      if ( is_object( $mdp_person ) && ! empty( $mdp_person->primary_email_address ) ) {
+        $user = get_user_by( 'email', $mdp_person->primary_email_address );
+      }
+    }
+
+    // No account is the normal case for a new person, not an error.
+    if ( ! $user ) {
+      return [ 'memberships' => [] ];
+    }
+
+    return [ 'memberships' => $bundle->get_eligible_memberships_for_user( $user->ID ) ];
+  }
+
+  /**
    * Resolve the display names of a bundle's config's eligible tiers.
    *
    * @param Membership_Bundle $bundle Bundle whose config's eligible tiers to list.
