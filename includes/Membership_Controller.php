@@ -385,7 +385,8 @@ function get_item_data ( $other_data, $cart_item ) {
    * A line carrying `_membership_post_id_switch` is diverted to the order-based tier switch (subject
    * to should_trigger_order_switch()) and never enters the normal creation pipeline; every other line
    * is turned into the membership payload the caller creates records from. A failed switch is logged
-   * and noted on the order and its subscription. When a switch order is re-cycled, its line is skipped:
+   * and noted on the order and its subscription; a switch that completed with warnings notes them on
+   * the order. When a switch order is re-cycled, its line is skipped:
    * the switch already created the membership.
    *
    * @param  \WC_Abstract_Order $order  The paid order being processed.
@@ -463,6 +464,12 @@ function get_item_data ( $other_data, $cart_item ) {
                     );
                     $order->add_order_note( $switch_failure_note );
                     $subscription->add_order_note( $switch_failure_note );
+                  } elseif ( ! empty( $switch_data['warnings'] ) ) {
+                    // No admin sees this response, so its warnings go on the paid order instead.
+                    $order->add_order_note(
+                      '<strong>' . esc_html__( 'Membership switch completed with problems that need attention:', 'wicket-memberships' ) . '</strong><br>'
+                      . implode( '<br>', array_map( 'esc_html', $switch_data['warnings'] ) )
+                    );
                   }
                 } else {
                   // Guard failed (owner mismatch, cross-family/non-tier target, non-switchable status,

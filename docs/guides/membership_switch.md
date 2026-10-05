@@ -24,6 +24,8 @@ Switching a membership moves a member from their current tier to a different one
 
 When it finishes, the page opens the new membership so you can confirm everything looks correct.
 
+If the switch worked but something needs your attention, a yellow message lists what to check (for example, the member's old subscription could not be cancelled). Read it, then click **Continue to the new membership**. If the switch could not be done at all, a red message explains why and nothing is changed.
+
 ## What Happens
 
 - A new membership is created on the tier you chose.
@@ -48,3 +50,5 @@ When it finishes, the page opens the new membership so you can confirm everythin
 - Cancelling the old subscription sends the usual cancellation email to your store admin, and any automated "subscription cancelled" emails you have set up for members.
 - If the **Manage Membership** button will not open, check that the membership is active and has already started.
 - If a paid switch order shows a note that the **membership switch failed**, the member has paid but has no new membership. Check the order and its subscription before taking further action.
+- If a member's subscription shows an **ACTION REQUIRED** note after a switch, a subscription for the new tier could not be created. Their existing subscription now renews the new membership but still charges the old tier's price. Change its product to the new tier's product, or create a new subscription and cancel the old one.
+- A paid switch order with a note that the switch **completed with problems** lists what to check, the same way the yellow message does.

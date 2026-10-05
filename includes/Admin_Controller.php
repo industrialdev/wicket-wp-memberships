@@ -14,6 +14,23 @@ class Admin_Controller {
   private $membership_cpt_slug = '';
 
   /**
+   * Problems that did not stop the current switch but need an admin's attention.
+   *
+   * Collected by create_switch_membership() and its helpers, returned as `warnings` in the switch
+   * response (shown in the Switch Membership modal) and, on the order-based path, noted on the order.
+   *
+   * @var string[]
+   */
+  protected $switch_warnings = [];
+
+  /**
+   * Why the last replacement subscription could not be created, for the failure handling.
+   *
+   * @var string
+   */
+  protected $switch_replacement_error = '';
+
+  /**
    * Admin_Controller constructor.
    */
   public function __construct() {
@@ -1270,25 +1287,34 @@ class Admin_Controller {
    * patches its MDP record. The target tier may define a different grace period, so on BOTH triggers
    * the new membership's expiry is recomputed as end_date + new-tier grace.
    *
-   * Subscriptions — both triggers end with complete_switch_subscription(): the new subscription's
-   * dates are aligned to the new membership, the membership records on the subscription, key order and
-   * user meta are written, all three lifecycle events move to the new order+product key, and the old
-   * membership's live subscription (active, on-hold or pending-cancel) is retired last — cancelled with
-   * its unpaid renewal orders, or, when it also bills another live membership, only the switched line
-   * is removed.
+   * Records — every switch writes the new membership's user-meta record and its record on the order
+   * keying its lifecycle events (write_switch_membership_records()), marks the old user-meta record
+   * cancelled, and rebuilds all three lifecycle events under the new membership's order+product key.
+   *
+   * Subscriptions — when there is a new subscription, both triggers end with
+   * complete_switch_subscription(): its dates are aligned to the new membership, its membership record
+   * is written, and the old membership's live subscription (active, on-hold or pending-cancel) is
+   * retired last — cancelled with its unpaid renewal orders, or, when it also bills another live
+   * membership, only the switched line is removed.
+   *
+   * Problems that do not stop the switch are returned as `warnings` in the success response.
    *
    * - Order-based trigger: the new subscription is the paying order's; it keeps its own status.
    * - Admin immediate switch with a live subscription: a replacement subscription is created on the
    *   target tier's product (no order), carrying the old one's payment method and autopay setting, and
    *   takes the old one's status when that was on-hold or pending-cancel. Fails with a 400 before
-   *   anything is created when the target tier has no subscription product. Without a live
-   *   subscription, only the expiry event on the inherited key is re-pointed, when it moved.
+   *   anything is created when the target tier has no subscription product. If the replacement cannot
+   *   be created, the old subscription is re-pointed at the new membership and flagged
+   *   (handle_failed_switch_replacement()). Without a live subscription, the events stay on the
+   *   inherited key.
    *
    * @see    https://app.asana.com/1/1138832104141584/project/1209996062337717/task/1210003466118773
    * @see    \Wicket_Memberships\Membership_Controller::scheduler_dates_for_expiry() for how the event is keyed.
    * @see    Admin_Controller::create_switch_replacement_subscription()
    * @see    Admin_Controller::complete_switch_subscription()
    * @see    Admin_Controller::retire_switched_subscription()
+   * @see    Admin_Controller::write_switch_membership_records()
+   * @see    Admin_Controller::handle_failed_switch_replacement()
    *
    * @param  int         $membership_post_id  Post ID of the membership being switched (the one replaced).
    * @param  int         $new_tier_post_id    Post ID of the tier to switch to.
@@ -1308,6 +1334,7 @@ class Admin_Controller {
    * @return \WP_REST_Response
    */
   public function create_switch_membership( $membership_post_id, $new_tier_post_id, $switch_date = null, $order_id = null ) {
+    $this->switch_warnings = [];
     // Get the original membership post
     if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
       $response_array['error'] = 'Error: Membership not found. Request did not succeed.';
@@ -1494,9 +1521,12 @@ class Admin_Controller {
     // Admin immediate switch: replace the inherited subscription with one on the target tier's product.
     // On failure the new membership keeps the inherited linkage and the old subscription stays live.
     // The order-based switch sets $switch_new_subscription to the order's subscription below.
-    $switch_new_subscription = null;
+    $switch_new_subscription   = null;
+    $switch_replacement_failed = false;
     if ( empty( $order_id ) && $switch_old_subscription && $switch_target_product ) {
       $switch_new_subscription = $this->create_switch_replacement_subscription( $switch_old_subscription, $switch_target_product, $membership_tier, $membership_post_id, $new_post_id );
+      // Handled once the records are written: the old subscription is re-pointed and flagged.
+      $switch_replacement_failed = ! $switch_new_subscription;
       if ( $switch_new_subscription ) {
         update_post_meta( $new_post_id, 'membership_subscription_id', $switch_new_subscription->get_id() );
         update_post_meta( $new_post_id, 'membership_product_id', $switch_target_product->get_id() );
@@ -1532,6 +1562,7 @@ class Admin_Controller {
           'order_id'               => $order_id,
           'new_membership_post_id' => $new_post_id,
         ] ] );
+        $this->switch_warnings[] = __( 'The paid order has no subscription, so nothing bills the new membership and the member\'s previous subscription was left active. Set up billing for the new membership and review the previous subscription.', 'wicket-memberships' );
       }
 
       // Leave an audit trail on the paying order (and its subscription) linking straight to the
@@ -1568,23 +1599,15 @@ class Admin_Controller {
       );
     } else {
       // Admin immediate switch: no new payment, so the new membership keeps the original parent order.
-      // (Event keying: see Membership_Controller::scheduler_dates_for_expiry.)
-      if ( $switch_new_subscription ) {
-        // The replacement subscription changed the product half of the key, so all three events move
-        // to the original order + new product, not just expiry.
-        $this->reschedule_switch_lifecycle_events( $old_membership_parent_order_id, $old_membership_product_id, $old_membership_parent_order_id, $switch_target_product->get_id(), $new_post_id );
-      } elseif ( ! empty( $old_membership_parent_order_id ) && ! empty( $old_membership_product_id )
-           && strtotime( $new_membership_expires_at ) !== strtotime( (string) $old_membership_expires_at )
-           && function_exists( 'as_unschedule_action' ) && function_exists( 'as_schedule_single_action' ) ) {
-        // No replacement subscription: the key is unchanged, so only expiry is re-pointed, and only when
-        // it moved. End and early-renew are inherited unchanged.
-        $expiry_event_args = [
-          'membership_parent_order_id' => $old_membership_parent_order_id,
-          'membership_product_id'      => $old_membership_product_id,
-        ];
-        as_unschedule_action( 'add_membership_expires_at', $expiry_event_args, 'wicket-membership-plugin' );
-        as_schedule_single_action( strtotime( $new_membership_expires_at ), 'add_membership_expires_at', $expiry_event_args, 'wicket-membership-plugin', false );
-      }
+      // A replacement subscription changes the product half of the key; without one the key is
+      // unchanged and the events are rebuilt in place from the new membership's dates.
+      $this->reschedule_switch_lifecycle_events(
+        $old_membership_parent_order_id,
+        $old_membership_product_id,
+        $old_membership_parent_order_id,
+        $switch_new_subscription ? $switch_target_product->get_id() : $old_membership_product_id,
+        $new_post_id
+      );
     }
 
     // ($old_membership_wicket_uuid / $old_membership_starts_at were captured before the new
@@ -1617,6 +1640,7 @@ class Admin_Controller {
         );
       }
       if ( is_wp_error( $mdp_update ) ) {
+        $this->switch_warnings[] = __( 'The previous membership could not be ended in Wicket. End it there by hand so the member does not show two memberships.', 'wicket-memberships' );
         Utilities::wc_log_mship_error([
           'Switch: failed to update old membership in MDP (continuing)',
           'membership_post_id' => $membership_post_id,
@@ -1628,14 +1652,20 @@ class Admin_Controller {
 
     // Runs after both memberships are final so the records and subscription dates reflect them; the old
     // subscription is retired last inside, so it stays live if any earlier step fails.
+    // The events and the order record are keyed by the paying order on the order path, and by the
+    // original parent order on the admin path (no new order).
+    $switch_key_order_id = ! empty( $order_id ) ? $order_id : $old_membership_parent_order_id;
+    // Every switch, with or without a subscription: renewals, callouts and the lifecycle triggers read
+    // these records, so they must describe the new membership.
+    $this->write_switch_membership_records( $membership_post_id, $new_post_id, $switch_key_order_id, $switch_iso_date );
+
     if ( $switch_new_subscription ) {
       if ( $switch_old_subscription && (int) $switch_old_subscription->get_id() === (int) $switch_new_subscription->get_id() ) {
         $switch_old_subscription = null;
       }
-      // The events and the order record are keyed by the paying order on the order path, and by the
-      // original parent order on the admin path (no new order).
-      $switch_key_order_id = ! empty( $order_id ) ? $order_id : $old_membership_parent_order_id;
-      $this->complete_switch_subscription( $switch_new_subscription, $switch_old_subscription, $membership_post_id, $new_post_id, $switch_key_order_id, $switch_iso_date, empty( $order_id ) );
+      $this->complete_switch_subscription( $switch_new_subscription, $switch_old_subscription, $membership_post_id, $new_post_id, empty( $order_id ) );
+    } elseif ( $switch_replacement_failed ) {
+      $this->handle_failed_switch_replacement( $switch_old_subscription, $membership_post_id, $new_post_id, $membership_tier, $switch_target_product );
     }
 
     // Redirect to the appropriate edit screen for the membership type.
@@ -1649,7 +1679,9 @@ class Admin_Controller {
     return new \WP_REST_Response([
       'success' => true,
       'membership_wicket_uuid' => $membership_wicket_uuid,
-      'redirect_url' => $redirect_url
+      'redirect_url' => $redirect_url,
+      // Problems that did not stop the switch; the admin modal shows them before redirecting.
+      'warnings' => array_values( array_unique( $this->switch_warnings ) ),
     ], 200);
   }
 
@@ -1791,7 +1823,7 @@ class Admin_Controller {
    * payment method (with its gateway meta, so saved cards keep working) and autopay setting. Its
    * membership line is linked to the new membership for renewal, and the old subscription's next
    * payment date is carried over as a starting point; complete_switch_subscription() then
-   * aligns the dates to the membership.
+   * aligns the dates to the membership. Any failure deletes the partial subscription.
    *
    * @since 1.0.123
    *
@@ -1801,8 +1833,8 @@ class Admin_Controller {
    * @param  int              $old_membership_post_id  The membership being switched away from.
    * @param  int              $new_membership_post_id  The membership the switch created.
    *
-   * @return \WC_Subscription|null  The active replacement subscription, or null on failure (logged and
-   *                               noted on the old subscription).
+   * @return \WC_Subscription|null  The active replacement subscription, or null on failure (the reason
+   *                               is kept for handle_failed_switch_replacement()).
    */
   protected function create_switch_replacement_subscription( $old_subscription, $product, $membership_tier, $old_membership_post_id, $new_membership_post_id ) {
     $subscription = null;
@@ -1868,14 +1900,8 @@ class Admin_Controller {
       if ( $subscription instanceof \WC_Subscription && $subscription->get_id() ) {
         $subscription->delete( true );
       }
-      Utilities::wc_log_mship_error( [ 'Switch: failed to create replacement subscription (old subscription kept)', [
-        'old_subscription_id'    => $old_subscription->get_id(),
-        'old_membership_post_id' => $old_membership_post_id,
-        'new_membership_post_id' => $new_membership_post_id,
-        'product_id'             => $product->get_id(),
-        'error'                  => $e->getMessage(),
-      ] ] );
-      $old_subscription->add_order_note( __( 'Membership switch could not create a replacement subscription on the new tier, so this subscription was kept. Review it: it still bills the previous tier.', 'wicket-memberships' ) );
+      // Logged, noted and surfaced by handle_failed_switch_replacement() once the records are written.
+      $this->switch_replacement_error = $e->getMessage();
       return null;
     }
   }
@@ -1981,16 +2007,132 @@ class Admin_Controller {
   }
 
   /**
+   * Write the membership records a switch must leave behind, on every switch.
+   *
+   * The renewal pipeline and Account Centre callouts read a membership from its user-meta record
+   * (`_wicket_membership_{post_id}`, keyed per membership post, so a switch's new post needs its own),
+   * and the scheduled lifecycle events read it from the `_wicket_membership_{product_id}` record on the
+   * order that keys them. Writes both for the new membership and marks the old membership's user-meta
+   * record cancelled. Runs whether or not the switch has a subscription. Another record already on the
+   * key order (e.g. the cancelled membership's under a different product) is left as history; on the
+   * admin path without a replacement the key is unchanged, so the cancelled membership's order record
+   * is replaced by the new one, which is what its events must now find.
+   *
+   * @since 1.0.123
+   *
+   * @param  int        $old_membership_post_id  The membership switched away from (already cancelled).
+   * @param  int        $new_membership_post_id  The membership the switch created.
+   * @param  int|string $key_order_id            The order keying the new membership's events; empty for a
+   *                                             membership with no order (e.g. imported), then skipped.
+   * @param  string     $switch_iso_date         The switch date (ISO 8601) the old membership ended on.
+   *
+   * @return array<string, mixed>  The new membership's record.
+   *
+   * @see Membership_Controller::get_membership_array_from_user_meta_by_post_id()
+   * @see Membership_Controller::get_membership_array_from_order_and_product_id()
+   */
+  protected function write_switch_membership_records( $old_membership_post_id, $new_membership_post_id, $key_order_id, $switch_iso_date ) {
+    $record      = $this->build_switch_membership_record( $new_membership_post_id );
+    $record_json = json_encode( $record );
+
+    if ( ! empty( $key_order_id ) && ! empty( $record['membership_product_id'] ) ) {
+      update_post_meta( $key_order_id, '_wicket_membership_' . $record['membership_product_id'], $record_json );
+    }
+
+    if ( empty( $record['user_id'] ) ) {
+      Utilities::wc_log_mship_error( [ 'Switch: new membership has no user; membership records not written', [
+        'new_membership_post_id' => $new_membership_post_id,
+      ] ] );
+      $this->switch_warnings[] = __( 'The new membership has no member account linked, so renewals and renewal reminders cannot find it. Check the membership\'s owner.', 'wicket-memberships' );
+      return $record;
+    }
+
+    update_user_meta( $record['user_id'], '_wicket_membership_' . $new_membership_post_id, $record_json );
+
+    $old_record = json_decode( (string) get_user_meta( $record['user_id'], '_wicket_membership_' . $old_membership_post_id, true ), true );
+    if ( is_array( $old_record ) ) {
+      $old_record['membership_status']            = Wicket_Memberships::STATUS_CANCELLED;
+      $old_record['membership_ends_at']           = $switch_iso_date;
+      $old_record['membership_expires_at']        = $switch_iso_date;
+      $old_record['membership_grace_period_days'] = 0;
+      update_user_meta( $record['user_id'], '_wicket_membership_' . $old_membership_post_id, json_encode( $old_record ) );
+    }
+
+    return $record;
+  }
+
+  /**
+   * Keep the old subscription billing the switched membership when its replacement could not be created.
+   *
+   * Admin immediate switch only. The membership has already switched, so the member's old subscription
+   * is the only billing left: its switched line is re-pointed (`_membership_post_id_renew` and the
+   * subscription's membership record) so renewals follow the new membership instead of the cancelled
+   * one. It still bills the old tier's product and price, which an admin must fix, so this is flagged as
+   * loudly as possible: an ACTION REQUIRED note on the subscription, a critical log entry and a switch
+   * warning in the response.
+   *
+   * @since 1.0.123
+   *
+   * @param  \WC_Subscription $old_subscription        The member's old subscription (kept live).
+   * @param  int              $old_membership_post_id  The membership switched away from.
+   * @param  int              $new_membership_post_id  The membership the switch created.
+   * @param  Membership_Tier  $membership_tier         The tier switched to.
+   * @param  \WC_Product      $target_product          The product the replacement should have billed.
+   *
+   * @return void
+   */
+  protected function handle_failed_switch_replacement( $old_subscription, $old_membership_post_id, $new_membership_post_id, $membership_tier, $target_product ) {
+    $subscription   = \wcs_get_subscription( $old_subscription->get_id() ) ?: $old_subscription;
+    $old_product_id = get_post_meta( $old_membership_post_id, 'membership_product_id', true );
+    $item_ids       = $this->find_switched_membership_items( $subscription, $old_membership_post_id, $old_product_id );
+
+    foreach ( $item_ids as $item_id ) {
+      wc_update_order_item_meta( $item_id, '_membership_post_id_renew', $new_membership_post_id );
+    }
+    if ( ! empty( $item_ids ) && ! empty( $old_product_id ) ) {
+      update_post_meta( $subscription->get_id(), '_wicket_membership_' . $old_product_id, json_encode( $this->build_switch_membership_record( $new_membership_post_id ) ) );
+    }
+
+    $tier_name       = $membership_tier->get_mdp_tier_name();
+    $membership_link = '<a href="' . esc_url( Helper::get_membership_edit_url( $new_membership_post_id ) ) . '">#' . (int) $new_membership_post_id . '</a>';
+    $subscription->add_order_note( sprintf(
+      /* translators: 1: new tier name, 2: link to the new membership, 3: sentence about the renewal link. */
+      __( '<strong>ACTION REQUIRED — membership switch incomplete.</strong> The member was switched to %1$s (membership %2$s), but a subscription for the new tier could not be created. %3$s This subscription <strong>still bills the previous tier\'s product and price</strong>. Change its product to the new tier\'s product, or create a subscription for the new tier and cancel this one.', 'wicket-memberships' ),
+      esc_html( $tier_name ),
+      $membership_link,
+      empty( $item_ids )
+        ? __( 'The switched membership could not be found on this subscription, so it still renews the previous membership.', 'wicket-memberships' )
+        : __( 'This subscription now renews the new membership.', 'wicket-memberships' )
+    ) );
+
+    Utilities::wc_log_mship_error( [ 'Switch: replacement subscription not created; old subscription re-pointed and left billing the previous tier', [
+      'subscription_id'        => $subscription->get_id(),
+      'old_membership_post_id' => $old_membership_post_id,
+      'new_membership_post_id' => $new_membership_post_id,
+      'target_product_id'      => $target_product ? $target_product->get_id() : null,
+      'repointed_item_ids'     => $item_ids,
+      'error'                  => $this->switch_replacement_error,
+    ] ], 'critical' );
+
+    $this->switch_warnings[] = sprintf(
+      /* translators: 1: subscription ID, 2: new tier name. */
+      __( 'A subscription for %2$s could not be created. The member\'s existing subscription (#%1$d) still bills the previous tier\'s product and price. Change its product to the new tier\'s product, or create a new subscription and cancel this one.', 'wicket-memberships' ),
+      $subscription->get_id(),
+      $tier_name
+    );
+  }
+
+  /**
    * Finish a switch's subscription handling, then retire the old subscription.
    *
    * Shared by both switch triggers. Aligns the new subscription's dates to the new membership exactly
    * as a normal purchase does; on the admin path only, gives it the old subscription's status when that
    * was on-hold or pending-cancel (no next payment for pending-cancel, so it ends with the paid term) —
    * a paid switch order is a fresh decision to continue, so the order path keeps its own status. Writes
-   * the new membership's record to the new subscription, the key order (which the scheduled events
-   * read) and the owner's user meta, marks the old membership's user-meta record cancelled, and finally
-   * retires the old subscription. Retirement runs last and is skipped if anything before it fails, so
-   * the member is never left without a live subscription.
+   * the new membership's record to the new subscription (the user-meta and order records are written
+   * for every switch by write_switch_membership_records()), and finally retires the old subscription.
+   * Retirement runs last and is skipped if anything before it fails, so the member is never left
+   * without a live subscription. Problems are added to the switch warnings.
    *
    * @since 1.0.123
    *
@@ -1998,17 +2140,15 @@ class Admin_Controller {
    * @param  \WC_Subscription|null $old_subscription        The old membership's live subscription, if any.
    * @param  int                   $old_membership_post_id  The membership switched away from (already cancelled).
    * @param  int                   $new_membership_post_id  The membership the switch created.
-   * @param  int|string            $key_order_id            The order keying the new membership's events.
-   * @param  string                $switch_iso_date         The switch date (ISO 8601) the old membership ended on.
    * @param  bool                  $admin_replacement       True for the admin immediate switch's replacement subscription.
    *
    * @return void
    *
    * @see Membership_Controller::update_membership_subscription() Date alignment.
-   * @see Membership_Controller::get_membership_array_from_order_and_product_id() Reads the order record.
+   * @see Admin_Controller::write_switch_membership_records() User-meta and order records.
    * @see Admin_Controller::retire_switched_subscription()
    */
-  protected function complete_switch_subscription( $new_subscription, $old_subscription, $old_membership_post_id, $new_membership_post_id, $key_order_id, $switch_iso_date, $admin_replacement ) {
+  protected function complete_switch_subscription( $new_subscription, $old_subscription, $old_membership_post_id, $new_membership_post_id, $admin_replacement ) {
     try {
       $record = $this->build_switch_membership_record( $new_membership_post_id );
 
@@ -2045,6 +2185,12 @@ class Admin_Controller {
           ) );
         } else {
           // Left active rather than failing the switch; logged and noted so an admin can set it by hand.
+          $this->switch_warnings[] = sprintf(
+            /* translators: 1: subscription ID, 2: subscription status. */
+            __( 'Subscription #%1$d could not be set to %2$s to match the previous subscription. Set its status by hand.', 'wicket-memberships' ),
+            $new_subscription->get_id(),
+            wcs_get_subscription_status_name( $mirror_status )
+          );
           Utilities::wc_log_mship_error( [ 'Switch: replacement subscription could not take the old subscription status', [
             'new_subscription_id' => $new_subscription->get_id(),
             'status'              => $mirror_status,
@@ -2057,26 +2203,9 @@ class Admin_Controller {
         }
       }
 
-      $record_json = json_encode( $record );
-      $product_id  = $record['membership_product_id'];
-      update_post_meta( $new_subscription->get_id(), '_wicket_membership_' . $product_id, $record_json );
-      // Any other record on the key order (e.g. the cancelled membership's) is left as history.
-      if ( ! empty( $key_order_id ) ) {
-        update_post_meta( $key_order_id, '_wicket_membership_' . $product_id, $record_json );
-      }
-
-      if ( ! empty( $record['user_id'] ) ) {
-        update_user_meta( $record['user_id'], '_wicket_membership_' . $new_membership_post_id, $record_json );
-
-        $old_record = json_decode( (string) get_user_meta( $record['user_id'], '_wicket_membership_' . $old_membership_post_id, true ), true );
-        if ( is_array( $old_record ) ) {
-          $old_record['membership_status']            = Wicket_Memberships::STATUS_CANCELLED;
-          $old_record['membership_ends_at']           = $switch_iso_date;
-          $old_record['membership_expires_at']        = $switch_iso_date;
-          $old_record['membership_grace_period_days'] = 0;
-          update_user_meta( $record['user_id'], '_wicket_membership_' . $old_membership_post_id, json_encode( $old_record ) );
-        }
-      }
+      // The user-meta and key-order records are written for every switch by
+      // write_switch_membership_records(); the subscription's own record is written here.
+      update_post_meta( $new_subscription->get_id(), '_wicket_membership_' . $record['membership_product_id'], json_encode( $record ) );
 
       // The order path already notes its subscription when the switch completes.
       if ( $admin_replacement ) {
@@ -2094,6 +2223,12 @@ class Admin_Controller {
         'error'                  => $e->getMessage(),
       ] ] );
       $new_subscription->add_order_note( __( 'Membership switch could not finish setting up this subscription. Check its dates, and the status of the member\'s previous subscription.', 'wicket-memberships' ) );
+      $this->switch_warnings[] = sprintf(
+        /* translators: 1: new subscription ID, 2: previous subscription ID or "none". */
+        __( 'Subscription #%1$d could not be fully set up. Check its dates, and cancel the member\'s previous subscription (#%2$s) if it is still active so they are not billed twice.', 'wicket-memberships' ),
+        $new_subscription->get_id(),
+        $old_subscription ? (string) $old_subscription->get_id() : '—'
+      );
       return;
     }
 
@@ -2147,6 +2282,11 @@ class Admin_Controller {
             'old_membership_post_id' => $old_membership_post_id,
             'other_memberships'      => $other_memberships,
           ] ] );
+          $this->switch_warnings[] = sprintf(
+            /* translators: %d is the previous subscription ID. */
+            __( 'Subscription #%d also pays for other memberships, and the switched membership could not be identified on it, so it was left unchanged. Remove the switched membership from it by hand so the member is not billed twice.', 'wicket-memberships' ),
+            $subscription->get_id()
+          );
           $subscription->add_order_note( sprintf(
             /* translators: 1: switched membership post ID, 2: link to the new membership. */
             __( 'Membership #%1$d was switched to membership %2$s, but its line could not be found on this subscription, which also bills other memberships. Review this subscription.', 'wicket-memberships' ),
@@ -2227,6 +2367,12 @@ class Admin_Controller {
         __( 'Membership switch could not cancel or update this subscription. The membership is now billed by subscription #%d; review this one so the member is not billed twice.', 'wicket-memberships' ),
         $new_subscription->get_id()
       ) );
+      $this->switch_warnings[] = sprintf(
+        /* translators: 1: previous subscription ID, 2: new subscription ID. */
+        __( 'The member\'s previous subscription (#%1$d) could not be cancelled and is still active. Cancel it, or remove the switched membership from it, so the member is not billed twice. Their membership is now billed by subscription #%2$d.', 'wicket-memberships' ),
+        $subscription->get_id(),
+        $new_subscription->get_id()
+      );
     }
   }
 

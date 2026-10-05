@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { __ } from '@wordpress/i18n';
 import { SelectWpStyled, LabelWpStyled } from '../styled_elements';
-import { Button, Icon } from '@wordpress/components';
+import { Button, Icon, Notice } from '@wordpress/components';
 import { fetchProductVariations, fetchTiers } from '../services/api';
 import { switchMembership as switchMembershipApi } from '../services/api';
 import { fetchSwitchTargetProducts } from '../services/switch_products';
@@ -21,6 +21,12 @@ const SwitchMembership = ({ membership }) => {
   // parent product (which may belong to other tiers) stay selectable.
   const [excludedVariationIds, setExcludedVariationIds] = useState(new Set());
   const [selectedOrderStatus, setSelectedOrderStatus] = useState('checkout-draft');
+  // Switch outcome: an error stops the switch; warnings mean it completed but needs attention, so the
+  // admin reads them before continuing to the new membership.
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState(null);
+  const [switchWarnings, setSwitchWarnings] = useState([]);
+  const [completedRedirectUrl, setCompletedRedirectUrl] = useState(null);
   const didMountRef = useRef(false);
 
   useEffect(() => {
@@ -102,15 +108,32 @@ const SwitchMembership = ({ membership }) => {
 
  const handleSwitchMembership = async (switchType, postId) => {
     if (!membership || !membership.ID || !postId || !switchType) return;
+    setIsSwitching(true);
+    setSwitchError(null);
     try {
       const response = await switchMembershipApi(membership.ID, postId, switchType, switchType === 'order' ? selectedOrderStatus : null);
+      const warnings = (response && Array.isArray(response.warnings)) ? response.warnings : [];
+      if (warnings.length > 0) {
+        // The switch is done; hold the redirect so the warnings are read.
+        setSwitchWarnings(warnings);
+        setCompletedRedirectUrl(response.redirect_url || null);
+        setIsSwitching(false);
+        return;
+      }
       if (response && response.redirect_url) {
         window.location.href = response.redirect_url;
+        return;
       }
+      setIsSwitching(false);
     } catch (e) {
-      console.error('Switch membership failed', e);
+      // apiFetch rejects with the response body; the switch returns its reason in `error`.
+      setSwitchError((e && (e.error || e.message)) || __('The switch could not be completed.', 'wicket-memberships'));
+      setIsSwitching(false);
     }
   };
+
+  // Once the switch has completed (with warnings) it must not be submitted again.
+  const switchCompleted = switchWarnings.length > 0;
 
   return (
     <div style={{ marginBottom: '16px' }}>
@@ -245,10 +268,35 @@ const SwitchMembership = ({ membership }) => {
           </div>
         )}
 
+        {switchError && (
+          <Notice status="error" isDismissible={false} style={{ marginTop: '20px' }}>
+            {switchError}
+          </Notice>
+        )}
+
+        {switchCompleted && (
+          <Notice status="warning" isDismissible={false} style={{ marginTop: '20px' }}>
+            <p><strong>{__('The membership was switched, but some things need your attention:', 'wicket-memberships')}</strong></p>
+            <ul style={{ listStyle: 'disc', paddingLeft: '20px' }}>
+              {switchWarnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+            {completedRedirectUrl && (
+              <Button variant="secondary" onClick={() => { window.location.href = completedRedirectUrl; }}>
+                {__('Continue to the new membership', 'wicket-memberships')}
+              </Button>
+            )}
+          </Notice>
+        )}
+
         <Button
           style={{ marginTop: '20px'}}
           variant="primary"
+          isBusy={isSwitching}
           disabled={
+            isSwitching ||
+            switchCompleted ||
             (switchOption && switchOption.value === 'create_order' &&
               (!selectedProductId ||
                 (wcProductOptions.find(option => option.value === selectedProductId)?.type === 'variable-subscription' && !selectedVariationId)
