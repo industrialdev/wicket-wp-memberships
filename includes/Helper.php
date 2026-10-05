@@ -184,7 +184,7 @@ class Helper {
     if ( empty( $post ) || empty( $post->post_type ) ) {
       return false;
     }
-    return $post->post_type === 'wicket_membership' && get_post_status( $membership_post_id ) == 'publish';
+    return $post->post_type === self::get_membership_cpt_slug() && get_post_status( $membership_post_id ) == 'publish';
   }
 
   public static function get_all_status_names() {
@@ -277,6 +277,11 @@ class Helper {
    * @return array
    */
   public static function get_membership_post_data_from_membership_json( $membership_json, $json_encoded = true, $dir = 'post' ) {
+    // WWID-2665 audit note: DEAD CODE today - both production callers are
+    // commented out (Admin_Controller ~155 and ~300). The $dir comparison
+    // below is fixed (was an assignment), but the 'order' branch is
+    // unverified and its mapping/empty-check logic looks inverted. Do not
+    // call without fixing those first.
     $membership_post_data = array();
     if( $json_encoded === true ) {
       $membership_array = json_decode( $membership_json, true);

@@ -1030,13 +1030,9 @@ function wicket_sub_org_select_callback( $subscription ) {
    * @return void
    */
   public static function wicket_wc_enqueue_scripts_autorenew_toggle() {
-    wp_localize_script('auto_renew_enabled_for_user',
-      'wicket_mship_ajax_object',
-      ['ajaxurl' => admin_url('admin-ajax.php'),
-      'user_id' => get_current_user_id(),
-      'autorenew_nonce' => wp_create_nonce('wicket_mship_autorenew_toggle')
-      ]
-    );
+    // The toggle nonce ships through enqueue_mship_ajax_script()'s localize
+    // on the 'ajax-script' handle (WWID-2665): this function only prints the
+    // toggle markup and its inline script.
     ?>
     <style>
         .wicket-wc-toggle {
@@ -1152,13 +1148,22 @@ function wicket_sub_org_select_callback( $subscription ) {
         wp_send_json_error(['message' => 'You are not allowed to change this setting.'], 403);
     }
     $enabled = $_POST['enabled'] == 1 ? 'yes' : 'no';
+    $subscription_id = 0;
     if( isset($_POST['subscription_id']) ) {
-      $subscription_id = $_POST['subscription_id'];
+      $subscription_id = intval($_POST['subscription_id']);
     } else if( isset($_POST['membership_post_id_renew']) ) {
-      $subscription_id = get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true );
+      $subscription_id = intval( get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true ) );
     }
     if(!empty($subscription_id)) {
       $subscription = wcs_get_subscription($subscription_id);
+      if (!$subscription) {
+        wp_send_json_error(['message' => 'Subscription not found.'], 404);
+      }
+      // WWID-2665 IDOR guard: the subscription must belong to the targeted
+      // user unless the caller holds manage_woocommerce.
+      if (intval($subscription->get_customer_id()) !== $user_id && !current_user_can('manage_woocommerce')) {
+        wp_send_json_error(['message' => 'You are not allowed to change this subscription.'], 403);
+      }
       $subscription_renewal_boolean = $enabled == 'yes' ? 'false' : 'true'; //reverse to set manual_renewal_enabeld;
       $subscription->update_meta_data('_requires_manual_renewal', $subscription_renewal_boolean);
       $subscription->save();
@@ -1193,7 +1198,8 @@ function wicket_sub_org_select_callback( $subscription ) {
     // Always register the ajax object for use by other scripts
     wp_localize_script('ajax-script', 'wicket_mship_ajax_object', [
         'ajaxurl' => admin_url('admin-ajax.php'),
-        'user_id' => get_current_user_id()
+        'user_id' => get_current_user_id(),
+        'autorenew_nonce' => wp_create_nonce('wicket_mship_autorenew_toggle')
     ]);
   }
 
