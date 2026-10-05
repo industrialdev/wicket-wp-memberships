@@ -238,6 +238,11 @@ class Utilities {
 
     $response = [];
     foreach($memberships['data'] as $membership) {
+      // Skip malformed entries: a non-array row, or one without an id and
+      // type, must not raise notices here (WWID-2665).
+      if ( ! is_array( $membership ) || empty( $membership['id'] ) || empty( $membership['type'] ) ) {
+        continue;
+      }
       $membership_wicket_uuid = $membership['id'];
       if($membership['type'] == 'person_memberships') {
         $response_api = wicket_delete_person_membership( $membership_wicket_uuid );
