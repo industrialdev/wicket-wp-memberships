@@ -30,10 +30,17 @@ When it finishes, the page opens the new membership so you can confirm everythin
 - The **end date stays the same** as the original membership.
 - The grace period follows the **new tier's** settings, so the expiry date may shift slightly if the new tier has a different grace period.
 - The original membership is **cancelled** immediately.
+- If the member pays through a subscription, they get a **new subscription** for the new tier, and the old one is cancelled. The new subscription:
+  - uses the member's saved payment method and automatic-renewal setting;
+  - bills next when the member's next payment is due, at the **new tier's price**;
+  - keeps the old subscription's status if it was **on hold** or **pending cancellation**.
+- The member keeps the time they have already paid for. There is no refund or extra charge for the switch.
 
 ## Tips and Warnings
 
 - The switch takes effect **right away**.
 - Switching is **not reversible in one click.** To undo it you would switch back to the original tier, which cancels the new membership and creates another. Confirm the target tier before completing the switch.
 - If the tier you want does not appear in the list, check that it is the **same type** (individual or organization) as the membership you are switching.
+- If the switch stops with a message that the tier has **no subscription product**, link a subscription product to that tier first. Members who pay through a subscription can only switch to a tier the new subscription can bill for.
+- Cancelling the old subscription sends the usual cancellation email to your store admin, and any automated "subscription cancelled" emails you have set up for members.
 - If the **Manage Membership** button will not open, check that the membership is active and has already started.

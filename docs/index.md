@@ -16,7 +16,7 @@ audience: [implementer, support, developer, end-user]
 
 ### Features
 - [Membership Transfer — Engineering Reference](engineering/membership_transfer.md) — Move an individual membership's term to a different owner; new record minted, order stays with the payer
-- [Membership Switch — Engineering Reference](engineering/membership_switch.md) — Switch a membership to a different tier; preserves end date, re-points the expiry scheduler event
+- [Membership Switch — Engineering Reference](engineering/membership_switch.md) — Switch a membership to a different tier; preserves end date, replaces the member's subscription, re-keys the scheduler events
 
 ### Tools
 - [Subscription Sync Tool — Engineering Reference](engineering/memberships_sync.md) — How `custom/memberships-sync.php` links subscriptions to memberships and syncs per-seat MDP seat counts
@@ -48,6 +48,6 @@ Repair work only — kept separate from Engineering Docs so novel feature work i
 
 ## Guides (End Users)
 - [Transfer a Membership to a New Owner](guides/membership_transfer.md) — Move a membership to a different person; keeps the remaining term
-- [Switch a Membership to a Different Tier](guides/membership_switch.md) — Move a member to a different tier; keeps the end date
+- [Switch a Membership to a Different Tier](guides/membership_switch.md) — Move a member to a different tier; keeps the end date and moves their subscription to the new tier
 - [Link a Membership Tier to a WooCommerce Product](guides/link-tier-to-product.md) — Connect tiers to subscription products so memberships are created on purchase
 - [Subscription Sync Tool](guides/membership-sync.md) — Link existing subscriptions to imported membership records; per-seat org seat sync
