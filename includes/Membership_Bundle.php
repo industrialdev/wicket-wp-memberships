@@ -3039,6 +3039,8 @@ class Membership_Bundle {
             'content'      => $config->get_late_fee_window_callout_content( $iso_code ),
             'button_label' => $config->get_late_fee_window_callout_button_label( $iso_code ),
           ];
+          // late_fee_product_id is informational only — no bundle renewal path charges
+          // it. See Membership_Bundle_Config::get_late_fee_window_product_id().
           $grace_period[] = [
             'membership'          => $membership_data,
             'callout'             => $callout,

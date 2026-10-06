@@ -158,6 +158,10 @@ class Membership_Bundle_Config {
   /**
    * Get the late fee window product ID.
    *
+   * Not used for bundles: no bundle renewal path charges this product. It is only
+   * passed through in grace-period callout data. Bundle late fees are applied by
+   * client code via wicket_mship_bundle_renewal_line_item_price.
+   *
    * @return int|false
    */
   public function get_late_fee_window_product_id() {
