@@ -44,6 +44,7 @@ audience: [implementer, support, developer, end-user]
 - [Membership_Bundle_Cron_Controller](engineering/Membership_Bundle_Cron_Controller.md) — Daily Action Scheduler handlers for bundle grace-period, expiry, activation, and the post-payment renewal batch processing
 - [Membership_Bundle_Renewal_Order_Controller](engineering/Membership_Bundle_Renewal_Order_Controller.md) — Bundle renewal-order creation: claim/queue, WCS admin-action intercept, per-member repricing
 - [Membership_Bundle_WP_REST_Controller](engineering/Membership_Bundle_WP_REST_Controller.md) — REST endpoints for all membership bundle operations
+- [Order_Touchpoint_Hold](engineering/Order_Touchpoint_Hold.md) — Holds the base plugin's WooCommerce order touchpoint until a bundle renewal order is fully built
 - [Settings](engineering/Class-Settings.md) — Plugin options page: feature flags, debug toggles, scheduled action status
 - [Subscription_Manager](engineering/Class-Subscription_Manager.md) — Intended eventual home for all WC_Subscription-touching logic; currently holds end-date/next-payment collision guards
 - [Utilities](engineering/Class-Utilities.md) — WooCommerce integration hooks: cart/checkout modifications, product protection, timezone date helpers

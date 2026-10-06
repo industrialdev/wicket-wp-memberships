@@ -105,7 +105,9 @@ Not a transient/one-time notice like `render_queued_bundle_renewal_order_notice(
 
 Create a bundle's renewal order in the background — dispatched by the REST endpoints instead of calling `wcs_create_renewal_order()` inline in the request. Writes the result (`order_id` or failure) back onto the claim's own meta; that's the terminal state the UI polls for and a later claim attempt checks against.
 
-Resets the in-request caches (above), primes them from the subscription's own line items, sets the subscription `on-hold` (WCS's pay-for-order page only accepts payment for an `on-hold`/`pending` subscription), raises the execution time limit, then calls `wcs_create_renewal_order()`.
+Resets the in-request caches (above), primes them from the subscription's own line items, sets the subscription `on-hold` (WCS's pay-for-order page only accepts payment for an `on-hold`/`pending` subscription), raises the execution time limit, then creates the renewal order.
+
+The order is created through `Order_Touchpoint_Hold::create_renewal_order()`, so the base plugin's order touchpoint is written once from the finished, repriced order rather than from the order's first, empty save.
 
 ---
 

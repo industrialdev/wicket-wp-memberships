@@ -127,6 +127,10 @@ Results are ordered newest-first. The most recent post is the current active ter
 Because historical records are preserved, reporting on membership continuity (consecutive renewals, lapsed members, reinstatements) can be built directly from the `wicket_mship_bundle` and `wicket_membership` post tables without needing a separate audit log.
 :::
 
+## Order touchpoint
+
+When the Wicket base plugin's WooCommerce order touchpoints are enabled, a bundle renewal order created by the background renewal-order job writes its "Order Pending" touchpoint once the order is fully built — line items, repriced totals, and organization included — rather than when WooCommerce first saves the empty order. If repricing puts the order on hold during creation, a single "Order On-Hold" touchpoint is written instead.
+
 ## Failure handling
 
 **Per-seat errors** — if an individual member seat cannot be provisioned (user cannot be resolved, or the assigned tier is invalid), the error is recorded in the `errors` array of `membership_renewal_processing` meta and processing continues for all remaining seats. The renewal is not aborted. After batch completion, an admin note is added to the WooCommerce renewal order listing each failed seat so that site administrators can take corrective action.

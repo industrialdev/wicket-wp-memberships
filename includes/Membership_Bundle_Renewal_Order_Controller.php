@@ -373,7 +373,7 @@ class Membership_Bundle_Renewal_Order_Controller {
       wc_set_time_limit( 300 );
     }
 
-    $renewal_order = wcs_create_renewal_order( $subscription );
+    $renewal_order = Order_Touchpoint_Hold::create_renewal_order( $subscription );
 
     if ( is_wp_error( $renewal_order ) ) {
       Utilities::wc_log_mship_error( [ 'create_renewal_order_job: wcs_create_renewal_order failed', [
