@@ -371,7 +371,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
           ],
           'search' => [
             'type'        => 'string',
-            'description' => 'Free-text search matched against the member\'s first name, last name, and email (name/email only — bar ID is not searchable yet).',
+            'description' => 'Free-text search matched against the member row fields listed by wicket_mship_bundle_member_searchable_fields (first name, last name, and email by default; a child theme can add more, e.g. a bar ID).',
           ],
           'order_col' => [
             'type'        => 'string',
@@ -386,7 +386,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
-     * Search MDP people by name or email for the add-member flow (member-scoped).
+     * Search MDP people for the add-member flow (member-scoped).
      *
      * POST /wicket_member/v1/bundle/{bundle_post_id}/search_eligible_members
      * Body: { term }
@@ -412,7 +412,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
           'term' => [
             'required'    => true,
             'type'        => 'string',
-            'description' => 'Free-text search term matched against MDP person full name or email.',
+            'description' => 'Free-text search term. Matched against MDP person full name or email by default; a child theme\'s wicket_mship_bundle_eligible_member_search override may treat differently-formatted terms differently (e.g. digits-only as a client-specific identifier).',
           ],
         ],
       ],
@@ -928,6 +928,20 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       'meta_query'     => $meta_query,
     ] );
 
+    // Batch-prime the user-meta cache for every row's member: a child theme's
+    // extra column (e.g. a bar ID) typically reads user meta, and an unprimed
+    // get_user_meta() fires one query per member per keystroke.
+    $member_user_ids = array_filter( array_map(
+      static function ( $post ) {
+        return (int) get_post_meta( $post->ID, 'user_id', true );
+      },
+      $query->posts
+    ) );
+    if ( ! empty( $member_user_ids ) ) {
+      update_meta_cache( 'user', $member_user_ids );
+      cache_users( $member_user_ids );
+    }
+
     // Reshape into an explicit, minimal row rather than a raw, unaudited
     // post-meta dump — a staff-only MDP admin link and cross-bundle/cross-org
     // membership data have no place in a member-facing response.
@@ -938,7 +952,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     // in PHP against the already-shaped rows instead, before pagination.
     $search = sanitize_text_field( $params['search'] ?? '' );
     if ( '' !== $search ) {
-      $rows = $this->filter_bundle_member_rows_by_search( $rows, $search );
+      $rows = $this->filter_bundle_member_rows_by_search( $rows, $search, $bundle_post_id );
     }
 
     $rows = $this->sort_bundle_member_rows( $rows, $order_col, $order_dir );
@@ -997,11 +1011,15 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    * matches it too.
    *
    * @param array<int, array<string, mixed>> $rows
+   * @param int|null                          $bundle_post_id Passed through to the filter for parity with extra_columns.
    * @return array<int, array<string, mixed>>
    */
-  private function filter_bundle_member_rows_by_search( array $rows, string $search ): array {
+  private function filter_bundle_member_rows_by_search( array $rows, string $search, ?int $bundle_post_id = null ): array {
     $needle = mb_strtolower( $search );
-    $fields = apply_filters( 'wicket_mship_bundle_member_searchable_fields', [ 'first_name', 'last_name', 'email' ] );
+    // Second filter arg ($bundle_post_id) matches extra_columns' signature so
+    // a callback can scope its answer per bundle; single-arg callbacks keep
+    // working unchanged.
+    $fields = apply_filters( 'wicket_mship_bundle_member_searchable_fields', [ 'first_name', 'last_name', 'email' ], $bundle_post_id );
 
     return array_values( array_filter( $rows, function ( $row ) use ( $needle, $fields ) {
       foreach ( $fields as $field ) {
@@ -1064,15 +1082,24 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     // Short-circuit, WP-core "pre_" style: lets a child theme replace the
     // default MDP name/email autocomplete (wicket_search_person()) with a
     // single, different MDP lookup instead — e.g. an exact
-    // `/people?filter[service_identities_namespace_eq]=...&filter[service_identities_external_id_eq]=...`
-    // query for a client-specific "Bar ID" field, via wicket_api_client().
+    // `/people?filter[service_identities_service_uuid_eq]=...&filter[service_identities_external_id_eq]=...`
+    // query for a client-specific identifier that lives on an MDP service
+    // identity (a "Bar ID"), via wicket_api_client(). Key the query on the
+    // SERVICE uuid, not service_identities_namespace_eq: minted identities
+    // carry a null namespace, so a namespace-keyed filter matches nothing
+    // (verified against MDP staging). An empty filter value is silently
+    // dropped by ransack — which would return unfiltered people — so the
+    // hooked callback must fully validate $term's format BEFORE querying.
     // There is no UI toggle for this: the hooked callback alone decides,
     // by sniffing $term's format, which single request to make, and must
     // return results already shaped like wicket_search_person()'s own
     // [{ id, full_name, primary_email_address }, ...] (plus whatever extra
     // fields the callback wants to carry through to the add-member modal).
     // Returning anything other than null here skips wicket_search_person()
-    // entirely — the two are never both called for the same request.
+    // entirely — the two are never both called for the same request. Return
+    // null (not [] or false) to fall back to the default search, e.g. when
+    // the term doesn't look like an identifier, or the lookup fails or
+    // finds nothing.
     $override = apply_filters( 'wicket_mship_bundle_eligible_member_search', null, $term, $bundle_post_id );
     if ( null !== $override ) {
       return rest_ensure_response( $override );
