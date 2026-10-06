@@ -50,8 +50,11 @@ $back_url = esc_url_raw( remove_query_arg( 'bundle_post_id' ) );
 // a field name present on the member row JSON. Resolved once here
 // (server-rendered, not reactive) since it decides both the static
 // <thead>/<tbody> markup below and the fields threaded through the Remove
-// button's event payload to remove-member-modal.php's summary card.
-$extra_columns = apply_filters( 'wicket_mship_bundle_member_extra_columns', [], $bundle_post_id );
+// button's event payload to remove-member-modal.php's summary card. The
+// trailing $args array carries context (bundle_post_id) so callbacks can
+// scope their answer; extend it with new keys rather than new positional
+// parameters.
+$extra_columns = apply_filters( 'wicket_mship_bundle_member_extra_columns', [], [ 'bundle_post_id' => $bundle_post_id ] );
 
 // Normalize the registered columns and split them by position. 'start' puts a
 // column first in the members table and right after the member's name in the

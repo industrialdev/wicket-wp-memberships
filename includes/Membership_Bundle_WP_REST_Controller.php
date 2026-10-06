@@ -952,7 +952,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     // in PHP against the already-shaped rows instead, before pagination.
     $search = sanitize_text_field( $params['search'] ?? '' );
     if ( '' !== $search ) {
-      $rows = $this->filter_bundle_member_rows_by_search( $rows, $search, $bundle_post_id );
+      $rows = $this->filter_bundle_member_rows_by_search( $rows, $search, [ 'bundle_post_id' => $bundle_post_id ] );
     }
 
     $rows = $this->sort_bundle_member_rows( $rows, $order_col, $order_dir );
@@ -998,8 +998,10 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     // the members table once the same key is also registered via the
     // wicket_mship_bundle_member_extra_columns filter (detail.php), and
     // becomes searchable via wicket_mship_bundle_member_searchable_fields
-    // below — no fork of this method required.
-    return apply_filters( 'wicket_mship_bundle_member_row', $row, $post );
+    // below — no fork of this method required. The trailing $args array
+    // carries context (user_id) so callbacks don't re-read it; extend it
+    // with new keys rather than new positional parameters.
+    return apply_filters( 'wicket_mship_bundle_member_row', $row, $post, [ 'user_id' => $user_id ] );
   }
 
   /**
@@ -1011,15 +1013,16 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    * matches it too.
    *
    * @param array<int, array<string, mixed>> $rows
-   * @param int|null                          $bundle_post_id Passed through to the filter for parity with extra_columns.
+   * @param array|null                        $args Context for the filter. New keys may be
+   *                                        added over time instead of new positional
+   *                                        parameters; callers pass ['bundle_post_id' => int].
    * @return array<int, array<string, mixed>>
    */
-  private function filter_bundle_member_rows_by_search( array $rows, string $search, ?int $bundle_post_id = null ): array {
+  private function filter_bundle_member_rows_by_search( array $rows, string $search, ?array $args = null ): array {
     $needle = mb_strtolower( $search );
-    // Second filter arg ($bundle_post_id) matches extra_columns' signature so
-    // a callback can scope its answer per bundle; single-arg callbacks keep
-    // working unchanged.
-    $fields = apply_filters( 'wicket_mship_bundle_member_searchable_fields', [ 'first_name', 'last_name', 'email' ], $bundle_post_id );
+    // Trailing $args array carries the filter context (e.g. bundle_post_id);
+    // extend it with new keys rather than new positional parameters.
+    $fields = apply_filters( 'wicket_mship_bundle_member_searchable_fields', [ 'first_name', 'last_name', 'email' ], $args ?? [] );
 
     return array_values( array_filter( $rows, function ( $row ) use ( $needle, $fields ) {
       foreach ( $fields as $field ) {
@@ -1100,7 +1103,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     // null (not [] or false) to fall back to the default search, e.g. when
     // the term doesn't look like an identifier, or the lookup fails or
     // finds nothing.
-    $override = apply_filters( 'wicket_mship_bundle_eligible_member_search', null, $term, $bundle_post_id );
+    $override = apply_filters( 'wicket_mship_bundle_eligible_member_search', null, $term, [ 'bundle_post_id' => $bundle_post_id ] );
     if ( null !== $override ) {
       return rest_ensure_response( $override );
     }
