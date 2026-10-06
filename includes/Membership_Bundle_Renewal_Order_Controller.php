@@ -444,6 +444,7 @@ class Membership_Bundle_Renewal_Order_Controller {
 
     $old_bundle_post_id = (int) $bundle_posts[0];
     $reprice_failures   = [];
+    $added_line_members = []; // Line item ID added by a callback => membership post IDs that added it.
 
     foreach ( $renewal_order->get_items() as $item_id => $item ) {
       $membership_post_id = (int) wc_get_order_item_meta( $item_id, '_membership_post_id', true );
@@ -466,6 +467,7 @@ class Membership_Bundle_Renewal_Order_Controller {
       }
 
       $original_product_price = (string) $item->get_total();
+      $item_ids_before        = array_keys( $renewal_order->get_items() );
 
       try {
         // The callback mutates $item and/or $renewal_order directly — e.g.
@@ -507,6 +509,17 @@ class Membership_Bundle_Renewal_Order_Controller {
           'error'              => $e->getMessage(),
         ] ] );
       }
+
+      foreach ( array_diff( array_keys( $renewal_order->get_items() ), $item_ids_before ) as $added_item_id ) {
+        $added_line_members[ $added_item_id ][] = $membership_post_id;
+      }
+    }
+
+    // Default comes from the Line Item Consolidation setting; code can override it per order.
+    $consolidation_setting = Settings::is_renewal_line_item_consolidation_enabled();
+    $consolidate           = (bool) apply_filters( 'wicket_mship_bundle_renewal_consolidate_line_items', $consolidation_setting, $renewal_order, $subscription );
+    if ( $consolidate && ! empty( $added_line_members ) ) {
+      Membership_Bundle_Line_Item_Consolidator::consolidate( $renewal_order, $added_line_members, ! $consolidation_setting );
     }
 
     $renewal_order->calculate_totals();

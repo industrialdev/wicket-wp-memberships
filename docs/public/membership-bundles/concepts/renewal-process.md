@@ -131,6 +131,10 @@ Because historical records are preserved, reporting on membership continuity (co
 
 When the Wicket base plugin's WooCommerce order touchpoints are enabled, a bundle renewal order created by the background renewal-order job writes its "Order Pending" touchpoint once the order is fully built — line items, repriced totals, and organization included — rather than when WooCommerce first saves the empty order. If repricing puts the order on hold during creation, a single "Order On-Hold" touchpoint is written instead.
 
+## Line item consolidation
+
+Identical charge lines added per member while the renewal order is priced (for example, the same late fee for several members) are combined into one line with a quantity, and an order note lists what was combined. See [Per-member price/fee adjustment on renewal](./renewal-types.md#per-member-price-fee-adjustment-on-renewal) for the match rules and how to turn it off.
+
 ## Failure handling
 
 **Per-seat errors** — if an individual member seat cannot be provisioned (user cannot be resolved, or the assigned tier is invalid), the error is recorded in the `errors` array of `membership_renewal_processing` meta and processing continues for all remaining seats. The renewal is not aborted. After batch completion, an admin note is added to the WooCommerce renewal order listing each failed seat so that site administrators can take corrective action.

@@ -42,6 +42,7 @@ audience: [implementer, support, developer, end-user]
 - [Membership_Bundle_Config_CPT_Hooks](engineering/Membership_Bundle_Config_CPT_Hooks.md) — Admin UI hooks for bundle configs: React edit page, list columns, trash protection
 - [Membership_Bundle_Config_WP_REST_Controller](engineering/Membership_Bundle_Config_WP_REST_Controller.md) — REST endpoint for bundle config date calculation
 - [Membership_Bundle_Cron_Controller](engineering/Membership_Bundle_Cron_Controller.md) — Daily Action Scheduler handlers for bundle grace-period, expiry, activation, and the post-payment renewal batch processing
+- [Membership_Bundle_Line_Item_Consolidator](engineering/Membership_Bundle_Line_Item_Consolidator.md) — Combines identical per-member charge lines on a bundle renewal order into one line with a quantity
 - [Membership_Bundle_Renewal_Order_Controller](engineering/Membership_Bundle_Renewal_Order_Controller.md) — Bundle renewal-order creation: claim/queue, WCS admin-action intercept, per-member repricing
 - [Membership_Bundle_WP_REST_Controller](engineering/Membership_Bundle_WP_REST_Controller.md) — REST endpoints for all membership bundle operations
 - [Order_Touchpoint_Hold](engineering/Order_Touchpoint_Hold.md) — Holds the base plugin's WooCommerce order touchpoint until a bundle renewal order is fully built

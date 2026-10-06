@@ -25,6 +25,8 @@ source_files: ["includes/Settings.php"]
 - `bypass_wicket()` (static)
 - `wicket_mship_autorenew_toggle()` (static)
 - `wicket_mship_mdp_timezone()` (static)
+- `wicket_mship_consolidate_renewal_line_items()` (static)
+- `is_renewal_line_item_consolidation_enabled()` (static)
 - `wicket_mship_subscription_renew()` (static)
 - `wicket_memberships_debug_acc()` (static)
 - `wicket_memberships_debug_renew()` (static)
@@ -84,6 +86,12 @@ Outputs a checkbox to enable the user-facing Autorenew toggle for subscriptions,
 
 **wicket_mship_mdp_timezone()** (static)
 Outputs a timezone selector dropdown. Sets the MDP operating timezone used for date calculations across the plugin.
+
+**wicket_mship_consolidate_renewal_line_items()** (static)
+Outputs the "Line Item Consolidation" checkbox in the Membership Bundles section, with a description and example. Stored as `wicket_mship_consolidate_renewal_line_items` in `wicket_membership_plugin_options`.
+
+**is_renewal_line_item_consolidation_enabled()** (static)
+Whether bundle renewal orders combine identical per-member charge lines. On by default: a missing key (never saved) reads as enabled; the validator always writes `'1'` or `''`, so an admin's "off" is preserved. Read by `Membership_Bundle_Renewal_Order_Controller::apply_bundle_renewal_line_item_price_filter()`.
 
 **wicket_mship_subscription_renew()** (static)
 Outputs a checkbox to enable the [BETA] subscription renewal flow for tiers.

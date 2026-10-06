@@ -227,6 +227,13 @@ add_filter( 'wicket_mship_bundle_renewal_line_item_price', function ( $unused, $
 
 **Idempotency across renewal cycles is the callback's own responsibility.** Core does not detect or prevent a callback from adding the same fee/product line on every cycle — if a callback should only apply a fee once, it must check for an existing line itself (e.g. via order-item meta linking back to the membership post).
 
+**Identical added lines are combined.** When callbacks add the same product at the same price for several members (e.g. one late fee each), core combines them into a single line with a quantity, records which members contributed (`_wicket_bundle_renewal_member_post_ids`), and adds an order note listing what was combined. Lines only combine when product, price, tax class, and all line item meta match, so add distinguishing meta to keep a line separate. Fee lines added with `add_fee()` are not combined (WooCommerce fee lines have no quantity). Controlled by **Settings → Wicket Memberships → Membership Bundles → Line Item Consolidation** (on by default), or per order with the `wicket_mship_bundle_renewal_consolidate_line_items` filter:
+
+```php
+// Keep identical added lines separate on every bundle renewal order.
+add_filter( 'wicket_mship_bundle_renewal_consolidate_line_items', '__return_false' );
+```
+
 ::: tip Not doing
 There is no native rule-based pricing engine or promo-code support in core, and none is planned — this filter is the only mechanism, and any pricing/eligibility logic lives entirely in whatever answers it.
 :::

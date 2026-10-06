@@ -18,6 +18,7 @@ Bundle renewal-order creation: claiming, queuing, and per-member repricing. Spli
 | `wicket_mship_bundle_renewal_charge_tier_product` | `reprice_bundle_renewal_line_item()` | `mixed $override, int $old_membership_post_id, int $user_id, int $old_bundle_post_id, array $core_default` | Default `null` — resolved default stands. A non-null override is validated against the target tier's own products and fails closed to the default on mismatch |
 | `wicket_mship_bundle_renewal_line_item_price` | `apply_bundle_renewal_line_item_price_filter()` | `mixed $override, \WC_Order_Item $item, int $item_id, int $membership_post_id, int $user_id, \WC_Order $renewal_order` | Default `null`, single-channel — return value ignored either way; no callback means no price/fee mutation occurs |
 | `wicket_mship_bundle_line_item_extra_meta` | `refresh_bundle_renewal_line_item_meta()` | `array $extra_meta, int $item_id, \WP_User\|false $user, int $membership_post_id, int $product_id, bool $is_renewal` | Default `[]` — no-op; re-fires the same filter `Membership_Bundle::add_subscription_line_item()` fires at add-time, with `$is_renewal = true` on this call site |
+| `wicket_mship_bundle_renewal_consolidate_line_items` | `apply_bundle_renewal_line_item_price_filter()` | `bool $consolidate, \WC_Order $renewal_order, \WC_Subscription $subscription` | Default: the Line Item Consolidation setting (`Settings::is_renewal_line_item_consolidation_enabled()`, on unless unticked). Return `false` to keep identical added lines separate on this order, `true` to combine them regardless of the setting |
 
 ## Registered Actions
 
@@ -121,8 +122,9 @@ Hooked to WooCommerce Subscriptions' own `wcs_renewal_order_created` filter. Thi
 2. Loops the renewal order's line items, resolving each to its member via `_membership_post_id` order-item meta, then to `user_id` post meta (cached — see above).
 3. Calls `reprice_bundle_renewal_line_item()` (below) to reprice the item to the term the member is renewing into, before the price/fee filter runs. A failure is collected, not thrown.
 4. Fires `wicket_mship_bundle_renewal_line_item_price` once per member/line-item, inside its own try/catch (log-and-continue on failure — a single bad member's callback must not abort the rest of the order or skip `calculate_totals()`). If a callback directly overrides the item's total (not a product swap, not a coupon/discount — both already visible elsewhere), `_wicket_bundle_renewal_original_product_price` (the pre-filter price) and `_wicket_bundle_renewal_price_decision_source` (always `filter_override`) are stamped on the item.
-5. Calls `$renewal_order->calculate_totals()` once after the full loop, regardless of any item's failure.
-6. If any member's repricing failed, puts the order `on-hold` with a note naming every failed member and error code, and logs the batch.
+5. Records which member's callback added each new line item (item IDs before vs after the callback). If consolidation is on (setting, then `wicket_mship_bundle_renewal_consolidate_line_items`), calls `Membership_Bundle_Line_Item_Consolidator::consolidate()`.
+6. Calls `$renewal_order->calculate_totals()` once after the full loop, regardless of any item's failure.
+7. If any member's repricing failed, puts the order `on-hold` with a note naming every failed member and error code, and logs the batch.
 
 **Return contract:** the filter's own return value is discarded. A callback communicates any change — price adjustment, added fee/product line, whole-order effect — by mutating the passed `$item`/`$renewal_order` directly via the normal WC API. Default behavior with no callback attached: the loop runs but no mutation occurs.
 
