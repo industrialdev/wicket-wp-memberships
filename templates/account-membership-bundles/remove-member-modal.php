@@ -79,6 +79,12 @@ if ( ! defined( 'ABSPATH' ) ) {
           <p class="wicket-mship-remove-member-modal__summary-label"><?php esc_html_e( 'Member', 'wicket-memberships' ); ?></p>
           <p class="wicket-mship-remove-member-modal__summary-value" x-text="fullName()"></p>
         </div>
+        <template x-for="col in startColumns()" :key="col.key">
+          <div class="wicket-mship-remove-member-modal__summary-field">
+            <p class="wicket-mship-remove-member-modal__summary-label" x-text="col.label"></p>
+            <p class="wicket-mship-remove-member-modal__summary-value" x-text="extraFields[col.key] || '—'"></p>
+          </div>
+        </template>
         <div class="wicket-mship-remove-member-modal__summary-field">
           <p class="wicket-mship-remove-member-modal__summary-label"><?php esc_html_e( 'Email', 'wicket-memberships' ); ?></p>
           <p class="wicket-mship-remove-member-modal__summary-value" x-text="email"></p>
@@ -87,7 +93,7 @@ if ( ! defined( 'ABSPATH' ) ) {
           <p class="wicket-mship-remove-member-modal__summary-label"><?php esc_html_e( 'Tier', 'wicket-memberships' ); ?></p>
           <p class="wicket-mship-remove-member-modal__summary-value" x-text="tierName"></p>
         </div>
-        <template x-for="col in extraColumns" :key="col.key">
+        <template x-for="col in endColumns()" :key="col.key">
           <div class="wicket-mship-remove-member-modal__summary-field">
             <p class="wicket-mship-remove-member-modal__summary-label" x-text="col.label"></p>
             <p class="wicket-mship-remove-member-modal__summary-value" x-text="extraFields[col.key] || '—'"></p>
@@ -153,7 +159,7 @@ if ( ! defined( 'ABSPATH' ) ) {
       // the "kept as individual until <date>" copy below.
       bundleEndsAt: null,
 
-      // Same [{ key, label }, ...] shape as detail.php's own extraColumns —
+      // Same [{ key, label, position }, ...] shape as detail.php's own extraColumns —
       // passed through unchanged via $block_config since both templates
       // resolve wicket_mship_bundle_member_extra_columns from the same
       // bundle_post_id and should never disagree on the column list.
@@ -191,6 +197,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 
       fullName() {
         return ( this.firstName + ' ' + this.lastName ).trim() || '—';
+      },
+
+      // Extra columns split by the 'position' detail.php's normalization
+      // attached to each entry: 'start' fields render right after the
+      // member's name in the summary card, everything else keeps the
+      // historical spot after Tier.
+      startColumns() {
+        return this.extraColumns.filter( ( col ) => col.position === 'start' );
+      },
+
+      endColumns() {
+        return this.extraColumns.filter( ( col ) => col.position !== 'start' );
       },
 
       titleText() {

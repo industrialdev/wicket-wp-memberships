@@ -795,6 +795,11 @@
   color: var(--text-content-secondary, #6b7280);
 }
 
+.wicket-mship-add-member-modal__result-extra {
+  font-size: var(--body-sm-font-size, 0.85rem);
+  color: var(--text-content-secondary, #6b7280);
+}
+
 /* Results step — tier checkboxes */
 
 .wicket-mship-add-member-modal__tier-list {
