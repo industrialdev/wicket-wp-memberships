@@ -105,3 +105,5 @@ Renders a custom search box in the admin membership posts list.
 
 **has_next_payment_date($membership)** (static)
 Determines if a membership/subscription should have a next payment date set, based on renewal logic and config.
+
+> Autorenew logic (formerly on this class) moved to [`Class-Autorenew.md`](Class-Autorenew.md) / `includes/Autorenew.php`.

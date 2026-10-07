@@ -47,7 +47,7 @@ source_files: ["includes/Utilities.php"]
 Initializes hooks, filters, and actions for membership and subscription management, including metaboxes, AJAX, and admin notices.
 
 **display_autopay_status_row_admin($order)**
-Displays the autopay status (on/off) for a WooCommerce subscription order in the admin panel.
+Displays two rows in the admin subscription screen: the raw "Requires Manual Renewal" flag, and the computed "Auto-Renew State" (with a reason tooltip when not autorenewing) via `Autorenew::resolve_status()`.
 
 **wicket_membership_clear_the_cart()**
 Empties the WooCommerce cart if the `empty-cart` query param is set.
