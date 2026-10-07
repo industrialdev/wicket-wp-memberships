@@ -602,46 +602,34 @@ function get_item_data ( $other_data, $cart_item ) {
     }
   }
 
+  /**
+   * Force-clear a subscription's next payment date and its scheduled renewal payment.
+   *
+   * Runs 90 seconds after update_membership_subscription() clears the date, to catch WooCommerce
+   * Subscriptions re-setting it in the meantime (e.g. on a status change). Removes every pending
+   * `woocommerce_scheduled_subscription_payment` action for the subscription, then deletes the date
+   * through the subscription API and adds an order note.
+   *
+   * @param  int|string $sub_id  Subscription ID, from the `wicket_wipe_next_payment_date` action args.
+   *
+   * @return void
+   *
+   * @see Membership_Controller::schedule_wicket_wipe_next_payment_date()
+   */
   public static function catch_wicket_wipe_next_payment_date($sub_id) {
-    global $wpdb;
-    $result = $wpdb->update(
-      $wpdb->postmeta,
-      ['meta_value' => 0],
-      [
-          'post_id'  => $sub_id,
-          'meta_key' => '_schedule_next_payment'
-      ],
-      [
-          '%d'
-      ],
-      [
-          '%d',
-          '%s'
-      ]
-    );
-
-    if ( ! class_exists( 'ActionScheduler_Queue' ) ) {
-        return;
+    // Remove every pending scheduled renewal payment for this subscription. WCS schedules them
+    // with an integer subscription ID; a string ID is also cleared in case one was scheduled by an
+    // import or another tool, since Action Scheduler matches args by their JSON encoding.
+    if ( function_exists( 'as_unschedule_all_actions' ) ) {
+      foreach ( [ (int) $sub_id, (string) $sub_id ] as $action_subscription_id ) {
+        as_unschedule_all_actions( 'woocommerce_scheduled_subscription_payment', [ 'subscription_id' => $action_subscription_id ] );
+      }
     }
 
-    $args = array(
-        'status' => 'pending', // Or other statuses like 'complete', 'failed'
-        'hook'   => 'woocommerce_scheduled_subscription_payment',
-        'args'   => array( 'subscription_id' => $sub_id ),
-    );
-
-    $scheduled_actions = ActionScheduler_Queue::instance()->get_actions( $args );
-
-    foreach ( $scheduled_actions as $action_id => $action ) {
-        if ( $action->get_id() === $action_id ) {
-            ActionScheduler_Queue::instance()->delete( $action_id );
-        }
-    }
-
-    if ( function_exists( 'wcs_get_subscription' ) ) {
-      $sub = \wcs_get_subscription( $sub_id );
-    }
-    if(! empty($sub)) {
+    // Delete the date through WCS so it is removed from whichever order store the site uses
+    // (posts or HPOS) and WCS's own date-deleted handling runs as well.
+    $sub = function_exists( 'wcs_get_subscription' ) ? \wcs_get_subscription( $sub_id ) : false;
+    if ( $sub ) {
       $sub->delete_date( 'next_payment' );
       $sub->add_order_note( 'Wicket clear next payment schedule and date.' );
     }
