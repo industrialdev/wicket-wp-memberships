@@ -45,12 +45,51 @@ $back_url = esc_url_raw( remove_query_arg( 'bundle_post_id' ) );
 
 // Extension point for client-specific member columns (e.g. a "Bar ID" a
 // child theme appends to each row via wicket_mship_bundle_member_row in
-// Membership_Bundle_WP_REST_Controller). Each entry is [ 'key' => ..., 'label' => ... ];
-// 'key' must match a field name present on the member row JSON. Resolved
-// once here (server-rendered, not reactive) since it decides both the
-// static <thead>/<tbody> markup below and the fields threaded through the
-// Remove button's event payload to remove-member-modal.php's summary card.
-$extra_columns = apply_filters( 'wicket_mship_bundle_member_extra_columns', [], $bundle_post_id );
+// Membership_Bundle_WP_REST_Controller). Each entry is [ 'key' => ..., 'label' => ... ]
+// with an optional 'position' (see the normalization below); 'key' must match
+// a field name present on the member row JSON. Resolved once here
+// (server-rendered, not reactive) since it decides both the static
+// <thead>/<tbody> markup below and the fields threaded through the Remove
+// button's event payload to remove-member-modal.php's summary card. The
+// trailing $args array carries context (bundle_post_id) so callbacks can
+// scope their answer; extend it with new keys rather than new positional
+// parameters.
+$extra_columns = apply_filters( 'wicket_mship_bundle_member_extra_columns', [], [ 'bundle_post_id' => $bundle_post_id ] );
+
+// Normalize the registered columns and split them by position. 'start' puts a
+// column first in the members table and right after the member's name in the
+// remove-modal summary card; 'end' (the default, and the only position that
+// existed before 'position' was introduced) keeps it after Start Date / Tier.
+// Splitting here — instead of letting the templates sort it out — keeps the
+// markup dumb and drops malformed entries (missing key/label, duplicate keys,
+// or a key that would shadow a built-in column) before they can fatal the
+// render or break Alpine's :key.
+$extra_columns_start = [];
+$extra_columns_end   = [];
+$extra_columns_seen  = [];
+foreach ( (array) $extra_columns as $extra_column ) {
+  if ( empty( $extra_column['key'] ) || empty( $extra_column['label'] ) ) {
+    continue;
+  }
+  if ( in_array( $extra_column['key'], [ 'first_name', 'last_name', 'email', 'tier_uuid', 'membership_starts_at', 'ID' ], true ) ) {
+    continue;
+  }
+  if ( isset( $extra_columns_seen[ $extra_column['key'] ] ) ) {
+    continue;
+  }
+  $extra_columns_seen[ $extra_column['key'] ] = true;
+  $normalized = [
+    'key'      => (string) $extra_column['key'],
+    'label'    => (string) $extra_column['label'],
+    'position' => ( isset( $extra_column['position'] ) && 'start' === $extra_column['position'] ) ? 'start' : 'end',
+  ];
+  if ( 'start' === $normalized['position'] ) {
+    $extra_columns_start[] = $normalized;
+  } else {
+    $extra_columns_end[] = $normalized;
+  }
+}
+$extra_columns = array_merge( $extra_columns_start, $extra_columns_end );
 
 // Appended to the members-search placeholder/aria-label below, and (via
 // plain PHP scope — add-member-modal.php is require()'d further down, not
@@ -338,6 +377,9 @@ $block_config = [
             <table class="wicket-mship-bundle-detail__members-table">
               <thead>
                 <tr>
+                  <?php foreach ( $extra_columns_start as $extra_column ) : ?>
+                    <th><?php echo esc_html( $extra_column['label'] ); ?></th>
+                  <?php endforeach; ?>
                   <th>
                     <button type="button" class="wicket-mship-bundle-detail__sort-btn" @click="sortMembersBy('first_name')">
                       <?php esc_html_e( 'First Name', 'wicket-memberships' ); ?>
@@ -363,7 +405,7 @@ $block_config = [
                       <span class="wicket-mship-bundle-detail__sort-icon" aria-hidden="true">⇅</span>
                     </button>
                   </th>
-                  <?php foreach ( $extra_columns as $extra_column ) : ?>
+                  <?php foreach ( $extra_columns_end as $extra_column ) : ?>
                     <th><?php echo esc_html( $extra_column['label'] ); ?></th>
                   <?php endforeach; ?>
                   <th><?php esc_html_e( 'Action', 'wicket-memberships' ); ?></th>
@@ -372,12 +414,15 @@ $block_config = [
               <tbody>
                 <template x-for="(member, index) in members" :key="member.ID">
                   <tr :class="{ 'wicket-mship-bundle-detail__member-row--grouped': isGroupedMemberRow(index) }">
+                    <?php foreach ( $extra_columns_start as $extra_column ) : ?>
+                      <td x-text="member['<?php echo esc_js( $extra_column['key'] ); ?>']"></td>
+                    <?php endforeach; ?>
                     <td x-text="member.first_name"></td>
                     <td x-text="member.last_name"></td>
                     <td x-text="member.email"></td>
                     <td x-text="tierName(member.tier_uuid)"></td>
                     <td :title="isoTooltip(member.membership_starts_at)" x-text="formatDate(member.membership_starts_at)"></td>
-                    <?php foreach ( $extra_columns as $extra_column ) : ?>
+                    <?php foreach ( $extra_columns_end as $extra_column ) : ?>
                       <td x-text="member['<?php echo esc_js( $extra_column['key'] ); ?>']"></td>
                     <?php endforeach; ?>
                     <td>
@@ -511,7 +556,7 @@ if ( $renewal_summary !== null ) {
       bundlePostId: config.bundlePostId,
       backUrl: config.backUrl,
 
-      // [{ key, label }, ...] — resolved server-side once via the
+      // [{ key, label, position }, ...] — resolved server-side once via the
       // wicket_mship_bundle_member_extra_columns filter (see detail.php's
       // PHP header). Only used here by buildExtraFields(); the <thead>/
       // <tbody> extra columns themselves are rendered directly in PHP
@@ -669,13 +714,12 @@ if ( $renewal_summary !== null ) {
         this.fetchMembers( page );
       },
 
-      // Maps a table column to the order_col value GET /bundle/{id}/members/mine
-      // (Membership_Controller::get_members_list()) expects. `last_name` and
-      // `start_date` are fully supported (real per-field sorting server-side).
-      // `first_name` and `tier` are best-effort: the backend has no split
-      // first-name meta field, so it sorts by the full concatenated user_name
-      // meta instead; `tier` sorts by the tier's UUID string, not its display
-      // name, since tier name isn't stored on the membership post itself.
+      // Maps a table column to the order_col value the members endpoint's
+      // PHP sort (sort_bundle_member_rows() in
+      // Membership_Bundle_WP_REST_Controller) understands: sort_bundle_member_rows()
+      // maps those order_col aliases onto the shaped row fields. `tier` sorts
+      // by the tier's UUID string, not its display name, since tier name
+      // isn't stored on the membership post itself.
       sortMembersBy( column ) {
         const orderColMap = {
           first_name: 'user_name',

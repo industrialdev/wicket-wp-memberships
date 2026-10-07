@@ -82,7 +82,13 @@ if ( ! defined( 'ABSPATH' ) ) {
       <template x-if="step === 'search'">
         <div>
           <p class="wicket-mship-add-member-modal__description">
-            <?php esc_html_e( 'Search for the member by name to add them to your membership bundle. Only members with an eligible membership tier can be added to a bundle.', 'wicket-memberships' ); ?>
+            <?php
+            echo esc_html( sprintf(
+              /* translators: %s: comma-separated list of extra searchable field labels, e.g. " (or by Bar ID)" */
+              __( 'Search for the member by name or email%s to add them to your membership bundle. Only members with an eligible membership tier can be added to a bundle.', 'wicket-memberships' ),
+              $extra_columns_search_hint
+            ) );
+            ?>
           </p>
 
           <label class="wicket-mship-add-member-modal__label" for="wicket-mship-add-member-search">
@@ -150,7 +156,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
           <template x-if="results.length === 0">
             <p class="wicket-mship-add-member-modal__empty">
-              <?php esc_html_e( 'No members matched your search. Try a different name.', 'wicket-memberships' ); ?>
+              <?php esc_html_e( 'No members matched your search. Try a different search.', 'wicket-memberships' ); ?>
             </p>
           </template>
 
@@ -162,6 +168,9 @@ if ( ! defined( 'ABSPATH' ) ) {
                   <span class="wicket-mship-add-member-modal__result-info">
                     <span class="wicket-mship-add-member-modal__result-name" x-text="person.full_name"></span>
                     <span class="wicket-mship-add-member-modal__result-email" x-text="person.primary_email_address"></span>
+                    <template x-for="col in extraColumns" :key="col.key">
+                      <span class="wicket-mship-add-member-modal__result-extra" x-show="person[col.key]" x-text="person[col.key] ? col.label + ': ' + person[col.key] : ''"></span>
+                    </template>
                   </span>
                 </button>
               </template>
@@ -175,6 +184,9 @@ if ( ! defined( 'ABSPATH' ) ) {
                 <span class="wicket-mship-add-member-modal__result-info">
                   <span class="wicket-mship-add-member-modal__result-name" x-text="selectedPerson.full_name"></span>
                   <span class="wicket-mship-add-member-modal__result-email" x-text="selectedPerson.primary_email_address"></span>
+                  <template x-for="col in extraColumns" :key="col.key">
+                    <span class="wicket-mship-add-member-modal__result-extra" x-show="selectedPerson[col.key]" x-text="selectedPerson[col.key] ? col.label + ': ' + selectedPerson[col.key] : ''"></span>
+                  </template>
                 </span>
               </div>
 
@@ -296,6 +308,9 @@ if ( ! defined( 'ABSPATH' ) ) {
                     <td>
                       <div class="wicket-mship-add-member-modal__result-name" x-text="selectedPerson.full_name"></div>
                       <div class="wicket-mship-add-member-modal__result-email" x-text="selectedPerson.primary_email_address"></div>
+                      <template x-for="col in extraColumns" :key="col.key">
+                        <div class="wicket-mship-add-member-modal__result-extra" x-show="selectedPerson[col.key]" x-text="selectedPerson[col.key] ? col.label + ': ' + selectedPerson[col.key] : ''"></div>
+                      </template>
                     </td>
                     <td x-text="row.tier.name"></td>
                     <td x-text="formatDate(bundleStartsAt)"></td>
@@ -372,6 +387,12 @@ if ( ! defined( 'ABSPATH' ) ) {
       restNonce: config.restNonce,
       bundlePostId: config.bundlePostId,
       mdpTimezone: config.mdpTimezone,
+      // [{ key, label, position }, ...] — resolved server-side once via the
+      // wicket_mship_bundle_member_extra_columns filter (see detail.php).
+      // Surfaced on person search results when the search response carries
+      // the field (a Bar-ID hit does; a name/email hit does not), so a
+      // client-specific identifier like Bar ID is visible before selecting.
+      extraColumns: config.extraColumns || [],
       // Populated lazily from the bundle entity once the modal opens (see
       // openModal()) rather than passed in at page load, since detail.php's
       // own bundle fetch may not have resolved yet by the time Alpine
