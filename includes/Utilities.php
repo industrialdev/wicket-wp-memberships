@@ -1138,13 +1138,27 @@ function wicket_sub_org_select_callback( $subscription ) {
     <?php
   }
 
+  /**
+   * Handle the autorenew toggle AJAX request (action auto_renew_enabled_for_user).
+   *
+   * Gates in order: logged-in caller, valid `wicket_mship_autorenew_toggle`
+   * nonce, and self-ownership of the targeted user unless the caller holds
+   * manage_woocommerce. A supplied subscription must belong to the targeted
+   * user (same capability exception) before `_requires_manual_renewal`
+   * flips. Always answers JSON and terminates via wp_send_json_*.
+   *
+   * @return void
+   */
   public static function handle_user_auto_renew_toggle() {
     // WWID-2665 gate: logged-in callers only, valid nonce, and a user may
     // flip only their own flag unless they hold manage_woocommerce.
     if (!is_user_logged_in()) {
         wp_send_json_error(['message' => 'Authentication required.'], 403);
     }
-    check_ajax_referer('wicket_mship_autorenew_toggle', 'nonce');
+    // $die=false keeps the JSON error shape; the default die prints a plain -1 body.
+    if (!check_ajax_referer('wicket_mship_autorenew_toggle', 'nonce', false)) {
+        wp_send_json_error(['message' => 'Invalid security token.'], 403);
+    }
     if (!isset($_POST['user_id']) || !isset($_POST['enabled'])) {
         wp_send_json_error(['message' => 'Invalid request.']);
     }
