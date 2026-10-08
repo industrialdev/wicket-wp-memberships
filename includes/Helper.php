@@ -179,7 +179,12 @@ class Helper {
   }
 
   public static function is_valid_membership_post( $membership_post_id ) {
-    return ( !empty( get_post_status( $membership_post_id ) ) && get_post_status( $membership_post_id ) == 'publish' );
+    // Type check (WWID-2665): any published post of any type used to pass.
+    $post = get_post( $membership_post_id );
+    if ( empty( $post ) || empty( $post->post_type ) ) {
+      return false;
+    }
+    return $post->post_type === self::get_membership_cpt_slug() && get_post_status( $membership_post_id ) == 'publish';
   }
 
   public static function get_all_status_names() {
@@ -256,7 +261,10 @@ class Helper {
         ],
       ];
     } else {
-      return new \StdClass();
+      // Terminal and unknown statuses allow no transitions; always an array
+      // (WWID-2665): array consumers on /admin/status_options fataled on the
+      // old StdClass return.
+      return [];
     }
   }
 
@@ -269,13 +277,18 @@ class Helper {
    * @return array
    */
   public static function get_membership_post_data_from_membership_json( $membership_json, $json_encoded = true, $dir = 'post' ) {
+    // WWID-2665 audit note: DEAD CODE today - both production callers are
+    // commented out (Admin_Controller ~155 and ~300). The $dir comparison
+    // below is fixed (was an assignment), but the 'order' branch is
+    // unverified and its mapping/empty-check logic looks inverted. Do not
+    // call without fixing those first.
     $membership_post_data = array();
     if( $json_encoded === true ) {
       $membership_array = json_decode( $membership_json, true);
     } else {
       $membership_array = $membership_json;
     }
-    if($dir = 'post') {
+    if('post' === $dir) {
       $mapping_keys = [
         'membership_wp_user_display_name' => 'user_name',
         'membership_wp_user_email' => 'user_email',

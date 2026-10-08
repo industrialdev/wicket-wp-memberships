@@ -285,12 +285,26 @@ class Utilities {
     }
     $memberships =  wicket_get_person_memberships( $person_uuid );
 
+    // Shape guard (WWID-2665): the SDK can return junk for non-person and
+    // non-org membership types; never iterate an unvalidated payload.
+    if ( ! is_array( $memberships ) || ! isset( $memberships['data'] ) || ! is_array( $memberships['data'] ) ) {
+      return 'failed';
+    }
+
+    $response = [];
     foreach($memberships['data'] as $membership) {
+      // Skip malformed entries: a non-array row, or one without an id and
+      // type, must not raise notices here (WWID-2665).
+      if ( ! is_array( $membership ) || empty( $membership['id'] ) || empty( $membership['type'] ) ) {
+        continue;
+      }
       $membership_wicket_uuid = $membership['id'];
       if($membership['type'] == 'person_memberships') {
         $response_api = wicket_delete_person_membership( $membership_wicket_uuid );
       } elseif($membership['type'] == 'organization_memberships') {
         $response_api = wicket_delete_organization_membership( $membership_wicket_uuid );
+      } else {
+        continue;
       }
       if(is_wp_error( $response_api )) {
         $response[$membership_wicket_uuid] = $response_api->get_error_message( 'wicket_api_error' );
@@ -1021,7 +1035,8 @@ function wicket_sub_org_select_callback( $subscription ) {
       add_action('wp', [__NAMESPACE__.'\\Utilities', 'wc_autorenew_toggle_filters']);
       add_action('wp_footer', [__NAMESPACE__.'\\Utilities', 'wicket_wc_enqueue_scripts_autorenew_toggle']);
       add_action('wp_ajax_auto_renew_enabled_for_user', [__NAMESPACE__.'\\Utilities', 'handle_user_auto_renew_toggle']);
-      add_action('wp_ajax_nopriv_auto_renew_enabled_for_user', [__NAMESPACE__.'\\Utilities', 'handle_user_auto_renew_toggle']); // Allow guests if needed
+      // No nopriv registration (WWID-2665): the toggle mutates a user's autopay
+      // flag, so anonymous visitors never get an endpoint.
       add_action('wp_enqueue_scripts', [__NAMESPACE__.'\\Utilities', 'enqueue_mship_ajax_script']);
     }
   }
@@ -1074,12 +1089,9 @@ function wicket_sub_org_select_callback( $subscription ) {
    * @return void
    */
   public static function wicket_wc_enqueue_scripts_autorenew_toggle() {
-    wp_localize_script('auto_renew_enabled_for_user',
-      'wicket_mship_ajax_object',
-      ['ajaxurl' => admin_url('admin-ajax.php'),
-      'user_id' => get_current_user_id()
-      ]
-    );
+    // The toggle nonce ships through enqueue_mship_ajax_script()'s localize
+    // on the 'ajax-script' handle (WWID-2665): this function only prints the
+    // toggle markup and its inline script.
     ?>
     <style>
         .wicket-wc-toggle {
@@ -1155,6 +1167,7 @@ function wicket_sub_org_select_callback( $subscription ) {
                   type: 'POST',
                   data: {
                       action: 'auto_renew_enabled_for_user',
+                      nonce: wicket_mship_ajax_object.autorenew_nonce,
                       user_id: wicket_mship_ajax_object.user_id,
                       <?php
                         if(isset($_REQUEST['subscription_id']) && !empty($_REQUEST['subscription_id'])) {
@@ -1179,19 +1192,51 @@ function wicket_sub_org_select_callback( $subscription ) {
     <?php
   }
 
+  /**
+   * Handle the autorenew toggle AJAX request (action auto_renew_enabled_for_user).
+   *
+   * Gates in order: logged-in caller, valid `wicket_mship_autorenew_toggle`
+   * nonce, and self-ownership of the targeted user unless the caller holds
+   * manage_woocommerce. A supplied subscription must belong to the targeted
+   * user (same capability exception) before `_requires_manual_renewal`
+   * flips. Always answers JSON and terminates via wp_send_json_*.
+   *
+   * @return void
+   */
   public static function handle_user_auto_renew_toggle() {
+    // WWID-2665 gate: logged-in callers only, valid nonce, and a user may
+    // flip only their own flag unless they hold manage_woocommerce.
+    if (!is_user_logged_in()) {
+        wp_send_json_error(['message' => 'Authentication required.'], 403);
+    }
+    // $die=false keeps the JSON error shape; the default die prints a plain -1 body.
+    if (!check_ajax_referer('wicket_mship_autorenew_toggle', 'nonce', false)) {
+        wp_send_json_error(['message' => 'Invalid security token.'], 403);
+    }
     if (!isset($_POST['user_id']) || !isset($_POST['enabled'])) {
         wp_send_json_error(['message' => 'Invalid request.']);
     }
     $user_id = intval($_POST['user_id']);
+    if ($user_id !== get_current_user_id() && !current_user_can('manage_woocommerce')) {
+        wp_send_json_error(['message' => 'You are not allowed to change this setting.'], 403);
+    }
     $enabled = $_POST['enabled'] == 1 ? 'yes' : 'no';
+    $subscription_id = 0;
     if( isset($_POST['subscription_id']) ) {
-      $subscription_id = $_POST['subscription_id'];
+      $subscription_id = intval($_POST['subscription_id']);
     } else if( isset($_POST['membership_post_id_renew']) ) {
-      $subscription_id = get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true );
+      $subscription_id = intval( get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true ) );
     }
     if(!empty($subscription_id)) {
       $subscription = wcs_get_subscription($subscription_id);
+      if (!$subscription) {
+        wp_send_json_error(['message' => 'Subscription not found.'], 404);
+      }
+      // WWID-2665 IDOR guard: the subscription must belong to the targeted
+      // user unless the caller holds manage_woocommerce.
+      if (intval($subscription->get_customer_id()) !== $user_id && !current_user_can('manage_woocommerce')) {
+        wp_send_json_error(['message' => 'You are not allowed to change this subscription.'], 403);
+      }
       $subscription_renewal_boolean = $enabled == 'yes' ? 'false' : 'true'; //reverse to set manual_renewal_enabeld;
       $subscription->update_meta_data('_requires_manual_renewal', $subscription_renewal_boolean);
       $subscription->save();
@@ -1231,7 +1276,8 @@ function wicket_sub_org_select_callback( $subscription ) {
     // Always register the ajax object for use by other scripts
     wp_localize_script('ajax-script', 'wicket_mship_ajax_object', [
         'ajaxurl' => admin_url('admin-ajax.php'),
-        'user_id' => get_current_user_id()
+        'user_id' => get_current_user_id(),
+        'autorenew_nonce' => wp_create_nonce('wicket_mship_autorenew_toggle')
     ]);
   }
 
