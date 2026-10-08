@@ -485,6 +485,19 @@ class Admin_Controller {
     }
   }
 
+  /**
+   * Build the membership records shown on the admin membership edit page.
+   *
+   * Loads every published membership post for a person (numeric WP user ID) or an
+   * organization (MDP org UUID). Each record is enriched with MDP links, seat counts,
+   * parent order and subscription details, autorenew status, and the owner's display
+   * and full names. Records are sorted by start date DESC, with MDP tier category
+   * weight as the tie-breaker. Calls the MDP API for tier weights and org memberships.
+   *
+   * @param  int|string $id  WP user ID for individual memberships, or MDP organization UUID for org memberships.
+   *
+   * @return array<int, array<string, mixed>>  Membership records ready for the React edit app.
+   */
   public static function get_membership_entity_records( $id ) {
     $self = new self();
     $statuses = Helper::get_all_status_names();
@@ -581,10 +594,14 @@ class Admin_Controller {
       $membership_expires_at = new \DateTime($meta['membership_expires_at']);
       $membership_early_renew_at = new \DateTime($meta['membership_early_renew_at']);
       
+      // Reset per iteration so a missing owner never inherits the previous membership's name.
+      $owner_full_name = '';
       if (!empty($membership_data['membership_user_uuid'])) {
         $user = get_user_by( 'login', $membership_data['membership_user_uuid'] );
         if(!empty($user)) {
           $membership_item['switch_to_url'] = Helper::get_user_switch_to_url( $user->ID );
+          // Derived from the live WP user rather than stored meta so it never goes stale after transfers or merges.
+          $owner_full_name = trim( $user->first_name . ' ' . $user->last_name );
         }
       }
 
@@ -605,6 +622,8 @@ class Admin_Controller {
       if(!empty($membership->user_name)) {
         $membership_item['data']['user_name'] = $membership->user_name;
       }
+      // Empty when the owner has no first/last name set; the frontend falls back to user_name.
+      $membership_item['data']['user_full_name'] = $owner_full_name;
       $membership_item['order'] = [];
       $membership_item['subscription'] = [];
 
