@@ -237,6 +237,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'admin_menu', array ( __NAMESPACE__.'\\Settings' , 'wicket_membership_add_settings_page' ));
       add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'wicket_membership_register_settings' ));
       add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'handle_manual_action_links' ));
+      add_action( 'admin_enqueue_scripts', array( __NAMESPACE__.'\\Settings' , 'enqueue_settings_assets' ));
+      add_filter( 'admin_body_class', array( __NAMESPACE__.'\\Settings' , 'settings_admin_body_class' ));
 
       //check order items before and at checkout process
 

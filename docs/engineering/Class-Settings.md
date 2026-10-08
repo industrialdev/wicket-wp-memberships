@@ -2,134 +2,68 @@
 title: "Settings Class Reference"
 audience: [developer]
 php_class: Settings
-source_files: ["includes/Settings.php"]
+source_files: ["includes/Settings.php", "includes/Settings_Page.php", "includes/Settings_Fields.php", "includes/Settings_Jobs.php"]
 ---
 
 # Settings Class Index
 
-**File:** includes/Settings.php
+The Settings > Wicket Memberships page (`options-general.php?page=wicket-membership-settings`) is split across four classes.
 
-## Methods
+| Class | File | Responsibility |
+|---|---|---|
+| `Settings` | includes/Settings.php | Public entry points used by `wicket.php` hooks and existing callers, options validation, MDP timezone default, tier slug migration. |
+| `Settings_Page` | includes/Settings_Page.php | Page registration and render, tabs, notices, base plugin assets, body class, section intro text. |
+| `Settings_Fields` | includes/Settings_Fields.php | Field registration and every field renderer. |
+| `Settings_Jobs` | includes/Settings_Jobs.php | Scheduled Jobs tables and the manual Run Now triggers. |
 
-- `wicket_membership_add_settings_page()` (static)
-- `wicket_membership_render_plugin_settings_page()` (static)
-- `get_next_scheduled_membership_activation()`
-- `get_next_scheduled_membership_grace_period()`
-- `get_next_scheduled_membership_expiry()`
-- `wicket_membership_register_settings()` (static)
-- `wicket_mship_membership_merge_key()` (static)
-- `wicket_mship_multi_tier_renewal()` (static)
-- `wicket_mship_disable_renewal()` (static)
-- `wicket_mship_assign_subscription()` (static)
-- `wicket_mship_membership_categories()` (static)
-- `wicket_show_mship_order_org_search()` (static, deprecated)
-- `bypass_wicket()` (static)
-- `wicket_mship_autorenew_toggle()` (static)
-- `wicket_mship_mdp_timezone()` (static)
-- `wicket_mship_subscription_renew()` (static)
-- `wicket_memberships_debug_acc()` (static)
-- `wicket_memberships_debug_renew()` (static)
-- `wicket_memberships_debug_cart_ids()` (static)
-- `allow_local_imports()` (static)
-- `wicket_show_order_debug_data()` (static)
-- `bypass_status_change_lockout()` (static)
-- `wicket_membership_debug_mode()` (static)
-- `wicket_membership_plugin_options_validate($input)` (static)
-- `wicket_plugin_section_functional_text()` (static)
-- `wicket_plugin_section_debug_text()` (static)
-- `wicket_plugin_status_change_reporting()` (static)
-- `check_migrate_tier_slugs()` (static)
-- `ensure_timezone_default($force_api_call = false)` (static)
-- `fetch_mdp_timezone_from_api()` (static)
+Every public `Settings` method that existed before the split still exists and delegates to the class that now holds the code.
 
-## Method Descriptions
+## Storage
 
-**wicket_membership_add_settings_page()** (static)
-Adds the Wicket Memberships settings page to the WordPress admin options menu.
+All fields save to the single `wicket_membership_plugin_options` option. `Settings::wicket_membership_plugin_options_validate()` rebuilds the whole array from the posted fields, so every field must be posted on every save. The page therefore uses one form for all tabs; inactive tabs are only hidden.
 
-**wicket_membership_render_plugin_settings_page()** (static)
-Renders the HTML form for the plugin settings page, including all settings sections and fields.
+Membership Categories are stored under `wicket_mship_membership_categories` and mirrored to the legacy `wicket_show_mship_order_org_search[categorychoice]` on save. Read them with `Helper::get_membership_category_ids()`.
 
-**get_next_scheduled_membership_activation()**
-Returns the next scheduled run time for the membership activation Action Scheduler hook.
+## Tabs
 
-**get_next_scheduled_membership_grace_period()**
-Returns the next scheduled run time for the membership grace period Action Scheduler hook.
+| Tab | Sections |
+|---|---|
+| General | WooCommerce (Membership Categories, Membership Subscription Assignment), Wicket MDP (MDP Timezone, Merge Webhook API Key) |
+| Renewals | Renewals, Auto-Renew |
+| Import | Command-Line Import (with import steps), Import Subscription Options |
+| Developer | Debug Settings, Admin Debug Output, Front-End Debug Output, Wicket MDP Sync, Scheduled Jobs |
 
-**get_next_scheduled_membership_expiry()**
-Returns the next scheduled run time for the membership expiry Action Scheduler hook.
+Tabs map to Settings API page ids via `Settings_Page::settings_page_id( $tab )` (`wicket_membership_plugin_<tab>`).
 
-**wicket_membership_register_settings()** (static)
-Registers all plugin settings, sections, and fields for the Wicket Memberships plugin.
+## Settings
 
-**wicket_mship_membership_merge_key()** (static)
-Outputs a text field for the merge webhook HMAC-SHA256 authentication key, displayed alongside the webhook endpoint URL.
+- `wicket_membership_add_settings_page()`, `wicket_membership_render_plugin_settings_page()`, `enqueue_settings_assets( $hook_suffix )`, `settings_admin_body_class( $classes )`: delegate to `Settings_Page`.
+- `wicket_membership_register_settings()`, `get_form_membership_category_ids()` and each field renderer (for example `wicket_mship_disable_renewal()`): delegate to `Settings_Fields`.
+- `get_next_scheduled_membership_activation()`, `get_next_scheduled_membership_grace_period()`, `get_next_scheduled_membership_expiry()`, `get_next_scheduled_membership_autorenew_audit()`: return the next run as `Y-m-d H:i`, or null. Delegate to `Settings_Jobs::get_next_run()`.
+- `wicket_plugin_status_change_reporting()`, `handle_manual_action_links()`, `run_triggered_actions()`, `MANUAL_ACTION_TRIGGER_PARAMS`: delegate to `Settings_Jobs`.
+- `wicket_show_mship_order_org_search()` (deprecated): renders the Membership Categories field.
+- `wicket_membership_plugin_options_validate( $input )`: sanitizes the option on save and mirrors Membership Categories to the legacy key.
+- `check_migrate_tier_slugs()`: adds missing tier slugs when the page renders.
+- `ensure_timezone_default( $force_api_call = false )`, `fetch_mdp_timezone_from_api()`: set the MDP timezone default.
 
-**wicket_mship_multi_tier_renewal()** (static)
-Outputs a checkbox to enable multi-tier renewal logic and related UI in the plugin.
+## Settings_Page
 
-**wicket_mship_disable_renewal()** (static)
-Outputs a checkbox to disable renewal callouts in the Account Centre.
+- `add_page()`, `render()`: register and render the page.
+- `enqueue_assets( $hook_suffix )`: loads the base plugin's `wicket_admin.css`, select2 and `wicket_admin.js` on this screen only.
+- `body_class( $classes )`: adds `wicket-admin-settings` so the base plugin's scoped styles apply.
+- `render_environment_notices()`: warns when local import or sync tools are active.
+- `render_category_switch_notice()`: before Membership Categories is first saved, warns when saving would change the base plugin's Hide redirects.
+- `section_*()`: section intro text.
 
-**wicket_mship_assign_subscription()** (static)
-Outputs a checkbox to allow assigning memberships by ID on the WooCommerce Subscription page.
+## Settings_Fields
 
-**wicket_mship_membership_categories()** (static)
-Outputs the Membership Categories multi-select (`wicket_mship_membership_categories`). Inherits the legacy `wicket_show_mship_order_org_search[categorychoice]` selection until first saved. On save, the list is mirrored back to the legacy key for older readers such as wicket-wp-financial-fields.
+- `register()`: registers sections and fields per tab. Field ids, option keys and input names are the option keys.
+- `render_checkbox()` (private): shared checkbox renderer with inline label, description and default.
+- `get_form_membership_category_ids()`: categories the form pre-selects; the "Membership" category on sites that never saved either key.
+- One renderer per field, named after its option key.
 
-**wicket_show_mship_order_org_search()** (static, deprecated)
-Alias of `wicket_mship_membership_categories()`.
+## Settings_Jobs
 
-**bypass_wicket()** (static)
-Outputs a checkbox to disable creation of memberships in the Wicket MDP (bypass external system).
-
-**wicket_mship_autorenew_toggle()** (static)
-Outputs a checkbox to enable the user-facing Autorenew toggle for subscriptions, including a shortcode for front-end use.
-
-**wicket_mship_mdp_timezone()** (static)
-Outputs a timezone selector dropdown. Sets the MDP operating timezone used for date calculations across the plugin.
-
-**wicket_mship_subscription_renew()** (static)
-Outputs a checkbox to enable the [BETA] subscription renewal flow for tiers.
-
-**wicket_memberships_debug_acc()** (static)
-Outputs a checkbox to show debug info and renewal callouts in the account center (for debugging only).
-
-**wicket_memberships_debug_renew()** (static)
-Outputs a checkbox to allow renewals outside the normal period and adjust days for renewal callout debugging.
-
-**wicket_memberships_debug_cart_ids()** (static)
-Outputs a checkbox to show product meta/debug info on cart/checkout pages.
-
-**allow_local_imports()** (static)
-Outputs a checkbox and help text to enable importing MDP export CSVs via SSH command line (for advanced/admin use only).
-
-**wicket_show_order_debug_data()** (static)
-Outputs a checkbox to show membership JSON meta on order/subscription pages for debugging.
-
-**bypass_status_change_lockout()** (static)
-Outputs a checkbox to disable status change sequence rules, allowing any status change.
-
-**wicket_membership_debug_mode()** (static)
-Outputs a checkbox to enable debug mode throughout the plugin admin, showing extra data and menu items.
-
-**wicket_membership_plugin_options_validate($input)** (static)
-Validates and sanitizes all plugin settings input before saving.
-
-**wicket_plugin_section_functional_text()** (static)
-Outputs a description for the functional settings section on the settings page.
-
-**wicket_plugin_section_debug_text()** (static)
-Outputs a description for the debug settings section on the settings page.
-
-**wicket_plugin_status_change_reporting()** (static)
-Outputs information and controls for scheduled membership status change actions (grace period, expiry).
-
-**check_migrate_tier_slugs()** (static)
-Checks all membership tiers for missing slugs and adds them if needed (data migration utility).
-
-**ensure_timezone_default($force_api_call = false)** (static)
-Initializes the MDP timezone option if not already set. Fetches from the MDP API (`app_config`) and falls back to UTC. Called on the `init` hook.
-
-**fetch_mdp_timezone_from_api()** (static)
-Fetches the MDP timezone string from `app_config` via the Wicket API client. Returns null on failure. Filterable via `wicket_mship_mdp_timezone_from_api`.
+- `get_next_run( $hook, $group = '' )`: next pending run of an Action Scheduler hook.
+- `render()`: Daily Membership Jobs and Diagnostics & Maintenance tables. Job names link to Tools > Scheduled Actions filtered by hook.
+- `MANUAL_ACTION_TRIGGER_PARAMS`, `handle_manual_action_links()`, `run_triggered_actions()`: Run Now / Refresh All Now links. Nonce (`wicket_mship_manual_action`) and `manage_options` checked; redirects to strip the trigger.
