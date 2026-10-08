@@ -676,18 +676,60 @@ class Helper {
    *
    * @since 1.0.123
    *
+   * @see Helper::get_membership_category_ids()
+   *
    * @param  int  $product_id  Parent product ID; categories are stored on the parent.
    *
    * @return bool  True when the product is in a membership category.
    */
   public static function is_in_membership_category( $product_id ) {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    $categories = (array) ( $options['wicket_show_mship_order_org_search']['categorychoice'] ?? [] );
-    // has_term() treats numeric strings as names, so cast the stored term IDs; drop empties that cast to 0.
-    $categories = array_filter( array_map( 'absint', $categories ) );
+    $categories = self::get_membership_category_ids();
     $categories[] = 'Membership';
 
     return has_term( $categories, 'product_cat', $product_id );
+  }
+
+  /**
+   * Get the product category term IDs selected as Membership Categories.
+   *
+   * Reads `wicket_mship_membership_categories`, falling back to the legacy
+   * `wicket_show_mship_order_org_search[categorychoice]` until the new key is saved.
+   *
+   * @since 1.0.123
+   *
+   * @see Settings::wicket_membership_plugin_options_validate()  Writes both keys on save.
+   *
+   * @return int[]  Product category term IDs.
+   */
+  public static function get_membership_category_ids() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+
+    if ( self::has_saved_membership_categories() ) {
+      $categories = (array) $options['wicket_mship_membership_categories'];
+    } else {
+      // Fallback: the legacy org-search key until Membership Categories is saved.
+      $categories = (array) ( $options['wicket_show_mship_order_org_search']['categorychoice'] ?? [] );
+    }
+
+    // Normalize stored values to term IDs; drop empties that cast to 0.
+    return array_values( array_filter( array_map( 'absint', $categories ) ) );
+  }
+
+  /**
+   * Whether Membership Categories has been saved under its new key on this site.
+   *
+   * Sibling plugins use this to keep their legacy behaviour until a site opts in by saving.
+   *
+   * @since 1.0.123
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @return bool  True once `wicket_mship_membership_categories` exists in the plugin options.
+   */
+  public static function has_saved_membership_categories() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+
+    return is_array( $options ) && array_key_exists( 'wicket_mship_membership_categories', $options );
   }
 
   public static function get_user_switch_to_url($user_id) {

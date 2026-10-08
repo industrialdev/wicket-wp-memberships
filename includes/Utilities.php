@@ -700,14 +700,17 @@ class Utilities {
     }
   }
 
+  /**
+   * Whether the org-search metabox is enabled on the WC Subscription admin page.
+   *
+   * Enabled whenever any Membership Category is selected; there is no separate toggle.
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @return bool  True when at least one Membership Category is saved.
+   */
   function is_wicket_show_mship_order_org_search() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    if(isset($options['wicket_show_mship_order_org_search'])) {
-      if(!empty($options['wicket_show_mship_order_org_search'])) {
-        return true;
-      }
-    }
-    return false;
+    return ! empty( Helper::get_membership_category_ids() );
   }
 
   function set_subscription_postmeta_suborg_uuid() {
@@ -716,13 +719,22 @@ class Utilities {
     }
   }
 
+  /**
+   * Add the org-search metabox to a subscription with a membership item missing its org UUID.
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @param  string    $post_type  Current admin screen post type (unused; required by add_meta_boxes).
+   * @param  \WP_Post  $post       Subscription post being edited.
+   *
+   * @return void
+   */
   function wicket_sub_org_select_metabox( $post_type, $post ) {
     $sub = wcs_get_subscription($post->ID);
     if(empty($sub)) {
       return;
     }
-    $options = get_option( 'wicket_membership_plugin_options' );
-    $categories_selected = $options['wicket_show_mship_order_org_search']['categorychoice'];
+    $categories_selected = Helper::get_membership_category_ids();
     $subscription_products = $sub->get_items();
     foreach( $subscription_products as $item ) {
       if(empty($product_id)) {

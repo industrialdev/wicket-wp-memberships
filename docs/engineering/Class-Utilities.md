@@ -83,7 +83,7 @@ Disables the quantity input for cart items in membership categories, making it r
 Handles cleanup of user and order meta when a user is deleted, and deletes related membership posts.
 
 **is_wicket_show_mship_order_org_search()**
-Checks if the organization search option is enabled for subscription orders.
+Checks if the organization search metabox is enabled: true whenever any Membership Category is saved.
 
 **set_subscription_postmeta_suborg_uuid()**
 Sets the organization UUID meta on a subscription order item when selected.

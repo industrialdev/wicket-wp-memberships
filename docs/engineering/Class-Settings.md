@@ -21,7 +21,8 @@ source_files: ["includes/Settings.php"]
 - `wicket_mship_multi_tier_renewal()` (static)
 - `wicket_mship_disable_renewal()` (static)
 - `wicket_mship_assign_subscription()` (static)
-- `wicket_show_mship_order_org_search()` (static)
+- `wicket_mship_membership_categories()` (static)
+- `wicket_show_mship_order_org_search()` (static, deprecated)
 - `bypass_wicket()` (static)
 - `wicket_mship_autorenew_toggle()` (static)
 - `wicket_mship_mdp_timezone()` (static)
@@ -73,8 +74,11 @@ Outputs a checkbox to disable renewal callouts in the Account Centre.
 **wicket_mship_assign_subscription()** (static)
 Outputs a checkbox to allow assigning memberships by ID on the WooCommerce Subscription page.
 
-**wicket_show_mship_order_org_search()** (static)
-Outputs a select field to enable organization search/selection for memberships on the WC Subscription Order admin page.
+**wicket_mship_membership_categories()** (static)
+Outputs the Membership Categories multi-select (`wicket_mship_membership_categories`). Inherits the legacy `wicket_show_mship_order_org_search[categorychoice]` selection until first saved. On save, the list is mirrored back to the legacy key for older readers such as wicket-wp-financial-fields.
+
+**wicket_show_mship_order_org_search()** (static, deprecated)
+Alias of `wicket_mship_membership_categories()`.
 
 **bypass_wicket()** (static)
 Outputs a checkbox to disable creation of memberships in the Wicket MDP (bypass external system).

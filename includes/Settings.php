@@ -29,6 +29,7 @@ class Settings {
       // Surface active local-import / sync-tool state at the top of the page so admins
       // are not surprised that command-line import endpoints or the sync tool are live.
       Settings::wicket_membership_render_environment_notices();
+      Settings::wicket_membership_render_category_switch_notice();
       Settings::check_migrate_tier_slugs();
       settings_fields( 'wicket_membership_plugin_options' );
       do_settings_sections( 'wicket_membership_plugin' ); ?>
@@ -81,6 +82,54 @@ class Settings {
     echo '</div>';
   }
 
+  /**
+   * Warn that the first save will switch the base plugin's Hide redirects to this page's Membership Categories.
+   *
+   * Until Membership Categories is saved, the base plugin's "Hide membership categories" and
+   * "Hide membership product single pages" redirects use the deprecated base plugin list.
+   * Shown only when one of those redirects is on and the two lists differ.
+   *
+   * @since 1.0.123
+   *
+   * @see Helper::has_saved_membership_categories()
+   * @see wicket_get_membership_product_category_ids()  Base plugin resolver that switches lists.
+   *
+   * @return void
+   */
+  public static function wicket_membership_render_category_switch_notice() {
+    // The redirects and their legacy list live in the base plugin.
+    if ( ! function_exists( 'wicket_get_option' ) || Helper::has_saved_membership_categories() ) {
+      return;
+    }
+
+    $redirects_on = wicket_get_option( 'wicket_admin_settings_woo_remove_membership_categories' ) === '1'
+      || wicket_get_option( 'wicket_admin_settings_woo_remove_membership_product_single' ) === '1';
+
+    $base_ids       = array_values( array_filter( array_map( 'absint', (array) wicket_get_option( 'wicket_admin_settings_membership_categories', [] ) ) ) );
+    $membership_ids = Helper::get_membership_category_ids();
+    $start          = array_diff( $membership_ids, $base_ids );
+    $stop           = array_diff( $base_ids, $membership_ids );
+
+    if ( ! $redirects_on || ( empty( $start ) && empty( $stop ) ) ) {
+      return;
+    }
+
+    $names = function ( $ids ) {
+      $labels = [];
+      foreach ( $ids as $id ) {
+        $term     = get_term( $id, 'product_cat' );
+        $labels[] = ( $term && ! is_wp_error( $term ) ) ? $term->name : sprintf( '#%d', $id );
+      }
+      return $labels ? esc_html( implode( ', ', $labels ) ) : '<em>none</em>';
+    };
+
+    $base_link = '<a href="' . esc_url( admin_url( 'admin.php?page=wicket-settings&tab=integrations' ) ) . '">Hide membership categories / product single pages</a>';
+
+    echo '<div class="notice notice-warning inline"><p><strong>Saving this page changes which products are hidden.</strong> ';
+    echo 'The ' . $base_link . ' redirects currently use the legacy Membership Categories in Wicket Settings. After you save here, they use the Membership Categories below.</p>';
+    echo '<p>Will start redirecting: ' . $names( $start ) . '<br>Will stop redirecting: ' . $names( $stop ) . '</p></div>';
+  }
+
   public function get_next_scheduled_membership_activation() {
     $hook = 'schedule_daily_membership_activation_hook';
     $action = as_get_scheduled_actions(['hook' => $hook, 'status' => \ActionScheduler_Store::STATUS_PENDING]);
@@ -125,11 +174,16 @@ class Settings {
     }
   }
 
+  /**
+   * Register the plugin option, settings sections and fields.
+   *
+   * @return void
+   */
   public static function wicket_membership_register_settings() {
     register_setting( 'wicket_membership_plugin_options', 'wicket_membership_plugin_options', [__NAMESPACE__.'\\Settings', 'wicket_membership_plugin_options_validate'] );
     add_settings_section( 'functional_settings', 'Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_functional_text'], 'wicket_membership_plugin' );
     //options
-    add_settings_field( 'wicket_show_mship_order_org_search', '<p>Set the Organization on Subscription Membership in Admin</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_mship_order_org_search'], 'wicket_membership_plugin', 'functional_settings' );
+    add_settings_field( 'wicket_mship_membership_categories', '<p>Membership Categories</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_membership_categories'], 'wicket_membership_plugin', 'functional_settings' );
     add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Renewal Callouts</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
 
     add_settings_field( 'wicket_mship_multi_tier_renewal', '<p>Use Multi-Tier Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_multi_tier_renewal'], 'wicket_membership_plugin', 'functional_settings' );
@@ -188,28 +242,64 @@ class Settings {
       .'Allow assigning membership by ID on Woocommerce Subscription page.';
   }
 
-  public static function wicket_show_mship_order_org_search() {
+  /**
+   * Render the Membership Categories multi-select.
+   *
+   * Pre-selects the saved categories, inheriting the legacy org-search selection
+   * until this field is first saved. On sites that have never saved either key,
+   * the "Membership" product category is pre-selected as the default.
+   *
+   * @since 1.0.123
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @return void
+   */
+  public static function wicket_mship_membership_categories() {
     $options = get_option( 'wicket_membership_plugin_options' );
-    echo 'Option to [Search & Select Organization] for the membership on WC Subscription Order admin page for products in the selected categories. Useful for manually creating subscription memberships.';
-    ?><br /><select class="" multiple="multiple" name="wicket_membership_plugin_options[wicket_show_mship_order_org_search][categorychoice][]"><?php
-    $option = $options['wicket_show_mship_order_org_search'];
-    $categories_selected = $options['wicket_show_mship_order_org_search'];
-          $product_categories = get_terms(array(
-            'taxonomy'   => 'product_cat',
-            'hide_empty' => true,
-        ));        
-          foreach ($product_categories as $category) {
-            $selected = '';
-            if(!empty($categories_selected['categorychoice']) && is_array($categories_selected['categorychoice'])) {
-              $selected = in_array( $category->term_id, $categories_selected['categorychoice'] ) ? ' selected="selected" ' : ''; 
-            }
-            ?>
-              <option value="<?php echo $category->term_id; ?>" <?php echo $selected; ?> >
-                <?php echo $category->name; ?>
-              </option>
-          <?php } ?>
-      </select><?php
+    $categories_selected = Helper::get_membership_category_ids();
+
+    // Pre-select the "Membership" category on sites that have never saved either key; an explicit empty save is respected.
+    $never_saved = ! is_array( $options )
+      || ( ! array_key_exists( 'wicket_mship_membership_categories', $options ) && ! array_key_exists( 'wicket_show_mship_order_org_search', $options ) );
+    if ( $never_saved ) {
+      // Match by name or slug, the same way has_term( 'Membership' ) does in Helper::is_in_membership_category().
+      $default_category = get_term_by( 'name', 'Membership', 'product_cat' ) ?: get_term_by( 'slug', 'membership', 'product_cat' );
+      if ( $default_category ) {
+        $categories_selected = [ (int) $default_category->term_id ];
       }
+    }
+
+    // Include empty categories so a saved selection with no products yet is not dropped on the next save.
+    $product_categories = get_terms( [
+      'taxonomy'   => 'product_cat',
+      'hide_empty' => false,
+    ] );
+
+    echo 'Defines which product categories are membership categories. Products in these categories are treated as membership products across the Wicket platform.';
+    ?><br /><select multiple="multiple" name="wicket_membership_plugin_options[wicket_mship_membership_categories][]"><?php
+    if ( ! is_wp_error( $product_categories ) ) {
+      foreach ( $product_categories as $category ) {
+        ?>
+          <option value="<?php echo esc_attr( $category->term_id ); ?>" <?php selected( in_array( $category->term_id, $categories_selected, true ) ); ?>>
+            <?php echo esc_html( $category->name ); ?>
+          </option>
+        <?php
+      }
+    }
+    ?></select><?php
+  }
+
+  /**
+   * Render the legacy org-search category field.
+   *
+   * @deprecated 1.0.123 Use Settings::wicket_mship_membership_categories().
+   *
+   * @return void
+   */
+  public static function wicket_show_mship_order_org_search() {
+    self::wicket_mship_membership_categories();
+  }
 
   public static function bypass_wicket() {
     $options = get_option( 'wicket_membership_plugin_options' );
@@ -409,6 +499,18 @@ class Settings {
       .' Show debug info throughout the plugin admin only, including membership posts menu item, and tier/config data on archive pages.';
   }
 
+  /**
+   * Sanitize the plugin options array on save.
+   *
+   * Rebuilds the stored array from the submitted fields only. Membership Categories are
+   * written to the new key and then mirrored to the legacy org-search key for older readers.
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @param  array  $input  Raw `wicket_membership_plugin_options` values from the settings form.
+   *
+   * @return array  Sanitized options to store.
+   */
   public static function wicket_membership_plugin_options_validate( $input ) {
     $newinput['wicket_mship_membership_merge_key'] = trim($input['wicket_mship_membership_merge_key']);
     $newinput['wicket_mship_multi_tier_renewal'] = trim($input['wicket_mship_multi_tier_renewal']);
@@ -429,7 +531,22 @@ class Settings {
     $newinput['wicket_mship_mdp_timezone'] = trim($input['wicket_mship_mdp_timezone']);
     $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim($input['wicket_mship_import_create_subscriptions_tier_only']);
     $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
-    $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
+
+    // Programmatic writes (Portus import, backup restore) also run through this callback and may
+    // only carry the legacy key; fall back to it so those categories are not wiped. The new key wins if both exist.
+    if ( is_array( $input ) && array_key_exists( 'wicket_mship_membership_categories', $input ) ) {
+      $raw_categories = $input['wicket_mship_membership_categories'];
+    } else {
+      $raw_categories = $input['wicket_show_mship_order_org_search']['categorychoice'] ?? [];
+    }
+    $membership_categories = array_values( array_filter( array_map( 'absint', (array) $raw_categories ) ) );
+    $newinput['wicket_mship_membership_categories'] = $membership_categories;
+
+    // Backwards compatibility: keep the legacy key fully populated for readers outside this
+    // plugin (e.g. wicket-wp-financial-fields). An empty selection stays [] because a non-empty
+    // legacy value also switches on the org-search metabox.
+    $newinput['wicket_show_mship_order_org_search'] = empty( $membership_categories ) ? [] : [ 'categorychoice' => $membership_categories ];
+
     return $newinput;
   }
 
