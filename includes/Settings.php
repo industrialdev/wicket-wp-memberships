@@ -83,21 +83,21 @@ class Settings {
   }
 
   /**
-   * Warn that the first save will switch the base plugin's Hide redirects to this page's Membership Categories.
+   * Warn that the first save switches the base plugin's Hide redirects to this page's Membership Categories.
    *
    * Until Membership Categories is saved, the base plugin's "Hide membership categories" and
-   * "Hide membership product single pages" redirects use the deprecated base plugin list.
-   * Shown only when one of those redirects is on and the two lists differ.
+   * "Hide membership product single pages" redirects use the base plugin's deprecated list.
+   * Shown only when one of those redirects is on and that list differs from what this page will save.
    *
    * @since 1.0.123
    *
    * @see Helper::has_saved_membership_categories()
-   * @see wicket_get_membership_product_category_ids()  Base plugin resolver that switches lists.
+   * @see Settings::get_form_membership_category_ids()
    *
    * @return void
    */
   public static function wicket_membership_render_category_switch_notice() {
-    // The redirects and their legacy list live in the base plugin.
+    // The redirects and their deprecated list live in the base plugin.
     if ( ! function_exists( 'wicket_get_option' ) || Helper::has_saved_membership_categories() ) {
       return;
     }
@@ -105,10 +105,10 @@ class Settings {
     $redirects_on = wicket_get_option( 'wicket_admin_settings_woo_remove_membership_categories' ) === '1'
       || wicket_get_option( 'wicket_admin_settings_woo_remove_membership_product_single' ) === '1';
 
-    $base_ids       = array_values( array_filter( array_map( 'absint', (array) wicket_get_option( 'wicket_admin_settings_membership_categories', [] ) ) ) );
-    $membership_ids = Helper::get_membership_category_ids();
-    $start          = array_diff( $membership_ids, $base_ids );
-    $stop           = array_diff( $base_ids, $membership_ids );
+    $base_ids = array_values( array_filter( array_map( 'absint', (array) wicket_get_option( 'wicket_admin_settings_membership_categories', [] ) ) ) );
+    $form_ids = self::get_form_membership_category_ids();
+    $start    = array_diff( $form_ids, $base_ids );
+    $stop     = array_diff( $base_ids, $form_ids );
 
     if ( ! $redirects_on || ( empty( $start ) && empty( $stop ) ) ) {
       return;
@@ -243,6 +243,34 @@ class Settings {
   }
 
   /**
+   * Get the Membership Categories the settings form pre-selects, i.e. what a save will store.
+   *
+   * The saved or inherited list, or the "Membership" product category on sites that have
+   * never saved either key. An explicit empty save is respected.
+   *
+   * @since 1.0.123
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @return int[]  Product category term IDs.
+   */
+  public static function get_form_membership_category_ids() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+    $never_saved = ! is_array( $options )
+      || ( ! array_key_exists( 'wicket_mship_membership_categories', $options ) && ! array_key_exists( 'wicket_show_mship_order_org_search', $options ) );
+
+    if ( $never_saved ) {
+      // Match by name or slug, the same way has_term( 'Membership' ) does in Helper::is_in_membership_category().
+      $default_category = get_term_by( 'name', 'Membership', 'product_cat' ) ?: get_term_by( 'slug', 'membership', 'product_cat' );
+      if ( $default_category ) {
+        return [ (int) $default_category->term_id ];
+      }
+    }
+
+    return Helper::get_membership_category_ids();
+  }
+
+  /**
    * Render the Membership Categories multi-select.
    *
    * Pre-selects the saved categories, inheriting the legacy org-search selection
@@ -251,24 +279,12 @@ class Settings {
    *
    * @since 1.0.123
    *
-   * @see Helper::get_membership_category_ids()
+   * @see Settings::get_form_membership_category_ids()
    *
    * @return void
    */
   public static function wicket_mship_membership_categories() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    $categories_selected = Helper::get_membership_category_ids();
-
-    // Pre-select the "Membership" category on sites that have never saved either key; an explicit empty save is respected.
-    $never_saved = ! is_array( $options )
-      || ( ! array_key_exists( 'wicket_mship_membership_categories', $options ) && ! array_key_exists( 'wicket_show_mship_order_org_search', $options ) );
-    if ( $never_saved ) {
-      // Match by name or slug, the same way has_term( 'Membership' ) does in Helper::is_in_membership_category().
-      $default_category = get_term_by( 'name', 'Membership', 'product_cat' ) ?: get_term_by( 'slug', 'membership', 'product_cat' );
-      if ( $default_category ) {
-        $categories_selected = [ (int) $default_category->term_id ];
-      }
-    }
+    $categories_selected = self::get_form_membership_category_ids();
 
     // Include empty categories so a saved selection with no products yet is not dropped on the next save.
     $product_categories = get_terms( [

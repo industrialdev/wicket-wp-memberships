@@ -333,11 +333,13 @@ class Utilities {
    * This is a private helper called by both prevent_trash_linked_product() and
    * intercept_variation_removal() so the business logic lives in one place.
    *
+   * @see Helper::get_membership_category_ids()
+   *
    * @param  int         $product_id  WooCommerce product post ID (parent, not variation).
    * @return string|null  Human-readable reason string, or null if unprotected.
    */
   private function get_membership_product_block_message( int $product_id ): ?string {
-    $membership_categories = wicket_get_option( 'wicket_admin_settings_membership_categories' );
+    $membership_categories = Helper::get_membership_category_ids();
 
     if ( ! has_term( $membership_categories, 'product_cat', $product_id ) ) {
       return null;
@@ -617,16 +619,17 @@ class Utilities {
   /**
  * Disable remove item on cart page when in Membership category.
  *
+ * @see Helper::get_membership_category_ids()
+ *
  * @param string $product_remove The remove html.
  * @param string $cart_item_key The cart item key.
- * @param array $cart_item The cart item object.
- * @return string The modified product quantity html (with hidden input).
+ * @return string The remove link html; empties the whole cart for membership items.
  */
   function hide_cart_item_remove_link($product_remove, $cart_item_key)
   {
     if (is_cart()) {
       $item = WC()->cart->get_cart_item( $cart_item_key );
-      $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
+      $membership_categories = Helper::get_membership_category_ids();
       $category = get_term_by( 'slug', 'membership_late_fee', 'product_cat' );
       $cat_id = $category->term_id;
       $membership_categories[] = $cat_id;
@@ -642,6 +645,8 @@ class Utilities {
  * Disable quantity input on cart page when in Membership category.
  *
  * @param string $product_quantity The current product quantity html.
+ * @see Helper::get_membership_category_ids()
+ *
  * @param string $cart_item_key The cart item key.
  * @param array $cart_item The cart item object.
  * @return string The modified product quantity html (with hidden input).
@@ -649,7 +654,7 @@ class Utilities {
   function disable_cart_item_quantity($product_quantity, $cart_item_key, $cart_item)
   {
     if (is_cart()) {
-      $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
+      $membership_categories = Helper::get_membership_category_ids();
       $category = get_term_by( 'slug', 'membership_late_fee', 'product_cat' );
       $cat_id = $category->term_id;
       $membership_categories[] = $cat_id;

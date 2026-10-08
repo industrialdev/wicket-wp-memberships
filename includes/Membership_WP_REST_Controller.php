@@ -572,9 +572,18 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     return rest_ensure_response( $org_data );
   }
 
+  /**
+   * Return MDP membership tiers for the admin UI.
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @param  \WP_REST_Request  $request  Request with optional `filters` (e.g. `id` list of tier UUIDs).
+   *
+   * @return \WP_REST_Response|\WP_Error  Tier rows from get_memberships_table_data().
+   */
   public function get_tiers_mdp( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $categories = wicket_get_option( 'wicket_admin_settings_membership_categories' );
+    $categories = Helper::get_membership_category_ids();
     $memberships = $this->get_memberships_table_data($categories, $params['filters']);
     return rest_ensure_response( $memberships );
   }
