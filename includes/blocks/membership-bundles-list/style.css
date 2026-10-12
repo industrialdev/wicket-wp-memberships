@@ -564,6 +564,10 @@
   color: white !important;
 }
 
+.wicket-mship-bundle-detail__remove-btn:focus {
+  color: white !important;
+}
+
 /* Left accent border grouping consecutive rows for the same person — see
    isGroupedMemberRow() in the template's <script>. Applied to the first cell
    rather than the <tr> itself since <tr> border-left support is inconsistent
