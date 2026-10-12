@@ -121,7 +121,7 @@ $block_config = [
                 class="wicket-mship-bundle-card__status-dot"
                 :class="'wicket-mship-bundle-card__status-dot--' + bundle.status.slug"
               ></span>
-              <span x-text="bundle.status.label + ' (<?php echo esc_js( __( 'Bundle Status', 'wicket-memberships' ) ); ?>)'"></span>
+              <span x-text="bundle.status.label"></span>
             </div>
 
             <div class="wicket-mship-bundle-card__fields">
