@@ -2,12 +2,12 @@
 title: "Settings Class Reference"
 audience: [developer]
 php_class: Settings
-source_files: ["includes/Settings.php", "includes/Settings_Page.php", "includes/Settings_Fields.php", "includes/Settings_Jobs.php"]
+source_files: ["includes/Settings.php", "includes/Settings_Page.php", "includes/Settings_Fields.php", "includes/Settings_Jobs.php", "includes/Subscriptions_Mode.php"]
 ---
 
 # Settings Class Index
 
-The Settings > Wicket Memberships page (`options-general.php?page=wicket-membership-settings`) is split across four classes.
+The Settings > Wicket Memberships page (`options-general.php?page=wicket-membership-settings`) is split across four classes, plus `Subscriptions_Mode` for one Developer field.
 
 | Class | File | Responsibility |
 |---|---|---|
@@ -15,6 +15,7 @@ The Settings > Wicket Memberships page (`options-general.php?page=wicket-members
 | `Settings_Page` | includes/Settings_Page.php | Page registration and render, tabs, notices, base plugin assets, body class, section intro text. |
 | `Settings_Fields` | includes/Settings_Fields.php | Field registration and every field renderer. |
 | `Settings_Jobs` | includes/Settings_Jobs.php | Scheduled Jobs tables and the manual Run Now triggers. |
+| `Subscriptions_Mode` | includes/Subscriptions_Mode.php | Shows and switches WooCommerce Subscriptions' live/staging mode. |
 
 Every public `Settings` method that existed before the split still exists and delegates to the class that now holds the code.
 
@@ -33,7 +34,7 @@ Membership Categories are stored under `wicket_mship_membership_categories` and 
 | General | WooCommerce (Membership Categories, Membership Subscription Assignment, Hide Subscription Self-Serve Cancellation), Wicket MDP (MDP Timezone, Merge Webhook API Key) |
 | Renewals | Renewals, Auto-Renew |
 | Import | Command-Line Import (with import steps), Import Subscription Options |
-| Developer | Debug Settings, Admin Debug Output, Front-End Debug Output, Wicket MDP Sync, Scheduled Jobs |
+| Developer | Debug Settings, Admin Debug Output, Front-End Debug Output, Wicket MDP Sync, WooCommerce (Subscriptions Mode), Scheduled Jobs |
 
 Tabs map to Settings API page ids via `Settings_Page::settings_page_id( $tab )` (`wicket_membership_plugin_<tab>`).
 
@@ -55,6 +56,7 @@ Tabs map to Settings API page ids via `Settings_Page::settings_page_id( $tab )` 
 - `body_class( $classes )`: adds `wicket-admin-settings` so the base plugin's scoped styles apply.
 - `render_environment_notices()`: warns when local import or sync tools are active.
 - `render_category_switch_notice()`: before Membership Categories is first saved, warns when saving would change the base plugin's Hide redirects.
+- `render_accordion( $id, $title, $content )`: collapsed panel using core's admin accordion markup and script.
 - `section_*()`: section intro text.
 
 ## Settings_Fields
@@ -68,4 +70,16 @@ Tabs map to Settings API page ids via `Settings_Page::settings_page_id( $tab )` 
 
 - `get_next_run( $hook, $group = '' )`: next pending run of an Action Scheduler hook.
 - `render()`: Daily Membership Jobs and Diagnostics & Maintenance tables. Job names link to Tools > Scheduled Actions filtered by hook.
-- `MANUAL_ACTION_TRIGGER_PARAMS`, `handle_manual_action_links()`, `run_triggered_actions()`: Run Now / Refresh All Now links. Nonce (`wicket_mship_manual_action`) and `manage_options` checked; redirects to strip the trigger.
+- `MANUAL_ACTION_TRIGGER_PARAMS`, `handle_manual_action_links()`, `run_triggered_actions()`: Run Now / Refresh All Now links and the Subscriptions Mode switches. Nonce (`wicket_mship_manual_action`) and `manage_options` checked; redirects to strip the trigger.
+- `get_manual_action_link( $trigger_param )`: nonced URL for one of those triggers.
+
+## Subscriptions_Mode
+
+WooCommerce Subscriptions treats the site as staging when its URL differs from the live URL saved in `wc_subscriptions_siteurl`. Staging forces manual renewal and stops subscription emails. Nothing is stored in `wicket_membership_plugin_options`, so copying settings to another site never carries live mode with it.
+
+- `is_available()`, `is_staging()`: whether `WCS_Staging` is loaded, and the current mode.
+- `switch_to_live()`: saves this site's URL as the live URL (`WCS_Staging::set_duplicate_site_url_lock()`).
+- `switch_to_staging()`: deletes `wc_subscriptions_siteurl`, so the URLs no longer match.
+- Both switches queue `Autorenew_Sync::enqueue_sweep()`, because `Autorenew::resolve_status()` reports auto-renew off in staging.
+- `is_live_url_saved()`: whether the saved live URL is this site, before any `woocommerce_subscriptions_is_duplicate_site` filter. It picks which switch to offer, so the switch works both ways even when a filter forces the reported mode.
+- `render()`: current mode, the switch button (with a confirm), a one-line impact description, and a collapsed Live vs. Staging panel (`Settings_Page::render_accordion()`, `render_mode_comparison()`) comparing the two modes, with the auto-renew testing steps.

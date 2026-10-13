@@ -72,6 +72,10 @@ class Settings_Fields {
         'debug_mdp' => [ 'Wicket MDP Sync', null, [
           'bypass_wicket' => 'Bypass Wicket MDP',
         ] ],
+        // Not stored in the plugin option; the field shows and switches WooCommerce Subscriptions' own mode.
+        'debug_woocommerce' => [ 'WooCommerce', null, [
+          'wicket_mship_subscriptions_mode' => 'Subscriptions Mode',
+        ] ],
         // The drift audit's on/off checkbox renders inside the Scheduled Jobs table.
         'status_settings' => [ 'Scheduled Jobs', [ Settings_Jobs::class, 'render' ], [] ],
       ],
@@ -165,6 +169,19 @@ class Settings_Fields {
    */
   public static function wicket_mship_hide_subscription_cancel() {
     self::render_checkbox( 'wicket_mship_hide_subscription_cancel', 'Hide the Cancel button on the member\'s View Subscription page', 'Members will not be able to cancel on their own. Admins can still cancel subscriptions in WooCommerce.' );
+  }
+
+  /**
+   * Render the WooCommerce Subscriptions live/staging mode field.
+   *
+   * @since 1.0.123
+   *
+   * @see Subscriptions_Mode::render()
+   *
+   * @return void
+   */
+  public static function wicket_mship_subscriptions_mode() {
+    Subscriptions_Mode::render();
   }
 
   /**
@@ -383,9 +400,8 @@ class Settings_Fields {
 
     // The subscription sync tool is loaded from wicket.php only while this setting is enabled.
     $sync_tool_url = esc_url( home_url( '/?mship_subscription_sync=1' ) );
-    ?>
-    <details>
-      <summary>How to run an import</summary>
+    Settings_Page::render_accordion( 'wicket-mship-import-steps', 'How to run an import', static function () use ( $sync_tool_url ) {
+      ?>
       <ol>
         <li>Run the MDP User Sync first, so the WordPress users exist.</li>
         <li>Upload the membership CSV to the media folder. Use separate files for individuals and organizations.</li>
@@ -396,8 +412,8 @@ class Settings_Fields {
       <p><code>php ./csv_import_threads.php { individual|organization } { file_path from /uploads/ } { api_domain - optional str } { skip_approval - optional bool }</code></p>
       <p><strong>Reusing existing subscriptions:</strong> When importing memberships <em>without</em> creating new subscriptions, use the Subscription Sync tool to attach them to subscriptions that already exist. It walks active and on-hold subscriptions and links each to the current membership of the same user (matched by email) on the same tier (resolved from the subscription's product). Only available while this setting is enabled.</p>
       <p><a target="_blank" rel="noopener" href="<?php echo $sync_tool_url; ?>">Open the Subscription Sync tool in a new tab &#8599;</a></p>
-    </details>
-    <?php
+      <?php
+    } );
   }
 
   /**

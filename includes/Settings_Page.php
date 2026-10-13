@@ -108,7 +108,14 @@ class Settings_Page {
    * @return void
    */
   public static function enqueue_assets( $hook_suffix ) {
-    if ( 'settings_page_wicket-membership-settings' !== $hook_suffix || ! defined( 'WICKET_URL' ) ) {
+    if ( 'settings_page_wicket-membership-settings' !== $hook_suffix ) {
+      return;
+    }
+
+    // Core accordion behaviour for render_accordion(); its styles are already in wp-admin common.css.
+    wp_enqueue_script( 'accordion' );
+
+    if ( ! defined( 'WICKET_URL' ) ) {
       return;
     }
 
@@ -118,6 +125,42 @@ class Settings_Page {
     wp_enqueue_script( 'wicket_admin_js', WICKET_URL . 'assets/js/wicket_admin.js', [ 'jquery', 'select2' ], '1.0', false );
     // Searchable select for long single-choice lists such as the MDP timezone.
     wp_add_inline_script( 'wicket_admin_js', "jQuery(function($){ $('.wicket-mship-select2').select2(); });" );
+  }
+
+  /**
+   * Render a collapsed panel using core's admin accordion markup (as on Appearance > Menus).
+   *
+   * Each panel gets its own container because core's accordion closes open siblings.
+   *
+   * @since 1.0.123
+   *
+   * @see enqueue_assets()  Enqueues core's `accordion` script.
+   *
+   * @param  string    $id       Unique HTML id for the panel.
+   * @param  string    $title    Plain-text panel heading.
+   * @param  callable  $content  Echoes the panel body.
+   *
+   * @return void
+   */
+  public static function render_accordion( $id, $title, $content ) {
+    ?>
+    <div class="accordion-container" style="max-width:990px;margin-top:12px;">
+      <div class="control-section accordion-section">
+        <?php // Body-size heading so the panel reads as help text, not a section title. ?>
+        <h3 class="accordion-section-title" style="font-size:inherit;font-weight:400;">
+          <button type="button" class="accordion-trigger" aria-expanded="false" aria-controls="<?php echo esc_attr( $id ); ?>-content">
+            <span class="accordion-title">
+              <?php echo esc_html( $title ); ?>
+              <span class="dashicons dashicons-arrow-down" aria-hidden="true"></span>
+            </span>
+          </button>
+        </h3>
+        <div class="accordion-section-content" id="<?php echo esc_attr( $id ); ?>-content">
+          <?php call_user_func( $content ); ?>
+        </div>
+      </div>
+    </div>
+    <?php
   }
 
   /**

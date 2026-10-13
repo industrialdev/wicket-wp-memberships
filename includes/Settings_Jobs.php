@@ -147,12 +147,13 @@ class Settings_Jobs {
   }
 
   /**
-   * Builds a nonced settings-page URL for one manual "Run Now" / "Refresh All Now" trigger link.
+   * Builds a nonced settings-page URL for one manual trigger link (Run Now, Refresh All Now, or a
+   * Subscriptions Mode switch).
    *
    * @param  string $trigger_param  One of `MANUAL_ACTION_TRIGGER_PARAMS`.
    * @return string  Nonced URL; verified by `run_triggered_actions()` via `check_admin_referer()`.
    */
-  private static function get_manual_action_link( $trigger_param ) {
+  public static function get_manual_action_link( $trigger_param ) {
     return wp_nonce_url(
       "options-general.php?page=wicket-membership-settings&tab=developer&{$trigger_param}=1",
       'wicket_mship_manual_action'
@@ -160,7 +161,8 @@ class Settings_Jobs {
   }
 
   /**
-   * Query args that trigger one of this page's manual "Run Now" / "Refresh All Now" links.
+   * Query args that trigger one of this page's manual links (Run Now, Refresh All Now, Subscriptions
+   * Mode switches).
    * Shared by `handle_manual_action_links()` (to detect and strip them) and tests (to assert
    * against `run_triggered_actions()` without needing the redirect/exit wrapper).
    *
@@ -172,11 +174,13 @@ class Settings_Jobs {
     'schedule_daily_membership_activation_hook',
     'wicket_mship_refresh_autorenew_status',
     'wicket_mship_run_autorenew_audit',
+    Subscriptions_Mode::LIVE_TRIGGER,
+    Subscriptions_Mode::STAGING_TRIGGER,
   ];
 
   /**
-   * Hooked to `admin_init`. Runs the four "Run Now" / "Refresh All Now" manual-trigger links on
-   * this settings page. These are plain GET links (not a form submit), so they can't live inside
+   * Hooked to `admin_init`. Runs the manual-trigger links on this settings page (Run Now,
+   * Refresh All Now, Subscriptions Mode switches). These are plain GET links (not a form submit), so they can't live inside
    * `wicket_membership_plugin_options_validate()` — that only runs when the settings form itself
    * is POSTed to options.php, which a bare link to this page never does.
    *
@@ -204,7 +208,7 @@ class Settings_Jobs {
 
   /**
    * Runs whichever of this page's manual triggers are present in `$_GET`, if any. These triggers
-   * start real background jobs (or run one inline), so both a capability check and nonce
+   * start real background jobs (or run one inline) or switch WooCommerce Subscriptions' mode, so both a capability check and nonce
    * verification gate every branch below, not just the outer "is a trigger present" check — a
    * capability-only guard would still let an attacker-crafted link ride an admin's session via a
    * plain GET (CSRF), since GET requests carry no proof the admin actually clicked "Run Now" on
@@ -246,6 +250,13 @@ class Settings_Jobs {
       // Runs inline: a single audit batch is capped at Autorenew_Audit::BATCH_SIZE (100)
       // memberships, well within one request's execution time, unlike the full sweep above.
       Autorenew_Audit::run_batch();
+    }
+    // Both links can't be shown at once, but if both are present, staging wins as the safer mode.
+    if ( ! empty( $_GET[ Subscriptions_Mode::LIVE_TRIGGER ] ) && empty( $_GET[ Subscriptions_Mode::STAGING_TRIGGER ] ) ) {
+      Subscriptions_Mode::switch_to_live();
+    }
+    if ( ! empty( $_GET[ Subscriptions_Mode::STAGING_TRIGGER ] ) ) {
+      Subscriptions_Mode::switch_to_staging();
     }
 
     return true;
