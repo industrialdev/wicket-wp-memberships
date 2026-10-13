@@ -32,6 +32,8 @@ class Settings_Fields {
           'wicket_mship_membership_categories' => 'Membership Categories',
           'wicket_mship_assign_subscription'   => 'Membership Subscription Assignment',
           'wicket_mship_hide_subscription_cancel' => 'Hide Subscription Self-Serve Cancellation',
+          'wicket_mship_hide_subscription_reactivate' => 'Hide Subscription Self-Serve Reactivation',
+          'wicket_mship_hide_subscription_resubscribe' => 'Hide Subscription Self-Serve Resubscribe',
         ] ],
         'mdp_connection' => [ 'Wicket MDP', null, [
           'wicket_mship_mdp_timezone'         => 'MDP Timezone',
@@ -163,12 +165,38 @@ class Settings_Fields {
    *
    * @since 1.0.123
    *
-   * @see Utilities::maybe_hide_subscription_cancel_action()
+   * @see Utilities::maybe_hide_subscription_actions()
    *
    * @return void
    */
   public static function wicket_mship_hide_subscription_cancel() {
     self::render_checkbox( 'wicket_mship_hide_subscription_cancel', 'Hide the Cancel button on the member\'s View Subscription page', 'Members will not be able to cancel on their own. Admins can still cancel subscriptions in WooCommerce.' );
+  }
+
+  /**
+   * Render the hide subscription self-serve reactivation checkbox.
+   *
+   * @since 1.0.123
+   *
+   * @see Utilities::maybe_hide_subscription_actions()
+   *
+   * @return void
+   */
+  public static function wicket_mship_hide_subscription_reactivate() {
+    self::render_checkbox( 'wicket_mship_hide_subscription_reactivate', 'Hide the Reactivate button on the member\'s View Subscription page', 'Members will not be able to reactivate an on-hold subscription on their own. Admins can still reactivate subscriptions in WooCommerce.' );
+  }
+
+  /**
+   * Render the hide subscription self-serve resubscribe checkbox.
+   *
+   * @since 1.0.123
+   *
+   * @see Utilities::maybe_hide_subscription_actions()
+   *
+   * @return void
+   */
+  public static function wicket_mship_hide_subscription_resubscribe() {
+    self::render_checkbox( 'wicket_mship_hide_subscription_resubscribe', 'Hide the Resubscribe button on the member\'s View Subscription page', 'Members will not be able to restart an ended subscription from that page.' );
   }
 
   /**

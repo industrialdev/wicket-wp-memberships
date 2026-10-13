@@ -110,6 +110,16 @@ class Settings {
     Settings_Fields::wicket_mship_hide_subscription_cancel();
   }
 
+  /** @see Settings_Fields::wicket_mship_hide_subscription_reactivate() */
+  public static function wicket_mship_hide_subscription_reactivate() {
+    Settings_Fields::wicket_mship_hide_subscription_reactivate();
+  }
+
+  /** @see Settings_Fields::wicket_mship_hide_subscription_resubscribe() */
+  public static function wicket_mship_hide_subscription_resubscribe() {
+    Settings_Fields::wicket_mship_hide_subscription_resubscribe();
+  }
+
   /** @see Settings_Fields::wicket_mship_assign_subscription() */
   public static function wicket_mship_assign_subscription() {
     Settings_Fields::wicket_mship_assign_subscription();
@@ -274,6 +284,8 @@ class Settings {
     $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim($input['wicket_mship_import_create_subscriptions_tier_only']);
     $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
     $newinput['wicket_mship_hide_subscription_cancel'] = trim( $input['wicket_mship_hide_subscription_cancel'] ?? '' );
+    $newinput['wicket_mship_hide_subscription_reactivate'] = trim( $input['wicket_mship_hide_subscription_reactivate'] ?? '' );
+    $newinput['wicket_mship_hide_subscription_resubscribe'] = trim( $input['wicket_mship_hide_subscription_resubscribe'] ?? '' );
 
     // Programmatic writes (Portus import, backup restore) also run through this callback and may
     // only carry the legacy key; fall back to it so those categories are not wiped. The new key wins if both exist.

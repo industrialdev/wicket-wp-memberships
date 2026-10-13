@@ -23,7 +23,7 @@ Every public `Settings` method that existed before the split still exists and de
 
 All fields save to the single `wicket_membership_plugin_options` option. `Settings::wicket_membership_plugin_options_validate()` rebuilds the whole array from the posted fields, so every field must be posted on every save. The page therefore uses one form for all tabs; inactive tabs are only hidden.
 
-`wicket_mship_hide_subscription_cancel` (default off) removes the Cancel action from the member's View Subscription page via `Utilities::maybe_hide_subscription_cancel_action()` on `wcs_view_subscription_actions`. Admins can still cancel.
+`wicket_mship_hide_subscription_cancel`, `wicket_mship_hide_subscription_reactivate` and `wicket_mship_hide_subscription_resubscribe` (all default off) remove the Cancel, Reactivate and Resubscribe actions from the member's View Subscription page via `Utilities::maybe_hide_subscription_actions()` on `wcs_view_subscription_actions`. They only hide the buttons; admins can still change subscriptions in WooCommerce.
 
 Membership Categories are stored under `wicket_mship_membership_categories` and mirrored to the legacy `wicket_show_mship_order_org_search[categorychoice]` on save. Read them with `Helper::get_membership_category_ids()`.
 
@@ -31,7 +31,7 @@ Membership Categories are stored under `wicket_mship_membership_categories` and 
 
 | Tab | Sections |
 |---|---|
-| General | WooCommerce (Membership Categories, Membership Subscription Assignment, Hide Subscription Self-Serve Cancellation), Wicket MDP (MDP Timezone, Merge Webhook API Key) |
+| General | WooCommerce (Membership Categories, Membership Subscription Assignment, Hide Subscription Self-Serve Cancellation, Reactivation and Resubscribe), Wicket MDP (MDP Timezone, Merge Webhook API Key) |
 | Renewals | Renewals, Auto-Renew |
 | Import | Command-Line Import (with import steps), Import Subscription Options |
 | Developer | Debug Settings, Admin Debug Output, Front-End Debug Output, Wicket MDP Sync, WooCommerce (Subscriptions Mode), Scheduled Jobs |

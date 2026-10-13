@@ -30,7 +30,7 @@ class Utilities {
 
     add_filter( 'woocommerce_cart_item_quantity', [$this, 'disable_cart_item_quantity'], 10, 3);
     add_filter( 'woocommerce_cart_item_remove_link', [$this, 'hide_cart_item_remove_link'], 10, 3);
-    add_filter( 'wcs_view_subscription_actions', [$this, 'maybe_hide_subscription_cancel_action'], 100, 1 );
+    add_filter( 'wcs_view_subscription_actions', [$this, 'maybe_hide_subscription_actions'], 100, 1 );
     add_action( 'wp_trash_post', [$this, 'delete_wicket_membership_in_mdp' ], 10, 2);
     // Use the pre_trash_post FILTER (not the wp_trash_post action) so we can
     // abort the trash before WordPress changes the post status, and redirect
@@ -707,23 +707,38 @@ class Utilities {
   }
 
   /**
-   * Remove the Cancel action from the member's View Subscription page when the setting is on.
+   * Remove the Cancel, Reactivate and Resubscribe actions from the member's View Subscription page
+   * when their Hide Subscription Self-Serve settings are on.
    *
-   * Only hides the button; admins can still cancel in WooCommerce.
+   * Only hides the buttons; admins can still change subscriptions in WooCommerce.
    *
    * @since 1.0.123
    *
    * @see Settings_Fields::wicket_mship_hide_subscription_cancel()
+   * @see Settings_Fields::wicket_mship_hide_subscription_reactivate()
+   * @see Settings_Fields::wicket_mship_hide_subscription_resubscribe()
    *
    * @param  array  $actions  Subscription actions from wcs_view_subscription_actions, keyed by action.
    *
-   * @return array  Actions without `cancel` when Hide Subscription Self-Serve Cancellation is on.
+   * @return array  Actions without the ones whose hide setting is on.
    */
-  public function maybe_hide_subscription_cancel_action( $actions ) {
-    $options = get_option( 'wicket_membership_plugin_options' );
+  public function maybe_hide_subscription_actions( $actions ) {
+    if ( ! is_array( $actions ) ) {
+      return $actions;
+    }
 
-    if ( ! empty( $options['wicket_mship_hide_subscription_cancel'] ) && is_array( $actions ) ) {
-      unset( $actions['cancel'] );
+    $options = get_option( 'wicket_membership_plugin_options' );
+    // Setting key => WooCommerce Subscriptions action key.
+    $hideable = [
+      'wicket_mship_hide_subscription_cancel'      => 'cancel',
+      'wicket_mship_hide_subscription_reactivate'  => 'reactivate',
+      'wicket_mship_hide_subscription_resubscribe' => 'resubscribe',
+    ];
+
+    foreach ( $hideable as $setting => $action ) {
+      if ( ! empty( $options[ $setting ] ) ) {
+        unset( $actions[ $action ] );
+      }
     }
 
     return $actions;
