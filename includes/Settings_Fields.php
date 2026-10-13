@@ -31,6 +31,7 @@ class Settings_Fields {
         'woocommerce' => [ 'WooCommerce', [ Settings_Page::class, 'section_membership_products_text' ], [
           'wicket_mship_membership_categories' => 'Membership Categories',
           'wicket_mship_assign_subscription'   => 'Membership Subscription Assignment',
+          'wicket_mship_hide_subscription_cancel' => 'Hide Subscription Self-Serve Cancellation',
         ] ],
         'mdp_connection' => [ 'Wicket MDP', null, [
           'wicket_mship_mdp_timezone'         => 'MDP Timezone',
@@ -150,7 +151,20 @@ class Settings_Fields {
    * @return void
    */
   public static function wicket_mship_assign_subscription() {
-    self::render_checkbox( 'wicket_mship_assign_subscription', 'Allow assigning a membership by ID on subscriptions' );
+    self::render_checkbox( 'wicket_mship_assign_subscription', 'Allow assigning a membership by ID on subscriptions', 'Adds a Membership ID field to the admin subscription edit screen. Saving it links the subscription to that membership so renewals use it.' );
+  }
+
+  /**
+   * Render the hide subscription self-serve cancellation checkbox.
+   *
+   * @since 1.0.123
+   *
+   * @see Utilities::maybe_hide_subscription_cancel_action()
+   *
+   * @return void
+   */
+  public static function wicket_mship_hide_subscription_cancel() {
+    self::render_checkbox( 'wicket_mship_hide_subscription_cancel', 'Hide the Cancel button on the member\'s View Subscription page', 'Members will not be able to cancel on their own. Admins can still cancel subscriptions in WooCommerce.' );
   }
 
   /**

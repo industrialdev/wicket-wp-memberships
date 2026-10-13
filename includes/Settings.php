@@ -105,6 +105,11 @@ class Settings {
     Settings_Fields::wicket_mship_disable_renewal();
   }
 
+  /** @see Settings_Fields::wicket_mship_hide_subscription_cancel() */
+  public static function wicket_mship_hide_subscription_cancel() {
+    Settings_Fields::wicket_mship_hide_subscription_cancel();
+  }
+
   /** @see Settings_Fields::wicket_mship_assign_subscription() */
   public static function wicket_mship_assign_subscription() {
     Settings_Fields::wicket_mship_assign_subscription();
@@ -268,6 +273,7 @@ class Settings {
     $newinput['wicket_mship_mdp_timezone'] = trim($input['wicket_mship_mdp_timezone']);
     $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim($input['wicket_mship_import_create_subscriptions_tier_only']);
     $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
+    $newinput['wicket_mship_hide_subscription_cancel'] = trim( $input['wicket_mship_hide_subscription_cancel'] ?? '' );
 
     // Programmatic writes (Portus import, backup restore) also run through this callback and may
     // only carry the legacy key; fall back to it so those categories are not wiped. The new key wins if both exist.
