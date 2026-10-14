@@ -215,8 +215,7 @@ class Settings_Fields {
   /**
    * Get the Membership Categories the settings form pre-selects, i.e. what a save will store.
    *
-   * The saved or inherited list, or the "Membership" product category on sites that have
-   * never saved either key. An explicit empty save is respected.
+   * The saved or inherited list, which always includes the "Membership" product category.
    *
    * @since 1.0.123
    *
@@ -225,18 +224,6 @@ class Settings_Fields {
    * @return int[]  Product category term IDs.
    */
   public static function get_form_membership_category_ids() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    $never_saved = ! is_array( $options )
-      || ( ! array_key_exists( 'wicket_mship_membership_categories', $options ) && ! array_key_exists( 'wicket_show_mship_order_org_search', $options ) );
-
-    if ( $never_saved ) {
-      // Match by name or slug, the same way has_term( 'Membership' ) does in Helper::is_in_membership_category().
-      $default_category = get_term_by( 'name', 'Membership', 'product_cat' ) ?: get_term_by( 'slug', 'membership', 'product_cat' );
-      if ( $default_category ) {
-        return [ (int) $default_category->term_id ];
-      }
-    }
-
     return Helper::get_membership_category_ids();
   }
 
@@ -244,8 +231,8 @@ class Settings_Fields {
    * Render the Membership Categories multi-select.
    *
    * Pre-selects the saved categories, inheriting the legacy org-search selection
-   * until this field is first saved. On sites that have never saved either key,
-   * the "Membership" product category is pre-selected as the default.
+   * until this field is first saved. The "Membership" product category is always
+   * pre-selected because it always applies.
    *
    * @since 1.0.123
    *

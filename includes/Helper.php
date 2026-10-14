@@ -672,7 +672,7 @@ class Helper {
   /**
    * Determine whether a product is in a membership product category.
    *
-   * Uses the categories selected in the plugin settings, plus the legacy "Membership" category.
+   * Uses the categories selected in the plugin settings, which always include the "Membership" category.
    *
    * @since 1.0.123
    *
@@ -683,10 +683,7 @@ class Helper {
    * @return bool  True when the product is in a membership category.
    */
   public static function is_in_membership_category( $product_id ) {
-    $categories = self::get_membership_category_ids();
-    $categories[] = 'Membership';
-
-    return has_term( $categories, 'product_cat', $product_id );
+    return has_term( self::get_membership_category_ids(), 'product_cat', $product_id );
   }
 
   /**
@@ -694,10 +691,12 @@ class Helper {
    *
    * Reads `wicket_mship_membership_categories`, falling back to the legacy
    * `wicket_show_mship_order_org_search[categorychoice]` until the new key is saved.
+   * The "Membership" product category is always included, whatever is selected.
    *
    * @since 1.0.123
    *
    * @see Settings::wicket_membership_plugin_options_validate()  Writes both keys on save.
+   * @see Helper::get_default_membership_category_ids()
    *
    * @return int[]  Product category term IDs.
    */
@@ -711,8 +710,26 @@ class Helper {
       $categories = (array) ( $options['wicket_show_mship_order_org_search']['categorychoice'] ?? [] );
     }
 
+    $categories = array_merge( $categories, self::get_default_membership_category_ids() );
+
     // Normalize stored values to term IDs; drop empties that cast to 0.
-    return array_values( array_filter( array_map( 'absint', $categories ) ) );
+    return array_values( array_unique( array_filter( array_map( 'absint', $categories ) ) ) );
+  }
+
+  /**
+   * Get the term IDs of the built-in "Membership" product category.
+   *
+   * Matches by name or slug, as has_term( 'Membership' ) does, so a renamed or
+   * re-slugged category still counts.
+   *
+   * @since 1.0.123
+   *
+   * @return int[]  The term ID, or empty when the category does not exist.
+   */
+  public static function get_default_membership_category_ids() {
+    $term = get_term_by( 'name', 'Membership', 'product_cat' ) ?: get_term_by( 'slug', 'membership', 'product_cat' );
+
+    return $term ? [ (int) $term->term_id ] : [];
   }
 
   /**
