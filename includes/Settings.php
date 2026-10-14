@@ -264,25 +264,25 @@ class Settings {
    * @return array  Sanitized options to store.
    */
   public static function wicket_membership_plugin_options_validate( $input ) {
-    $newinput['wicket_mship_membership_merge_key'] = trim($input['wicket_mship_membership_merge_key']);
-    $newinput['wicket_mship_multi_tier_renewal'] = trim($input['wicket_mship_multi_tier_renewal']);
-    $newinput['wicket_mship_assign_subscription'] = trim($input['wicket_mship_assign_subscription']);
-    $newinput['wicket_mship_autorenew_toggle'] = trim($input['wicket_mship_autorenew_toggle']);
-    $newinput['wicket_mship_autorenew_override'] = trim($input['wicket_mship_autorenew_override']);
-    $newinput['wicket_mship_autorenew_audit'] = trim($input['wicket_mship_autorenew_audit']);
-    $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
-    $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
-    $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);
-    $newinput['bypass_status_change_lockout'] = trim($input['bypass_status_change_lockout']);
-    $newinput['wicket_show_order_debug_data'] = trim($input['wicket_show_order_debug_data']);
-    $newinput['allow_local_imports'] = trim($input['allow_local_imports']);
-    $newinput['wicket_memberships_debug_cart_ids'] = trim($input['wicket_memberships_debug_cart_ids']);
-    $newinput['wicket_memberships_debug_renew'] = trim($input['wicket_memberships_debug_renew']);
-    $newinput['bypass_wicket'] = trim($input['bypass_wicket']);
-    $newinput['wicket_mship_subscription_renew'] = trim($input['wicket_mship_subscription_renew']); 
-    $newinput['wicket_mship_mdp_timezone'] = trim($input['wicket_mship_mdp_timezone']);
-    $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim($input['wicket_mship_import_create_subscriptions_tier_only']);
-    $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
+    $newinput['wicket_mship_membership_merge_key'] = trim( $input['wicket_mship_membership_merge_key'] ?? '' );
+    $newinput['wicket_mship_multi_tier_renewal'] = trim( $input['wicket_mship_multi_tier_renewal'] ?? '' );
+    $newinput['wicket_mship_assign_subscription'] = trim( $input['wicket_mship_assign_subscription'] ?? '' );
+    $newinput['wicket_mship_autorenew_toggle'] = trim( $input['wicket_mship_autorenew_toggle'] ?? '' );
+    $newinput['wicket_mship_autorenew_override'] = trim( $input['wicket_mship_autorenew_override'] ?? '' );
+    $newinput['wicket_mship_autorenew_audit'] = trim( $input['wicket_mship_autorenew_audit'] ?? '' );
+    $newinput['wicket_mship_disable_renewal'] = trim( $input['wicket_mship_disable_renewal'] ?? '' );
+    $newinput['wicket_membership_debug_mode'] = trim( $input['wicket_membership_debug_mode'] ?? '' );
+    $newinput['wicket_memberships_debug_acc'] = trim( $input['wicket_memberships_debug_acc'] ?? '' );
+    $newinput['bypass_status_change_lockout'] = trim( $input['bypass_status_change_lockout'] ?? '' );
+    $newinput['wicket_show_order_debug_data'] = trim( $input['wicket_show_order_debug_data'] ?? '' );
+    $newinput['allow_local_imports'] = trim( $input['allow_local_imports'] ?? '' );
+    $newinput['wicket_memberships_debug_cart_ids'] = trim( $input['wicket_memberships_debug_cart_ids'] ?? '' );
+    $newinput['wicket_memberships_debug_renew'] = trim( $input['wicket_memberships_debug_renew'] ?? '' );
+    $newinput['bypass_wicket'] = trim( $input['bypass_wicket'] ?? '' );
+    $newinput['wicket_mship_subscription_renew'] = trim( $input['wicket_mship_subscription_renew'] ?? '' );
+    $newinput['wicket_mship_mdp_timezone'] = trim( $input['wicket_mship_mdp_timezone'] ?? '' );
+    $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim( $input['wicket_mship_import_create_subscriptions_tier_only'] ?? '' );
+    $newinput['wicket_mship_import_create_subscriptions'] = trim( $input['wicket_mship_import_create_subscriptions'] ?? '' );
     $newinput['wicket_mship_hide_subscription_cancel'] = trim( $input['wicket_mship_hide_subscription_cancel'] ?? '' );
     $newinput['wicket_mship_hide_subscription_reactivate'] = trim( $input['wicket_mship_hide_subscription_reactivate'] ?? '' );
     $newinput['wicket_mship_hide_subscription_resubscribe'] = trim( $input['wicket_mship_hide_subscription_resubscribe'] ?? '' );
