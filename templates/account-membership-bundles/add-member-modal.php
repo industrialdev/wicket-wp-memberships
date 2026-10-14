@@ -203,7 +203,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 
               <template x-if="!tiersLoading && !tiersError && tiers.length === 0">
                 <p class="wicket-mship-add-member-modal__empty">
-                  <?php esc_html_e( 'No eligible membership tiers are available for this bundle.', 'wicket-memberships' ); ?>
+                  <!-- With a person selected, the endpoint omits tiers they
+                       hold no membership for, so an empty list means this
+                       person has nothing to add — not that the bundle has no tiers. -->
+                  <template x-if="selectedPerson">
+                    <span><?php esc_html_e( 'This member has no memberships that can be added to this bundle.', 'wicket-memberships' ); ?></span>
+                  </template>
+                  <template x-if="!selectedPerson">
+                    <span><?php esc_html_e( 'No eligible membership tiers are available for this bundle.', 'wicket-memberships' ); ?></span>
+                  </template>
                 </p>
               </template>
 

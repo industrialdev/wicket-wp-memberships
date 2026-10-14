@@ -96,7 +96,9 @@ When `person_uuid` is supplied, each tier is additionally annotated with that pe
 Eligibility rules:
 - **In Bundle** — the person already holds this tier's seat (membership not cancelled/expired) in a bundle whose own status is `active` — **this check isn't limited to the bundle in the URL**. A person already active-bundled into a *different* bundle for the same tier is flagged `in_bundle` here too, not just someone re-adding to the same bundle. Shown checked and locked.
 - **Eligible** — the person holds an active individual membership for this tier (bundle-linked or standalone) that isn't already claimed by the In Bundle check above. That membership is what gets pulled into this bundle when the selection is confirmed.
-- **Not Eligible** — neither of the above. Shown unchecked and locked. If a site filter rejected a person who does hold an active membership for the tier, its status/dates are still shown on the row for context.
+- **Not Eligible** — the person holds a membership for this tier, but it doesn't meet the bundle's requirements (typically because a site filter rejected it — see below). Shown unchecked and locked, with the membership's status/dates on the row for context.
+
+Tiers the person holds **no** membership for are not relevant to them and are **omitted from the response** rather than returned as Not Eligible. A person with no relevant memberships gets an empty array, and the add-member flow shows an empty-state message instead of a tier list. The omission is applied after the filter below, so a filter can still surface such a tier by returning `'eligible'` or `'in_bundle'`.
 
 #### Customising eligibility
 
@@ -172,7 +174,7 @@ With `person_uuid`, each tier also carries:
 ]
 ```
 
-`eligibility_status` is one of `eligible`, `in_bundle`, or `not_eligible`. `membership_status`, `membership_status_label`, `starts_at`, and `ends_at` come from whichever membership record backs that status (the in-bundle seat, or the person's active membership for the tier) and are all `null` when no such record exists.
+`eligibility_status` is one of `eligible`, `in_bundle`, or `not_eligible`. `membership_status`, `membership_status_label`, `starts_at`, and `ends_at` come from whichever membership record backs that status (the in-bundle seat, or the person's active membership for the tier). They are only `null` when a filter surfaced a tier the person has no record for — tiers with no record are otherwise omitted (see eligibility rules above).
 
 A tier with more than one entry in `products` requires the caller to choose one and pass its `product_id`/`variation_id` to [Add a member to a bundle (member-scoped)](#add-a-member-to-a-bundle-member-scoped). A tier with exactly one product can omit `product_id` there — it's auto-resolved from the tier.
 

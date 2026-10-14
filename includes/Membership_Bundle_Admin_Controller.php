@@ -938,14 +938,22 @@ class Membership_Bundle_Admin_Controller {
    *                                         the in_bundle check above) —
    *                                         that membership is what gets
    *                                         pulled in on confirm.
-   *                        'not_eligible' — neither of the above.
+   *                        'not_eligible' — the person has a membership
+   *                                         record for this tier, but it
+   *                                         doesn't meet the bundle's
+   *                                         requirements (typically set by
+   *                                         the filter below).
    *    Any of these can be overridden per site via the
    *    `wicket_mship_bundle_tier_eligibility_status` filter; add_member()
    *    still rejects a duplicate seat regardless ('already_in_bundle').
+   *    Tiers the person holds no membership record for at all are omitted
+   *    from the response (not returned as 'not_eligible') unless the filter
+   *    returns 'eligible' or 'in_bundle' for them — so a person with no
+   *    relevant memberships gets an empty list.
    *  - membership_status/starts_at/ends_at: taken from whichever membership
    *    record backs the eligibility_status above (the in-bundle one, or the
-   *    person's active membership for the tier); null when no such record
-   *    exists at all (a bare 'not_eligible' with nothing to show).
+   *    person's active membership for the tier); null only when a filter
+   *    surfaced a tier with no backing record.
    *
    * @param int    $bundle_post_id
    * @param string $person_uuid Optional MDP person UUID — omit for the plain
@@ -1056,6 +1064,8 @@ class Membership_Bundle_Admin_Controller {
       $local_user = get_user_by( 'login', $person_uuid );
       $user_id    = $local_user ? (int) $local_user->ID : 0;
 
+      $hidden_tier_ids = [];
+
       foreach ( $tiers as &$tier_row ) {
         $tier      = new Membership_Tier( $tier_row['id'] );
         $tier_uuid = $tier->get_mdp_tier_uuid();
@@ -1108,8 +1118,26 @@ class Membership_Bundle_Admin_Controller {
         if ( in_array( $filtered_status, [ 'eligible', 'in_bundle', 'not_eligible' ], true ) ) {
           $tier_row['eligibility_status'] = $filtered_status;
         }
+
+        // A tier the person has no membership record for at all isn't
+        // applicable to them, so it's hidden rather than shown as
+        // 'not_eligible' — otherwise every tier in the plugin would be listed
+        // as Not Eligible for a person who holds just one. 'not_eligible' is
+        // kept only when a backing record exists (e.g. a site filter rejected
+        // an active membership). Checked after the filter so a filter can
+        // still surface a record-less tier by returning 'eligible'.
+        if ( 'not_eligible' === $tier_row['eligibility_status'] && ! $active_post ) {
+          $hidden_tier_ids[ $tier_row['id'] ] = true;
+        }
       }
       unset( $tier_row );
+
+      if ( ! empty( $hidden_tier_ids ) ) {
+        $tiers = array_values( array_filter(
+          $tiers,
+          fn( $tier_row ) => ! isset( $hidden_tier_ids[ $tier_row['id'] ] )
+        ) );
+      }
     }
 
     return $tiers;
