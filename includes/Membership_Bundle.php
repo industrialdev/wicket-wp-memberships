@@ -1364,9 +1364,12 @@ class Membership_Bundle {
    * calculate_totals() + save() once after all members are added. Leave true (default) for
    * single-member adds so the subscription total is always persisted correctly.
    *
+   * Additional line item meta (e.g. a client-specific member identifier) can be added via
+   * the `wicket_mship_bundle_line_item_meta` filter.
+   *
    * @param int  $membership_post_id   Post ID of the newly created individual membership.
    * @param int  $product_id           WC product ID to add (variation ID when present, else parent).
-   * @param int  $user_id              WP user ID of the member (for _member_name meta).
+   * @param int  $user_id             WP user ID of the member (for _member_name meta).
    * @param bool $recalculate_totals   Whether to call calculate_totals() after adding the item.
    * @return int|\WP_Error             WC order item ID on success, WP_Error on failure.
    */
@@ -1395,11 +1398,36 @@ class Membership_Bundle {
       return new \WP_Error( 'add_product_failed', __( 'Failed to add product to the bundle subscription.', 'wicket-memberships' ) );
     }
 
+    // _membership_post_id is written outside the filter so it can never be dropped or
+    // overwritten — remove_subscription_line_item() and renewal flows rely on it to find this item.
     wc_add_order_item_meta( $item_id, '_membership_post_id', $membership_post_id );
 
+    $meta = [];
     $user = get_user_by( 'id', $user_id );
     if ( $user ) {
-      wc_add_order_item_meta( $item_id, '_member_name', $user->display_name );
+      $meta['_member_name'] = $user->display_name;
+    }
+
+    // Environment-specific identifiers (e.g. OBA bar ID) are injected by the theme/site
+    // plugin rather than hard-coded here, since the source field differs per client.
+    $meta = apply_filters( 'wicket_mship_bundle_line_item_meta', $meta, [
+      'item_id'            => $item_id,
+      'membership_post_id' => $membership_post_id,
+      'product_id'         => $product_id,
+      'user_id'            => $user_id,
+      'bundle'             => $this,
+    ] );
+
+    if ( is_array( $meta ) ) {
+      foreach ( $meta as $key => $value ) {
+        if ( ! is_string( $key ) || '' === $key || '_membership_post_id' === $key ) {
+          continue;
+        }
+        if ( null === $value || '' === $value ) {
+          continue;
+        }
+        wc_add_order_item_meta( $item_id, $key, $value );
+      }
     }
 
     if ( $recalculate_totals ) {

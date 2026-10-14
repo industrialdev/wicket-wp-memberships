@@ -672,6 +672,7 @@ The member must be logged in and have an active MDP connection to the bundle's o
 |---|---|---|---|
 | `wicket_memberships_individual_membership_created_for_bundle` | filter | After a new member seat is created by `add_member()` | `array $result` |
 | `wicket_mship_bundle_renewal_callout` | filter | `get_renewal_callout()` builds a callout | `?array $callout, Membership_Bundle $bundle` |
+| `wicket_mship_bundle_line_item_meta` | filter | A member's line item is added to the bundle subscription | `array $meta, array $context` |
 | `wicket_memberships_bundle_renewal_period_open` | action | `early_renew_at` date reached | `int $bundle_post_id` |
 | `wicket_memberships_bundle_end_date_reached` | action | `ends_at` date reached | `int $bundle_post_id` |
 | `wicket_memberships_bundle_grace_period_expired` | action | `expires_at` date reached | `int $bundle_post_id` |
@@ -683,4 +684,17 @@ add_filter( 'wicket_memberships_individual_membership_created_for_bundle', funct
     // Inspect or augment the result
     return $result;
 } );
+```
+
+The `wicket_mship_bundle_line_item_meta` filter receives the meta that will be written to the member's line item on the bundle subscription (by default `[ '_member_name' => <display_name> ]`) and a `$context` array with `item_id`, `membership_post_id`, `product_id`, `user_id` and `bundle` (`Membership_Bundle`). Return the meta array with any extra keys. `_membership_post_id` is always written by the plugin and cannot be overridden; `null`/`''` values are skipped. Keys without a leading `_` are shown on the order/subscription line item in WooCommerce admin.
+
+```php
+// Child theme: store the member's bar ID on their bundle line item.
+add_filter( 'wicket_mship_bundle_line_item_meta', function( array $meta, array $context ): array {
+    $bar_id = get_user_meta( $context['user_id'], 'bar_id', true ); // source is site-specific
+    if ( $bar_id ) {
+        $meta['Bar ID'] = $bar_id;
+    }
+    return $meta;
+}, 10, 2 );
 ```

@@ -82,6 +82,7 @@ All `WP_Error` codes that can be returned by this class's public methods:
 |---|---|---|---|---|
 | `wicket_memberships_individual_membership_created_for_bundle` | filter | `add_member()` | `array $result` | Allows modification of created membership result; must return array with `membership_post_id` |
 | `wicket_mship_bundle_renewal_callout` | filter | `get_renewal_callout()` | `array $callout, Membership_Bundle $bundle` | Modify the renewal callout, or return `null` to hide it (also blocks member-portal renewal orders) |
+| `wicket_mship_bundle_line_item_meta` | filter | `add_subscription_line_item()` | `array $meta, array $context` (`item_id`, `membership_post_id`, `product_id`, `user_id`, `bundle`) | Add/modify meta written to the member's bundle subscription line item (e.g. OBA bar ID). `_membership_post_id` is protected and cannot be changed; `null`/`''` values are skipped |
 | `wicket_bundle_early_renew_at` | AS action | `schedule_date_trigger_jobs()` | `[ 'bundle_post_id' => int ]` | Fires when `early_renew_at` date reached |
 | `wicket_bundle_ends_at` | AS action | `schedule_date_trigger_jobs()` | `[ 'bundle_post_id' => int ]` | Fires when `ends_at` date reached |
 | `wicket_bundle_expires_at` | AS action | `schedule_date_trigger_jobs()` | `[ 'bundle_post_id' => int ]` | Fires when `expires_at` date reached |
@@ -178,6 +179,8 @@ Adds a WooCommerce subscription line item to the group subscription for an indiv
 |---|---|
 | `_membership_post_id` | Individual membership post ID |
 | `_member_name` | Member's `display_name` (omitted if user cannot be resolved) |
+
+Additional keys can be added through the `wicket_mship_bundle_line_item_meta` filter (see [Filters & Actions](#filters--actions)). `_membership_post_id` is written before the filter runs and any attempt to set it from the filter is ignored. Keys must be non-empty strings; `null` or `''` values are skipped. Prefix a key with `_` to hide it in the WooCommerce order/subscription UI.
 
 `$product_id` must be the variation ID when a variation is in use (caller passes `$variation_id ?? $product_id`, matching the precedence rule used for `membership_product_id`). Price comes from the WC product — no custom pricing logic. Calls `$sub->calculate_totals()` and `$sub->save()` after adding the item.
 

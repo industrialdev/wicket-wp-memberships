@@ -87,7 +87,7 @@ Adding a member creates:
 2. A `wicket_membership` WordPress post with `membership_bundle_id` pointing to the bundle
 3. A line item on the bundle's WooCommerce subscription
 
-The line item carries `_membership_post_id` and `_member_name` meta so it can be traced back to the individual membership.
+The line item carries `_membership_post_id` and `_member_name` meta so it can be traced back to the individual membership. Sites can attach extra identifying meta (e.g. a bar ID) with the `wicket_mship_bundle_line_item_meta` filter — see [Membership_Bundle hooks](../classes/membership-bundle.md#hooks).
 
 ### Initial membership status
 
