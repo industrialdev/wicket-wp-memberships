@@ -334,15 +334,13 @@ class Utilities {
    * This is a private helper called by both prevent_trash_linked_product() and
    * intercept_variation_removal() so the business logic lives in one place.
    *
-   * @see Helper::get_membership_category_ids()
+   * @see Helper::is_in_membership_category()
    *
    * @param  int         $product_id  WooCommerce product post ID (parent, not variation).
    * @return string|null  Human-readable reason string, or null if unprotected.
    */
   private function get_membership_product_block_message( int $product_id ): ?string {
-    $membership_categories = Helper::get_membership_category_ids();
-
-    if ( ! has_term( $membership_categories, 'product_cat', $product_id ) ) {
+    if ( ! Helper::is_in_membership_category( $product_id ) ) {
       return null;
     }
 
@@ -779,6 +777,10 @@ class Utilities {
       return;
     }
     $categories_selected = Helper::get_membership_category_ids();
+    // has_term() with an empty list matches any categorised product.
+    if ( empty( $categories_selected ) ) {
+      return;
+    }
     $subscription_products = $sub->get_items();
     foreach( $subscription_products as $item ) {
       if(empty($product_id)) {

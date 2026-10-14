@@ -680,17 +680,21 @@ class Helper {
    *
    * @param  int  $product_id  Parent product ID; categories are stored on the parent.
    *
-   * @return bool  True when the product is in a membership category.
+   * @return bool  True when the product is in a membership category; false when no categories resolve.
    */
   public static function is_in_membership_category( $product_id ) {
-    return has_term( self::get_membership_category_ids(), 'product_cat', $product_id );
+    $categories = self::get_membership_category_ids();
+
+    // has_term() with an empty list matches any categorised product.
+    return ! empty( $categories ) && has_term( $categories, 'product_cat', $product_id );
   }
 
   /**
    * Get the product category term IDs selected as Membership Categories.
    *
-   * Reads `wicket_mship_membership_categories`, falling back to the legacy
-   * `wicket_show_mship_order_org_search[categorychoice]` until the new key is saved.
+   * Reads `wicket_mship_membership_categories`. Until that key is saved, it uses the union of
+   * the legacy `wicket_show_mship_order_org_search[categorychoice]` and the base plugin's
+   * `wicket_admin_settings_membership_categories`, as each previously drove different consumers.
    * The "Membership" product category is always included, whatever is selected.
    *
    * @since 1.0.123
@@ -706,8 +710,11 @@ class Helper {
     if ( self::has_saved_membership_categories() ) {
       $categories = (array) $options['wicket_mship_membership_categories'];
     } else {
-      // Fallback: the legacy org-search key until Membership Categories is saved.
-      $categories = (array) ( $options['wicket_show_mship_order_org_search']['categorychoice'] ?? [] );
+      // Until saved, keep both legacy sources so no existing consumer narrows on deploy.
+      $categories = array_merge(
+        (array) ( $options['wicket_show_mship_order_org_search']['categorychoice'] ?? [] ),
+        function_exists( 'wicket_get_option' ) ? (array) wicket_get_option( 'wicket_admin_settings_membership_categories', [] ) : []
+      );
     }
 
     $categories = array_merge( $categories, self::get_default_membership_category_ids() );
