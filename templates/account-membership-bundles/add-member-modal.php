@@ -164,7 +164,11 @@ if ( ! defined( 'ABSPATH' ) ) {
             <div class="wicket-mship-add-member-modal__results-list">
               <template x-for="person in results" :key="person.id">
                 <button type="button" class="wicket-mship-add-member-modal__result-row" @click="selectPerson(person)">
-                  <span class="wicket-mship-add-member-modal__result-avatar" aria-hidden="true"></span>
+                  <span class="wicket-mship-add-member-modal__result-avatar" aria-hidden="true">
+                    <template x-if="person.avatar_url">
+                      <img :src="person.avatar_url" alt="" loading="lazy" />
+                    </template>
+                  </span>
                   <span class="wicket-mship-add-member-modal__result-info">
                     <span class="wicket-mship-add-member-modal__result-name" x-text="person.full_name"></span>
                     <span class="wicket-mship-add-member-modal__result-email" x-text="person.primary_email_address"></span>
@@ -180,7 +184,11 @@ if ( ! defined( 'ABSPATH' ) ) {
           <template x-if="selectedPerson">
             <div>
               <div class="wicket-mship-add-member-modal__person-card">
-                <span class="wicket-mship-add-member-modal__result-avatar" aria-hidden="true"></span>
+                <span class="wicket-mship-add-member-modal__result-avatar" aria-hidden="true">
+                  <template x-if="selectedPerson.avatar_url">
+                    <img :src="selectedPerson.avatar_url" alt="" loading="lazy" />
+                  </template>
+                </span>
                 <span class="wicket-mship-add-member-modal__result-info">
                   <span class="wicket-mship-add-member-modal__result-name" x-text="selectedPerson.full_name"></span>
                   <span class="wicket-mship-add-member-modal__result-email" x-text="selectedPerson.primary_email_address"></span>

@@ -49,10 +49,13 @@ There is no search-type toggle: the hooked callback alone decides, by inspecting
     {
         "id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
         "full_name": "Jane Smith",
-        "primary_email_address": "jane@acme.com"
+        "primary_email_address": "jane@acme.com",
+        "avatar_url": "https://example.com/.../profile-pictures/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.jpg"
     }
 ]
 ```
+
+`avatar_url` is resolved through WordPress's `get_avatar_url()`, so with Wicket Account Centre active it's the person's uploaded profile picture or the Account Centre placeholder image (also used when the person has no WordPress user yet). Results returned by the `wicket_mship_bundle_eligible_member_search` override get one too, unless the callback already set `avatar_url`.
 
 `id` is the MDP person UUID — pass it as `person_uuid` to [Add a member to a bundle](#add-a-member-to-a-bundle) with `mode: "new"`.
 

@@ -1105,7 +1105,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     // finds nothing.
     $override = apply_filters( 'wicket_mship_bundle_eligible_member_search', null, $term, [ 'bundle_post_id' => $bundle_post_id ] );
     if ( null !== $override ) {
-      return rest_ensure_response( $override );
+      return rest_ensure_response( is_array( $override ) ? $this->attach_person_avatar_urls( $override ) : $override );
     }
 
     $response = wicket_search_person( $term );
@@ -1114,7 +1114,36 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       return new WP_REST_Response( [ 'error' => 'Person search failed.' ], 500 );
     }
 
-    return rest_ensure_response( $response );
+    return rest_ensure_response( $this->attach_person_avatar_urls( $response ) );
+  }
+
+  /**
+   * Add an `avatar_url` to each person search result for the add-member modal.
+   *
+   * MDP search results carry no image, so the URL is resolved through WP's
+   * get_avatar_url(): Wicket Account Centre filters that to the uploaded
+   * profile picture, or its configured/bundled placeholder when the person
+   * has none. WP users are keyed by person UUID (user_login); a person who
+   * has never logged in has no WP user, so 0 is passed to get the
+   * placeholder rather than skipping the avatar. Results that already
+   * carry an avatar_url (e.g. from a search override) are left alone.
+   *
+   * @param array $people [{ id, full_name, primary_email_address, ... }, ...]
+   * @return array
+   */
+  private function attach_person_avatar_urls( array $people ): array {
+    foreach ( $people as $index => $person ) {
+      if ( ! is_array( $person ) || ! empty( $person['avatar_url'] ) ) {
+        continue;
+      }
+
+      $person_uuid = (string) ( $person['id'] ?? '' );
+      $user        = '' !== $person_uuid ? get_user_by( 'login', $person_uuid ) : false;
+
+      $people[ $index ]['avatar_url'] = (string) get_avatar_url( $user ? $user->ID : 0, [ 'size' => 72 ] );
+    }
+
+    return $people;
   }
 
   /**
