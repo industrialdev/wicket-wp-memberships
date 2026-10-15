@@ -550,8 +550,12 @@ WPML current language, or the two-letter site-locale prefix.
 
 ### `get_renewal_state( ?int $now = null ): ?string`
 
-- `grace_period` when `membership_status` is `grace_period`. Status is authoritative (the status cron owns active → grace_period → expired), so dates are not re-checked.
-- `early_renewal` when status is `active` or `delayed` and `early_renew_at <= now < ends_at`. There is no renewal-window status, so this state is derived from dates. `$now` only affects this state.
+Both states come from dates, the same way individual-membership callouts do (`Membership_Controller::get_membership_callouts()`). `membership_status` only gates: it must be `active`, `delayed` or `grace_period`. Any other status returns `null` whatever the dates say.
+
+- `grace_period` when `ends_at <= now <= expires_at`. Requires a configured grace period (`expires_at` after `ends_at`). Checked first.
+- `early_renewal` when `early_renew_at <= now < ends_at`. Requires a configured renewal window.
+
+Status does not pick the state because `daily_bundle_grace_period_hook` moves a bundle to `grace_period` up to a day after `ends_at`, or later if WP-Cron runs late. When the state came from status, that gap showed no callout at all. As a result, an `active` bundle past `ends_at` shows the grace callout, and a bundle manually set to `grace_period` whose dates are outside the window does not. `$now` (default `get_renewal_reference_time()`) affects both states, so `?wicket_wp_membership_debug_days=N` can be used to test either one.
 
 ### `get_renewal_callout( string $iso_code = '', ?int $now = null ): ?array`
 

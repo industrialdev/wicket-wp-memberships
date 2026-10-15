@@ -59,6 +59,10 @@ When the bundle is in its renewal window (`early_renewal`) or grace period (`gra
 
 Styles (`.wicket-mship-bundle-renewal-callout--early_renewal` / `--grace_period`, `.wicket-mship-renew-modal__*`) live in the block's `style.css`. Colors match ACC's `ac-callout` renewal callouts.
 
+### Callout debug notice
+
+When `WICKET_MEMBERSHIPS_DEBUG_RENEW` is on, `render.php` includes `templates/account-membership-bundles/debug-notice.php` above both the list and detail views. It works like ACC's callout debug notice: it shows a click-to-copy `?wicket_wp_membership_debug_days=123` hint, and when the param is set it also shows the shifted date from `Membership_Bundle::get_renewal_reference_time()`. It is gated on `DEBUG_RENEW` rather than `DEBUG_ACC` because only `DEBUG_RENEW` makes the param work. Styles are `.wicket-mship-bundle-debug-notice*` in `style.css`. The param carries over from the list to the detail view, because "Manage Bundle" links are built from the current URL.
+
 ### Constants
 
 - `RENEWAL_ORDER_ACTION` = `wicket_mship_bundle_renewal_order`: the admin-post action, and the nonce action prefix (`{action}_{bundle_post_id}`).

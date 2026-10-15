@@ -101,6 +101,8 @@ Three Action Scheduler recurring jobs run once per day and drive automatic trans
 
 Finds all `active` bundles whose `membership_ends_at` is before yesterday (UTC) and transitions each to `grace-period`. Cascades the new status to all non-cancelled child individual memberships.
 
+The member-portal grace-period renewal callout does not wait for this job. It is derived from dates (`ends_at <= now <= expires_at`), so it appears as soon as `ends_at` passes. See [Renewal Types](renewal-types.md#member-portal-renewal-callouts).
+
 ### `daily_bundle_expiry_hook`
 
 Finds all `active` or `grace-period` bundles whose `membership_expires_at` is before yesterday (UTC) and transitions each to `expired`. If a bundle has no grace period configured, `membership_expires_at` equals `membership_ends_at`, so it expires immediately after the end date passes.

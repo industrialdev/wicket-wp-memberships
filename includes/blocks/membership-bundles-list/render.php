@@ -48,6 +48,10 @@ if ( ! Membership_Bundle_Block_Controller::is_alpine_available() ) {
   return;
 }
 
+// QA hint for ?wicket_wp_membership_debug_days=N — renders only when
+// WICKET_MEMBERSHIPS_DEBUG_RENEW is on. Above the view switch so both views get it.
+require WICKET_MEMBERSHIP_PLUGIN_DIR . 'templates/account-membership-bundles/debug-notice.php';
+
 // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only view switch, not a form submission.
 $bundle_post_id = isset( $_GET['bundle_post_id'] ) ? (int) $_GET['bundle_post_id'] : 0;
 

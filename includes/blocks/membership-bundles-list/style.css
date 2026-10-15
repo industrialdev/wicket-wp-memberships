@@ -1263,3 +1263,75 @@
     text-align: right;
   }
 }
+
+/* Renewal callout debug notice (QA only, WICKET_MEMBERSHIPS_DEBUG_RENEW).
+   templates/account-membership-bundles/debug-notice.php. Mirrors ACC's
+   .acc-callout-debug-info. */
+.wicket-mship-bundle-debug-notice {
+  padding: 1rem;
+  margin: 0 0 1rem;
+  border: 2px solid #ccc;
+  border-radius: 5px;
+}
+
+.wicket-mship-bundle-debug-notice p {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.wicket-mship-bundle-debug-notice p + p {
+  margin-top: 0.5rem;
+}
+
+.wicket-mship-bundle-debug-notice__active {
+  font-weight: 600;
+}
+
+.wicket-mship-bundle-debug-notice__code {
+  position: relative;
+  display: inline-block;
+  padding: 0 0.25rem;
+  background-color: #ccc;
+  font-size: 10pt;
+  cursor: pointer;
+  transition: background-color 0.25s ease;
+}
+
+.wicket-mship-bundle-debug-notice__code.is-copied {
+  background-color: #dff5e5;
+  animation: wicketMshipDebugCopyFlash 0.7s ease;
+}
+
+.wicket-mship-bundle-debug-notice__code.is-copied::after {
+  content: "Copied to clipboard";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+  padding: 4px 7px;
+  border-radius: 4px;
+  background: #0a7d36;
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.wicket-mship-bundle-debug-notice__code.is-copied::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 1px);
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #0a7d36;
+  pointer-events: none;
+  z-index: 20;
+}
+
+@keyframes wicketMshipDebugCopyFlash {
+  0% { box-shadow: 0 0 0 0 rgba(10, 125, 54, 0.5); }
+  100% { box-shadow: 0 0 0 8px rgba(10, 125, 54, 0); }
+}

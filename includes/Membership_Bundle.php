@@ -3105,15 +3105,17 @@ class Membership_Bundle {
   /**
    * Determine which renewal callout (if any) applies to this bundle right now.
    *
-   * - grace_period:  membership_status is grace_period. Status is the source of truth —
-   *   the status cron owns the active → grace_period → expired transitions, so dates are
-   *   not re-checked here.
-   * - early_renewal: membership_status is active or delayed AND
-   *   early_renew_at <= now < ends_at. There is no "renewal window" status, so this is
-   *   the one state that has to be derived from dates.
+   * Both states are derived from dates, the same way individual-membership callouts are
+   * (Membership_Controller::get_membership_callouts()):
+   * - early_renewal: early_renew_at <= now < ends_at
+   * - grace_period:  ends_at <= now <= expires_at
    *
-   * @param int|null $now UTC timestamp; defaults to get_renewal_reference_time(). Only
-   *                      affects early_renewal.
+   * membership_status is only a gate (active, delayed or grace_period). It is not what
+   * picks the state: the daily cron moves a bundle to grace_period up to a day after
+   * ends_at (later if WP-Cron is late), and keying off status left that stretch with no
+   * callout at all.
+   *
+   * @param int|null $now UTC timestamp; defaults to get_renewal_reference_time().
    * @return string|null self::CALLOUT_EARLY_RENEWAL, self::CALLOUT_GRACE_PERIOD, or null.
    */
   public function get_renewal_state( ?int $now = null ): ?string {
@@ -3121,28 +3123,42 @@ class Membership_Bundle {
       return null;
     }
 
+    // Status gate: admin-set expired/cancelled (and pending) bundles never get a renewal
+    // callout, whatever their dates say.
     $status = $this->get_membership_status();
-
-    if ( $status === Wicket_Memberships::STATUS_GRACE ) {
-      return self::CALLOUT_GRACE_PERIOD;
-    }
-
-    if ( ! in_array( $status, [ Wicket_Memberships::STATUS_ACTIVE, Wicket_Memberships::STATUS_DELAYED ], true ) ) {
+    $eligible_statuses = [
+      Wicket_Memberships::STATUS_ACTIVE,
+      Wicket_Memberships::STATUS_DELAYED,
+      Wicket_Memberships::STATUS_GRACE,
+    ];
+    if ( ! in_array( $status, $eligible_statuses, true ) ) {
       return null;
     }
 
     $dates          = $this->get_dates();
     $ends_at        = ! empty( $dates['ends_at'] ) ? strtotime( $dates['ends_at'] ) : false;
+    $expires_at     = ! empty( $dates['expires_at'] ) ? strtotime( $dates['expires_at'] ) : false;
     $early_renew_at = ! empty( $dates['early_renew_at'] ) ? strtotime( $dates['early_renew_at'] ) : false;
 
-    // No renewal window configured (or no end date) — nothing to open early.
-    if ( ! $ends_at || ! $early_renew_at ) {
+    // Every window is measured against ends_at; without it there is nothing to compare.
+    if ( ! $ends_at ) {
       return null;
     }
 
     $now = $now ?? self::get_renewal_reference_time();
 
-    return ( $now >= $early_renew_at && $now < $ends_at ) ? self::CALLOUT_EARLY_RENEWAL : null;
+    // Grace period is checked first so a bundle past ends_at is never reported as
+    // early_renewal. Needs a configured grace period (expires_at after ends_at).
+    if ( $expires_at && $expires_at > $ends_at && $now >= $ends_at && $now <= $expires_at ) {
+      return self::CALLOUT_GRACE_PERIOD;
+    }
+
+    // Renewal window: only when one is configured.
+    if ( $early_renew_at && $now >= $early_renew_at && $now < $ends_at ) {
+      return self::CALLOUT_EARLY_RENEWAL;
+    }
+
+    return null;
   }
 
   /**
@@ -3194,8 +3210,8 @@ class Membership_Bundle {
     }
 
     // Autopay will renew the bundle on its own at ends_at; an early-renewal prompt would
-    // only duplicate that. Grace period is still shown — being in grace means autopay
-    // did not complete. Form-page renewals can't be completed by autopay at all, so
+    // only duplicate that. Grace period is still shown — past ends_at with no paid
+    // renewal (is_renewal_underway() above) means autopay did not complete. Form-page renewals can't be completed by autopay at all, so
     // they are never suppressed here (same rule as individual Form Flow renewals).
     if ( $state === self::CALLOUT_EARLY_RENEWAL && $flow === self::RENEWAL_FLOW_SUBSCRIPTION && $this->is_autopay_active() ) {
       return null;

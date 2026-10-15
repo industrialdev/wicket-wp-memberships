@@ -113,6 +113,8 @@ The Membership Bundles List block's detail view uses both windows. It shows the 
 - **`subscription`:** opens a summary modal listing how many memberships of each tier will be renewed. "Generate Order" creates (or reuses) a renewal order on the bundle subscription and sends the owner to pay it. During the grace period, the late fee product is added when one is configured.
 - **`form_page`:** links straight to the form page with `bundle_post_id_renew`, `org_uuid` and, in grace period, `late_fee_product_id`.
 
+Both callouts are date-driven: `early_renewal` while `early_renew_at <= now < ends_at`, `grace_period` while `ends_at <= now <= expires_at`. Status only gates them: the bundle must be `active`, `delayed` or `grace_period`. The grace callout therefore appears as soon as `ends_at` passes, without waiting for the daily cron to change the status. To test either window, enable `WICKET_MEMBERSHIPS_DEBUG_RENEW` and add `?wicket_wp_membership_debug_days=N` to shift "now" by N days, or edit the bundle's dates.
+
 When the subscription will renew automatically, the early-renewal callout is not shown. The grace-period callout still is. See `Membership_Bundle::get_renewal_callout()` in the [class reference](../classes/membership-bundle.md#renewal-callouts-and-member-portal-renewal).
 
 ## Calendar vs. anniversary cycles

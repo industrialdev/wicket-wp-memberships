@@ -583,8 +583,11 @@ The Membership Bundles List block's detail view shows the bundle owner a renewal
 
 | Callout | When | Copy source (config) |
 |---|---|---|
-| `early_renewal` | status `active`/`delayed` and `early_renew_at <= now < ends_at` | Renewal window callout |
-| `grace_period` | status `grace_period` | Late fee window callout |
+| `early_renewal` | `early_renew_at <= now < ends_at` | Renewal window callout |
+| `grace_period` | `ends_at <= now <= expires_at` | Late fee window callout |
+
+Both are date-driven, like individual-membership callouts. The bundle status must still be `active`, `delayed` or `grace_period`; `pending`, `expired` and `cancelled` bundles never get a callout.
+
  No callout is shown when renewal callouts are disabled in Settings, when the term is already renewed or a renewal payment is in progress, or, for `early_renewal` only, when the subscription will renew automatically.
 
 ### `get_renewal_callout()`
@@ -623,7 +626,7 @@ The form-page URL carries `bundle_post_id_renew`, `org_uuid` and, in grace perio
 public function get_renewal_state( ?int $now = null ): ?string
 ```
 
-Returns `'grace_period'` when the status is `grace_period`, `'early_renewal'` when an `active`/`delayed` bundle is inside its renewal window, otherwise `null`. No suppression rules are applied.
+For a bundle in `active`, `delayed` or `grace_period` status, returns `'grace_period'` when `ends_at <= now <= expires_at` and `'early_renewal'` when `early_renew_at <= now < ends_at`. Otherwise it returns `null`. The state comes from dates, not status, so an `active` bundle whose `ends_at` has passed already gets the grace callout before the daily cron changes its status. No suppression rules are applied. `$now` defaults to `get_renewal_reference_time()`, which honors `?wicket_wp_membership_debug_days=N` when `WICKET_MEMBERSHIPS_DEBUG_RENEW` is on.
 
 ### `get_renewal_summary()`
 
