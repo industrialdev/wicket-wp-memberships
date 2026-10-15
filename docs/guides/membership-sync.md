@@ -11,7 +11,7 @@ For each active or on-hold subscription, the tool finds the membership belonging
 
 ## Opening the Tool
 
-The tool is only available while **MDP Import** is enabled in the Wicket Memberships settings. When it is enabled, a link to open the tool appears in the import instructions on the settings page. The tool opens on its own page showing only the WordPress admin bar.
+The tool is only available while **Allow Local Imports** is turned on in Settings → Wicket Memberships → Import. When it is on, a link to open the tool appears under **How to run an import** on that tab. The tool opens on its own page showing only the WordPress admin bar.
 
 Opening the page does **not** run anything — it shows the controls so you can choose what to do first.
 

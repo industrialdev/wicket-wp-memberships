@@ -30,6 +30,7 @@ class Utilities {
 
     add_filter( 'woocommerce_cart_item_quantity', [$this, 'disable_cart_item_quantity'], 10, 3);
     add_filter( 'woocommerce_cart_item_remove_link', [$this, 'hide_cart_item_remove_link'], 10, 3);
+    add_filter( 'wcs_view_subscription_actions', [$this, 'maybe_hide_subscription_actions'], 100, 1 );
     add_action( 'wp_trash_post', [$this, 'delete_wicket_membership_in_mdp' ], 10, 2);
     // Use the pre_trash_post FILTER (not the wp_trash_post action) so we can
     // abort the trash before WordPress changes the post status, and redirect
@@ -347,13 +348,13 @@ class Utilities {
    * This is a private helper called by both prevent_trash_linked_product() and
    * intercept_variation_removal() so the business logic lives in one place.
    *
+   * @see Helper::is_in_membership_category()
+   *
    * @param  int         $product_id  WooCommerce product post ID (parent, not variation).
    * @return string|null  Human-readable reason string, or null if unprotected.
    */
   private function get_membership_product_block_message( int $product_id ): ?string {
-    $membership_categories = wicket_get_option( 'wicket_admin_settings_membership_categories' );
-
-    if ( ! has_term( $membership_categories, 'product_cat', $product_id ) ) {
+    if ( ! Helper::is_in_membership_category( $product_id ) ) {
       return null;
     }
 
@@ -631,16 +632,17 @@ class Utilities {
   /**
  * Disable remove item on cart page when in Membership category.
  *
+ * @see Helper::get_membership_category_ids()
+ *
  * @param string $product_remove The remove html.
  * @param string $cart_item_key The cart item key.
- * @param array $cart_item The cart item object.
- * @return string The modified product quantity html (with hidden input).
+ * @return string The remove link html; empties the whole cart for membership items.
  */
   function hide_cart_item_remove_link($product_remove, $cart_item_key)
   {
     if (is_cart()) {
       $item = WC()->cart->get_cart_item( $cart_item_key );
-      $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
+      $membership_categories = Helper::get_membership_category_ids();
       $category = get_term_by( 'slug', 'membership_late_fee', 'product_cat' );
       $cat_id = $category->term_id;
       $membership_categories[] = $cat_id;
@@ -656,6 +658,8 @@ class Utilities {
  * Disable quantity input on cart page when in Membership category.
  *
  * @param string $product_quantity The current product quantity html.
+ * @see Helper::get_membership_category_ids()
+ *
  * @param string $cart_item_key The cart item key.
  * @param array $cart_item The cart item object.
  * @return string The modified product quantity html (with hidden input).
@@ -663,7 +667,7 @@ class Utilities {
   function disable_cart_item_quantity($product_quantity, $cart_item_key, $cart_item)
   {
     if (is_cart()) {
-      $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
+      $membership_categories = Helper::get_membership_category_ids();
       $category = get_term_by( 'slug', 'membership_late_fee', 'product_cat' );
       $cat_id = $category->term_id;
       $membership_categories[] = $cat_id;
@@ -714,14 +718,55 @@ class Utilities {
     }
   }
 
-  function is_wicket_show_mship_order_org_search() {
+  /**
+   * Remove the Cancel, Reactivate and Resubscribe actions from the member's View Subscription page
+   * when their Hide Subscription Self-Serve settings are on.
+   *
+   * Only hides the buttons; admins can still change subscriptions in WooCommerce.
+   *
+   * @since 1.0.123
+   *
+   * @see Settings_Fields::wicket_mship_hide_subscription_cancel()
+   * @see Settings_Fields::wicket_mship_hide_subscription_reactivate()
+   * @see Settings_Fields::wicket_mship_hide_subscription_resubscribe()
+   *
+   * @param  array  $actions  Subscription actions from wcs_view_subscription_actions, keyed by action.
+   *
+   * @return array  Actions without the ones whose hide setting is on.
+   */
+  public function maybe_hide_subscription_actions( $actions ) {
+    if ( ! is_array( $actions ) ) {
+      return $actions;
+    }
+
     $options = get_option( 'wicket_membership_plugin_options' );
-    if(isset($options['wicket_show_mship_order_org_search'])) {
-      if(!empty($options['wicket_show_mship_order_org_search'])) {
-        return true;
+    // Setting key => WooCommerce Subscriptions action key.
+    $hideable = [
+      'wicket_mship_hide_subscription_cancel'      => 'cancel',
+      'wicket_mship_hide_subscription_reactivate'  => 'reactivate',
+      'wicket_mship_hide_subscription_resubscribe' => 'resubscribe',
+    ];
+
+    foreach ( $hideable as $setting => $action ) {
+      if ( ! empty( $options[ $setting ] ) ) {
+        unset( $actions[ $action ] );
       }
     }
-    return false;
+
+    return $actions;
+  }
+
+  /**
+   * Whether the org-search metabox is enabled on the WC Subscription admin page.
+   *
+   * Enabled whenever any Membership Category is selected; there is no separate toggle.
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @return bool  True when at least one Membership Category is saved.
+   */
+  function is_wicket_show_mship_order_org_search() {
+    return ! empty( Helper::get_membership_category_ids() );
   }
 
   function set_subscription_postmeta_suborg_uuid() {
@@ -730,13 +775,26 @@ class Utilities {
     }
   }
 
+  /**
+   * Add the org-search metabox to a subscription with a membership item missing its org UUID.
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @param  string    $post_type  Current admin screen post type (unused; required by add_meta_boxes).
+   * @param  \WP_Post  $post       Subscription post being edited.
+   *
+   * @return void
+   */
   function wicket_sub_org_select_metabox( $post_type, $post ) {
     $sub = wcs_get_subscription($post->ID);
     if(empty($sub)) {
       return;
     }
-    $options = get_option( 'wicket_membership_plugin_options' );
-    $categories_selected = $options['wicket_show_mship_order_org_search']['categorychoice'];
+    $categories_selected = Helper::get_membership_category_ids();
+    // has_term() with an empty list matches any categorised product.
+    if ( empty( $categories_selected ) ) {
+      return;
+    }
     $subscription_products = $sub->get_items();
     foreach( $subscription_products as $item ) {
       if(empty($product_id)) {

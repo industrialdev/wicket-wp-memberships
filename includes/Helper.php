@@ -685,22 +685,88 @@ class Helper {
   /**
    * Determine whether a product is in a membership product category.
    *
-   * Uses the categories selected in the plugin settings, plus the legacy "Membership" category.
+   * Uses the categories selected in the plugin settings, which always include the "Membership" category.
    *
    * @since 1.0.123
    *
+   * @see Helper::get_membership_category_ids()
+   *
    * @param  int  $product_id  Parent product ID; categories are stored on the parent.
    *
-   * @return bool  True when the product is in a membership category.
+   * @return bool  True when the product is in a membership category; false when no categories resolve.
    */
   public static function is_in_membership_category( $product_id ) {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    $categories = (array) ( $options['wicket_show_mship_order_org_search']['categorychoice'] ?? [] );
-    // has_term() treats numeric strings as names, so cast the stored term IDs; drop empties that cast to 0.
-    $categories = array_filter( array_map( 'absint', $categories ) );
-    $categories[] = 'Membership';
+    $categories = self::get_membership_category_ids();
 
-    return has_term( $categories, 'product_cat', $product_id );
+    // has_term() with an empty list matches any categorised product.
+    return ! empty( $categories ) && has_term( $categories, 'product_cat', $product_id );
+  }
+
+  /**
+   * Get the product category term IDs selected as Membership Categories.
+   *
+   * Reads `wicket_mship_membership_categories`. Until that key is saved, it uses the union of
+   * the legacy `wicket_show_mship_order_org_search[categorychoice]` and the base plugin's
+   * `wicket_admin_settings_membership_categories`, as each previously drove different consumers.
+   * The "Membership" product category is always included, whatever is selected.
+   *
+   * @since 1.0.123
+   *
+   * @see Settings::wicket_membership_plugin_options_validate()  Writes both keys on save.
+   * @see Helper::get_default_membership_category_ids()
+   *
+   * @return int[]  Product category term IDs.
+   */
+  public static function get_membership_category_ids() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+
+    if ( self::has_saved_membership_categories() ) {
+      $categories = (array) $options['wicket_mship_membership_categories'];
+    } else {
+      // Until saved, keep both legacy sources so no existing consumer narrows on deploy.
+      $categories = array_merge(
+        (array) ( $options['wicket_show_mship_order_org_search']['categorychoice'] ?? [] ),
+        function_exists( 'wicket_get_option' ) ? (array) wicket_get_option( 'wicket_admin_settings_membership_categories', [] ) : []
+      );
+    }
+
+    $categories = array_merge( $categories, self::get_default_membership_category_ids() );
+
+    // Normalize stored values to term IDs; drop empties that cast to 0.
+    return array_values( array_unique( array_filter( array_map( 'absint', $categories ) ) ) );
+  }
+
+  /**
+   * Get the term IDs of the built-in "Membership" product category.
+   *
+   * Matches by name or slug, as has_term( 'Membership' ) does, so a renamed or
+   * re-slugged category still counts.
+   *
+   * @since 1.0.123
+   *
+   * @return int[]  The term ID, or empty when the category does not exist.
+   */
+  public static function get_default_membership_category_ids() {
+    $term = get_term_by( 'name', 'Membership', 'product_cat' ) ?: get_term_by( 'slug', 'membership', 'product_cat' );
+
+    return $term ? [ (int) $term->term_id ] : [];
+  }
+
+  /**
+   * Whether Membership Categories has been saved under its new key on this site.
+   *
+   * Sibling plugins use this to keep their legacy behaviour until a site opts in by saving.
+   *
+   * @since 1.0.123
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @return bool  True once `wicket_mship_membership_categories` exists in the plugin options.
+   */
+  public static function has_saved_membership_categories() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+
+    return is_array( $options ) && array_key_exists( 'wicket_mship_membership_categories', $options );
   }
 
   public static function get_user_switch_to_url($user_id) {
