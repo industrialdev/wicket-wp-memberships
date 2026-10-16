@@ -314,7 +314,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 
           // Set initial membership owner options
           tempMembershipOwnerOptions.push({
-            label: membership.data.user_name,
+            // Prefer "First Last" to match MDP search results; fall back to display name.
+            label: membership.data.user_full_name || membership.data.user_name,
             value: membership.data.membership_user_uuid
           });
         });
