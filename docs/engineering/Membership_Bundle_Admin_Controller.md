@@ -294,6 +294,16 @@ Returns `['success' => '...', 'membership_post_id' => int]` on success or `['err
 
 ---
 
+### `find_replaceable_membership_for_person_and_tier( string $person_uuid, int $tier_post_id ): int`
+
+Returns the post ID of the person's active **standalone** membership for a tier, or `0`. Used by `Membership_Bundle_WP_REST_Controller::add_member_to_bundle_mine()` to find the membership that the member-scoped add flow end-dates and replaces with the new bundle seat.
+
+Matches `membership_user_uuid` + `membership_tier_uuid` (resolved from `$tier_post_id`) + `membership_status = Wicket_Memberships::STATUS_ACTIVE`, with `membership_bundle_id` absent or empty. It is narrower than `find_active_membership_for_person_and_tier()` (which drives the modal's `eligible` badge) because a seat in another bundle belongs to that bundle's subscription line item. Cancelling it from here would orphan the line item and pull a seat out of a bundle the caller has no rights over.
+
+The lookup is keyed on person + tier, not a client-supplied post ID, so the member-scoped route cannot be used to cancel arbitrary memberships.
+
+---
+
 ### `remove_member( array $params ): array`
 
 Removes an individual membership from a bundle. Dispatches to `Membership_Bundle::remove_member()`.

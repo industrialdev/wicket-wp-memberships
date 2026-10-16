@@ -1221,6 +1221,58 @@ class Membership_Bundle_Admin_Controller {
   }
 
   /**
+   * Find the person's active standalone membership for a tier — the record the
+   * member-scoped add flow replaces with the new bundle seat.
+   *
+   * Narrower than find_active_membership_for_person_and_tier(): bundle-linked
+   * memberships are excluded. A seat in another (pending/delayed) bundle is
+   * owned by that bundle's subscription line item, so cancelling it from here
+   * would orphan that line item and pull a seat out of a bundle the caller has
+   * no rights over. Only a standalone membership is safe to end-date.
+   *
+   * The lookup is keyed on person + tier rather than a client-supplied post ID
+   * so the member-scoped route cannot be used to cancel arbitrary memberships.
+   *
+   * @param string $person_uuid  MDP person UUID.
+   * @param int    $tier_post_id Post ID of the individual Membership_Tier.
+   * @return int Membership post ID, or 0 when the person has no active standalone membership for the tier.
+   */
+  public static function find_replaceable_membership_for_person_and_tier( string $person_uuid, int $tier_post_id ): int {
+    if ( '' === $person_uuid || $tier_post_id <= 0 ) {
+      return 0;
+    }
+
+    $tier_uuid = ( new Membership_Tier( $tier_post_id ) )->get_mdp_tier_uuid();
+    if ( empty( $tier_uuid ) ) {
+      return 0;
+    }
+
+    $posts = get_posts( [
+      'post_type'   => Helper::get_membership_cpt_slug(),
+      'post_status' => 'any',
+      'numberposts' => 1,
+      'fields'      => 'ids',
+      'meta_query'  => [
+        'relation' => 'AND',
+        // See find_active_bundled_membership_for_person_and_tier() —
+        // 'membership_user_uuid' is the persisted meta key, not 'person_uuid'.
+        [ 'key' => 'membership_user_uuid', 'value' => $person_uuid ],
+        [ 'key' => 'membership_tier_uuid', 'value' => $tier_uuid ],
+        [ 'key' => 'membership_status', 'value' => Wicket_Memberships::STATUS_ACTIVE ],
+        // membership_bundle_id is never deleted once written, so standalone
+        // means the key is absent (or empty on legacy/imported records).
+        [
+          'relation' => 'OR',
+          [ 'key' => 'membership_bundle_id', 'compare' => 'NOT EXISTS' ],
+          [ 'key' => 'membership_bundle_id', 'value' => [ '', '0' ], 'compare' => 'IN' ],
+        ],
+      ],
+    ] );
+
+    return (int) ( $posts[0] ?? 0 );
+  }
+
+  /**
    * Add an individual membership to a bundle.
    *
    * Dispatches to Membership_Bundle::add_member() based on the 'mode' key in $params:

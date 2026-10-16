@@ -1231,10 +1231,16 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
    * POST /bundle/{bundle_post_id}/add_member/mine
    *
    * Member-scoped wrapper around add_member_to_bundle(). The route schema
-   * already pins mode to "new"; this re-checks it and strips
-   * existing_membership_post_id, because get_params() still carries
-   * unregistered body keys and Membership_Bundle::add_member() takes the
-   * cancel-and-replace path whenever that ID is present, whatever the mode.
+   * pins mode to "new"; this re-checks it.
+   *
+   * Any client-supplied existing_membership_post_id is discarded — get_params()
+   * still carries unregistered body keys, and trusting it would let a member
+   * cancel an arbitrary membership by post ID. Instead, the person's active
+   * standalone membership for the tier (the one the modal displayed as
+   * "Eligible") is resolved server-side from person_uuid + tier_post_id. When
+   * found, the request is promoted to "existing" mode so that membership is
+   * end-dated (cancelled) and replaced by the bundle seat; otherwise it stays
+   * a plain "new" add.
    */
   public function add_member_to_bundle_mine( \WP_REST_Request $request ) {
     if ( 'new' !== sanitize_text_field( (string) $request->get_param( 'mode' ) ) ) {
@@ -1242,6 +1248,16 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     }
 
     $request->set_param( 'existing_membership_post_id', null );
+
+    $replaceable_post_id = Membership_Bundle_Admin_Controller::find_replaceable_membership_for_person_and_tier(
+      sanitize_text_field( (string) $request->get_param( 'person_uuid' ) ),
+      (int) $request->get_param( 'tier_post_id' )
+    );
+
+    if ( $replaceable_post_id > 0 ) {
+      $request->set_param( 'mode', 'existing' );
+      $request->set_param( 'existing_membership_post_id', $replaceable_post_id );
+    }
 
     return $this->add_member_to_bundle( $request );
   }

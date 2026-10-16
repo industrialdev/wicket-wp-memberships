@@ -299,7 +299,24 @@ Member-scoped counterpart to [Add a member to a bundle](#add-a-member-to-a-bundl
 
 ### Request body
 
-Same as [Add a member to a bundle](#add-a-member-to-a-bundle): `mode`, `tier_post_id`, `person_uuid` or `existing_membership_post_id`, `product_id`.
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `mode` | `string` | Yes | Must be `"new"`. `"existing"` is only available on the staff route. |
+| `tier_post_id` | `integer` | Yes | Post ID of the `Membership_Tier` CPT defining the seat type. |
+| `person_uuid` | `string` | Yes | MDP person UUID. |
+| `product_id` | `integer` | No | WC product ID. Auto-resolved from the tier when omitted. |
+| `variation_id` | `integer` | No | WC variation ID. Stored as `membership_product_id` when supplied. |
+
+`existing_membership_post_id` is ignored if sent.
+
+### Replacing the person's current membership
+
+If the person already holds an **active standalone** membership for the tier (the one the add-member modal shows as Eligible), the server finds it from `person_uuid` + `tier_post_id` and replaces it:
+
+- The existing membership is end-dated and set to `cancelled`. Its own WooCommerce subscription is cancelled and the change is synced to MDP.
+- A new individual membership is created and assigned to the bundle, with the start-date rules, inherited status and dates described in [Member Handling](../concepts/member-handling.md#start-date-resolution).
+
+The start date is checked before anything is cancelled, so a `bundle_ended` error leaves the current membership untouched. Memberships that already belong to another bundle are never replaced through this route. If no matching standalone membership exists, a plain new seat is created.
 
 ### Response
 

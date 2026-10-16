@@ -246,6 +246,8 @@ Single entry point for adding an individual membership to a bundle. Covers two f
 - **New member** (`$existing_membership_post_id = null`): `$user_id` must be provided. Creates a fresh membership and links it to the bundle.
 - **Existing member** (`$existing_membership_post_id` provided): cancels the existing membership (sets its status to `cancelled`), resolves the user ID from it, then creates a new membership with bundle dates and links it. `$user_id` is ignored.
 
+The start date is resolved **before** the existing membership is cancelled. Cancellation has no rollback, so a blocked addition (`bundle_ended`, `bundle_no_dates`) must fail while the member's current membership is still intact.
+
 Both paths share start-date logic via `resolve_member_start_date()` unless `$start_date_override` is provided: if today is within the bundle date window, start = today; if today is before the bundle start, start = bundle start; if today is after the bundle end, returns `WP_Error('bundle_ended')`. When `$start_date_override` is provided it is used directly, bypassing `resolve_member_start_date()` — used by the renewal batch handler to anchor new memberships to the bundle's `starts_at`.
 
 The new membership inherits the bundle's current `membership_status` as its initial status. `create_local_membership_record()` may override this: if the tier requires approval the status becomes `pending`; if the start date is in the future the status becomes `delayed`. These overrides take precedence.

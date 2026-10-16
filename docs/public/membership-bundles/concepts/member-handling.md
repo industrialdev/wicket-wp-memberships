@@ -21,7 +21,7 @@ This means:
 There are two modes for adding a member to a bundle.
 
 ::: info Member-facing "Add Member" flow
-The account-center bundle detail screen (`templates/account-membership-bundles/detail.php`) offers a three-step "Add Member" modal — search, results, review/confirm — that only ever uses `mode: "new"`. It searches MDP people by name via [Search for a person to add](../endpoints/bundle-members.md#search-for-a-person-to-add), lists eligible tiers via [List eligible tiers](../endpoints/bundle-members.md#list-eligible-tiers-member-scoped), and lets the member check one or more tiers at once — issuing one [Add a member to a bundle (member-scoped)](../endpoints/bundle-members.md#add-a-member-to-a-bundle-member-scoped) call per selected tier on confirm, sequentially, so a failure on one tier doesn't roll back or block the others.
+The account-center bundle detail screen (`templates/account-membership-bundles/detail.php`) offers a three-step "Add Member" modal — search, results, review/confirm — that only ever sends `mode: "new"`. When the person already holds an active standalone membership for the selected tier, the server finds it and switches to the `existing` behaviour below: that membership is end-dated (cancelled) and replaced by the bundle seat, so the person never ends up with two active memberships for the same tier. It searches MDP people by name via [Search for a person to add](../endpoints/bundle-members.md#search-for-a-person-to-add), lists eligible tiers via [List eligible tiers](../endpoints/bundle-members.md#list-eligible-tiers-member-scoped), and lets the member check one or more tiers at once — issuing one [Add a member to a bundle (member-scoped)](../endpoints/bundle-members.md#add-a-member-to-a-bundle-member-scoped) call per selected tier on confirm, sequentially, so a failure on one tier doesn't roll back or block the others.
 
 Once a person is selected in the results step, the tier list is re-fetched with that person's `person_uuid`, and each row renders an eligibility badge (Eligible / In Bundle / Not Eligible), a membership-status badge, and a date range — see [List eligible tiers](../endpoints/bundle-members.md#list-eligible-tiers-member-scoped) for the eligibility rules. Only `eligible` rows are selectable; `in_bundle` rows show checked-and-locked, `not_eligible` rows show unchecked-and-locked. Tiers the person holds no membership for are hidden entirely — `not_eligible` is only shown for a tier the person does hold but that fails the bundle's requirements. If nothing remains, the modal shows "This member has no memberships that can be added to this bundle."
 :::
@@ -64,6 +64,8 @@ $result = Membership_Bundle_Admin_Controller::add_member([
 The `person_uuid` parameter is ignored in `existing` mode — the user is resolved from the existing membership post.
 
 Cancelling the existing membership also cancels its own WooCommerce subscription (via `membership_subscription_id` post meta), if it has one. This prevents the member's original personal subscription from continuing to renew after their seat moves into the bundle.
+
+The start date (see below) is resolved before the existing membership is cancelled. If the addition is blocked (for example `bundle_ended`), the existing membership is left untouched.
 
 ### Start date resolution
 

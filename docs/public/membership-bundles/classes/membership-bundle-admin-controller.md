@@ -39,6 +39,7 @@ Membership_Bundle_WP_REST_Controller
 
 - **[Member operations](#member-operations)**
   - [`add_member()`](#add_member) — Enrol a person in a bundle, or pull an existing standalone membership into it
+  - [`find_replaceable_membership_for_person_and_tier()`](#find_replaceable_membership_for_person_and_tier) — Find the active standalone membership the member-scoped add flow replaces
   - [`remove_member()`](#remove_member) — Remove a person from a bundle — either cancelling their membership or preserving it as a standalone
   - [`move_individual_membership()`](#move_individual_membership) — Transfer a member from one bundle to another without losing their membership record
 
@@ -495,6 +496,14 @@ $result = Membership_Bundle_Admin_Controller::add_member([
 $membership_post_id = $result['membership_post_id'];
 ```
 :::
+
+### `find_replaceable_membership_for_person_and_tier()`
+
+```php
+public static function find_replaceable_membership_for_person_and_tier( string $person_uuid, int $tier_post_id ): int
+```
+
+Returns the post ID of the person's active standalone membership (no `membership_bundle_id`) for the tier, or `0` if there is none. The member-scoped [add_member/mine](../endpoints/bundle-members.md#add-a-member-to-a-bundle-member-scoped) route uses it to find the membership to end-date and replace with the new bundle seat. Memberships already in a bundle are never returned.
 
 ### `remove_member()`
 

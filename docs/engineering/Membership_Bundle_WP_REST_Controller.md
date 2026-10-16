@@ -42,7 +42,7 @@ Call chain: **`Membership_Bundle_WP_REST_Controller`** → `Membership_Bundle_Ad
 | `POST` | `/bundle` | `create_membership_bundle` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/change_owner` | `update_bundle_change_ownership` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/add_member` | `add_member_to_bundle` | Yes |
-| `POST` | `/bundle/{bundle_post_id}/add_member/mine` | `add_member_to_bundle` | Yes |
+| `POST` | `/bundle/{bundle_post_id}/add_member/mine` | `add_member_to_bundle_mine` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/remove_member` | `remove_member_from_bundle` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/remove_member/mine` | `remove_member_from_bundle` | Yes |
 | `POST` | `/bundle/{bundle_post_id}/move_individual_membership` | `move_individual_membership` | Yes |
@@ -198,7 +198,14 @@ Body params:
 
 Validates `mode` and conditional required params, then delegates to `Membership_Bundle_Admin_Controller::add_member()`. Returns `200` with `{ success, membership_post_id }` on success; `400` with `{ error }` on any validation or model failure.
 
-**Route:** `POST /bundle/{bundle_post_id}/add_member/mine` — same handler, registered a second time with `permissions_check_bundle_org_member` as its permission callback instead of `permissions_check_write`. Member-scoped variant: no distinct method or business logic, only authorization differs.
+### `add_member_to_bundle_mine( \WP_REST_Request $request )`
+
+**Route:** `POST /bundle/{bundle_post_id}/add_member/mine` — permission callback `permissions_check_bundle_org_member`. Member-scoped wrapper around `add_member_to_bundle()`.
+
+1. Rejects any `mode` other than `"new"` (`invalid_mode`).
+2. Discards any client-supplied `existing_membership_post_id`. `get_params()` still carries unregistered body keys, and trusting the value would let a member cancel an arbitrary membership by post ID.
+3. Calls `Membership_Bundle_Admin_Controller::find_replaceable_membership_for_person_and_tier( person_uuid, tier_post_id )`. If the person has an active standalone membership for the tier (the one the add-member modal showed as Eligible), the request is promoted to `mode = "existing"` with that post ID. The old membership is then end-dated (cancelled, WC subscription cancelled, MDP synced) and replaced by the bundle seat. Otherwise the request stays a plain `"new"` add.
+4. Delegates to `add_member_to_bundle()`.
 
 ### `remove_member_from_bundle( \WP_REST_Request $request ): \WP_REST_Response`
 

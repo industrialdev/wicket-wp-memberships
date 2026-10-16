@@ -413,6 +413,20 @@ class Membership_Bundle {
       return $err;
     }
 
+    // Resolve the start date before touching the existing membership. Cancellation
+    // below has no rollback, so a blocked addition (e.g. bundle_ended — today is past
+    // the bundle end date) must fail while the member's current membership is intact.
+    // Explicit override wins (renewal path — anchors to bundle starts_at); otherwise
+    // resolve dynamically relative to today vs the bundle date window.
+    if ( $start_date_override !== null ) {
+      $start_date = $start_date_override;
+    } else {
+      $start_date = $this->resolve_member_start_date();
+      if ( is_wp_error( $start_date ) ) {
+        return $start_date;
+      }
+    }
+
     // Existing-member path: cancel old membership, resolve user_id from it.
     if ( $existing_membership_post_id !== null ) {
       // Only check post existence here — bundle ownership is not required for add_member's
@@ -443,17 +457,6 @@ class Membership_Bundle {
     // New-member path: user_id must be supplied.
     if ( $user_id === null ) {
       return new \WP_Error( 'missing_user_id', __( 'user_id is required when not providing an existing membership.', 'wicket-memberships' ) );
-    }
-
-    // Use explicit override when provided (renewal path — anchors to bundle starts_at).
-    // Otherwise resolve dynamically relative to today vs bundle date window.
-    if ( $start_date_override !== null ) {
-      $start_date = $start_date_override;
-    } else {
-      $start_date = $this->resolve_member_start_date();
-      if ( is_wp_error( $start_date ) ) {
-        return $start_date;
-      }
     }
 
     return $this->provision_individual_membership_record( $user_id, $tier_post_id, $product_id, $variation_id, $start_date, $this->post_id, $is_renewal );

@@ -178,7 +178,7 @@ public function add_member(
 Adds an individual membership seat to this bundle. The `$existing_membership_post_id` parameter switches between two flows:
 
 - **New member** (`$existing_membership_post_id = null`): `$user_id` is required. A new `wicket_membership` post is created and linked to the bundle.
-- **Existing member** (`$existing_membership_post_id` provided): the existing membership is cancelled and replaced with a new one using the bundle's dates. `$user_id` is ignored — it is read from the existing membership.
+- **Existing member** (`$existing_membership_post_id` provided): the existing membership is cancelled and replaced with a new one using the bundle's dates. `$user_id` is ignored — it is read from the existing membership. The start date is resolved first, so a blocked addition (`bundle_ended`) leaves the existing membership untouched.
 
 **Parameters**
 
