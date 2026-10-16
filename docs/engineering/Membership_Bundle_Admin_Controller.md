@@ -378,6 +378,10 @@ Builds one list-table row per bundle post. Owner `name` and `email` are resolved
 
 Cancels a WC subscription linked to a membership bundle. Sets the subscription end date from `$meta_data['ends_at']`, writes a completion note to the subscription, then calls `update_status('cancelled')`. No-op if the subscription does not exist or WC Subscriptions is not active. Used by path A of `cancel_bundle()`.
 
+### `plain_post_title( int|\WP_Post $post ): string`
+
+Returns `get_the_title()` with HTML entities decoded (UTF-8). `get_the_title()` runs `wptexturize`, which turns characters like `'` into entities such as `&#8217;`. Clients render these strings as text (Alpine `x-text`, React children), so the raw entity would show literally. Used for tier `name` in `get_eligible_tiers_for_bundle()`, `config_title` in `get_bundle_edit_page_info()`, and the `eligible_tier_names` list on `tier_not_eligible` errors.
+
 ---
 
 ## Dependencies

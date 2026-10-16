@@ -793,7 +793,7 @@ class Membership_Bundle_Admin_Controller {
       'owner'               => $owner_data,
       'config'              => $config_data,
       'config_id'           => $config ? $config->get_post_id() : null,
-      'config_title'        => $config ? get_the_title( $config->get_post_id() ) : '',
+      'config_title'        => $config ? self::plain_post_title( $config->get_post_id() ) : '',
       'config_renewal_type' => $config ? $config->get_renewal_type() : '',
       'config_eligible_tier_ids' => $config ? $config->get_eligible_tier_ids() : [],
       'subscription_id'     => $bundle->get_subscription_id(),
@@ -1003,7 +1003,7 @@ class Membership_Bundle_Admin_Controller {
 
       $tiers[] = [
         'id'       => $tier_post->ID,
-        'name'     => get_the_title( $tier_post ),
+        'name'     => self::plain_post_title( $tier_post ),
         'products' => $products_data,
       ];
 
@@ -1425,10 +1425,25 @@ class Membership_Bundle_Admin_Controller {
 
     return array_values( array_filter( array_map(
       function ( $tier_post_id ) {
-        return get_the_title( $tier_post_id );
+        return self::plain_post_title( $tier_post_id );
       },
       $config->get_eligible_tier_ids()
     ) ) );
+  }
+
+  /**
+   * Post title as plain text for JSON/REST consumers.
+   *
+   * get_the_title() runs wptexturize, which emits HTML entities (e.g. an
+   * apostrophe becomes &#8217;). Clients render these strings as text
+   * (Alpine x-text, React children), so the entities would show literally.
+   * Decoding keeps the typographic characters while dropping the markup.
+   *
+   * @param int|\WP_Post $post Post ID or object.
+   * @return string
+   */
+  private static function plain_post_title( $post ): string {
+    return html_entity_decode( get_the_title( $post ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
   }
 
   /**
