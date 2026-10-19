@@ -820,7 +820,7 @@ function get_item_data ( $other_data, $cart_item ) {
     $membership_expires_at = strtotime( $membership['membership_expires_at'] );
     $order_note = 'New membership ID #'.$membership['membership_post_id'].' created from '.date('Y-m-d', $membership_starts_at).' to '.date('Y-m-d', $membership_ends_at);
 
-    if( !empty( $membership['membership_parent_order_id'] ) && !empty( $membership['membership_product_id'] ) ) {
+    if( self::should_schedule_expiry_notification_jobs( $membership ) ) {
       $args = [
         'membership_parent_order_id' => $membership['membership_parent_order_id'],
         'membership_product_id' => $membership['membership_product_id'],
@@ -892,6 +892,28 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
+   * Determines whether a membership should have its individual early-renew/ends/expires
+   * Action Scheduler jobs scheduled. Under certain conditions we do not want to send these
+   * per-membership notifications at all.
+   *
+   * @param  array  $membership  Membership data array.
+   * @return bool  True if the individual notification jobs should be scheduled.
+   */
+  public static function should_schedule_expiry_notification_jobs( $membership ): bool {
+    // Notifications require an order and product to key the scheduled job on.
+    if ( empty( $membership['membership_parent_order_id'] ) || empty( $membership['membership_product_id'] ) ) {
+      return false;
+    }
+
+    // Bundle members should not get their own notifications - the owner gets them instead.
+    if ( ! empty( $membership['membership_bundle_id'] ) ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
    * Stop the previous membership's subscription taking payment after a Form Flow renewal.
    *
    * A Form Flow renewal is a fresh cart purchase, so it creates a NEW subscription and leaves the
@@ -945,19 +967,41 @@ function get_item_data ( $other_data, $cart_item ) {
   public static function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_early_renew_at_date_reached( $membership );
   }
 
   public static function catch_membership_ends_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_ends_at_date_reached( $membership );
   }
 
   public static function catch_membership_expires_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_expires_at_date_reached( $membership );
+  }
+
+  /**
+   * Catches jobs scheduled before should_schedule_expiry_notification_jobs() existed.
+   * membership_bundle_id is not in the order/product JSON blob $membership is built
+   * from, so it is looked up on the membership post directly.
+   */
+  private static function is_bundle_member( $membership ): bool {
+    if ( empty( $membership['membership_post_id'] ) ) {
+      return false;
+    }
+
+    return ! empty( get_post_meta( $membership['membership_post_id'], 'membership_bundle_id', true ) );
   }
 
   public function membership_early_renew_at_date_reached( $membership ) {
@@ -1298,6 +1342,14 @@ function get_item_data ( $other_data, $cart_item ) {
     }
     if( is_wp_error( $response ) ) {
       $error_msg = $response->get_error_message( 'wicket_api_error' );
+      // Bundle members have no individual subscription (membership_subscription_id = 0),
+      // so the order note below never fires for them - log unconditionally so a failed
+      // MDP write is never silent.
+      Utilities::wc_log_mship_error( [
+        'update_mdp_record failed',
+        'membership_wicket_uuid' => $membership['membership_wicket_uuid'] ?? '',
+        'error'                  => $error_msg,
+      ] );
       if(! empty($sub)) {
         $sub->add_order_note( "ERROR: Admin changing membership dates in MDP. ($starts_at - $ends_at)" . $error_msg );
       }

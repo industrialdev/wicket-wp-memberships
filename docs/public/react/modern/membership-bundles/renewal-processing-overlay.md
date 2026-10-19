@@ -14,7 +14,7 @@ Full-area blocking overlay displayed while a bundle renewal batch is in progress
 
 ## When It Renders
 
-The overlay renders when `processingMeta` is a non-null object — meaning the `membership_renewal_processing` post meta is present on the bundle and does **not** yet contain a `completed_at` timestamp. It unmounts when the bootstrap hook's polling detects that `completed_at` has been set, clearing `renewalProcessingMeta` to `null`.
+The overlay renders when `processingMeta` is a non-null object — meaning the `membership_renewal_processing` post meta is present on the bundle and does **not** yet contain a `completed_at` or `failed_at` timestamp. It unmounts when the bootstrap hook's polling detects that either field has been set, clearing `renewalProcessingMeta` to `null`. `failed_at` marks a caught batch-level failure (see `mark_renewal_processing_failed()`) — it releases the overlay the same way `completed_at` does, so a mid-batch error doesn't leave the admin UI permanently blocked.
 
 ## What It Blocks
 

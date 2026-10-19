@@ -78,7 +78,7 @@ For early renewals there is a window where both the old and new bundles exist si
 
 ## The renewal lock
 
-The `membership_renewal_processing` post meta on the new bundle post acts as a distributed lock for the batch operation. It is written in step 5 and released when `completed_at` is set in step 7.
+The `membership_renewal_processing` post meta on the new bundle post acts as a distributed lock for the batch operation. It is written in step 5 and released when `completed_at` (success) or `failed_at` (a caught batch-level failure) is set.
 
 | Field | Type | Description |
 |---|---|---|
@@ -87,9 +87,11 @@ The `membership_renewal_processing` post meta on the new bundle post acts as a d
 | `processed_count` | int | Running count of seats processed so far |
 | `offset` | int | Current pagination offset into the subscription line items |
 | `errors` | array | Per-seat error messages for seats that failed to provision |
-| `completed_at` | string (ISO 8601) | Set when batch finishes; presence releases the lock |
+| `completed_at` | string (ISO 8601) | Set when batch finishes successfully; presence releases the lock |
+| `failed_at` | string (ISO 8601) | Set when an uncaught batch-level error is caught; presence also releases the lock |
+| `error` | string | Error message recorded alongside `failed_at` |
 
-While the lock is active (meta present, no `completed_at`), the React admin UI renders `RenewalProcessingOverlay` over the bundle detail view, disabling all mutation controls.
+While the lock is active (meta present, no `completed_at`/`failed_at`), the React admin UI renders `RenewalProcessingOverlay` over the bundle detail view, disabling all mutation controls.
 
 ::: warning
 Do not manually delete `membership_renewal_processing` meta from a bundle post while batch processing is still running. The `offset` value in this meta is what makes batch retries idempotent — already-processed seats are skipped on retry. Clearing the meta mid-flight will cause seats processed so far to be re-provisioned on the next batch execution, resulting in duplicate membership records.
@@ -125,17 +127,21 @@ Results are ordered newest-first. The most recent post is the current active ter
 Because historical records are preserved, reporting on membership continuity (consecutive renewals, lapsed members, reinstatements) can be built directly from the `wicket_mship_bundle` and `wicket_membership` post tables without needing a separate audit log.
 :::
 
+## Order touchpoint
+
+When the Wicket base plugin's WooCommerce order touchpoints are enabled, a bundle renewal order created by the background renewal-order job writes its "Order Pending" touchpoint once the order is fully built — line items, repriced totals, and organization included — rather than when WooCommerce first saves the empty order. If repricing puts the order on hold during creation, a single "Order On-Hold" touchpoint is written instead.
+
+## Line item consolidation
+
+Identical charge lines added per member while the renewal order is priced (for example, the same late fee for several members) are combined into one line with a quantity, and an order note lists what was combined. See [Per-member price/fee adjustment on renewal](./renewal-types.md#per-member-price-fee-adjustment-on-renewal) for the match rules and how to turn it off.
+
 ## Failure handling
 
 **Per-seat errors** — if an individual member seat cannot be provisioned (user cannot be resolved, or the assigned tier is invalid), the error is recorded in the `errors` array of `membership_renewal_processing` meta and processing continues for all remaining seats. The renewal is not aborted. After batch completion, an admin note is added to the WooCommerce renewal order listing each failed seat so that site administrators can take corrective action.
 
 **Batch job failures** — if the Action Scheduler job itself fails (PHP fatal error, memory exhaustion, timeout), Action Scheduler will re-queue the job according to its configured retry policy. Because `offset` in the lock meta advances only after a seat is successfully processed, retries are safe to run — seats whose `offset` has already been passed are skipped, preventing double-provisioning.
 
-**Stale locks** — if a batch job exhausts all retries without completing, `membership_renewal_processing` will remain on the bundle post without `completed_at`, keeping the bundle in the processing state indefinitely. In this scenario an administrator must investigate the Action Scheduler failure logs, resolve the underlying cause, and either re-trigger the job manually or clear the lock meta once it is confirmed safe to do so.
-
-::: danger
-A stuck lock with no running batch job will prevent any admin mutations on the new bundle for as long as it persists. Do not clear the lock without first confirming that no batch job is actively executing.
-:::
+`process_bundle_renewal_members()` itself is wrapped in a try/catch: any uncaught error during a batch (including the renewal order not being found) is caught and recorded as `failed_at` + `error` on `membership_renewal_processing` meta for both bundle posts, via `mark_renewal_processing_failed()` — the same shape used by `membership_renewal_order_creation`'s own failure state. The React admin UI treats `failed_at` exactly like `completed_at`: the lock is considered released and `RenewalProcessingOverlay` unmounts, so a mid-batch failure no longer strands the bundle in a permanent processing state. An administrator should still investigate the failure (check Action Scheduler logs, the `error` field, and the order note history) before manually re-triggering a renewal retry.
 
 ## Hooks fired during renewal
 

@@ -69,6 +69,25 @@ Not actioned — noted here for future reference only. Every place in the plugin
 
 2 of 13 (#1, #4) are already migrated as part of the WWID-1869 fix. The remaining 10 migratable sites (everything but #13) are mechanical: swap `$sub->update_dates($dates)` for a call through `Subscription_Manager` once it also performs the write (see the `prepare_dates()` → `update_dates()` rename plan above). Touches 5 files total (`Membership_Controller.php`, `Admin_Controller.php`, `Membership_Subscription_Controller.php`, `Import_Controller.php`, `csv_post.php`) — small individual diffs, but broad regression-test surface since it's every date-mutation path in the plugin. Sized as its own deliberate follow-up, not something to batch into an unrelated change.
 
+### Bundle-side migration (WWID-2617)
+
+Bundles were not covered by the WWID-1869 fix or the inventory above — they never called `Subscription_Manager` at all. Instead, six call sites across two files independently resolved the same `end > next_payment` collision by bumping **`end`** forward by one second instead of nudging `next_payment` back — the reverse of the individual/org convention, which meant a bundle's WC subscription `end` date silently landed one second after the real configured expiration whenever no grace period was set. All six now route through `Subscription_Manager::prepare_dates()`:
+
+| # | Location | Shape |
+|---|---|---|
+| 1 | `Membership_Bundle.php` `create_bundle_subscription()` | `end` + `next_payment` |
+| 2 | `Membership_Bundle.php` `renew_bundle()` | `end` + `next_payment` (subscription renewal type only) |
+| 3 | `Membership_Bundle.php` `activate_subscription_for_dates()` | `end` + `next_payment` (subscription renewal type only) |
+| 4 | `Membership_Bundle.php` `provision_standalone_individual_membership()` | `end` + `next_payment` (renewal-subscription tiers only) |
+| 5 | `Membership_Bundle.php` `sync_subscription_dates()` | `end` + `next_payment` (subscription renewal type only) |
+| 6 | `Bundle_Import_Controller.php` `resync_bundle_subscription()` | `end` + `next_payment` |
+
+All six previously used an inline `if ($end <= $next_payment) { $end->modify('+1 second'); }`-shaped guard (or an equality check in #6); all now defer to `nudge_next_payment_before_end()`'s existing hour-wide offset instead of their own ad hoc one-second bump.
+
+### Grace period dropped from bundle `end` (also WWID-2617)
+
+`sync_subscription_dates()` also had a separate bug: for `renewal_type == 'subscription'` bundles, it set `end`'s source to `ends_at` unconditionally, ignoring any configured grace period — so `end` came back equal to `next_payment` even with e.g. a 6-day grace period set. Individual/org memberships (`Membership_Controller::update_membership_subscription()`) only drop grace period for the narrower monthly-billing case; bundles had no such carve-out, so this was a bundle-only regression, not intentional parity. Fixed: `end_source` now always prefers `expires_at` (falls back to `ends_at` only when no grace period is configured), regardless of renewal type.
+
 ## Open design concern: one-way date sync (membership → subscription only)
 
 Confirmed (investigated during the WWID-1869 fix): the membership CPT (`membership_ends_at`, `membership_expires_at`) is the sole source of truth for dates today. Dates are computed once, independently, via `Membership_Config::get_membership_dates()`, then pushed to the subscription via `update_dates()`. Nothing anywhere reads the subscription's actual stored `end`/`next_payment` back into the membership CPT — it's a one-way push, never reconciled.

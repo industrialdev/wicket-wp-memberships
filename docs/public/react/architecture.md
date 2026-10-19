@@ -71,7 +71,7 @@ Each modern page has exactly one bootstrap hook that encapsulates all data fetch
 
 **`useMembershipBundleBootstrap`** (`src/membership_bundles/hooks/useMembershipBundleBootstrap.js`)
 
-Fetches the full bundle edit page payload from `GET /wicket_member/v1/bundle/admin/get_edit_page_info`. Returns `{ pageData, setPageData, requestState, retryLoad, renewalProcessingMeta }`. While a renewal batch is in progress (`membership_renewal_processing` meta present with no `completed_at`), the hook polls the endpoint every 10 seconds via a silent background refresh that does not reset `requestState` to loading — so the overlay can update progress without re-rendering the full page skeleton.
+Fetches the full bundle edit page payload from `GET /wicket_member/v1/bundle/admin/get_edit_page_info`. Returns `{ pageData, setPageData, requestState, retryLoad, renewalProcessingMeta }`. While a renewal batch is in progress (`membership_renewal_processing` meta present with no `completed_at`/`failed_at`), the hook polls the endpoint every 10 seconds via a silent background refresh that does not reset `requestState` to loading — so the overlay can update progress without re-rendering the full page skeleton.
 
 **`useBundleConfigBootstrap`** (`src/membership_bundle_configs/hooks/useBundleConfigBootstrap.js`)
 
@@ -232,6 +232,6 @@ Forms collect validation errors before submission and surface them through the s
 
 ## Polling
 
-`useMembershipBundleBootstrap` detects an active renewal batch by checking whether the `membership_renewal_processing` post meta is present and has no `completed_at` value. When this condition is true after an initial or retry load, the hook schedules a `setTimeout` for 10 seconds (`RENEWAL_POLL_INTERVAL_MS = 10000`). Each poll calls a silent refresh (`silentRefresh`) that updates `pageData` without toggling `requestState` to `"loading"`.
+`useMembershipBundleBootstrap` detects an active renewal batch by checking whether the `membership_renewal_processing` post meta is present and has neither a `completed_at` nor a `failed_at` value. When this condition is true after an initial or retry load, the hook schedules a `setTimeout` for 10 seconds (`RENEWAL_POLL_INTERVAL_MS = 10000`). Each poll calls a silent refresh (`silentRefresh`) that updates `pageData` without toggling `requestState` to `"loading"`.
 
-`RenewalProcessingOverlay` (`src/membership_bundles/components/RenewalProcessingOverlay.js`) reads the `renewalProcessingMeta` value returned by the hook and renders a full-height semi-transparent overlay with a spinning progress indicator when a batch is active. The overlay is scoped to a `position: relative` container so it does not cover the browser chrome. It dismisses automatically when the next poll returns data with `completed_at` set.
+`RenewalProcessingOverlay` (`src/membership_bundles/components/RenewalProcessingOverlay.js`) reads the `renewalProcessingMeta` value returned by the hook and renders a full-height semi-transparent overlay with a spinning progress indicator when a batch is active. The overlay is scoped to a `position: relative` container so it does not cover the browser chrome. It dismisses automatically when the next poll returns data with `completed_at` or `failed_at` set — the latter meaning a mid-batch failure was caught and recorded rather than the batch succeeding.

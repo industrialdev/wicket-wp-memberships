@@ -274,13 +274,7 @@ Returns `400` for invalid transitions or missing end date (path B), `404` if bun
 
 ### `create_bundle_renewal_order( array $params ): \WP_REST_Response`
 
-Creates a WooCommerce renewal order for the bundle by calling `wcs_create_renewal_order()` on the linked subscription. Returns `200` with the order URL and ID on success. Expects `params`:
-
-| Key | Required |
-|---|---|
-| `bundle_post_id` | Yes |
-| `product_id` | Yes |
-| `variation_id` | No — overrides `product_id` if provided |
+Stub. Always returns `501` (`'Not yet implemented.'`) — not called by the REST controller. The real `create_renewal_order` endpoint logic (claim + queue background order creation, Milestone 10) lives entirely in `Membership_Bundle_WP_REST_Controller::create_bundle_renewal_order()`, which does not delegate here. See that class's doc for the actual endpoint contract.
 
 ---
 

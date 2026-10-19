@@ -130,6 +130,7 @@ class Settings {
     // Membership Bundles section
     add_settings_section( 'membership_bundles_settings', 'Membership Bundles', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_membership_bundles_text'], 'wicket_membership_plugin' );
     add_settings_field( 'wicket_mship_enable_bundles', '<p>Enable Membership Bundles</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_enable_bundles'], 'wicket_membership_plugin', 'membership_bundles_settings' );
+    add_settings_field( 'wicket_mship_consolidate_renewal_line_items', '<p>Line Item Consolidation</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_consolidate_renewal_line_items'], 'wicket_membership_plugin', 'membership_bundles_settings' );
 
     //debug
     add_settings_section( 'debug_settings', 'Debug Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_debug_text'], 'wicket_membership_plugin' );
@@ -215,8 +216,33 @@ class Settings {
       .'<p><span style="color:#b32d2e;font-weight:bold;">Note:</span> Disabling this toggle <strong>only hides the admin pages</strong>. It does <strong>not</strong> cancel, delete, or disable any existing membership bundles, bundle configs, or their associated Action Scheduler jobs. All scheduled background processing for existing bundles will continue to run unaffected.</p>';
   }
 
+  /**
+   * On by default: a site that has never saved this setting has no key, which reads as enabled.
+   * Saving the page with the box unticked stores '' (see wicket_membership_plugin_options_validate()).
+   */
+  public static function wicket_mship_consolidate_renewal_line_items() {
+    $checked = self::is_renewal_line_item_consolidation_enabled() ? 'checked' : '';
+    echo "<input id='wicket_mship_consolidate_renewal_line_items' name='wicket_membership_plugin_options[wicket_mship_consolidate_renewal_line_items]' type='checkbox' value='1' {$checked} />"
+      .'Combine identical charges on bundle renewal orders into one line with a quantity.'
+      .'<p class="description">Applies to lines added per member while a renewal order is priced, such as late fees. Lines combine only when the product, price, tax class, and line details all match; member lines are never combined. Each consolidation is recorded in an order note.</p>'
+      .'<p class="description">Example: two members each charged "Late Fee 1" at $50 become one "Late Fee 1" line, quantity 2, $100.</p>';
+  }
+
+  /**
+   * Whether bundle renewal orders combine identical per-member charge lines. Defaults to on.
+   */
+  public static function is_renewal_line_item_consolidation_enabled(): bool {
+    $options = get_option( 'wicket_membership_plugin_options' );
+
+    if ( ! is_array( $options ) || ! array_key_exists( 'wicket_mship_consolidate_renewal_line_items', $options ) ) {
+      return true;
+    }
+
+    return ! empty( $options['wicket_mship_consolidate_renewal_line_items'] );
+  }
+
   public static function wicket_plugin_section_membership_bundles_text() {
-    echo '<p>Control the visibility of the Membership Bundles admin pages. Toggling this setting does not affect any existing membership bundle data or scheduled actions.</p>';
+    echo '<p>Settings for the Membership Bundles system.</p>';
   }
 
   public static function wicket_mship_autorenew_toggle() {
@@ -411,6 +437,8 @@ class Settings {
     $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim($input['wicket_mship_import_create_subscriptions_tier_only']);
     $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
     $newinput['wicket_mship_enable_bundles'] = trim($input['wicket_mship_enable_bundles']);
+    // Always written ('' when unticked) so an explicit "off" is distinguishable from never saved.
+    $newinput['wicket_mship_consolidate_renewal_line_items'] = ! empty( $input['wicket_mship_consolidate_renewal_line_items'] ) ? '1' : '';
     $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
     if(!empty($_REQUEST['schedule_daily_membership_expiry_hook'])) {
       $count = Membership_Controller::daily_membership_expiry_hook();

@@ -266,23 +266,22 @@ const AddMemberToBundleModal = ({
     setSubmitting(true);
     setError(null);
     try {
-      if (addMode === "existing") {
-        await addMemberToBundle(bundlePostId, {
-          mode: "existing",
-          existing_membership_post_id: selectedExistingMembership.value,
-          tier_post_id: selectedExistingMembership.tierPostId,
-        });
-      } else {
-        await addMemberToBundle(bundlePostId, {
-          mode: "new",
-          person_uuid: selectedUser.value,
-          tier_post_id: selectedTier.value,
-          product_id: selectedProduct.productId,
-          ...(selectedProduct.variationId ? { variation_id: selectedProduct.variationId } : {}),
-        });
-      }
+      const response =
+        addMode === "existing"
+          ? await addMemberToBundle(bundlePostId, {
+              mode: "existing",
+              existing_membership_post_id: selectedExistingMembership.value,
+              tier_post_id: selectedExistingMembership.tierPostId,
+            })
+          : await addMemberToBundle(bundlePostId, {
+              mode: "new",
+              person_uuid: selectedUser.value,
+              tier_post_id: selectedTier.value,
+              product_id: selectedProduct.productId,
+              ...(selectedProduct.variationId ? { variation_id: selectedProduct.variationId } : {}),
+            });
       resetState();
-      onSuccess();
+      onSuccess(response);
     } catch (err) {
       console.error("[AddMemberToBundleModal] add member failed", err);
       setError(err);

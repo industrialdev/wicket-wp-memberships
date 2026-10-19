@@ -6,6 +6,7 @@ import { addQueryArgs } from '@wordpress/url';
 import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS, formatDateWithTooltip, formatCurrency } from '../shared/constants';
 import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../shared/styled_elements';
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
+import { warning } from '@wordpress/icons';
 import ManageStatusModal from './ManageStatusModal';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
@@ -108,7 +109,7 @@ const SkeletonText = styled.span`
   }
 `;
 
-const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
+const MemberEdit = ({ memberType, recordId, membershipUuid, individualMemberEditUrl }) => {
 
 	const renewalTypeOptions = [
 		{ label: __('Inherited from Tier', 'wicket-memberships'), value: 'inherited' },
@@ -615,6 +616,18 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                           </td>
                           <td className="column-columnname">
                             {membership.ID}
+                            {membership.mdp_link_collision && (
+                              <Tooltip
+                                text={__(
+                                  'This membership was created but could not be linked to its MDP record — the WordPress ID was already claimed by a different MDP record. Contact an administrator.',
+                                  'wicket-memberships'
+                                )}
+                              >
+                                <span style={{ display: 'inline-block', marginLeft: '4px', verticalAlign: 'middle' }}>
+                                  <Icon icon={warning} style={{ fill: '#cc1818' }} size={18} />
+                                </span>
+                              </Tooltip>
+                            )}
                           </td>
                           <td className="column-columnname">
                             {membership.data.membership_status}
@@ -649,12 +662,18 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                             {membership.is_membership_bundle ? (
                               <MembershipBundleDetails
                                 membership={membership}
-                                onSuccess={(message) => {
+                                onSuccess={(result) => {
                                   const noticeId = `member-removed-${Date.now()}`;
+                                  const memberUrl = individualMemberEditUrl && result.personUuid
+                                    ? addQueryArgs(individualMemberEditUrl, { id: result.personUuid })
+                                    : null;
                                   addPageNotice({
                                     id: noticeId,
-                                    status: "success",
-                                    message,
+                                    status: result.status || "success",
+                                    message: result.message ?? result,
+                                    action: memberUrl
+                                      ? { label: __("View membership", "wicket-memberships"), onClick: () => window.location.assign(memberUrl) }
+                                      : undefined,
                                     onDismiss: () => dismissPageNotice(noticeId),
                                   });
                                   getMemberships();
