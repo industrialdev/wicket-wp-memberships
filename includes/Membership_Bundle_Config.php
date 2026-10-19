@@ -6,7 +6,8 @@ namespace Wicket_Memberships;
  *
  * Combines the date/cycle/renewal-window logic of Membership_Config with the
  * approval and renewal-type logic of Membership_Tier, scoped specifically for
- * Membership Bundles. Renewal type is limited to 'subscription' and 'form_page'.
+ * Membership Bundles. Renewal type is limited to 'subscription' and
+ * 'form_page'.
  *
  * Meta layout
  * -----------
@@ -160,6 +161,10 @@ class Membership_Bundle_Config {
   /**
    * Get the late fee window product ID.
    *
+   * Not used for bundles: no bundle renewal path charges this product. It is only
+   * passed through in grace-period callout data. Bundle late fees are applied by
+   * client code via wicket_mship_bundle_renewal_line_item_price.
+   *
    * @return int|false
    */
   public function get_late_fee_window_product_id() {
@@ -271,15 +276,11 @@ class Membership_Bundle_Config {
 
     $seasons = $this->cycle_data['calendar_items'];
 
-    // Raw stored dates are plain Y-m-d strings with no timezone. Convert to full
-    // ISO 8601 with the MDP timezone offset here so all callers receive a consistent
-    // format and never need to guess the implicit timezone.
+    // Pass the raw date straight through; collapsing via strtotime()/date('Y-m-d')
+    // first reads the UTC day and shifts the boundary a day forward.
     foreach ( $seasons as $key => $season ) {
-      $start_date = date( 'Y-m-d', strtotime( $season['start_date'] ) );
-      $end_date   = date( 'Y-m-d', strtotime( $season['end_date'] ) );
-
-      $seasons[ $key ]['start_date'] = Utilities::get_mdp_day_start( $start_date )->format( 'c' );
-      $seasons[ $key ]['end_date']   = Utilities::get_mdp_day_end( $end_date )->format( 'c' );
+      $seasons[ $key ]['start_date'] = Utilities::get_mdp_day_start( $season['start_date'] )->format( 'c' );
+      $seasons[ $key ]['end_date']   = Utilities::get_mdp_day_end( $season['end_date'] )->format( 'c' );
     }
 
     return $seasons;
@@ -405,11 +406,14 @@ class Membership_Bundle_Config {
 
     // Grace period extends the expiration beyond the nominal end date, giving members
     // time to renew after lapsing without immediately losing access in MDP.
+    // Window day maths runs on the MDP-local day: a UTC Y-m-d of an MDP day boundary is
+    // off by one for zones behind UTC (same fix as Membership_Config::mdp_local_ymd()).
+    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+
     $grace_period_in_days = $this->get_late_fee_window_days();
     if ( ! empty( $grace_period_in_days ) ) {
-      $end_date_ymd        = ( new \DateTime( $dates['end_date'] ) )->format( 'Y-m-d' );
-      $expires_at_utc      = new \DateTime( $end_date_ymd, new \DateTimeZone( 'UTC' ) );
-      $expires_date_string = $expires_at_utc->modify( '+' . $grace_period_in_days . ' days' )->format( 'Y-m-d' );
+      $expires_date_string = Utilities::get_mdp_day_end( $dates['end_date'] )->setTimezone( $mdp_timezone )
+        ->modify( '+' . $grace_period_in_days . ' days' )->format( 'Y-m-d' );
       $dates['expires_at'] = Utilities::get_mdp_day_end( $expires_date_string )->format( 'c' );
     }
 
@@ -422,9 +426,8 @@ class Membership_Bundle_Config {
       $early_renew_base        = ! empty( $membership['membership_ends_at'] )
         ? $membership['membership_ends_at']
         : $dates['end_date'];
-      $end_date_ymd            = ( new \DateTime( $early_renew_base ) )->format( 'Y-m-d' );
-      $early_renew_at_utc      = new \DateTime( $end_date_ymd, new \DateTimeZone( 'UTC' ) );
-      $early_renew_date_string = $early_renew_at_utc->modify( '-' . $early_renewal_in_days . ' days' )->format( 'Y-m-d' );
+      $early_renew_date_string = Utilities::get_mdp_day_end( $early_renew_base )->setTimezone( $mdp_timezone )
+        ->modify( '-' . $early_renewal_in_days . ' days' )->format( 'Y-m-d' );
       $dates['early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date_string )->format( 'c' );
     }
 

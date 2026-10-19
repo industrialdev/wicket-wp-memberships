@@ -8,6 +8,7 @@ if (app) {
       bundleGroupUuid={app.dataset.bundleGroupUuid}
       listUrl={app.dataset.listUrl}
       individualMembersUrl={app.dataset.individualMembersUrl}
+      individualMemberEditUrl={app.dataset.individualMemberEditUrl}
     />
   );
 }

@@ -5,504 +5,350 @@ namespace Wicket_Memberships;
 use Wicket_Memberships\Membership_Controller;
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Autorenew_Sync;
 
 /**
- * Class Settings
+ * Settings entry points, options validation and timezone defaults for Wicket Memberships.
  * @package Wicket_Memberships
  */
 class Settings {
 
+  // Entry points kept for wicket.php hooks and existing callers. The page, its fields and the
+  // Scheduled Jobs section live in Settings_Page, Settings_Fields and Settings_Jobs.
 
   /**
-   * Settings Page
+   * Query args that trigger the settings page's manual Run Now / Refresh All Now links.
+   *
+   * @see Settings_Jobs::MANUAL_ACTION_TRIGGER_PARAMS
+   *
+   * @var string[]
    */
+  const MANUAL_ACTION_TRIGGER_PARAMS = Settings_Jobs::MANUAL_ACTION_TRIGGER_PARAMS;
+
+  /** @see Settings_Page::add_page() */
   public static function wicket_membership_add_settings_page() {
-    add_options_page( 'Wicket Memberships', 'Wicket Memberships', 'manage_options', 'wicket-membership-settings', [__NAMESPACE__.'\\Settings', 'wicket_membership_render_plugin_settings_page'] );
+    Settings_Page::add_page();
   }
 
+  /** @see Settings_Page::render() */
   public static function wicket_membership_render_plugin_settings_page() {
-    ?>
-    <form action="options.php" method="post">
-    <h2>Wicket Membership Settings</h2>
-    <?php
-      // Surface active local-import / sync-tool state at the top of the page so admins
-      // are not surprised that command-line import endpoints or the sync tool are live.
-      Settings::wicket_membership_render_environment_notices();
-      Settings::check_migrate_tier_slugs();
-      settings_fields( 'wicket_membership_plugin_options' );
-      do_settings_sections( 'wicket_membership_plugin' ); ?>
-    <p><input name="submit" class="button button-primary" type="submit" value="<?php esc_attr_e( 'Save' ); ?>" />
-    <a href="edit.php?post_type=wicket_membership" target="_blank"><input class="button button-secondary" type="button" value="View Raw Membership Posts"/></a></p>
-    </form>
-    <?php
+    Settings_Page::render();
   }
 
-  /**
-   * Renders warning notices at the top of the settings page for active local-import state.
-   *
-   * Two independent conditions are surfaced because they have real security/operational
-   * implications and are easy to leave enabled unintentionally:
-   *  - ALLOW_LOCAL_IMPORTS is on, exposing the command-line CSV import tooling.
-   *  - The memberships-sync.php tool is actively included (its function is defined),
-   *    meaning the browser-triggered subscription sync endpoint is reachable.
-   *
-   * The sync tool is loaded from wicket.php whenever the `allow_local_imports` option key
-   * exists, so detecting the function presence is the only reliable "is it live" signal.
-   *
-   * @see wicket_sync_subscriptions() Defined in custom/memberships-sync.php when included.
-   *
-   * @return void
-   */
+  /** @see Settings_Page::enqueue_assets() */
+  public static function enqueue_settings_assets( $hook_suffix ) {
+    Settings_Page::enqueue_assets( $hook_suffix );
+  }
+
+  /** @see Settings_Page::body_class() */
+  public static function settings_admin_body_class( $classes ) {
+    return Settings_Page::body_class( $classes );
+  }
+
+  /** @see Settings_Page::render_environment_notices() */
   public static function wicket_membership_render_environment_notices() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-
-    // Local imports flagged on — command-line CSV import endpoints are enabled.
-    $local_imports_enabled = ! empty( $options['allow_local_imports'] );
-
-    // The sync tool defines this function only when custom/memberships-sync.php is included.
-    $sync_tool_active = function_exists( 'wicket_sync_subscriptions' );
-
-    if ( ! $local_imports_enabled && ! $sync_tool_active ) {
-      return;
-    }
-
-    echo '<div class="notice notice-warning" style="margin:15px 0;padding:10px 12px;">';
-    echo '<p style="margin-top:0;"><strong>&#9888; Local Import / Sync Tooling Active</strong></p>';
-
-    if ( $local_imports_enabled ) {
-      echo '<p style="margin:6px 0;"><strong>ALLOW_LOCAL_IMPORTS is enabled.</strong> Command-line CSV import tooling is active. This should remain disabled in production unless an import is actively in progress.</p>';
-    }
-
-    if ( $sync_tool_active ) {
-      echo '<p style="margin:6px 0;"><strong>The memberships-sync tool (<code>custom/memberships-sync.php</code>) is actively included.</strong> The browser-triggered subscription sync endpoint (<code>?mship_subscription_sync=1</code>) is reachable. See the import instructions below for how to use the sync tool safely.</p>';
-    }
-
-    echo '</div>';
+    Settings_Page::render_environment_notices();
   }
 
-  public function get_next_scheduled_membership_activation() {
-    $hook = 'schedule_daily_membership_activation_hook';
-    $action = as_get_scheduled_actions(['hook' => $hook, 'status' => \ActionScheduler_Store::STATUS_PENDING]);
-    if(!empty($action)) {
-      foreach($action as $a) {
-        $scheduled_time_site = (date("Y-m-d H:i", strtotime(json_decode(json_encode($a->get_schedule()->get_date()))->date)));
-        return $scheduled_time_site;
-      }
-    }
+  /** @see Settings_Page::render_category_switch_notice() */
+  public static function wicket_membership_render_category_switch_notice() {
+    Settings_Page::render_category_switch_notice();
   }
 
-  public function get_next_scheduled_membership_grace_period() {
-    $hook = 'schedule_daily_membership_grace_period_hook';
-    $action = as_get_scheduled_actions(['hook' => $hook, 'status' => \ActionScheduler_Store::STATUS_PENDING]);
-    if(!empty($action)) {
-      foreach($action as $a) {
-        $scheduled_time_site = (date("Y-m-d H:i", strtotime(json_decode(json_encode($a->get_schedule()->get_date()))->date)));  
-        return $scheduled_time_site;
-      }
-    }
+  /** @see Settings_Page::section_debug_text() */
+  public static function wicket_plugin_section_debug_text() {
+    Settings_Page::section_debug_text();
   }
 
-  public function get_next_scheduled_membership_expiry() {
-    $hook = 'schedule_daily_membership_expiry_hook';
-    $action = as_get_scheduled_actions(['hook' => $hook, 'status' => \ActionScheduler_Store::STATUS_PENDING]);
-    if(!empty($action)) {
-      foreach($action as $a) {
-        $scheduled_time_site = (date("Y-m-d H:i", strtotime(json_decode(json_encode($a->get_schedule()->get_date()))->date)));  
-        return $scheduled_time_site;
-      }
-    }
+  /** @see Settings_Page::section_membership_products_text() */
+  public static function wicket_plugin_section_membership_products_text() {
+    Settings_Page::section_membership_products_text();
   }
 
+  /** @see Settings_Page::section_import_text() */
+  public static function wicket_plugin_section_import_text() {
+    Settings_Page::section_import_text();
+  }
+
+  /** @see Settings_Page::section_debug_admin_text() */
+  public static function wicket_plugin_section_debug_admin_text() {
+    Settings_Page::section_debug_admin_text();
+  }
+
+  /** @see Settings_Page::section_debug_public_text() */
+  public static function wicket_plugin_section_debug_public_text() {
+    Settings_Page::section_debug_public_text();
+  }
+
+  /** @see Settings_Fields::register() */
   public static function wicket_membership_register_settings() {
-    register_setting( 'wicket_membership_plugin_options', 'wicket_membership_plugin_options', [__NAMESPACE__.'\\Settings', 'wicket_membership_plugin_options_validate'] );
-    add_settings_section( 'functional_settings', 'Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_functional_text'], 'wicket_membership_plugin' );
-    //options
-    add_settings_field( 'wicket_show_mship_order_org_search', '<p>Set the Organization on Subscription Membership in Admin</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_mship_order_org_search'], 'wicket_membership_plugin', 'functional_settings' );
-    add_settings_field( 'wicket_mship_disable_renewal', '<p>Disable Renewal Callouts</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_disable_renewal'], 'wicket_membership_plugin', 'functional_settings' );
-
-    add_settings_field( 'wicket_mship_multi_tier_renewal', '<p>Use Multi-Tier Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_multi_tier_renewal'], 'wicket_membership_plugin', 'functional_settings' );
-    add_settings_field( 'wicket_mship_assign_subscription', '<p>Membership Subscription Assignment</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_assign_subscription'], 'wicket_membership_plugin', 'functional_settings' );
-    //add_settings_field( 'wicket_mship_subscription_renew', '<p>Use Subscription Renewals</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_subscription_renew'], 'wicket_membership_plugin', 'functional_settings' );
-    add_settings_field( 'wicket_mship_autorenew_toggle', '<p>Enable User Autorenew Subscription Toggle</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_toggle'], 'wicket_membership_plugin', 'functional_settings' );
-    add_settings_field( 'wicket_mship_autorenew_override', '<p>Enable Auto-Renew Override on Order Processing</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_autorenew_override'], 'wicket_membership_plugin', 'functional_settings' );
-    add_settings_field('wicket_mship_mdp_timezone', '<p>MDP Timezone</p>', [__NAMESPACE__ . '\\Settings', 'wicket_mship_mdp_timezone'], 'wicket_membership_plugin', 'functional_settings');
-
-    // Membership Bundles section
-    add_settings_section( 'membership_bundles_settings', 'Membership Bundles', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_membership_bundles_text'], 'wicket_membership_plugin' );
-    add_settings_field( 'wicket_mship_enable_bundles', '<p>Enable Membership Bundles</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_enable_bundles'], 'wicket_membership_plugin', 'membership_bundles_settings' );
-    add_settings_field( 'wicket_mship_bundles_manage_page_id', '<p>Manage Membership Bundles Page</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_bundles_manage_page_id'], 'wicket_membership_plugin', 'membership_bundles_settings' );
-
-    //debug
-    add_settings_section( 'debug_settings', 'Debug Settings', [__NAMESPACE__.'\\Settings', 'wicket_plugin_section_debug_text'], 'wicket_membership_plugin' );
-    add_settings_field( 'wicket_membership_debug_mode', '<p>WICKET_MEMBERSHIPS_DEBUG_MODE</p>', [__NAMESPACE__.'\\Settings', 'wicket_membership_debug_mode'], 'wicket_membership_plugin', 'debug_settings' );
-    add_settings_field( 'wicket_memberships_debug_acc', '<p>WICKET_MEMBERSHIPS_DEBUG_ACC</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_acc'], 'wicket_membership_plugin', 'debug_settings' );
-    add_settings_field( 'bypass_status_change_lockout', '<p>BYPASS_STATUS_CHANGE_LOCKOUT</p>', [__NAMESPACE__.'\\Settings', 'bypass_status_change_lockout'], 'wicket_membership_plugin', 'debug_settings' );
-    add_settings_field( 'wicket_show_order_debug_data', '<p>WICKET_SHOW_ORDER_DEBUG_DATA</p>', [__NAMESPACE__.'\\Settings', 'wicket_show_order_debug_data'], 'wicket_membership_plugin', 'debug_settings' );
-    add_settings_field( 'allow_local_imports', '<p>ALLOW_LOCAL_IMPORTS</p>', [__NAMESPACE__.'\\Settings', 'allow_local_imports'], 'wicket_membership_plugin', 'debug_settings' );
-    add_settings_field( 'wicket_mship_import_create_subscriptions_tier_only', '<p style="color:#999">Import Subscription Option:</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_import_create_subscriptions_tier_only'], 'wicket_membership_plugin', 'debug_settings' );
-    add_settings_field( 'wicket_mship_import_create_subscriptions', '', [__NAMESPACE__.'\\Settings', 'wicket_mship_import_create_subscriptions'], 'wicket_membership_plugin', 'debug_settings' );
-    add_settings_field( 'wicket_memberships_debug_renew', '<p>WICKET_MEMBERSHIPS_DEBUG_RENEW</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_renew'], 'wicket_membership_plugin', 'debug_settings' );
-    add_settings_field( 'wicket_memberships_debug_cart_ids', '<p>WICKET_MEMBERSHIPS_DEBUG_CART_IDS</p>', [__NAMESPACE__.'\\Settings', 'wicket_memberships_debug_cart_ids'], 'wicket_membership_plugin', 'debug_settings' );
-    add_settings_field( 'bypass_wicket', '<p>BYPASS_WICKET</p>', [__NAMESPACE__.'\\Settings', 'bypass_wicket'], 'wicket_membership_plugin', 'debug_settings' );
-    add_settings_field( 'wicket_mship_membership_merge_key', '<p>Merge Webhook API Key</p>', [__NAMESPACE__.'\\Settings', 'wicket_mship_membership_merge_key'], 'wicket_membership_plugin', 'functional_settings' );
-    
-    //status change reporting
-    add_settings_section( 'status_settings', 'Membership Status Changes', [__NAMESPACE__.'\\Settings', 'wicket_plugin_status_change_reporting'], 'wicket_membership_plugin' );
-  
+    Settings_Fields::register();
   }
 
+  /** @see Settings_Fields::get_form_membership_category_ids() */
+  public static function get_form_membership_category_ids() {
+    return Settings_Fields::get_form_membership_category_ids();
+  }
+
+  /** @see Settings_Fields::wicket_mship_membership_merge_key() */
   public static function wicket_mship_membership_merge_key() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_membership_merge_key]' type='text' value='".esc_attr( $options['wicket_mship_membership_merge_key']). "' />"
-    .' Update the merge webhook signature authentication key value. Unique for this webook <code>'.str_replace("/wp", "", get_site_url()).'/wp-json/wicket_member/v1/membership/merge</code>.<br/><br/>';  
-    #if(empty(esc_attr( $options['wicket_mship_membership_merge_key']))) {
-    #  echo '<input name="wicket_mship_create_merge_webhook" class="button button-primary" type="submit" value="Create Merge Webhook in MDP" />'
-    #  .'<br/>Click to create the merge webhook in the MDP > Settings > Webhooks now.';    
-    #}
+    Settings_Fields::wicket_mship_membership_merge_key();
   }
 
+  /** @see Settings_Fields::wicket_mship_multi_tier_renewal() */
   public static function wicket_mship_multi_tier_renewal() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_multi_tier_renewal]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_multi_tier_renewal']), false). " />"
-      .'Enables the multi-tier checkbox setting on Membership Configs, multi-tier Account Centre callouts, and the Tier Opt-in Gravity Form Field for Renewals.<br/><strong style="color:red;">IMPORTANT</strong>:
-      Only use this if you undertsand the Multi-Tier Renewal Flow & Rules and follow the instructions to configure everything correctly.';
+    Settings_Fields::wicket_mship_multi_tier_renewal();
   }
 
+  /** @see Settings_Fields::wicket_mship_disable_renewal() */
   public static function wicket_mship_disable_renewal() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_disable_renewal]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_disable_renewal']), false). " />"
-      .'Do not display renewal callouts in ACC.';
+    Settings_Fields::wicket_mship_disable_renewal();
   }
 
+  /** @see Settings_Fields::wicket_mship_hide_subscription_cancel() */
+  public static function wicket_mship_hide_subscription_cancel() {
+    Settings_Fields::wicket_mship_hide_subscription_cancel();
+  }
+
+  /** @see Settings_Fields::wicket_mship_hide_subscription_reactivate() */
+  public static function wicket_mship_hide_subscription_reactivate() {
+    Settings_Fields::wicket_mship_hide_subscription_reactivate();
+  }
+
+  /** @see Settings_Fields::wicket_mship_hide_subscription_resubscribe() */
+  public static function wicket_mship_hide_subscription_resubscribe() {
+    Settings_Fields::wicket_mship_hide_subscription_resubscribe();
+  }
+
+  /** @see Settings_Fields::wicket_mship_assign_subscription() */
   public static function wicket_mship_assign_subscription() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_assign_subscription]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_assign_subscription']), false). " />"
-      .'Allow assigning membership by ID on Woocommerce Subscription page.';
+    Settings_Fields::wicket_mship_assign_subscription();
   }
 
-  public static function wicket_show_mship_order_org_search() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo 'Option to [Search & Select Organization] for the membership on WC Subscription Order admin page for products in the selected categories. Useful for manually creating subscription memberships.';
-    ?><br /><select class="" multiple="multiple" name="wicket_membership_plugin_options[wicket_show_mship_order_org_search][categorychoice][]"><?php
-    $option = $options['wicket_show_mship_order_org_search'];
-    $categories_selected = $options['wicket_show_mship_order_org_search'];
-          $product_categories = get_terms(array(
-            'taxonomy'   => 'product_cat',
-            'hide_empty' => true,
-        ));        
-          foreach ($product_categories as $category) {
-            $selected = '';
-            if(!empty($categories_selected['categorychoice']) && is_array($categories_selected['categorychoice'])) {
-              $selected = in_array( $category->term_id, $categories_selected['categorychoice'] ) ? ' selected="selected" ' : ''; 
-            }
-            ?>
-              <option value="<?php echo $category->term_id; ?>" <?php echo $selected; ?> >
-                <?php echo $category->name; ?>
-              </option>
-          <?php } ?>
-      </select><?php
-      }
+  /** @see Settings_Fields::wicket_mship_membership_categories() */
+  public static function wicket_mship_membership_categories() {
+    Settings_Fields::wicket_mship_membership_categories();
+  }
 
+  /** @see Settings_Fields::bypass_wicket() */
   public static function bypass_wicket() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[bypass_wicket]' type='checkbox' value='1' ".checked(1, esc_attr( $options['bypass_wicket']), false). " />"
-      .'Do not create memberships in wicket MDP.';
+    Settings_Fields::bypass_wicket();
   }
-  
+
+  /** @see Settings_Fields::wicket_mship_enable_bundles() */
   public static function wicket_mship_enable_bundles() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_mship_enable_bundles' name='wicket_membership_plugin_options[wicket_mship_enable_bundles]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_enable_bundles']), false). " />"
-      .'Enable the Membership Bundles system. When enabled, the Membership Bundles list page and Bundle Configs menu will appear in the admin.'
-      .'<p><span style="color:#b32d2e;font-weight:bold;">Note:</span> Disabling this toggle <strong>only hides the admin pages</strong>. It does <strong>not</strong> cancel, delete, or disable any existing membership bundles, bundle configs, or their associated Action Scheduler jobs. All scheduled background processing for existing bundles will continue to run unaffected.</p>';
+    Settings_Fields::wicket_mship_enable_bundles();
   }
 
-  /**
-   * Renders a page-picker for the front-end "Manage Membership Bundles" page.
-   *
-   * Stores the selected page ID so front-end code (blocks/templates that need to link
-   * to the bundle management page) can resolve it via Helper::get_membership_bundles_manage_page_id()
-   * instead of hard-coding a page slug or ID.
-   *
-   * Built manually (rather than wp_dropdown_pages(), which only queries the core 'page'
-   * post type) because the "Manage Membership Bundles" experience is commonly embedded on
-   * an Account Centre page, which lives on the 'my-account' CPT registered by wicket-acc.
-   *
-   * @return void
-   */
+  /** @see Settings_Fields::wicket_mship_bundles_manage_page_id() */
   public static function wicket_mship_bundles_manage_page_id() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    $selected_page_id = isset( $options['wicket_mship_bundles_manage_page_id'] ) ? (int) $options['wicket_mship_bundles_manage_page_id'] : 0;
-
-    // Include both regular WP Pages and Account Centre ('my-account') pages, since the
-    // bundle management block is typically embedded on an Account Centre page.
-    $post_types = [ 'page' => __( 'Pages', 'wicket-memberships' ) ];
-    if ( post_type_exists( 'my-account' ) ) {
-      $post_types['my-account'] = __( 'Account Centre Pages', 'wicket-memberships' );
-    }
-
-    echo "<select name='wicket_membership_plugin_options[wicket_mship_bundles_manage_page_id]' id='wicket_mship_bundles_manage_page_id'>";
-    echo '<option value="0">' . esc_html__( '— Select a page —', 'wicket-memberships' ) . '</option>';
-
-    foreach ( $post_types as $post_type => $group_label ) {
-      $pages = get_posts( [
-        'post_type'      => $post_type,
-        'post_status'    => 'publish',
-        'posts_per_page' => -1,
-        'orderby'        => 'title',
-        'order'          => 'ASC',
-      ] );
-
-      if ( empty( $pages ) ) {
-        continue;
-      }
-
-      echo '<optgroup label="' . esc_attr( $group_label ) . '">';
-      foreach ( $pages as $page ) {
-        echo '<option value="' . esc_attr( $page->ID ) . '" ' . selected( $selected_page_id, $page->ID, false ) . '>' . esc_html( $page->post_title ) . '</option>';
-      }
-      echo '</optgroup>';
-    }
-
-    echo '</select>';
-
-    echo '<p>Select the page where the "Manage Membership Bundles" front-end experience (bundle list / bundle detail block) is embedded. Includes both regular Pages and Account Centre pages. Used to build links to that page elsewhere in the plugin.</p>';
+    Settings_Fields::wicket_mship_bundles_manage_page_id();
   }
 
+  /** @see Settings_Fields::wicket_mship_consolidate_renewal_line_items() */
+  public static function wicket_mship_consolidate_renewal_line_items() {
+    Settings_Fields::wicket_mship_consolidate_renewal_line_items();
+  }
+
+  /**
+   * Whether bundle renewal orders combine identical per-member charge lines. Defaults to on.
+   */
+  public static function is_renewal_line_item_consolidation_enabled(): bool {
+    $options = get_option( 'wicket_membership_plugin_options' );
+
+    if ( ! is_array( $options ) || ! array_key_exists( 'wicket_mship_consolidate_renewal_line_items', $options ) ) {
+      return true;
+    }
+
+    return ! empty( $options['wicket_mship_consolidate_renewal_line_items'] );
+  }
+
+  /** @see Settings_Page::section_membership_bundles_text() */
   public static function wicket_plugin_section_membership_bundles_text() {
-    echo '<p>Control the visibility of the Membership Bundles admin pages. Toggling this setting does not affect any existing membership bundle data or scheduled actions.</p>';
+    Settings_Page::section_membership_bundles_text();
   }
 
+  /** @see Settings_Fields::wicket_mship_autorenew_toggle() */
   public static function wicket_mship_autorenew_toggle() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_mship_autorenew_toggle' name='wicket_membership_plugin_options[wicket_mship_autorenew_toggle]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_autorenew_toggle']), false). " />"
-      .'Enable the use of the Wicket Autorenew Checkbox Toggle anywhere on the front-end and in Gravity Forms with the shortcode <code>[wicket_autorenew_toggle_shortcode]</code><br><span style="color:red;">Note:</span> When toggled will set persistent user meta that causes all a user\'s membership subscription purchases to auto-renew when payment method allows.';
+    Settings_Fields::wicket_mship_autorenew_toggle();
   }
 
-  /**
-   * Renders the auto-renew override setting checkbox.
-   *
-   * When enabled, order processing reads the subscription_autopay_enabled user meta
-   * and overwrites _requires_manual_renewal on the subscription accordingly.
-   * Defaults to enabled (value 1) to preserve pre-existing behaviour when not yet saved.
-   *
-   * @return void
-   */
+  /** @see Settings_Fields::wicket_mship_autorenew_override() */
   public static function wicket_mship_autorenew_override() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    // Default to enabled when the option has never been saved, preserving legacy behaviour.
-    $value = isset( $options['wicket_mship_autorenew_override'] ) ? $options['wicket_mship_autorenew_override'] : 1;
-    echo "<input id='wicket_mship_autorenew_override' name='wicket_membership_plugin_options[wicket_mship_autorenew_override]' type='checkbox' value='1' " . checked( 1, $value, false ) . " />"
-      . 'When enabled, order processing reads the <code>subscription_autopay_enabled</code> user meta and sets <code>_requires_manual_renewal</code> on the subscription. Disable to stop auto-renew from being overridden on every order, including renewal orders.';
+    Settings_Fields::wicket_mship_autorenew_override();
   }
 
-  public static function wicket_mship_mdp_timezone()
-  {
-    $options = get_option('wicket_membership_plugin_options');
-        ?>
-        <select class="" name="wicket_membership_plugin_options[wicket_mship_mdp_timezone]">
-            <?php
-            $timezones = timezone_identifiers_list();
-            $selected_timezone = isset($options['wicket_mship_mdp_timezone']) ? $options['wicket_mship_mdp_timezone'] : '';
-            foreach ($timezones as $timezone) {
-                $selected = ($timezone === $selected_timezone) ? ' selected="selected"' : '';
-                echo "<option value=\"" . esc_attr($timezone) . "\"" . $selected . ">" . esc_html($timezone) . "</option>";
-            }
-            ?>
-        </select><br>
-        Use this to define what timezone the MDP is operating in. This will adjust the rendered values and membership times to match the MDP timezone rather than the WP site timezone. <br><span style="color:red;">Note:</span> By default, this will preload the MDP timezone, this shouldn't need to be changed.
-<?php
-
+  /** @see Settings_Fields::wicket_mship_autorenew_audit() */
+  public static function wicket_mship_autorenew_audit() {
+    Settings_Fields::wicket_mship_autorenew_audit();
   }
-  
-  /**
-   * Renders the "tier subscription only" import option checkbox.
-   *
-   * This is the middle of three mutually understood import-subscription states:
-   *   - Neither this nor the "every membership" option checked -> no subscriptions on import.
-   *   - This checked -> only memberships whose Tier renewal type is "Subscription" get one.
-   *   - The "every membership" option checked -> all imported memberships get one (overrides this).
-   *
-   * Defaults to enabled (opt-out) when never saved, preserving the legacy behaviour where
-   * subscription-renewal tiers always received a subscription on import.
-   *
-   * @see wicket_mship_import_create_subscriptions() The broader "every membership" option.
-   * @see Import_Controller::create_individual_memberships() Consumes both options.
-   *
-   * @return void
-   */
+
+  /** @see Settings_Fields::wicket_mship_mdp_timezone() */
+  public static function wicket_mship_mdp_timezone() {
+    Settings_Fields::wicket_mship_mdp_timezone();
+  }
+
+  /** @see Settings_Fields::wicket_mship_import_create_subscriptions_tier_only() */
   public static function wicket_mship_import_create_subscriptions_tier_only() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    // Default to checked when the option has never been saved, preserving legacy import behaviour.
-    $value = isset( $options['wicket_mship_import_create_subscriptions_tier_only'] ) ? $options['wicket_mship_import_create_subscriptions_tier_only'] : 1;
-    echo "<input id='wicket_mship_import_create_subscriptions_tier_only' name='wicket_membership_plugin_options[wicket_mship_import_create_subscriptions_tier_only]' type='checkbox' value='1' ".checked(1, esc_attr( $value ), false). " />"
-      .'Create a WooCommerce Subscription only for imported memberships created in a Tier with their renewal type = "Subscription". <p>Enabled by default. Uncheck both subscription options to import without creating any subscriptions.</p>';
+    Settings_Fields::wicket_mship_import_create_subscriptions_tier_only();
+  }
+
+  /** @see Settings_Fields::wicket_mship_import_create_subscriptions() */
+  public static function wicket_mship_import_create_subscriptions() {
+    Settings_Fields::wicket_mship_import_create_subscriptions();
+  }
+
+  /** @see Settings_Fields::wicket_mship_subscription_renew() */
+  public static function wicket_mship_subscription_renew() {
+    Settings_Fields::wicket_mship_subscription_renew();
+  }
+
+  /** @see Settings_Fields::wicket_memberships_debug_acc() */
+  public static function wicket_memberships_debug_acc() {
+    Settings_Fields::wicket_memberships_debug_acc();
+  }
+
+  /** @see Settings_Fields::wicket_memberships_debug_renew() */
+  public static function wicket_memberships_debug_renew() {
+    Settings_Fields::wicket_memberships_debug_renew();
+  }
+
+  /** @see Settings_Fields::wicket_memberships_debug_cart_ids() */
+  public static function wicket_memberships_debug_cart_ids() {
+    Settings_Fields::wicket_memberships_debug_cart_ids();
+  }
+
+  /** @see Settings_Fields::allow_local_imports() */
+  public static function allow_local_imports() {
+    Settings_Fields::allow_local_imports();
+  }
+
+  /** @see Settings_Fields::wicket_show_order_debug_data() */
+  public static function wicket_show_order_debug_data() {
+    Settings_Fields::wicket_show_order_debug_data();
+  }
+
+  /** @see Settings_Fields::bypass_status_change_lockout() */
+  public static function bypass_status_change_lockout() {
+    Settings_Fields::bypass_status_change_lockout();
+  }
+
+  /** @see Settings_Fields::wicket_membership_debug_mode() */
+  public static function wicket_membership_debug_mode() {
+    Settings_Fields::wicket_membership_debug_mode();
+  }
+
+  /** @see Settings_Jobs::get_next_run() */
+  public function get_next_scheduled_membership_activation() {
+    return Settings_Jobs::get_next_run( 'schedule_daily_membership_activation_hook' );
+  }
+
+  /** @see Settings_Jobs::get_next_run() */
+  public function get_next_scheduled_membership_grace_period() {
+    return Settings_Jobs::get_next_run( 'schedule_daily_membership_grace_period_hook' );
+  }
+
+  /** @see Settings_Jobs::get_next_run() */
+  public function get_next_scheduled_membership_expiry() {
+    return Settings_Jobs::get_next_run( 'schedule_daily_membership_expiry_hook' );
+  }
+
+  /** @see Settings_Jobs::get_next_run() */
+  public function get_next_scheduled_membership_autorenew_audit() {
+    return Settings_Jobs::get_next_run( 'wicket_mship_autorenew_audit_hook', 'wicket-memberships' );
+  }
+
+  /** @see Settings_Jobs::render() */
+  public static function wicket_plugin_status_change_reporting() {
+    Settings_Jobs::render();
+  }
+
+  /** @see Settings_Jobs::handle_manual_action_links() */
+  public static function handle_manual_action_links() {
+    Settings_Jobs::handle_manual_action_links();
+  }
+
+  /** @see Settings_Jobs::run_triggered_actions() */
+  public static function run_triggered_actions() {
+    return Settings_Jobs::run_triggered_actions();
   }
 
   /**
-   * Renders the "every imported membership" subscription option checkbox.
+   * Render the legacy org-search category field.
    *
-   * When checked this overrides the tier-only option and creates a subscription for
-   * every imported membership regardless of its Tier renewal type. See
-   * wicket_mship_import_create_subscriptions_tier_only() for the three-state behaviour.
-   *
-   * @see wicket_mship_import_create_subscriptions_tier_only() The narrower tier-only option.
+   * @deprecated 1.0.123 Use Settings::wicket_mship_membership_categories().
    *
    * @return void
    */
-  public static function wicket_mship_import_create_subscriptions() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_mship_import_create_subscriptions' name='wicket_membership_plugin_options[wicket_mship_import_create_subscriptions]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_import_create_subscriptions']), false). " />"
-      .'Create a WooCommerce Subscription for every imported membership, regardless of tier renewal type.';
+  public static function wicket_show_mship_order_org_search() {
+    self::wicket_mship_membership_categories();
   }
 
-  public static function wicket_mship_subscription_renew() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_mship_subscription_renew]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_mship_subscription_renew']), false). " />"
-      .'<span style="color:red;">[BETA]</span> Use subscription renewal flow for Tiers. Enables checking for an existing subscription renewal order to checkout, and create one if not found.';
-  }
-
-  public static function wicket_memberships_debug_acc() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_memberships_debug_acc]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_memberships_debug_acc']), false). " />"
-      .'Show membership renewal callouts and debug info in account center.'.'<p style="color:red;font-style:italic">WARNING: Displays debug data publicly.</p>';
-  }
-
-  public static function wicket_memberships_debug_renew() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_memberships_debug_renew]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_memberships_debug_renew']), false). " />"
-      .'Allow renewals outside of membership\'s renewal period and allow adjusting days in url (?wicket_wp_membership_debug_days=###) for displaying the renewal callout.'.'<p style="color:red;font-style:italic">WARNING: Displays debug data publicly.</p>';
-  }
-
-  public static function wicket_memberships_debug_cart_ids() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_memberships_debug_cart_ids]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_memberships_debug_cart_ids']), false). " />"
-      .'Show product meta set on cart/checkout pages.'.'<p style="color:red;font-style:italic">WARNING: Displays debug data publicly.</p>';
-  }
-
-  public static function allow_local_imports() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    ?>
-    <input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[allow_local_imports]' type='checkbox' value='1' <?php echo checked(1, esc_attr( $options['allow_local_imports']), false); ?> />
-    Enable MDP export CSV ONLY to be imported on the ssh cmd line <!--<a target="_blank" href="<?php echo plugins_url('wicket-wp-memberships'); ?>/csv_post.php">imported here</a>-->.
-    <p style="color:black;font-style:italic;display:inline;">
-        IMPORTANT: Requires direct access to membership plugin folder through ssh.
-        <span id="allow-local-imports-help" style="cursor:pointer; margin-left:8px;" title="Show more info">
-            <span style="font-size:1.2em;">&#x2753;</span>
-        </span>
-    </p>
-    <div id="allow-local-imports-details" style="display:none; margin-top:8px;">
-        <p style="color:black;font-style:italic">1. Make sure the MDP User Sync has been run before performing imports to create wp users.</p>
-        <p style="color:black;font-style:italic">2. Upload Membership CSV to media folder. Separate files for Individuals and Organizations.</p>
-        <p style="color:black;font-style:italic">3. Run the import command from the ssh command line in the plugin folder: <code>php ./csv_import_threads.php</code>.</p>
-        <p style="color:black;font-style:italic">4. Follow guidance to add the correct args. Import is batched, wait until complete or run as a background task!</p>
-        <p style="color:black;font-style:italic">5. Can be run locally to populate a remote server by pointing the <code>api_domain</code> to the remote site with plugin installed!</p>
-        <p style="color:black;font-style:italic"><code>php ./csv_import_threads.php { individual|organization } { file_path from /uploads/ } { api_domain - optional str } { skip_approval - optional bool }</code></p>
-        <?php
-          // The subscription sync tool is loaded from wicket.php only while MDP Import
-          // (this setting) is enabled, so its link is surfaced here alongside the import steps.
-          $sync_tool_url = esc_url( home_url( '/?mship_subscription_sync=1' ) );
-        ?>
-        <p style="color:#b32d2e;font-style:italic;margin-top:10px;border-top:1px solid #eee;padding-top:10px;">
-            <strong>Note — reusing existing subscriptions:</strong> When importing memberships <em>without</em> creating new subscriptions, and you want imported memberships to attach to subscriptions that already exist, use the Subscription Sync tool to link them. It walks active/on-hold subscriptions and links each to its matching membership record. For each subscription it looks for a current membership belonging to the same user (matched by email) on the same tier (resolved from the product assigned to the subscription).
-            <br>This tool is only available while <strong>MDP Import</strong> (this setting) is enabled.
-            <br><a target="_blank" rel="noopener" href="<?php echo $sync_tool_url; ?>">Open the Subscription Sync tool in a new tab &#8599;</a>
-        </p>
-    </div>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var helpIcon = document.getElementById('allow-local-imports-help');
-        var detailsDiv = document.getElementById('allow-local-imports-details');
-        if(helpIcon && detailsDiv) {
-            helpIcon.addEventListener('click', function() {
-                if(detailsDiv.style.display === 'none') {
-                    detailsDiv.style.display = 'block';
-                } else {
-                    detailsDiv.style.display = 'none';
-                }
-            });
-        }
-    });
-    </script>
-    <?php
-}
-
-  public static function wicket_show_order_debug_data() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_show_order_debug_data]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_show_order_debug_data']), false). " />"
-      .'Show membership json attached as meta on order and subscription pages.'.'<p style="color:red;font-style:italic">WARNING: Displays debug data publicly.</p>';
-  }
-
-  public static function bypass_status_change_lockout() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[bypass_status_change_lockout]' type='checkbox' value='1' ".checked(1, esc_attr( $options['bypass_status_change_lockout']), false). " />"
-      .'Disable status change sequence rules. Change to any status from any status.';
-  }
-
-  public static function wicket_membership_debug_mode() {
-    $options = get_option( 'wicket_membership_plugin_options' );
-    echo "<input id='wicket_membership_plugin_debug' name='wicket_membership_plugin_options[wicket_membership_debug_mode]' type='checkbox' value='1' ".checked(1, esc_attr( $options['wicket_membership_debug_mode']), false). " />"
-      .' Show debug info throughout the plugin admin only, including membership posts menu item, and tier/config data on archive pages.';
-  }
-
+  /**
+   * Sanitize the plugin options array on save.
+   *
+   * Rebuilds the stored array from the submitted fields only. Membership Categories are
+   * written to the new key and then mirrored to the legacy org-search key for older readers.
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @param  array  $input  Raw `wicket_membership_plugin_options` values from the settings form.
+   *
+   * @return array  Sanitized options to store.
+   */
   public static function wicket_membership_plugin_options_validate( $input ) {
-    $newinput['wicket_mship_membership_merge_key'] = trim($input['wicket_mship_membership_merge_key']);
-    $newinput['wicket_mship_multi_tier_renewal'] = trim($input['wicket_mship_multi_tier_renewal']);
-    $newinput['wicket_mship_assign_subscription'] = trim($input['wicket_mship_assign_subscription']);
-    $newinput['wicket_mship_autorenew_toggle'] = trim($input['wicket_mship_autorenew_toggle']);
-    $newinput['wicket_mship_autorenew_override'] = trim($input['wicket_mship_autorenew_override']);
-    $newinput['wicket_mship_disable_renewal'] = trim($input['wicket_mship_disable_renewal']);
-    $newinput['wicket_membership_debug_mode'] = trim($input['wicket_membership_debug_mode']);
-    $newinput['wicket_memberships_debug_acc'] = trim($input['wicket_memberships_debug_acc']);
-    $newinput['bypass_status_change_lockout'] = trim($input['bypass_status_change_lockout']);
-    $newinput['wicket_show_order_debug_data'] = trim($input['wicket_show_order_debug_data']);
-    $newinput['allow_local_imports'] = trim($input['allow_local_imports']);
-    $newinput['wicket_memberships_debug_cart_ids'] = trim($input['wicket_memberships_debug_cart_ids']);
-    $newinput['wicket_memberships_debug_renew'] = trim($input['wicket_memberships_debug_renew']);
-    $newinput['bypass_wicket'] = trim($input['bypass_wicket']);
-    $newinput['wicket_mship_subscription_renew'] = trim($input['wicket_mship_subscription_renew']); 
-    $newinput['wicket_mship_mdp_timezone'] = trim($input['wicket_mship_mdp_timezone']);
-    $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim($input['wicket_mship_import_create_subscriptions_tier_only']);
-    $newinput['wicket_mship_import_create_subscriptions'] = trim($input['wicket_mship_import_create_subscriptions']);
-    $newinput['wicket_mship_enable_bundles'] = trim($input['wicket_mship_enable_bundles']);
+    $newinput['wicket_mship_membership_merge_key'] = trim( $input['wicket_mship_membership_merge_key'] ?? '' );
+    $newinput['wicket_mship_multi_tier_renewal'] = trim( $input['wicket_mship_multi_tier_renewal'] ?? '' );
+    $newinput['wicket_mship_assign_subscription'] = trim( $input['wicket_mship_assign_subscription'] ?? '' );
+    $newinput['wicket_mship_autorenew_toggle'] = trim( $input['wicket_mship_autorenew_toggle'] ?? '' );
+    $newinput['wicket_mship_autorenew_override'] = trim( $input['wicket_mship_autorenew_override'] ?? '' );
+    $newinput['wicket_mship_autorenew_audit'] = trim( $input['wicket_mship_autorenew_audit'] ?? '' );
+    $newinput['wicket_mship_disable_renewal'] = trim( $input['wicket_mship_disable_renewal'] ?? '' );
+    $newinput['wicket_membership_debug_mode'] = trim( $input['wicket_membership_debug_mode'] ?? '' );
+    $newinput['wicket_memberships_debug_acc'] = trim( $input['wicket_memberships_debug_acc'] ?? '' );
+    $newinput['bypass_status_change_lockout'] = trim( $input['bypass_status_change_lockout'] ?? '' );
+    $newinput['wicket_show_order_debug_data'] = trim( $input['wicket_show_order_debug_data'] ?? '' );
+    $newinput['allow_local_imports'] = trim( $input['allow_local_imports'] ?? '' );
+    $newinput['wicket_memberships_debug_cart_ids'] = trim( $input['wicket_memberships_debug_cart_ids'] ?? '' );
+    $newinput['wicket_memberships_debug_renew'] = trim( $input['wicket_memberships_debug_renew'] ?? '' );
+    $newinput['bypass_wicket'] = trim( $input['bypass_wicket'] ?? '' );
+    $newinput['wicket_mship_subscription_renew'] = trim( $input['wicket_mship_subscription_renew'] ?? '' );
+    $newinput['wicket_mship_mdp_timezone'] = trim( $input['wicket_mship_mdp_timezone'] ?? '' );
+    $newinput['wicket_mship_import_create_subscriptions_tier_only'] = trim( $input['wicket_mship_import_create_subscriptions_tier_only'] ?? '' );
+    $newinput['wicket_mship_import_create_subscriptions'] = trim( $input['wicket_mship_import_create_subscriptions'] ?? '' );
+    $newinput['wicket_mship_hide_subscription_cancel'] = trim( $input['wicket_mship_hide_subscription_cancel'] ?? '' );
+    $newinput['wicket_mship_hide_subscription_reactivate'] = trim( $input['wicket_mship_hide_subscription_reactivate'] ?? '' );
+    $newinput['wicket_mship_hide_subscription_resubscribe'] = trim( $input['wicket_mship_hide_subscription_resubscribe'] ?? '' );
+    $newinput['wicket_mship_enable_bundles'] = trim( $input['wicket_mship_enable_bundles'] ?? '' );
     $newinput['wicket_mship_bundles_manage_page_id'] = isset( $input['wicket_mship_bundles_manage_page_id'] ) ? (int) $input['wicket_mship_bundles_manage_page_id'] : 0;
-    $newinput['wicket_show_mship_order_org_search'] = is_array($input['wicket_show_mship_order_org_search']) ? $input['wicket_show_mship_order_org_search'] : [];
-    if(!empty($_REQUEST['schedule_daily_membership_expiry_hook'])) {
-      $count = Membership_Controller::daily_membership_expiry_hook();
-      Utilities::wc_log_mship_error(['schedule_daily_membership_expiry_hook','Count: '.$count]);
+    // Always written ('' when unticked) so an explicit "off" is distinguishable from never saved.
+    $newinput['wicket_mship_consolidate_renewal_line_items'] = ! empty( $input['wicket_mship_consolidate_renewal_line_items'] ) ? '1' : '';
+
+    // Programmatic writes (Portus import, backup restore) also run through this callback and may
+    // only carry the legacy key; fall back to it so those categories are not wiped. The new key wins if both exist.
+    if ( is_array( $input ) && array_key_exists( 'wicket_mship_membership_categories', $input ) ) {
+      $raw_categories = $input['wicket_mship_membership_categories'];
+    } else {
+      $raw_categories = $input['wicket_show_mship_order_org_search']['categorychoice'] ?? [];
     }
-    if(!empty($_REQUEST['schedule_daily_membership_grace_period_hook'])) {
-      $count = Membership_Controller::daily_membership_grace_period_hook();
-      Utilities::wc_log_mship_error(['schedule_daily_membership_grace_period_hook','Count: '.$count]);
-    }
-    if(!empty($_REQUEST['schedule_daily_membership_activation_hook'])) {
-      $count = Membership_Controller::daily_membership_activation_hook();
-      Utilities::wc_log_mship_error(['schedule_daily_membership_activation_hook','Count: '.$count]);
-    }
+    $membership_categories = array_values( array_filter( array_map( 'absint', (array) $raw_categories ) ) );
+    $newinput['wicket_mship_membership_categories'] = $membership_categories;
+
+    // Backwards compatibility: keep the legacy key fully populated for readers outside this
+    // plugin (e.g. wicket-wp-financial-fields). An empty selection stays [] because a non-empty
+    // legacy value also switches on the org-search metabox.
+    $newinput['wicket_show_mship_order_org_search'] = empty( $membership_categories ) ? [] : [ 'categorychoice' => $membership_categories ];
+
     return $newinput;
   }
 
+  /**
+   * Intro text for the former single "Settings" section. No longer registered; kept for callers.
+   *
+   * @return void
+   */
   public static function wicket_plugin_section_functional_text() {
     echo '<p>Control certain functionality available within the membership plugin.</p>';
-  }
-
-  public static function wicket_plugin_section_debug_text() {
-    echo '<p>These DEBUG values expose functionality and data that can help verify proper operation of different aspects of the plugin.</p><p>These settings should remain disabled in production unless actively debugging an issue.</p><p style="font-style:italic">NOTE: Some settings will expose raw data publicly in the cart and checkout, as well as in the membership admin interface.</p>';
-  }
-
-  public static function wicket_plugin_status_change_reporting() {
-    $self = new self();
-    $schedule = $self->get_next_scheduled_membership_activation();
-    if(!empty($schedule)) {
-      echo "<p>Next <strong>membership activation</strong> (Delayed → Active) will run at: $schedule ( AS Hook: schedule_daily_membership_activation_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_activation_hook=1'>Run Now</a></p>";
-    }
-    $schedule = $self->get_next_scheduled_membership_grace_period();
-    if(!empty($schedule)) {
-      echo "<p>Next <strong>membership grace period</strong> (Active → Grace Period) will run at: $schedule ( AS Hook: schedule_daily_membership_grace_period_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_grace_period_hook=1'>Run Now</a></p>";
-    }
-    $schedule = $self->get_next_scheduled_membership_expiry();
-    if(!empty($schedule)) {
-      echo "<p>Next <strong>membership expiry</strong> (Active/Grace Period → Expired) will run at: $schedule ( AS Hook: schedule_daily_membership_expiry_hook ) <a href='options-general.php?page=wicket-membership-settings&schedule_daily_membership_expiry_hook=1'>Run Now</a></p>";
-    }
   }
 
   public static function check_migrate_tier_slugs() {

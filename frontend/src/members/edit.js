@@ -6,6 +6,7 @@ import { addQueryArgs } from '@wordpress/url';
 import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS, formatDateWithTooltip, formatCurrency } from '../shared/constants';
 import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../shared/styled_elements';
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
+import { warning } from '@wordpress/icons';
 import ManageStatusModal from './ManageStatusModal';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
@@ -23,6 +24,30 @@ import ManageMembership from './manage_membership.js';
 export const EditWrap = styled.div`
 	max-width: 1000px;
 `;
+
+// Renewal-cycle glyph with a dollar sign inside the ring: no icon in @wordpress/icons or
+// Dashicons combines "payment" and "recurring". Both shapes are drawn as filled vector paths
+// (not a <text> element — that failed to render reliably at icon size). This plugin has no
+// existing custom icon set (checked wicket-wp-memberships and wicket-wp-base-plugin's Font
+// Awesome, PHP-only).
+const AutoRenewIcon = () => (
+	<svg width="26" height="26" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" style={{ verticalAlign: 'middle', marginTop: '-7px' }}>
+		<g transform="translate(12 12) scale(0.8) translate(-12 -12)">
+			<path
+				d="M17.65 6.35A7.95 7.95 0 0012 4a8 8 0 00-8 8h2a6 6 0 016-6 5.96 5.96 0 014.24 1.76L14 10h6V4l-2.35 2.35zM12 20a5.96 5.96 0 01-4.24-1.76L10 16H4v6l2.35-2.35A7.95 7.95 0 0012 22a8 8 0 008-8h-2a6 6 0 01-6 6z"
+				fill="#9496BD"
+			/>
+		</g>
+		<g transform="translate(12 12) scale(1.0) translate(-12 -12)">
+			<path
+				d="M12.5 15.75v.85a.5.5 0 01-1 0v-.83c-.6-.1-1.15-.35-1.56-.75a.5.5 0 01.7-.72c.36.35.9.55 1.36.55.7 0 1.25-.34 1.25-.86 0-.45-.32-.68-1.24-.93-1.13-.3-2.06-.68-2.06-1.83 0-.9.68-1.5 1.55-1.67v-.81a.5.5 0 011 0v.79c.48.09.9.3 1.24.6a.5.5 0 01-.66.75 1.7 1.7 0 00-1.08-.39c-.63 0-1.1.32-1.1.78 0 .43.4.62 1.28.87 1.16.32 2.02.73 2.02 1.9 0 .95-.71 1.55-1.7 1.7z"
+				fill="#5749DB"
+				stroke="#5749DB"
+				strokeWidth="0.35"
+			/>
+		</g>
+	</svg>
+);
 
 const MarginedFlex = styled(Flex)`
 	margin-top: 15px;
@@ -108,7 +133,7 @@ const SkeletonText = styled.span`
   }
 `;
 
-const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
+const MemberEdit = ({ memberType, recordId, membershipUuid, individualMemberEditUrl }) => {
 
 	const renewalTypeOptions = [
 		{ label: __('Inherited from Tier', 'wicket-memberships'), value: 'inherited' },
@@ -555,7 +580,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
           </WhiteBorderedBox>
 
           {isLoading && <Spinner />}
-          {!isLoading && (
+          {!isLoading && memberships.length === 0 && (
+            <WhiteBorderedBox>
+              {__('No membership records found.', 'wicket-memberships')}
+            </WhiteBorderedBox>
+          )}
+
+          {!isLoading && memberships.length > 0 && (
             <WhiteBorderedBox>
               <Flex
                 align='end'
@@ -612,9 +643,31 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                             {membership.is_membership_bundle && (
                               <MembershipBundleBadge bundleName={membership.bundle_name} />
                             )}
+                            {membership.subscription?.is_autorenewing && (
+                              <>
+                                {' '}
+                                <Tooltip
+                                  text={__('This membership subscription will automatically renew via automatic payment. This value is cached and may take a few minutes to update after a change.', 'wicket-memberships')}
+                                >
+                                  <span><AutoRenewIcon /></span>
+                                </Tooltip>
+                              </>
+                            )}
                           </td>
                           <td className="column-columnname">
                             {membership.ID}
+                            {membership.mdp_link_collision && (
+                              <Tooltip
+                                text={__(
+                                  'This membership was created but could not be linked to its MDP record — the WordPress ID was already claimed by a different MDP record. Contact an administrator.',
+                                  'wicket-memberships'
+                                )}
+                              >
+                                <span style={{ display: 'inline-block', marginLeft: '4px', verticalAlign: 'middle' }}>
+                                  <Icon icon={warning} style={{ fill: '#cc1818' }} size={18} />
+                                </span>
+                              </Tooltip>
+                            )}
                           </td>
                           <td className="column-columnname">
                             {membership.data.membership_status}
@@ -649,12 +702,18 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                             {membership.is_membership_bundle ? (
                               <MembershipBundleDetails
                                 membership={membership}
-                                onSuccess={(message) => {
+                                onSuccess={(result) => {
                                   const noticeId = `member-removed-${Date.now()}`;
+                                  const memberUrl = individualMemberEditUrl && result.personUuid
+                                    ? addQueryArgs(individualMemberEditUrl, { id: result.personUuid })
+                                    : null;
                                   addPageNotice({
                                     id: noticeId,
-                                    status: "success",
-                                    message,
+                                    status: result.status || "success",
+                                    message: result.message ?? result,
+                                    action: memberUrl
+                                      ? { label: __("View membership", "wicket-memberships"), onClick: () => window.location.assign(memberUrl) }
+                                      : undefined,
                                     onDismiss: () => dismissPageNotice(noticeId),
                                   });
                                   getMemberships();

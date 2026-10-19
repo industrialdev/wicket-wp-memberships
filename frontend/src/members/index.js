@@ -72,14 +72,13 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid,
 
     fetchMembers(params)
       .then((response) => {
-        console.log(response);
-
         const computedTotalPages = Math.ceil(response.count / params.posts_per_page);
         setMembers(response.results);
         setTotalMembers(response.count);
         setTotalPages(computedTotalPages);
         setIsLoading(false);
 
+        // A page past the end (e.g. after a filter shrinks the list) resets to page 1.
         if (params.page > computedTotalPages && computedTotalPages > 0) {
           const fixed = { ...params, page: 1 };
           setSearchParams(fixed);
@@ -88,33 +87,31 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid,
           return;
         }
 
-        const tierIds = [...new Set(
-          response.results.flatMap((member) =>
-            (member.user.all_membership_tiers || [{ uuid: member.meta.membership_tier_uuid }]).map((t) => t.uuid)
-          )
-        )];
-        if (tiersInfo === null) {
-          getTiersInfo(tierIds);
+        // An unfiltered list returns exactly the total the "All" tab displays.
+        // Reusing it avoids a second request that repeats the same full scan.
+        if (!params.filter || !params.filter.membership_status) {
+          setTabCounts((prev) => ({ ...prev, all: response.count }));
         }
 
       })
       .catch((error) => {
         console.error(error);
+        // Clear the loading state so a failed request shows an empty table
+        // rather than leaving the list spinning indefinitely.
+        setIsLoading(false);
       });
   };
 
-  const getTiersInfo = (tierIds) => {
-    if (tierIds.length === 0) {
-      return;
-    }
-
-    fetchTiersInfo(tierIds)
-      .then((tiersInfo) => {
-        setTiersInfo(tiersInfo);
+  const getTiersInfo = () => {
+    fetchTiersInfo()
+      .then((response) => {
+        setTiersInfo(response || { tier_data: {} });
       })
       .catch((error) => {
-        console.log("Tiers Info Error:");
-        console.log(error);
+        console.error("Tiers Info Error:", error);
+        // Fall back to an empty map. The tier cell renders UUIDs instead of
+        // names when lookups miss, which is preferable to spinning forever.
+        setTiersInfo({ tier_data: {} });
       });
   };
 
@@ -128,11 +125,10 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid,
       });
   };
 
+  // "All" is deliberately not requested here: getMembers() already receives that
+  // total alongside the list. The two below carry a status filter, which narrows
+  // the query through an existing index, so they stay cheap.
   const getTabCounts = () => {
-    fetchMembers({ type: memberType, page: 1, posts_per_page: 1 })
-      .then((r) => setTabCounts(prev => ({ ...prev, all: r.count })))
-      .catch(console.error);
-
     fetchMembers({ type: memberType, page: 1, posts_per_page: 1, filter: { membership_status: 'pending' } })
       .then((r) => setTabCounts(prev => ({ ...prev, pending: r.count })))
       .catch(console.error);
@@ -182,6 +178,10 @@ const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid,
     getMembershipFilters();
     getMembers(searchParams);
     getTabCounts();
+    // Requested on mount rather than after the list resolves. It does not depend
+    // on the list payload, so serialising it behind that request only delayed the
+    // tier column by the full duration of the member query.
+    getTiersInfo();
   }, []);
 
   // Seed filter dropdowns from prop-driven initial values once filter options load.

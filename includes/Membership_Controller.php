@@ -7,12 +7,46 @@ use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Config;
 use Wicket_Memberships\Membership_Bundle;
+use Wicket_Memberships\Autorenew;
+use Wicket_Memberships\Autorenew_Sync;
 
 /**
  * Main controller methods
  * @package Wicket_Memberships
  */
 class Membership_Controller {
+
+  /** Transient key prefix for the cached member list filter options. */
+  const MEMBERS_FILTERS_TRANSIENT_PREFIX = 'wicket_mship_members_filters_';
+
+  /**
+   * Lifetime of the member list filter cache.
+   *
+   * Deliberately time-based rather than invalidated on write. The obvious hook
+   * (a membership save, or a membership_status/membership_tier_uuid meta write)
+   * fires once per record during CSV imports, which would clear the cache tens of
+   * thousands of times in a run. The cached values are the distinct tier UUIDs and
+   * statuses in use, so the only visible staleness is a newly introduced tier
+   * taking up to an hour to appear in the filter dropdown. Call
+   * flush_members_filters_cache() to force a refresh sooner.
+   */
+  const MEMBERS_FILTERS_TRANSIENT_TTL = HOUR_IN_SECONDS;
+
+  /** Transient key prefix for a resolved, deduplicated member list ID set. */
+  const MEMBERS_IDS_TRANSIENT_PREFIX = 'wicket_mship_member_ids_';
+
+  /**
+   * Lifetime of a resolved member list ID set.
+   *
+   * Short, because it determines how long a membership edit can take to be
+   * reflected in the list's ordering, membership, or total. Long enough that
+   * paging through results, which is where the cost is most visible, does not
+   * repeat the full scan on every click.
+   */
+  const MEMBERS_IDS_TRANSIENT_TTL = 5 * MINUTE_IN_SECONDS;
+
+  /** True once a membership write has queued the member list cache flush for this request. */
+  private static $member_list_cache_stale = false;
 
   private $error_message = '';
   private $membership_cpt_slug = '';
@@ -182,6 +216,10 @@ function get_item_data ( $other_data, $cart_item ) {
       'post_type' => $this->membership_cpt_slug,
       'meta_input'  => $meta
     ]);
+
+    // Status drives the member list's status tabs and tier filter, so a change
+    // here must not wait for the cached set to expire.
+    self::mark_member_list_cache_stale();
 
     return $response;
   }
@@ -765,46 +803,34 @@ function get_item_data ( $other_data, $cart_item ) {
     }
   }
 
+  /**
+   * Force-clear a subscription's next payment date and its scheduled renewal payment.
+   *
+   * Runs 90 seconds after update_membership_subscription() clears the date, to catch WooCommerce
+   * Subscriptions re-setting it in the meantime (e.g. on a status change). Removes every pending
+   * `woocommerce_scheduled_subscription_payment` action for the subscription, then deletes the date
+   * through the subscription API and adds an order note.
+   *
+   * @param  int|string $sub_id  Subscription ID, from the `wicket_wipe_next_payment_date` action args.
+   *
+   * @return void
+   *
+   * @see Membership_Controller::schedule_wicket_wipe_next_payment_date()
+   */
   public static function catch_wicket_wipe_next_payment_date($sub_id) {
-    global $wpdb;
-    $result = $wpdb->update(
-      $wpdb->postmeta,
-      ['meta_value' => 0],
-      [
-          'post_id'  => $sub_id,
-          'meta_key' => '_schedule_next_payment'
-      ],
-      [
-          '%d'
-      ],
-      [
-          '%d',
-          '%s'
-      ]
-    );
-
-    if ( ! class_exists( 'ActionScheduler_Queue' ) ) {
-        return;
+    // Remove every pending scheduled renewal payment for this subscription. WCS schedules them
+    // with an integer subscription ID; a string ID is also cleared in case one was scheduled by an
+    // import or another tool, since Action Scheduler matches args by their JSON encoding.
+    if ( function_exists( 'as_unschedule_all_actions' ) ) {
+      foreach ( [ (int) $sub_id, (string) $sub_id ] as $action_subscription_id ) {
+        as_unschedule_all_actions( 'woocommerce_scheduled_subscription_payment', [ 'subscription_id' => $action_subscription_id ] );
+      }
     }
 
-    $args = array(
-        'status' => 'pending', // Or other statuses like 'complete', 'failed'
-        'hook'   => 'woocommerce_scheduled_subscription_payment',
-        'args'   => array( 'subscription_id' => $sub_id ),
-    );
-
-    $scheduled_actions = ActionScheduler_Queue::instance()->get_actions( $args );
-
-    foreach ( $scheduled_actions as $action_id => $action ) {
-        if ( $action->get_id() === $action_id ) {
-            ActionScheduler_Queue::instance()->delete( $action_id );
-        }
-    }
-
-    if ( function_exists( 'wcs_get_subscription' ) ) {
-      $sub = \wcs_get_subscription( $sub_id );
-    }
-    if(! empty($sub)) {
+    // Delete the date through WCS so it is removed from whichever order store the site uses
+    // (posts or HPOS) and WCS's own date-deleted handling runs as well.
+    $sub = function_exists( 'wcs_get_subscription' ) ? \wcs_get_subscription( $sub_id ) : false;
+    if ( $sub ) {
       $sub->delete_date( 'next_payment' );
       $sub->add_order_note( 'Wicket clear next payment schedule and date.' );
     }
@@ -820,7 +846,7 @@ function get_item_data ( $other_data, $cart_item ) {
     $membership_expires_at = strtotime( $membership['membership_expires_at'] );
     $order_note = 'New membership ID #'.$membership['membership_post_id'].' created from '.date('Y-m-d', $membership_starts_at).' to '.date('Y-m-d', $membership_ends_at);
 
-    if( !empty( $membership['membership_parent_order_id'] ) && !empty( $membership['membership_product_id'] ) ) {
+    if( self::should_schedule_expiry_notification_jobs( $membership ) ) {
       $args = [
         'membership_parent_order_id' => $membership['membership_parent_order_id'],
         'membership_product_id' => $membership['membership_product_id'],
@@ -892,6 +918,28 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
+   * Determines whether a membership should have its individual early-renew/ends/expires
+   * Action Scheduler jobs scheduled. Under certain conditions we do not want to send these
+   * per-membership notifications at all.
+   *
+   * @param  array  $membership  Membership data array.
+   * @return bool  True if the individual notification jobs should be scheduled.
+   */
+  public static function should_schedule_expiry_notification_jobs( $membership ): bool {
+    // Notifications require an order and product to key the scheduled job on.
+    if ( empty( $membership['membership_parent_order_id'] ) || empty( $membership['membership_product_id'] ) ) {
+      return false;
+    }
+
+    // Bundle members should not get their own notifications - the owner gets them instead.
+    if ( ! empty( $membership['membership_bundle_id'] ) ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
    * Stop the previous membership's subscription taking payment after a Form Flow renewal.
    *
    * A Form Flow renewal is a fresh cart purchase, so it creates a NEW subscription and leaves the
@@ -945,19 +993,41 @@ function get_item_data ( $other_data, $cart_item ) {
   public static function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_early_renew_at_date_reached( $membership );
   }
 
   public static function catch_membership_ends_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_ends_at_date_reached( $membership );
   }
 
   public static function catch_membership_expires_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_expires_at_date_reached( $membership );
+  }
+
+  /**
+   * Catches jobs scheduled before should_schedule_expiry_notification_jobs() existed.
+   * membership_bundle_id is not in the order/product JSON blob $membership is built
+   * from, so it is looked up on the membership post directly.
+   */
+  private static function is_bundle_member( $membership ): bool {
+    if ( empty( $membership['membership_post_id'] ) ) {
+      return false;
+    }
+
+    return ! empty( get_post_meta( $membership['membership_post_id'], 'membership_bundle_id', true ) );
   }
 
   public function membership_early_renew_at_date_reached( $membership ) {
@@ -992,6 +1062,13 @@ function get_item_data ( $other_data, $cart_item ) {
       $membership['membership_post_id'] = $self->create_local_membership_record( $membership, $self->guidv4().'-fake', $skip_approval );
       return $membership;
     }
+
+    // A brand new membership has no subscription-lifecycle trigger to have run yet, so
+    // compute the initial autorenew status here rather than leaving it unset until the
+    // next Autorenew_Sync listener fires.
+    $autorenew_status = Autorenew::resolve_status( $membership );
+    $membership['membership_is_autorenew'] = $autorenew_status['result'];
+    $membership['membership_is_autorenew_reason'] = $autorenew_status['reason'];
 
     $tier = new Membership_Tier( $membership['membership_tier_post_id'] );
     //we only create the mdp record if tier not pending approval | tier pending approval and is renewal | approval is being skipped
@@ -1059,7 +1136,23 @@ function get_item_data ( $other_data, $cart_item ) {
       $self->update_membership_subscription( $membership, $date_flags_array, true );
 
       $membership_post_data = Helper::get_post_meta( $membership['membership_post_id'] );
-      do_action('wicket_membership_created_mdp', $membership_post_data);
+
+      // WWID-2384: the hook's documented contract is "fired when the MDP record
+      // and local post are successfully synchronized". create_mdp_record()
+      // returns '' on failure (WWID-2199); firing anyway let listeners act on a
+      // membership that does not exist in MDP. Skip and log. Note: no automatic
+      // path revisits this record for non-approval tiers - a renewal creates a
+      // NEW membership record rather than repairing this one. Repair is manual:
+      // re-run the flow from the order, or use the approval-activation flow,
+      // which does re-attempt create_mdp_record().
+      if ( ! empty( $membership_wicket_uuid ) ) {
+        do_action('wicket_membership_created_mdp', $membership_post_data);
+      } else {
+        Utilities::wc_log_mship_error([
+          'SKIPPED wicket_membership_created_mdp: MDP record missing (create_mdp_record returned no uuid)',
+          ['membership_post_id' => $membership['membership_post_id']],
+        ]);
+      }
     }
     return $membership;
   }
@@ -1181,9 +1274,16 @@ function get_item_data ( $other_data, $cart_item ) {
             $dates_to_update = Subscription_Manager::prepare_dates( $dates_to_update, $sub );
             $sub->update_dates($dates_to_update);
             Utilities::wicket_logger( 'SUBSCRIPTION DATES BEING UPDATED MANUALLY: dates_to_update', $dates_to_update);
-            add_action('woocommerce_subscription_status_updated', function( $subscription_id ) use ( $dates_to_update ) {
-              $sub = \wcs_get_subscription( $subscription_id );
+            //the hook below is global: it fires for EVERY subscription that transitions in this request,
+            //not just this one. One order can carry several subscriptions and a closure is registered per
+            //membership, so without the id test a sibling subscription inherits these dates (WWID-2425).
+            $target_subscription_id = (int) $sub->get_id();
+            add_action('woocommerce_subscription_status_updated', function( $updated_subscription ) use ( $dates_to_update, $target_subscription_id ) {
+              $sub = \wcs_get_subscription( $updated_subscription );
               if( empty( $sub ) ) {
+                return;
+              }
+              if( (int) $sub->get_id() !== $target_subscription_id ) {
                 return;
               }
               $sub->update_dates($dates_to_update);
@@ -1222,8 +1322,14 @@ function get_item_data ( $other_data, $cart_item ) {
             || (!empty($fields['next_payment_date']) && ( !is_bool($fields['next_payment_date']) && $fields['next_payment_date'] == 'clear'))
           ) {
           Utilities::wc_log_mship_error( ['FINAL STAGE CLEARING of NEXT_PAYMENT:', [$subscription_id, $is_autopay_enabled, $autorenew_user_meta, (! $is_autopay_enabled && $autorenew_user_meta == 'no')]]);
-          add_action('woocommerce_subscription_status_updated', function( $subscription_id )  {
-            $sub = \wcs_get_subscription( $subscription_id );
+          //same global-hook caveat as the date write above: clear the date only on the subscription this
+          //call is about, or a sibling subscription in the same order loses its own next payment (WWID-2425).
+          $clear_target_subscription_id = (int) $sub->get_id();
+          add_action('woocommerce_subscription_status_updated', function( $updated_subscription ) use ( $clear_target_subscription_id ) {
+            $sub = \wcs_get_subscription( $updated_subscription );
+            if( empty( $sub ) || (int) $sub->get_id() !== $clear_target_subscription_id ) {
+              return;
+            }
             $sub->update_dates(['next_payment' => 0]);
           }, 10, 2 );
         }
@@ -1232,9 +1338,21 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Update the membership record in MDP
+   * Update the membership record in MDP.
+   *
+   * Reads autorenew status off `$membership`/`$meta_data` as attributes
+   * (`membership_is_autorenew`, `membership_is_autorenew_reason`), the same way grace period and
+   * dates already are, rather than as separate parameters — callers that don't set these keys
+   * keep working exactly as before, since a missing key omits the field from the MDP push
+   * entirely. Individual memberships only; the organization branch below is untouched (see plan
+   * doc's org deferral).
+   *
+   * @param  array $membership  Membership data array. May include `membership_is_autorenew`
+   *               (bool) and `membership_is_autorenew_reason` (string).
+   * @param  array $meta_data   Fields being changed on this update. Checked first, same as the
+   *               other date/grace-period fields, falling back to `$membership`.
+   * @return array|WP_Error|array{error: string}
    */
-
    public function update_mdp_record( $membership, $meta_data ) {
     if( !empty( $_ENV['BYPASS_WICKET'] )) {
       return;
@@ -1243,6 +1361,7 @@ function get_item_data ( $other_data, $cart_item ) {
     $ends_at = '';
     $grace_period_days = false;
     $max_assignments = false;
+    $is_autorenew = $meta_data['membership_is_autorenew'] ?? $membership['membership_is_autorenew'] ?? null;
 
     if('development' == wp_get_environment_type()) {
           Utilities::wc_log_mship_error( ['update_mdp_record', $membership, $meta_data] );
@@ -1279,7 +1398,8 @@ function get_item_data ( $other_data, $cart_item ) {
         $membership['membership_wicket_uuid'],
         $starts_at,
         $ends_at,
-        $grace_period_days
+        $grace_period_days,
+        $is_autorenew
       );
     } else {
     if( $max_assignments < 1) {
@@ -1298,6 +1418,14 @@ function get_item_data ( $other_data, $cart_item ) {
     }
     if( is_wp_error( $response ) ) {
       $error_msg = $response->get_error_message( 'wicket_api_error' );
+      // Bundle members have no individual subscription (membership_subscription_id = 0),
+      // so the order note below never fires for them - log unconditionally so a failed
+      // MDP write is never silent.
+      Utilities::wc_log_mship_error( [
+        'update_mdp_record failed',
+        'membership_wicket_uuid' => $membership['membership_wicket_uuid'] ?? '',
+        'error'                  => $error_msg,
+      ] );
       if(! empty($sub)) {
         $sub->add_order_note( "ERROR: Admin changing membership dates in MDP. ($starts_at - $ends_at)" . $error_msg );
       }
@@ -1311,9 +1439,19 @@ function get_item_data ( $other_data, $cart_item ) {
    }
 
   /**
-   * Create the Membership Record in MDP
+   * Create the Membership Record in MDP.
+   *
+   * Reads autorenew status off `$membership` as an attribute (`membership_is_autorenew`), the
+   * same way grace period and dates already are, rather than as a separate parameter — a missing
+   * key omits the field from the MDP push entirely. Supports both individual and organization
+   * memberships; the organization branch gates on `base-plugin.organization_membership.is_auto_renew`
+   * since an older base plugin has no `$is_autorenew` param on `wicket_assign_organization_membership()`.
+   *
+   * @param  array $membership  Membership data array. May include `membership_is_autorenew` (bool).
+   * @return array|WP_Error
    */
   public function create_mdp_record( $membership ) {
+    $is_autorenew = $membership['membership_is_autorenew'] ?? null;
     $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
     $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
     // Capability gate (not version-gated): the base plugin ships a registry
@@ -1321,6 +1459,10 @@ function get_item_data ( $other_data, $cart_item ) {
     // ADR 0004 / conventions/capability-detection.md.
     $base_version_supports_copy_active_assignments = function_exists( 'wicket_supports' )
       && wicket_supports( 'base-plugin.organization_membership.copy_previous_assignments' );
+    // Same capability-gate pattern for the is_auto_renew param on org assignment.
+    $base_version_supports_org_autorenew = function_exists( 'wicket_supports' )
+      && wicket_supports( 'base-plugin.organization_membership.is_auto_renew' );
+    $org_is_autorenew = $base_version_supports_org_autorenew ? $is_autorenew : null;
 
     // Bundle-member path: assign person_membership linked to the MDP bundle record.
     // Fires only when the bundle has already been synced (membership_bundle_mdp_uuid present).
@@ -1385,7 +1527,8 @@ function get_item_data ( $other_data, $cart_item ) {
             $membership['membership_starts_at'],
             $membership['membership_ends_at'],
             $membership['membership_grace_period_days'],
-            $previous_membership_wicket_uuid
+            $previous_membership_wicket_uuid,
+            $is_autorenew
           );
         } else {
           $response = wicket_assign_individual_membership(
@@ -1393,7 +1536,9 @@ function get_item_data ( $other_data, $cart_item ) {
             $membership['membership_tier_uuid'],
             $membership['membership_starts_at'],
             $membership['membership_ends_at'],
-            $membership['membership_grace_period_days']
+            $membership['membership_grace_period_days'],
+            '',
+            $is_autorenew
           );
         }
       } else {
@@ -1419,7 +1564,8 @@ function get_item_data ( $other_data, $cart_item ) {
             $membership['membership_grace_period_days'],
             $previous_membership_wicket_uuid,
             $Tier->is_grant_owner_assignment(),
-            $carry
+            $carry,
+            $org_is_autorenew
           );
           // Seat-count overflow safety net (WWID-1908): if the MDP rejected the
           // create because carrying assignments over would exceed the new tier's
@@ -1441,7 +1587,8 @@ function get_item_data ( $other_data, $cart_item ) {
               $membership['membership_grace_period_days'],
               $previous_membership_wicket_uuid,
               $Tier->is_grant_owner_assignment(),
-              false
+              false,
+              $org_is_autorenew
             );
             // Defensive: log the retry outcome so QA can see whether the
             // copy=false retry recovered or also failed. A failed retry still
@@ -1556,6 +1703,31 @@ function get_item_data ( $other_data, $cart_item ) {
     $logger = wc_get_logger();
     $log_context = [ 'source' => 'wicket-memberships' ];
 
+    // Opt-out for environments whose post IDs must not claim external_id values
+    // in a SHARED MDP tenant (QA/staging clones). external_id is the WP post ID,
+    // unique per install but not per tenant, so two sites pointing at one MDP
+    // tenant steal each other's IDs (WWID-2629: a QA run blocked 35 OBA staging
+    // PATCHes). Returns false WITHOUT flagging the post — this is policy, not a
+    // broken state.
+    // Fully qualified on purpose: unit tests patch the GLOBAL apply_filters
+    // (Brain Monkey), while the Wicket_Memberships\-namespaced fallback stub in
+    // the QA harness would shadow an unqualified call. In production both
+    // resolve to WordPress's apply_filters.
+    if ( \apply_filters( 'wicket_skip_membership_external_id_assignment', false, $membership_wicket_uuid, $wicket_membership_type, $membership_post_id ) ) {
+      // Warning, not info: a skip firing on PRODUCTION by misconfiguration
+      // (shared mu-plugin, wrong environment check) must be scannable in wc-logs.
+      $logger->warning(
+        sprintf(
+          'Membership external_id assignment skipped by wicket_skip_membership_external_id_assignment filter for WP post %1$s (target %2$s/%3$s).',
+          $membership_post_id,
+          $wicket_membership_type,
+          $membership_wicket_uuid
+        ),
+        $log_context
+      );
+      return false;
+    }
+
     // Pre-flight: detect an external_id already owned by a different membership.
     // The helper ships in wicket-wp-base-plugin; guard with function_exists so
     // this plugin stays safe if a site runs an older base plugin.
@@ -1574,6 +1746,10 @@ function get_item_data ( $other_data, $cart_item ) {
           ),
           $log_context
         );
+        // The two flags are mutually exclusive and describe the LATEST
+        // attempt: repair_membership_external_id() classifies by re-reading
+        // them, so a stale flag from an older run must not survive.
+        delete_post_meta( $membership_post_id, '_wicket_membership_external_id_failed' );
         update_post_meta( $membership_post_id, '_wicket_membership_external_id_collision', [
           'external_id' => $membership_post_id,
           'type'        => $wicket_membership_type,
@@ -1601,6 +1777,9 @@ function get_item_data ( $other_data, $cart_item ) {
         ),
         $log_context
       );
+      // Mirror of the collision branch: clear the opposite flag so the meta
+      // pair always describes this attempt only.
+      delete_post_meta( $membership_post_id, '_wicket_membership_external_id_collision' );
       update_post_meta( $membership_post_id, '_wicket_membership_external_id_failed', [
         'external_id' => $membership_post_id,
         'type'        => $wicket_membership_type,
@@ -1611,10 +1790,78 @@ function get_item_data ( $other_data, $cart_item ) {
       return false;
     }
 
-    // Success: clear stale flags from a prior failed attempt.
+    // Success: clear both flags from any prior attempt.
     delete_post_meta( $membership_post_id, '_wicket_membership_external_id_failed' );
     delete_post_meta( $membership_post_id, '_wicket_membership_external_id_collision' );
     return true;
+  }
+
+  /**
+   * Re-attempt external_id assignment for a membership post left unlinked by a
+   * prior collision or PATCH failure (WWID-2629).
+   *
+   * A collision means a foreign MDP membership owned the post ID when the row
+   * was created — commonly a QA install claiming the same post IDs in a shared
+   * MDP staging tenant. Once the squatter's external_id is cleared, re-running
+   * this heals the post: the PATCH succeeds and both flags are deleted by
+   * assign_membership_external_id(). A still-present squatter reports as
+   * 'blocked' with the owning record; nothing is written in that case.
+   *
+   * Read-only wrt MDP except the standard external_id PATCH on our OWN target
+   * membership; the MDP-side squatter cleanup is a human decision, not ours.
+   *
+   * @param int $membership_post_id WP membership post ID.
+   * @return array{status: string, reason?: string, owner?: string, error?: string, type?: string}
+   *   status: reassigned|blocked|failed|invalid.
+   */
+  public function repair_membership_external_id( $membership_post_id ) {
+    $membership_post_id = (int) $membership_post_id;
+    $post = get_post( $membership_post_id );
+
+    // Duck-typed on post_type rather than instanceof WP_Post: unit tests stub
+    // get_post() with plain objects, and only post_type matters here.
+    if ( ! is_object( $post ) || ( $post->post_type ?? '' ) !== $this->membership_cpt_slug ) {
+      return [ 'status' => 'invalid', 'reason' => 'not a membership post' ];
+    }
+
+    $membership_wicket_uuid = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
+    if ( empty( $membership_wicket_uuid ) ) {
+      return [ 'status' => 'invalid', 'reason' => 'post has no MDP membership uuid (membership_wicket_uuid meta)' ];
+    }
+
+    $wicket_membership_type = get_post_meta( $membership_post_id, 'wicket_membership_type', true );
+    if ( empty( $wicket_membership_type ) ) {
+      // Match create_local_membership_record(): the meta is the source of truth
+      // for the MDP membership type; older rows default to person_memberships.
+      $wicket_membership_type = 'person_memberships';
+    }
+
+    $assigned = $this->assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post_id );
+
+    if ( $assigned ) {
+      return [ 'status' => 'reassigned', 'type' => $wicket_membership_type ];
+    }
+
+    // False without a flag means the skip filter (policy) declined the run.
+    $collision = get_post_meta( $membership_post_id, '_wicket_membership_external_id_collision', true );
+    if ( ! empty( $collision['owner'] ) ) {
+      return [
+        'status' => 'blocked',
+        'owner'  => (string) $collision['owner'],
+        'type'   => $wicket_membership_type,
+      ];
+    }
+
+    $failed = get_post_meta( $membership_post_id, '_wicket_membership_external_id_failed', true );
+    if ( ! empty( $failed['error'] ) ) {
+      return [
+        'status' => 'failed',
+        'error'  => (string) $failed['error'],
+        'type'   => $wicket_membership_type,
+      ];
+    }
+
+    return [ 'status' => 'blocked', 'reason' => 'skipped by wicket_skip_membership_external_id_assignment filter', 'type' => $wicket_membership_type ];
   }
 
   /**
@@ -1681,6 +1928,15 @@ function get_item_data ( $other_data, $cart_item ) {
       'post_status' => 'publish',
       'meta_input'  => $meta_data
     ]);
+
+    // Refresh the stored autorenew status: $meta_data may not include
+    // membership_subscription_id (only fields the caller actually changed), so read the
+    // now-current, freshly-saved post meta rather than relying on this method's own input. See
+    // A0007.
+    Autorenew_Sync::refresh_for_membership_post( $membership_post_id );
+    // Dates, status and owner all feed the member list's ordering and filters.
+    self::mark_member_list_cache_stale();
+
     $user_id = $meta_data['user_id'] ?? $this->get_user_id_from_membership_post( $membership_post_id );
     if( empty( $user_id ) ) {
       return $return;
@@ -1756,6 +2012,8 @@ function get_item_data ( $other_data, $cart_item ) {
       'membership_product_id' => $membership['membership_product_id'],
       'membership_subscription_id' => $membership['membership_subscription_id'],
       'previous_membership_post_id' => $membership['previous_membership_post_id'] ?? '',
+      Autorenew_Sync::META_KEY_RESULT => $membership['membership_is_autorenew'] ?? null,
+      Autorenew_Sync::META_KEY_REASON => $membership['membership_is_autorenew_reason'] ?? '',
     ];
 
     if(!empty( $membership['previous_membership_post_id'] ?? '' )) {
@@ -1791,10 +2049,27 @@ function get_item_data ( $other_data, $cart_item ) {
           'meta_input'  => $meta
         ]);
       }
+      // Both branches change the admin member list: an insert adds a row, and an
+      // update can change the status, dates or tier the list sorts and filters on.
+      self::mark_member_list_cache_stale();
       //moved outside of conditional for merge membership functionality to work on update membership post meta
       // Return value ignored on purpose: failures are flagged via post meta
       // (_collision/_failed) and wc-logs; local record creation must complete.
-      $this->assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
+      // WWID-2384: with an empty uuid this PATCHes person_memberships/ or
+      // organization_memberships/ with no id segment. Skip; the id gets assigned
+      // by whichever flow later succeeds at create_mdp_record().
+      if ( ! empty( $membership_wicket_uuid ) ) {
+        $this->assign_membership_external_id( $membership_wicket_uuid, $wicket_membership_type, $membership_post );
+      } else {
+        Utilities::wc_log_mship_error([
+          'SKIPPED assign_membership_external_id: MDP record missing (empty uuid)',
+          ['membership_post' => $membership_post],
+        ]);
+      }
+
+      // Refresh the stored autorenew status now that the subscription link (and its status/
+      // manual-renewal flag) is known to be current on this post. See A0007.
+      Autorenew_Sync::refresh_for_membership_post( $membership_post );
 
     if( !empty( $membership['membership_parent_order_id'] )) {
       $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
@@ -1839,8 +2114,13 @@ function get_item_data ( $other_data, $cart_item ) {
    * It is possible the subscription membership item will be missing the renewal meta so we will add it
    * If we are reusing the same subscription we need to change it from the last post id from the last renewal to the current one
    *
-   * @param mixed $membership_subscription_id
-   * @param mixed $membership_post_id
+   * @see Helper::is_in_membership_category()
+   *
+   * @param  int    $membership_post_id   Membership post ID to stamp on the subscription items.
+   * @param  array  $membership           Membership data, including membership_subscription_id.
+   * @param  bool   $new_order_processed  True right after an order creates the membership; only then
+   *                                      is an existing pointer replaced if it names the previous membership.
+   *
    * @return void
    */
   public function wicket_update_subscription_meta_membership_post_id( $membership_post_id, $membership, $new_order_processed = false ) {
@@ -1877,9 +2157,7 @@ function get_item_data ( $other_data, $cart_item ) {
          * Verification only (no behaviour change): captures whether the category check passes for the id we
          * resolved, so we can confirm the cause on a real order before changing any logic.
          *
-         * Possible fix (not applied here): resolve $product_id from $item->get_product_id() (the parent),
-         * which is persisted on the line item and survives a failed product-object load, so the category check
-         * runs against the parent as intended.
+         * The check below now uses the line item's stored parent ID, so this path no longer skips the item.
          */
         Utilities::wc_log_mship_error( ['renewal-meta-stamp diagnostic: product object failed to load', [
           'subscription_id'            => is_object( $sub ) ? $sub->get_id() : ( $membership['membership_subscription_id'] ?? null ),
@@ -1888,7 +2166,7 @@ function get_item_data ( $other_data, $cart_item ) {
           'item_id'                    => $item_id,
           'product_id_checked'         => $product_id,
           'membership_product_id'      => $membership['membership_product_id'] ?? null,
-          'passes_membership_category' => has_term( 'Membership', 'product_cat', $product_id ),
+          'passes_membership_category' => Helper::is_in_membership_category( $item->get_product_id() ),
         ]] );
       } else {
         $product_id = $product->get_parent_id() ? $product->get_parent_id() : $product->get_id();
@@ -1899,7 +2177,8 @@ function get_item_data ( $other_data, $cart_item ) {
         continue;
       }
 
-      if ( ! has_term( 'Membership', 'product_cat', $product_id) ) {
+      // $product_id is the variation ID when the product fails to load, so use the stored parent ID.
+      if ( ! Helper::is_in_membership_category( $item->get_product_id() ) ) {
         continue;
       }
       //add or update membership renewal post id meta on item
@@ -2304,10 +2583,11 @@ function get_item_data ( $other_data, $cart_item ) {
           $sub = \wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
         }
         if(!empty($sub)) {
-          $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
-          $subscription_status = $sub->get_status();
+          // Use the single source of truth for autorenew status rather than re-deriving it from
+          // the raw flag and a status blocklist here.
+          $is_autopay_enabled = Autorenew::is_autorenewing( $membership_data['meta'] );
           $next_payment_date = $sub->get_time( 'next_payment' );
-          if( $is_autopay_enabled && !empty($next_payment_date) && $subscription_status != 'on-hold' && $subscription_status != 'expired' && $subscription_status != 'cancelled' && $subscription_status != 'switched' && $subscription_status != 'trash' && (current_time( 'timestamp' ) < $next_payment_date) && ! $allow_form_flow_early_callout) {
+          if( $is_autopay_enabled && !empty($next_payment_date) && (current_time( 'timestamp' ) < $next_payment_date) && ! $allow_form_flow_early_callout) {
             echo "<$debug_comment_hide--";
             echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
             echo '|'.( strtotime($next_payment_date) - current_time( 'timestamp' ) );
@@ -2426,10 +2706,11 @@ function get_item_data ( $other_data, $cart_item ) {
             $sub = \wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] );
           }
           if(!empty($sub)) {
-            $subscription_status = $sub->get_status();
-            $is_autopay_enabled = $sub->get_requires_manual_renewal() ? false : true;
+            // Use the single source of truth for autorenew status rather than re-deriving it from
+            // the raw flag and a status blocklist here.
+            $is_autopay_enabled = Autorenew::is_autorenewing( $membership_data['meta'] );
             $next_payment_date = $sub->get_time( 'next_payment' );
-            if(empty($next_payment_date) || $subscription_status == 'on-hold' || $subscription_status == 'expired' || $subscription_status == 'cancelled' || $subscription_status == 'switched' || $subscription_status == 'trash' || (current_time( 'timestamp' ) > $next_payment_date)) {
+            if(empty($next_payment_date) || (current_time( 'timestamp' ) > $next_payment_date)) {
               $is_autopay_enabled = false;
             }
             // Form Flow: autopay cannot complete a form, so it must not stand in for the renewal
@@ -2516,12 +2797,248 @@ function get_item_data ( $other_data, $cart_item ) {
   public function get_members_list_last_name_orderby( $_orderby ) {
     global $wpdb;
     $dir = isset( $this->_last_name_sort_dir ) && $this->_last_name_sort_dir === 'ASC' ? 'ASC' : 'DESC';
+    // Trailing ID ASC keeps the representative row stable for members sharing a
+    // surname; see the tiebreak note in get_members_list().
     return "(SELECT um.meta_value FROM {$wpdb->usermeta} um
              INNER JOIN {$wpdb->postmeta} pm ON pm.meta_value = um.user_id AND pm.meta_key = 'user_id' AND pm.post_id = {$wpdb->posts}.ID
              WHERE um.meta_key = 'last_name'
-             LIMIT 1) $dir";
+             LIMIT 1) $dir, {$wpdb->posts}.ID ASC";
   }
 
+  /**
+   * Resolve the ordered representative membership post ID for every member.
+   *
+   * A member holds many membership records but occupies one row in the list, so the
+   * set has to be deduplicated before it can be paginated, which means reading every
+   * matching row. The outcome depends only on the filters and sort order, never on
+   * the page being viewed, so it is cached and reused across page navigation.
+   *
+   * Deduplicating here rather than with a SQL GROUP BY is deliberate: GROUP BY picks
+   * an arbitrary representative row, which made the sort order non-deterministic.
+   * The caller's ORDER BY always carries an ID tiebreak, so the first row seen per
+   * member is stable.
+   *
+   * @param  array  $args             WP_Query args describing the matching set. Any
+   *                                  pagination in them is replaced.
+   * @param  string $group_key        Meta key identifying the member: 'user_id' or 'org_uuid'.
+   * @param  array  $signature_parts  Values that, with $group_key, uniquely identify
+   *                                  this query for caching. Must exclude the page number.
+   *
+   * @return int[]  Representative post IDs, in the requested sort order.
+   *
+   * @since  1.0.122
+   * @see    get_members_list()
+   */
+  private function get_deduplicated_member_ids( array $args, $group_key, array $signature_parts ) {
+    array_unshift( $signature_parts, $group_key );
+    $cache_key = self::MEMBERS_IDS_TRANSIENT_PREFIX . md5( wp_json_encode( $signature_parts ) );
+
+    $cached = get_transient( $cache_key );
+    if ( is_array( $cached ) ) {
+      // Still detach the sort filter the caller attached, since the query that
+      // would otherwise have consumed it is being skipped.
+      remove_filter( 'posts_orderby', [ $this, 'get_members_list_last_name_orderby' ] );
+      return $cached;
+    }
+
+    // IDs only, with both caches off. Hydrating post objects and priming the meta
+    // cache across the full membership set is what exhausted PHP memory here, and
+    // the dedupe below needs only one meta value per row.
+    $args['posts_per_page']         = -1;
+    $args['fields']                 = 'ids';
+    $args['no_found_rows']          = true;
+    $args['update_post_meta_cache'] = false;
+    $args['update_post_term_cache'] = false;
+    unset( $args['paged'] );
+
+    $all_ids = ( new \WP_Query( $args ) )->posts;
+    remove_filter( 'posts_orderby', [ $this, 'get_members_list_last_name_orderby' ] );
+
+    $key_map     = $this->get_meta_map_for_posts( $all_ids, $group_key );
+    $seen_keys   = [];
+    $ordered_ids = [];
+    foreach ( $all_ids as $id ) {
+      $key = $key_map[ $id ] ?? '';
+      if ( $key === '' || isset( $seen_keys[ $key ] ) ) {
+        continue;
+      }
+      $seen_keys[ $key ] = true;
+      $ordered_ids[]     = (int) $id;
+    }
+    // Released explicitly: these hold one entry per membership post, whereas the
+    // returned list holds one per member.
+    unset( $all_ids, $key_map, $seen_keys );
+
+    set_transient( $cache_key, $ordered_ids, self::MEMBERS_IDS_TRANSIENT_TTL );
+    return $ordered_ids;
+  }
+
+  /**
+   * Read a single meta value for many posts without priming the full meta cache.
+   *
+   * get_post_meta() would either issue one query per post or force WP_Query to
+   * prime every meta row for the result set. Across the whole membership CPT that
+   * is hundreds of megabytes, so read only the key actually needed, in chunks.
+   *
+   * @param  int[]  $post_ids  Post IDs to look up. May be empty.
+   * @param  string $meta_key  The meta key to read.
+   *
+   * @return array<int, string>  Map of post ID to its first value for $meta_key.
+   *
+   * @since  1.0.122
+   * @see    get_members_list()
+   * @global \wpdb $wpdb
+   */
+  private function get_meta_map_for_posts( array $post_ids, $meta_key ) {
+    global $wpdb;
+    $map = [];
+    // Chunked so the generated IN() list stays well within max_allowed_packet.
+    foreach ( array_chunk( $post_ids, 5000 ) as $chunk ) {
+      $ids  = implode( ',', array_map( 'intval', $chunk ) );
+      $rows = $wpdb->get_results( $wpdb->prepare(
+        "SELECT post_id, meta_value FROM {$wpdb->postmeta}
+          WHERE meta_key = %s AND post_id IN ({$ids}) ORDER BY meta_id ASC",
+        $meta_key
+      ) );
+      // Keep the first value per post, matching get_post_meta( $id, $key, true ).
+      foreach ( $rows as $row ) {
+        if ( ! isset( $map[ (int) $row->post_id ] ) ) {
+          $map[ (int) $row->post_id ] = $row->meta_value;
+        }
+      }
+    }
+    return $map;
+  }
+
+  /**
+   * Fetch every membership's tier UUID and status, grouped by user or org key.
+   *
+   * Replaces a per-result-row WP_Query that ran with posts_per_page => -1. The
+   * ascending ID tiebreak reproduces the row order that query returned for posts
+   * sharing a post_date, so all_membership_tiers is unchanged for API consumers,
+   * and is now deterministic rather than left to the query plan.
+   *
+   * @param  string   $group_key  Meta key rows are grouped by: 'user_id' or 'org_uuid'.
+   * @param  string[] $keys       Group key values for the current page; may be empty.
+   *
+   * @return array<string, array<int, array{uuid: string|null, status: string|null}>>
+   *         Map of group key value to its tier/status pairs.
+   *
+   * @since  1.0.122
+   * @see    get_members_list()
+   * @global \wpdb $wpdb
+   */
+  private function get_membership_tiers_by_group_key( $group_key, array $keys ) {
+    global $wpdb;
+    $keys = array_values( array_unique( array_filter( $keys, function ( $key ) {
+      return $key !== '' && $key !== null;
+    } ) ) );
+    if ( empty( $keys ) ) {
+      return [];
+    }
+    $placeholders = implode( ',', array_fill( 0, count( $keys ), '%s' ) );
+    // Tier UUID and status are LEFT JOINed because either may legitimately be
+    // absent on a membership post, and such rows must still appear in the list.
+    $sql = $wpdb->prepare(
+      "SELECT gk.meta_value AS group_key,
+              uuid.meta_value AS tier_uuid,
+              stat.meta_value AS membership_status
+         FROM {$wpdb->posts} p
+         INNER JOIN {$wpdb->postmeta} gk   ON gk.post_id = p.ID AND gk.meta_key = %s
+         LEFT JOIN  {$wpdb->postmeta} uuid ON uuid.post_id = p.ID AND uuid.meta_key = 'membership_tier_uuid'
+         LEFT JOIN  {$wpdb->postmeta} stat ON stat.post_id = p.ID AND stat.meta_key = 'membership_status'
+        WHERE p.post_type = %s
+          AND p.post_status = 'publish'
+          AND gk.meta_value IN ({$placeholders})
+        ORDER BY p.post_date DESC, p.ID ASC",
+      array_merge( [ $group_key, $this->membership_cpt_slug ], $keys )
+    );
+    $grouped = [];
+    foreach ( $wpdb->get_results( $sql ) as $row ) {
+      $grouped[ $row->group_key ][] = [
+        'uuid'   => $row->tier_uuid,
+        'status' => $row->membership_status,
+      ];
+    }
+    return $grouped;
+  }
+
+  /**
+   * Published bundles each user's memberships belong to, as name/status pairs.
+   *
+   * One query for the whole page; newest membership first, one entry per bundle.
+   *
+   * @param  array  $user_ids  User IDs keyed by membership post ID.
+   * @return array<string, array<int, array{name: string, status: string}>>  Keyed by user ID.
+   */
+  private function get_membership_bundles_by_user_ids( array $user_ids ) {
+    global $wpdb;
+    $user_ids = array_values( array_unique( array_filter( $user_ids, function ( $id ) {
+      return $id !== '' && $id !== null;
+    } ) ) );
+    if ( empty( $user_ids ) ) {
+      return [];
+    }
+    $placeholders = implode( ',', array_fill( 0, count( $user_ids ), '%s' ) );
+    $sql = $wpdb->prepare(
+      "SELECT uid.meta_value AS user_id,
+              b.ID AS bundle_id,
+              b.post_title AS bundle_name,
+              bstat.meta_value AS bundle_status
+         FROM {$wpdb->posts} p
+         INNER JOIN {$wpdb->postmeta} uid ON uid.post_id = p.ID AND uid.meta_key = 'user_id'
+         INNER JOIN {$wpdb->postmeta} bid ON bid.post_id = p.ID AND bid.meta_key = 'membership_bundle_id'
+         INNER JOIN {$wpdb->posts} b      ON b.ID = bid.meta_value AND b.post_type = %s AND b.post_status = 'publish'
+         LEFT JOIN  {$wpdb->postmeta} bstat ON bstat.post_id = b.ID AND bstat.meta_key = 'membership_status'
+        WHERE p.post_type = %s
+          AND p.post_status = 'publish'
+          AND uid.meta_value IN ({$placeholders})
+        ORDER BY p.post_date DESC, p.ID ASC",
+      array_merge( [ Helper::get_membership_bundle_cpt_slug(), $this->membership_cpt_slug ], $user_ids )
+    );
+    $grouped = [];
+    $seen    = [];
+    foreach ( $wpdb->get_results( $sql ) as $row ) {
+      if ( isset( $seen[ $row->user_id ][ $row->bundle_id ] ) ) {
+        continue;
+      }
+      $seen[ $row->user_id ][ $row->bundle_id ] = true;
+      $grouped[ $row->user_id ][] = [
+        'name'   => $row->bundle_name,
+        'status' => (string) $row->bundle_status,
+      ];
+    }
+    return $grouped;
+  }
+
+  /**
+   * Build one page of the admin member list, deduplicated to one row per member.
+   *
+   * A member may hold many membership posts, so the matching set is resolved as
+   * IDs, reduced to the first post per user (individual) or org (organization) in
+   * the requested sort order, and only the requested page is hydrated. Pagination
+   * therefore happens after deduplication, which is why $posts_per_page cannot be
+   * passed straight to WP_Query.
+   *
+   * @param  string      $type            Membership type: 'individual' or 'organization'.
+   * @param  int         $page            1-based page number; falls back to 1.
+   * @param  int         $posts_per_page  Rows per page after dedupe; falls back to 25.
+   * @param  string      $status          Membership status; retained for signature
+   *                                      compatibility, filtering is done via $filter.
+   * @param  string      $search          Free-text match against member name/email
+   *                                      and org name/location.
+   * @param  array       $filter          Optional 'membership_status' and
+   *                                      'membership_tier' constraints.
+   * @param  string|null $order_col       Sort column: post_modified, user_last_name,
+   *                                      start_date or end_date.
+   * @param  string|null $order_dir       Sort direction, ASC or DESC; defaults to DESC.
+   *
+   * @return array{results: array, page: int, posts_per_page: int, count: int}|void
+   *         Page payload, or void when $type is not a recognised membership type.
+   *
+   * @see    get_meta_map_for_posts()
+   * @see    get_membership_tiers_by_group_key()
+   */
   public function get_members_list( $type, $page, $posts_per_page, $status, $search = '', $filter = [], $order_col = null, $order_dir = null ) {
     $members_list = [];
     if( (! in_array( $type, ['individual', 'organization'] ))) {
@@ -2560,9 +3077,14 @@ function get_item_data ( $other_data, $cart_item ) {
     if ( isset( $order_col_map[ $order_col ] ) ) {
       $order_col = $order_col_map[ $order_col ];
     }
+    // Every sort below carries an ascending ID tiebreak. Members routinely hold
+    // several memberships sharing a sort value, and the dedupe further down keeps
+    // whichever tied row the database returned first. Without the tiebreak that
+    // choice is left to the query plan, so the representative row (and therefore
+    // the row rendered in the list) could change between otherwise identical
+    // requests. ID ASC matches the row this endpoint has historically returned.
     if ( empty( $order_col ) || $order_col === 'post_modified' ) {
-      $args['orderby'] = 'modified';
-      $args['order']   = $sort_dir;
+      $args['orderby'] = array( 'modified' => $sort_dir, 'ID' => 'ASC' );
     } elseif ( $order_col === 'user_last_name' ) {
       $sort_dir_safe = $sort_dir === 'ASC' ? 'ASC' : 'DESC';
       $this->_last_name_sort_dir = $sort_dir_safe;
@@ -2572,7 +3094,7 @@ function get_item_data ( $other_data, $cart_item ) {
         'key'     => $order_col,
         'compare' => 'EXISTS',
       );
-      $args['orderby'] = array( 'sort_meta' => $sort_dir );
+      $args['orderby'] = array( 'sort_meta' => $sort_dir, 'ID' => 'ASC' );
     }
 
     if( ! empty( $search ) ) {
@@ -2616,27 +3138,44 @@ function get_item_data ( $other_data, $cart_item ) {
       }
     }
 
-    // Fetch all matching posts ordered by the requested column, then deduplicate
-    // per user/org in PHP. This avoids SQL GROUP BY's arbitrary representative row
-    // selection which causes non-deterministic sort order.
-    $args['posts_per_page'] = -1;
-    unset( $args['paged'] );
+    $group_key = ( $type === 'organization' ) ? 'org_uuid' : 'user_id';
 
-    $all_posts    = new \WP_Query( $args );
-    remove_filter( 'posts_orderby', [ $this, 'get_members_list_last_name_orderby' ] );
-    $group_key    = ( $type === 'organization' ) ? 'org_uuid' : 'user_id';
-    $seen_keys    = [];
-    $deduplicated = [];
-    foreach ( $all_posts->posts as $post ) {
-      $key = get_post_meta( $post->ID, $group_key, true );
-      if ( $key !== '' && ! isset( $seen_keys[ $key ] ) ) {
-        $seen_keys[ $key ] = true;
-        $deduplicated[]    = $post;
-      }
-    }
+    // Resolving the representative row per member requires reading the whole
+    // matching set, because a member holds many memberships and the list shows one
+    // row each: the deduplication has to happen before pagination, so the query
+    // cannot stop at the requested page. That work depends only on the filters and
+    // sort, not on which page is being viewed, so the resulting ID list is cached
+    // and every subsequent page of the same query is served from it.
+    $ordered_ids = $this->get_deduplicated_member_ids( $args, $group_key, [
+      $type, $status, $search, $filter, $order_col, $sort_dir,
+    ] );
 
-    $total_unique = count( $deduplicated );
-    $page_posts   = array_slice( $deduplicated, ( $page - 1 ) * $posts_per_page, $posts_per_page );
+    $offset       = ( $page - 1 ) * $posts_per_page;
+    $total_unique = count( $ordered_ids );
+    $page_ids     = array_slice( $ordered_ids, $offset, $posts_per_page );
+    unset( $ordered_ids );
+
+    // Only the page's own group keys are needed from here on, so look them up for
+    // those rows rather than retaining a map covering every membership.
+    $page_keys = $this->get_meta_map_for_posts( $page_ids, $group_key );
+
+    // Hydrate only the current page. orderby=post__in preserves the sort order
+    // established by the ID query above.
+    $page_posts = empty( $page_ids ) ? [] : ( new \WP_Query( array(
+      'post_type'      => $this->membership_cpt_slug,
+      'post_status'    => 'publish',
+      'post__in'       => $page_ids,
+      'orderby'        => 'post__in',
+      'posts_per_page' => count( $page_ids ),
+      'no_found_rows'  => true,
+    ) ) )->posts;
+
+    // Tier/status pairs for every row on this page, fetched in one query rather
+    // than one unbounded WP_Query per row.
+    $tiers_by_key = $this->get_membership_tiers_by_group_key( $group_key, $page_keys );
+
+    // Bundles each individual row's user belongs to, also in one query.
+    $bundles_by_key = ( $type === 'organization' ) ? [] : $this->get_membership_bundles_by_user_ids( $page_keys );
 
     foreach ( $page_posts as $tier ) {
       $tier_meta = get_post_meta( $tier->ID );
@@ -2679,63 +3218,22 @@ function get_item_data ( $other_data, $cart_item ) {
       unset( $user->user_pass );
       $tier->user = $user->data;
 
+      // mdp_link is assigned before all_membership_tiers so the serialised user
+      // object keeps the same property order the API returned previously.
       if ( $type != 'organization' ) {
         $tier->user->mdp_link = $wicket_settings['wicket_admin'] . '/people/' . $user->data->user_login;
-        $user_tiers = new \WP_Query( array(
-          'post_type'      => $this->membership_cpt_slug,
-          'post_status'    => 'publish',
-          'posts_per_page' => -1,
-          'meta_query'     => array(
-            array(
-              'key'     => 'user_id',
-              'value'   => $tier->meta['user_id'],
-              'compare' => '='
-            )
-          )
-        ) );
-        $seen_bundle_ids = [];
-        foreach ( $user_tiers->posts as $user_tier ) {
-          $tier->user->all_membership_tiers[] = [
-            'uuid'   => get_post_meta( $user_tier->ID, 'membership_tier_uuid', true ),
-            'status' => get_post_meta( $user_tier->ID, 'membership_status', true ),
-          ];
-          $bundle_id = (int) get_post_meta( $user_tier->ID, 'membership_bundle_id', true );
-          if ( $bundle_id > 0 && ! isset( $seen_bundle_ids[ $bundle_id ] ) ) {
-            $seen_bundle_ids[ $bundle_id ] = true;
-            $bundle_post                   = get_post( $bundle_id );
-            if ( $bundle_post && $bundle_post->post_type === 'wicket_mship_bundle' && $bundle_post->post_status === 'publish' ) {
-              $tier->user->all_membership_bundles[] = [
-                'name'   => $bundle_post->post_title,
-                'status' => get_post_meta( $bundle_id, 'membership_status', true ),
-              ];
-            }
-          }
-        }
-        if ( ! isset( $tier->user->all_membership_bundles ) ) {
-          $tier->user->all_membership_bundles = [];
-        }
-      } else {
-        $org_tiers = new \WP_Query( array(
-          'post_type'      => $this->membership_cpt_slug,
-          'post_status'    => 'publish',
-          'posts_per_page' => -1,
-          'meta_query'     => array(
-            array(
-              'key'     => 'org_uuid',
-              'value'   => $tier->meta['org_uuid'],
-              'compare' => '='
-            )
-          )
-        ) );
-        foreach ( $org_tiers->posts as $org_tier ) {
-          $tier->user->all_membership_tiers[] = [
-            'uuid'   => get_post_meta( $org_tier->ID, 'membership_tier_uuid', true ),
-            'status' => get_post_meta( $org_tier->ID, 'membership_status', true ),
-          ];
-        }
-        if ( ! empty( $tier->user ) ) {
-          $tier->user->mdp_link = $wicket_settings['wicket_admin'] . '/organizations/' . $tier->meta['org_uuid'];
-        }
+      } elseif ( ! empty( $tier->user ) ) {
+        $tier->user->mdp_link = $wicket_settings['wicket_admin'] . '/organizations/' . $tier->meta['org_uuid'];
+      }
+
+      // Every membership belonging to this row's user/org was pre-loaded in one
+      // query before the loop; index into that result instead of re-querying.
+      $row_key = $page_keys[ $tier->ID ] ?? '';
+      if ( ! empty( $tiers_by_key[ $row_key ] ) ) {
+        $tier->user->all_membership_tiers = $tiers_by_key[ $row_key ];
+      }
+      if ( $type != 'organization' ) {
+        $tier->user->all_membership_bundles = $bundles_by_key[ $row_key ] ?? [];
       }
       $members_list[] = $tier;
     }
@@ -2902,7 +3400,26 @@ function get_item_data ( $other_data, $cart_item ) {
     return ['org_data' => $mship_org_array];
   }
 
+  /**
+   * List the tier UUIDs and statuses in use, for the member list filter dropdowns.
+   *
+   * Both lists are derived by grouping the entire membership CPT, which is a full
+   * scan taking several seconds, yet yields only a few dozen near-static values.
+   * The result is therefore cached in a transient for MEMBERS_FILTERS_TRANSIENT_TTL.
+   *
+   * @param  string $type  'individual', 'organization', or 'both' for no type constraint.
+   *
+   * @return array{tiers: array<int, array{value: string}>, membership_status: array<int, array{name: string, value: string}>}
+   *
+   * @since  1.0.122
+   * @see    flush_members_filters_cache()
+   */
   public function get_members_filters( $type ) {
+    $cache_key = self::MEMBERS_FILTERS_TRANSIENT_PREFIX . sanitize_key( $type );
+    $cached    = get_transient( $cache_key );
+    if ( false !== $cached ) {
+      return $cached;
+    }
     $filters = [];
     $args = array(
       'post_type' => $this->membership_cpt_slug,
@@ -2967,7 +3484,83 @@ function get_item_data ( $other_data, $cart_item ) {
       }
     }
 
+    set_transient( $cache_key, $filters, self::MEMBERS_FILTERS_TRANSIENT_TTL );
     return $filters;
+  }
+
+  /**
+   * Drop the cached member list filter options for every membership type.
+   *
+   * Not hooked to anything by default; see MEMBERS_FILTERS_TRANSIENT_TTL for why.
+   * Call it after a bulk import or a tier change to refresh the dropdowns at once.
+   *
+   * @return void
+   *
+   * @since  1.0.122
+   * @see    get_members_filters()
+   */
+  public static function flush_members_filters_cache() {
+    foreach ( [ 'individual', 'organization', 'both' ] as $type ) {
+      delete_transient( self::MEMBERS_FILTERS_TRANSIENT_PREFIX . $type );
+    }
+  }
+
+  /**
+   * Drop every cached member list ID set.
+   *
+   * One transient exists per distinct filter/sort combination, so they are removed
+   * by prefix rather than by key. Call this after a bulk import or any operation
+   * that changes which memberships exist, to avoid waiting out
+   * MEMBERS_IDS_TRANSIENT_TTL before the list reflects it. Tests that create
+   * memberships between assertions need this too.
+   *
+   * @return int  Number of cached sets removed.
+   *
+   * @since  1.0.122
+   * @see    get_deduplicated_member_ids()
+   * @global \wpdb $wpdb
+   */
+  /**
+   * Queue a member list cache flush for the end of the current request.
+   *
+   * Call after any write that changes which memberships exist, or changes a value
+   * the list sorts, filters or groups by. Without this a new membership stays
+   * invisible to the admin list until MEMBERS_IDS_TRANSIENT_TTL expires.
+   *
+   * Deferred to shutdown rather than flushing inline because the membership
+   * creation funnel is also the CSV import path: flushing per record costs about
+   * 0.1ms each even when nothing is cached, which is roughly 17 seconds across a
+   * 150k row import. Deferring collapses that to a single flush per request, and
+   * the flag makes repeat calls free.
+   *
+   * @return void
+   *
+   * @since  1.0.122
+   * @see    flush_member_list_cache()
+   */
+  public static function mark_member_list_cache_stale() {
+    if ( self::$member_list_cache_stale ) {
+      return;
+    }
+    self::$member_list_cache_stale = true;
+    add_action( 'shutdown', [ self::class, 'flush_member_list_cache' ], 1 );
+  }
+
+  public static function flush_member_list_cache() {
+    global $wpdb;
+    // Reset first so a flush during a long-running import re-arms the deferral for
+    // any writes that follow it.
+    self::$member_list_cache_stale = false;
+    // Transients are stored as two option rows each (value and timeout), so match
+    // both prefixes and let delete_transient() handle the pairing.
+    $like = $wpdb->esc_like( '_transient_' . self::MEMBERS_IDS_TRANSIENT_PREFIX ) . '%';
+    $names = $wpdb->get_col( $wpdb->prepare(
+      "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE %s", $like
+    ) );
+    foreach ( $names as $name ) {
+      delete_transient( substr( $name, strlen( '_transient_' ) ) );
+    }
+    return count( $names );
   }
 
   /**
@@ -3025,6 +3618,11 @@ function get_item_data ( $other_data, $cart_item ) {
       $memberships_updated[] = [$membership->ID, $membership->membership_status, $membership->membership_expires_at ];
       update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_EXPIRED);
     }
+    // Status feeds the member list's tabs, filters and ordering; these nightly jobs
+    // write it directly rather than through update_membership_status().
+    if ( $memberships ) {
+      self::mark_member_list_cache_stale();
+    }
     Utilities::wc_log_mship_error( [ 'daily_membership_expiry_hook', $membership_expires_at, $memberships_updated ] );
     return count($memberships);
   }
@@ -3066,6 +3664,7 @@ function get_item_data ( $other_data, $cart_item ) {
     foreach( $memberships as $membership ) {
       $memberships_updated[] = [$membership->ID, $membership->membership_status, $membership->membership_starts_at];
       update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_ACTIVE );
+      self::mark_member_list_cache_stale();
     }
     Utilities::wc_log_mship_error( [ 'daily_membership_activation_hook', $membership_starts_at, $memberships_updated ] );
     return count($memberships);
@@ -3112,6 +3711,7 @@ function get_item_data ( $other_data, $cart_item ) {
     foreach( $memberships as $membership) {
       $memberships_updated[] = [$membership->ID, $membership->membership_status, $membership->membership_ends_at ];
       update_post_meta( $membership->ID, 'membership_status', Wicket_Memberships::STATUS_GRACE);
+      self::mark_member_list_cache_stale();
     }
     Utilities::wc_log_mship_error( [ 'daily_membership_grace_period_hook', $membership_ends_at, $memberships_updated ] );
     return count($memberships);

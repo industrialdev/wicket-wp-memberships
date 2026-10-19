@@ -523,6 +523,15 @@ class Membership_Bundle_Admin_Controller {
       return new \WP_REST_Response( [ 'error' => 'End date must not be after expiration date.' ], 400 );
     }
 
+    // Past end/expiration dates silently break MDP record updates, so today is the earliest allowed value.
+    $mdp_today = Utilities::get_mdp_day_start()->getTimestamp();
+    if ( $ends_at && $ends_at < $mdp_today ) {
+      return new \WP_REST_Response( [ 'error' => 'End date cannot be before today.' ], 400 );
+    }
+    if ( $expires_at && $expires_at < $mdp_today ) {
+      return new \WP_REST_Response( [ 'error' => 'Expiration date cannot be before today.' ], 400 );
+    }
+
     $bundle             = new Membership_Bundle( $bundle_post_id );
     $pre_edit_renewal_type = (string) get_post_meta( $bundle_post_id, 'membership_renewal_type', true );
 
@@ -572,10 +581,13 @@ class Membership_Bundle_Admin_Controller {
     $renewal_type = $data['membership_renewal_type'] ?? $data['renewal_type'] ?? get_post_meta( $bundle_post_id, 'membership_renewal_type', true );
     $renewal_type = $renewal_type !== '' ? $renewal_type : 'inherited';
 
+    // Day maths in the MDP timezone: UTC truncation and DST crossings shift the day.
     $renewal_window_days = $config ? $config->get_renewal_window_days() : false;
-    $early_renew_at = $starts_at;
+    $mdp_timezone        = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $early_renew_ymd     = ( new \DateTime( '@' . $starts_at ) )->setTimezone( $mdp_timezone )->format( 'Y-m-d' );
     if ( $renewal_window_days !== false ) {
-      $early_renew_at = strtotime( '-' . absint( $renewal_window_days ) . ' days', $ends_at );
+      $early_renew_ymd = ( new \DateTime( '@' . $ends_at ) )->setTimezone( $mdp_timezone )
+        ->modify( '-' . absint( $renewal_window_days ) . ' days' )->format( 'Y-m-d' );
     }
 
     $grace_period_days = abs( (int) round( ( $expires_at - $ends_at ) / DAY_IN_SECONDS ) );
@@ -584,7 +596,7 @@ class Membership_Bundle_Admin_Controller {
       'membership_starts_at'         => Utilities::get_mdp_day_start( $data['membership_starts_at'] )->format( 'c' ),
       'membership_ends_at'           => Utilities::get_mdp_day_end( $data['membership_ends_at'] )->format( 'c' ),
       'membership_expires_at'        => Utilities::get_mdp_day_end( $data['membership_expires_at'] )->format( 'c' ),
-      'membership_early_renew_at'    => Utilities::get_mdp_day_start( gmdate( 'Y-m-d', $early_renew_at ) )->format( 'c' ),
+      'membership_early_renew_at'    => Utilities::get_mdp_day_start( $early_renew_ymd )->format( 'c' ),
       'membership_grace_period_days' => $grace_period_days,
       'membership_renewal_type'      => $renewal_type,
     ];
@@ -775,6 +787,7 @@ class Membership_Bundle_Admin_Controller {
         'renewal_type'           => (string) ( $b_meta['membership_renewal_type'] ?? '' ),
         'next_tier_form_page_id' => (int) ( $b_meta['membership_next_tier_form_page_id'] ?? 0 ) ?: null,
         'next_tier_id'           => (int) ( $b_meta['membership_next_tier_id'] ?? 0 ) ?: null,
+        'mdp_link_collision'     => (bool) get_post_meta( $series_post->ID, '_wicket_membership_external_id_collision', true ),
       ];
     }
 
@@ -1403,7 +1416,66 @@ class Membership_Bundle_Admin_Controller {
       return [ 'error' => $result->get_error_message(), 'code' => $result->get_error_code() ];
     }
 
-    return [ 'success' => 'Member added to bundle.', 'membership_post_id' => $result ];
+    $response = [ 'success' => 'Member added to bundle.', 'membership_post_id' => $result ];
+
+    if ( get_post_meta( $result, '_wicket_membership_external_id_collision', true ) ) {
+      $response['mdp_link_collision'] = true;
+      $member_user = get_user_by( 'id', $user_id );
+      $response['person_uuid'] = $member_user ? $member_user->user_login : '';
+    }
+
+    return $response;
+  }
+
+  /**
+   * List a person's active individual memberships whose tier is eligible for
+   * a bundle's config — the discovery step behind the bundle-side "Add
+   * Member" existing-membership option (mirrors add_member()'s mode =
+   * 'existing' path, but read-only and from the person's side).
+   *
+   * @param int    $bundle_post_id Post ID of the Membership_Bundle.
+   * @param string $person_uuid    MDP person UUID.
+   * @return array{memberships: array}|array{error: string, code: string, status: int}
+   */
+  public static function get_eligible_memberships_for_person( int $bundle_post_id, string $person_uuid ): array {
+    $bundle = new Membership_Bundle( $bundle_post_id );
+    if ( $bundle->post_id <= 0 ) {
+      return [ 'error' => 'Membership bundle not found.', 'code' => 'bundle_not_found', 'status' => 404 ];
+    }
+
+    if ( '' === $person_uuid ) {
+      return [ 'error' => 'person_uuid is required.', 'code' => 'missing_person_uuid', 'status' => 400 ];
+    }
+
+    // Read-only lookup — do not create a WP user here, unlike add_member()'s
+    // mode = 'new' path. A person who has never logged in has no local
+    // account, so no existing membership to reuse.
+    //
+    // Mirrors wicket_create_wp_user_if_not_exist()'s resolution order (base
+    // plugin helper-persons.php): login first, then email. Legacy accounts
+    // can have a WP user matched by email with a user_login that isn't the
+    // MDP UUID; matching only on login would miss them here, tell the admin
+    // to create a new membership, and add_member() would then resolve the
+    // same person by email and create a duplicate seat.
+    $user = get_user_by( 'login', $person_uuid );
+    if ( ! $user && \function_exists( 'wicket_get_person_by_id' ) ) {
+      try {
+        $mdp_person = wicket_get_person_by_id( $person_uuid );
+      } catch ( \Throwable $e ) {
+        $mdp_person = null;
+      }
+
+      if ( is_object( $mdp_person ) && ! empty( $mdp_person->primary_email_address ) ) {
+        $user = get_user_by( 'email', $mdp_person->primary_email_address );
+      }
+    }
+
+    // No account is the normal case for a new person, not an error.
+    if ( ! $user ) {
+      return [ 'memberships' => [] ];
+    }
+
+    return [ 'memberships' => $bundle->get_eligible_memberships_for_user( $user->ID ) ];
   }
 
   /**
@@ -1497,7 +1569,19 @@ class Membership_Bundle_Admin_Controller {
       return [ 'error' => $result->get_error_message(), 'code' => $result->get_error_code() ];
     }
 
-    return [ 'success' => 'Member removed from bundle.', 'membership_post_id' => $result ];
+    $response = [ 'success' => 'Member removed from bundle.', 'membership_post_id' => $result ];
+
+    // 'keep_as_individual' provisions a new standalone membership record — check the
+    // same MDP external_id collision as add_member(). Plain 'cancel' returns the
+    // original (unchanged) membership_post_id, so nothing new was linked.
+    if ( $mode === 'keep_as_individual' && get_post_meta( $result, '_wicket_membership_external_id_collision', true ) ) {
+      $response['mdp_link_collision'] = true;
+      $member_user_id = (int) get_post_meta( $result, 'user_id', true );
+      $member_user    = $member_user_id ? get_user_by( 'id', $member_user_id ) : false;
+      $response['person_uuid'] = $member_user ? $member_user->user_login : '';
+    }
+
+    return $response;
   }
 
   // Move member
@@ -1537,7 +1621,18 @@ class Membership_Bundle_Admin_Controller {
       return [ 'error' => $result->get_error_message(), 'code' => $result->get_error_code() ];
     }
 
-    return [ 'success' => 'Member moved to new bundle.', 'membership_post_id' => $result ];
+    $response = [ 'success' => 'Member moved to new bundle.', 'membership_post_id' => $result ];
+
+    // The move creates a new membership record on the target bundle — same MDP
+    // external_id collision risk as add_member().
+    if ( get_post_meta( $result, '_wicket_membership_external_id_collision', true ) ) {
+      $response['mdp_link_collision'] = true;
+      $member_user_id = (int) get_post_meta( $result, 'user_id', true );
+      $member_user    = $member_user_id ? get_user_by( 'id', $member_user_id ) : false;
+      $response['person_uuid'] = $member_user ? $member_user->user_login : '';
+    }
+
+    return $response;
   }
 
   // Renewal order

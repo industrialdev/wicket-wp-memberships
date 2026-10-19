@@ -88,4 +88,3 @@ Maps a renewal error code to plain-language copy for `detail.php`. `not_renewabl
 - List view REST data source: `Membership_Bundle_WP_REST_Controller::get_my_membership_bundles()` — `GET /wicket_member/v1/membership_bundles/mine`.
 - List view row/query logic: `Membership_Bundle_Admin_Controller::get_membership_bundles_list()` (`$owner_user_id` param).
 - Detail view REST data sources (all `permissions_check_bundle_org_member`-gated, in `Membership_Bundle_WP_REST_Controller`): `get_bundle_entity()` (`GET .../membership_bundle_entity/mine`), `get_bundle_members_by_tier()` (`GET .../bundle/{id}/members_by_tier/mine`), `get_bundle_members()` (`GET .../bundle/{id}/members/mine`).
-- Public docs: `docs/public/membership-bundles/endpoints/bundles.md` (all four `/mine` endpoints above), `docs/public/membership-bundles/classes/membership-bundle-admin-controller.md` (query methods).
