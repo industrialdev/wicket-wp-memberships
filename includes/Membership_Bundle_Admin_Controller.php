@@ -561,10 +561,13 @@ class Membership_Bundle_Admin_Controller {
     $renewal_type = $data['membership_renewal_type'] ?? $data['renewal_type'] ?? get_post_meta( $bundle_post_id, 'membership_renewal_type', true );
     $renewal_type = $renewal_type !== '' ? $renewal_type : 'inherited';
 
+    // Day maths in the MDP timezone: UTC truncation and DST crossings shift the day.
     $renewal_window_days = $config ? $config->get_renewal_window_days() : false;
-    $early_renew_at = $starts_at;
+    $mdp_timezone        = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $early_renew_ymd     = ( new \DateTime( '@' . $starts_at ) )->setTimezone( $mdp_timezone )->format( 'Y-m-d' );
     if ( $renewal_window_days !== false ) {
-      $early_renew_at = strtotime( '-' . absint( $renewal_window_days ) . ' days', $ends_at );
+      $early_renew_ymd = ( new \DateTime( '@' . $ends_at ) )->setTimezone( $mdp_timezone )
+        ->modify( '-' . absint( $renewal_window_days ) . ' days' )->format( 'Y-m-d' );
     }
 
     $grace_period_days = abs( (int) round( ( $expires_at - $ends_at ) / DAY_IN_SECONDS ) );
@@ -573,7 +576,7 @@ class Membership_Bundle_Admin_Controller {
       'membership_starts_at'         => Utilities::get_mdp_day_start( $data['membership_starts_at'] )->format( 'c' ),
       'membership_ends_at'           => Utilities::get_mdp_day_end( $data['membership_ends_at'] )->format( 'c' ),
       'membership_expires_at'        => Utilities::get_mdp_day_end( $data['membership_expires_at'] )->format( 'c' ),
-      'membership_early_renew_at'    => Utilities::get_mdp_day_start( gmdate( 'Y-m-d', $early_renew_at ) )->format( 'c' ),
+      'membership_early_renew_at'    => Utilities::get_mdp_day_start( $early_renew_ymd )->format( 'c' ),
       'membership_grace_period_days' => $grace_period_days,
       'membership_renewal_type'      => $renewal_type,
     ];

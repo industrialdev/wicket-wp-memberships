@@ -1360,24 +1360,12 @@ class Membership_Bundle {
     // at lines 311–336 of Membership_Controller, substituting bundle dates in place of
     // dates recalculated from config.
     //
-    // Date-only strings (Y-m-d) are passed to update_membership_subscription() via the
-    // membership array. Passing a full UTC ISO string (e.g. "2025-12-31T23:59:59Z") causes
-    // drift: get_mdp_day_end() parses the embedded Z, shifts to MDP timezone, pins to
-    // 23:59:59, then converts back to UTC — moving the date one day forward when MDP
-    // timezone is behind UTC. A date-only string has no embedded timezone, so PHP parses
-    // it in the server default timezone (UTC in this stack), setTimezone() is a no-op
-    // shift on midnight, and the MDP-timezone pin lands on the correct calendar day.
-    // This also ensures the Action Scheduler job scheduled by schedule_force_set_next_payment_date()
-    // writes the correct value — it reuses the same string from $dates_to_update.
-    $ends_date_only       = ( new \DateTime( $bundle_dates['ends_at'],    new \DateTimeZone( 'UTC' ) ) )->format( 'Y-m-d' );
-    $expires_date_only    = ( new \DateTime(
-      ! empty( $bundle_dates['expires_at'] ) ? $bundle_dates['expires_at'] : $bundle_dates['ends_at'],
-      new \DateTimeZone( 'UTC' )
-    ) )->format( 'Y-m-d' );
-    $early_renew_date_only = ( new \DateTime(
-      ! empty( $bundle_dates['early_renew_at'] ) ? $bundle_dates['early_renew_at'] : $bundle_dates['ends_at'],
-      new \DateTimeZone( 'UTC' )
-    ) )->format( 'Y-m-d' );
+    // Pass the bundle's full ISO day boundaries: get_mdp_day_*() resolves an ISO instant
+    // to its MDP-local day, so the member record and subscription match the bundle exactly.
+    // schedule_force_set_next_payment_date() reuses the same string from $dates_to_update.
+    $ends_date_only        = $bundle_dates['ends_at'];
+    $expires_date_only     = ! empty( $bundle_dates['expires_at'] ) ? $bundle_dates['expires_at'] : $bundle_dates['ends_at'];
+    $early_renew_date_only = ! empty( $bundle_dates['early_renew_at'] ) ? $bundle_dates['early_renew_at'] : $bundle_dates['ends_at'];
 
     // get_membership_array_from_order_and_product_id() just reads post meta off whatever
     // post ID it's given — it doesn't require that post to actually be a WC order. When
@@ -2803,14 +2791,18 @@ class Membership_Bundle {
       if ( $write_ends ) {
         update_post_meta( $member_id, 'membership_ends_at', $new_ends_at );
 
-        // Recalculate early_renew_at to stay consistent with the new ends_at.
+        // Recalculate early_renew_at to stay consistent with the new ends_at. Day maths
+        // in the MDP timezone: UTC truncation and DST crossings shift the day.
         $new_ends_ts        = strtotime( $new_ends_at );
-        $early_renew_ts     = ( $renewal_window_days !== false && $new_ends_ts )
-          ? strtotime( '-' . absint( $renewal_window_days ) . ' days', $new_ends_ts )
-          : $new_ends_ts;
-        $early_renew_at_iso = $early_renew_ts
-          ? Utilities::get_mdp_day_start( gmdate( 'Y-m-d', $early_renew_ts ) )->format( 'c' )
-          : '';
+        $early_renew_at_iso = '';
+        if ( $new_ends_ts ) {
+          $early_renew_dt = ( new \DateTime( '@' . $new_ends_ts ) )
+            ->setTimezone( new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' ) );
+          if ( $renewal_window_days !== false ) {
+            $early_renew_dt->modify( '-' . absint( $renewal_window_days ) . ' days' );
+          }
+          $early_renew_at_iso = Utilities::get_mdp_day_start( $early_renew_dt->format( 'Y-m-d' ) )->format( 'c' );
+        }
         if ( $early_renew_at_iso ) {
           update_post_meta( $member_id, 'membership_early_renew_at', $early_renew_at_iso );
         }

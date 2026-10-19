@@ -406,11 +406,14 @@ class Membership_Bundle_Config {
 
     // Grace period extends the expiration beyond the nominal end date, giving members
     // time to renew after lapsing without immediately losing access in MDP.
+    // Window day maths runs on the MDP-local day: a UTC Y-m-d of an MDP day boundary is
+    // off by one for zones behind UTC (same fix as Membership_Config::mdp_local_ymd()).
+    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+
     $grace_period_in_days = $this->get_late_fee_window_days();
     if ( ! empty( $grace_period_in_days ) ) {
-      $end_date_ymd        = ( new \DateTime( $dates['end_date'] ) )->format( 'Y-m-d' );
-      $expires_at_utc      = new \DateTime( $end_date_ymd, new \DateTimeZone( 'UTC' ) );
-      $expires_date_string = $expires_at_utc->modify( '+' . $grace_period_in_days . ' days' )->format( 'Y-m-d' );
+      $expires_date_string = Utilities::get_mdp_day_end( $dates['end_date'] )->setTimezone( $mdp_timezone )
+        ->modify( '+' . $grace_period_in_days . ' days' )->format( 'Y-m-d' );
       $dates['expires_at'] = Utilities::get_mdp_day_end( $expires_date_string )->format( 'c' );
     }
 
@@ -423,9 +426,8 @@ class Membership_Bundle_Config {
       $early_renew_base        = ! empty( $membership['membership_ends_at'] )
         ? $membership['membership_ends_at']
         : $dates['end_date'];
-      $end_date_ymd            = ( new \DateTime( $early_renew_base ) )->format( 'Y-m-d' );
-      $early_renew_at_utc      = new \DateTime( $end_date_ymd, new \DateTimeZone( 'UTC' ) );
-      $early_renew_date_string = $early_renew_at_utc->modify( '-' . $early_renewal_in_days . ' days' )->format( 'Y-m-d' );
+      $early_renew_date_string = Utilities::get_mdp_day_end( $early_renew_base )->setTimezone( $mdp_timezone )
+        ->modify( '-' . $early_renewal_in_days . ' days' )->format( 'Y-m-d' );
       $dates['early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date_string )->format( 'c' );
     }
 
