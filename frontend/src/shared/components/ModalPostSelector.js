@@ -306,6 +306,11 @@ const SortIcon = ({ sortKey, activeSortKey, sortDir }) => {
  *                               Each: { key, label, width?, flex?, searchable?, sortable?, format? }
  *                               format: "text" (default) | "currency" | "date"
  *                               Defaults to title + published (Created) + modified (Last Modified).
+ *   emptyMessage    {string}    Overrides the "no results" row shown when loadOptions()
+ *                               resolves to an empty list (not a search with zero matches —
+ *                               that always shows "No results match your search."). Use this
+ *                               when loadOptions() applies its own filtering (e.g. eligibility)
+ *                               so an empty result isn't misread as "nothing exists at all."
  */
 const ModalPostSelector = ({
   id,
@@ -319,6 +324,7 @@ const ModalPostSelector = ({
   isLoadingValue = false,
   idLabel = __("ID", "wicket-memberships"),
   columns = DEFAULT_COLUMNS,
+  emptyMessage = __("No options available.", "wicket-memberships"),
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [options, setOptions] = useState([]);
@@ -643,7 +649,7 @@ const ModalPostSelector = ({
                   <EmptyRow>
                     {search.trim()
                       ? __("No results match your search.", "wicket-memberships")
-                      : __("No options available.", "wicket-memberships")}
+                      : emptyMessage}
                   </EmptyRow>
                 )}
 

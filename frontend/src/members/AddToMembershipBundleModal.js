@@ -5,6 +5,7 @@ import apiFetch from "@wordpress/api-fetch";
 import WicketModal from "../shared/components/WicketModal";
 import ModalPostSelector from "../shared/components/ModalPostSelector";
 import Alert from "../shared/components/Alert";
+import AddMemberErrorMessage from "../shared/components/AddMemberErrorMessage";
 import styled from "styled-components";
 import { API_URL, TIER_CPT_SLUG } from "../shared/constants";
 import {
@@ -31,6 +32,7 @@ const ModalFooter = styled.div`
  * @param {bool}     props.isOpen
  * @param {number}   props.membershipPostId   - WP post ID of the existing membership.
  * @param {number}   props.tierPostId         - WP post ID of the membership tier (from membership meta).
+ * @param {string}   props.tierName           - Display name of the membership tier (from membership meta).
  * @param {Function} props.onRequestClose
  * @param {Function} props.onSuccess          - Called after a successful add; parent should refresh.
  */
@@ -38,6 +40,7 @@ const AddToMembershipBundleModal = ({
   isOpen,
   membershipPostId,
   tierPostId,
+  tierName,
   onRequestClose,
   onSuccess,
 }) => {
@@ -69,6 +72,13 @@ const AddToMembershipBundleModal = ({
       const groups = response?.results ?? response ?? [];
       return groups
         .filter((bundle) => VALID_STATUSES.includes(bundle.status?.slug))
+        // Empty eligible_tier_ids means all tiers eligible. tierPostId can
+        // arrive as a string on legacy memberships, so coerce before compare.
+        .filter(
+          (bundle) =>
+            !bundle.eligible_tier_ids?.length ||
+            bundle.eligible_tier_ids.includes(Number(tierPostId)),
+        )
         .map((bundle) => ({
           value: bundle.post_id,
           title: bundle.bundle_name,
@@ -141,7 +151,7 @@ const AddToMembershipBundleModal = ({
         loadProductOptionsForAmbiguousTier();
         return;
       }
-      setError(err?.error ?? err?.message ?? __("An error occurred.", "wicket-memberships"));
+      setError(err);
       setSubmitting(false);
     }
   };
@@ -155,10 +165,21 @@ const AddToMembershipBundleModal = ({
     >
       {error && (
         <Alert
-          saveResult={{ type: "error", message: error }}
+          saveResult={{ type: "error", message: <AddMemberErrorMessage error={error} /> }}
           onDismiss={() => setError(null)}
         />
       )}
+
+      <p>
+        {sprintf(
+          // translators: %s is the tier name and ID of the membership being added, e.g. "Gold | ID: 123".
+          __(
+            "Current tier: %s",
+            "wicket-memberships"
+          ),
+          `${tierName} | ID: ${tierPostId}`
+        )}
+      </p>
 
       <p>
         {__(
@@ -174,6 +195,7 @@ const AddToMembershipBundleModal = ({
         value={selectedBundle}
         onChange={setSelectedGroup}
         loadOptions={loadGroupOptions}
+        emptyMessage={__("No eligible options available.", "wicket-memberships")}
         columns={[
           { key: "title",    label: __("Bundle Name",    "wicket-memberships"), width: 250, searchable: true },
           { key: "org_name", label: __("Organization",  "wicket-memberships"), width: 250, searchable: true },

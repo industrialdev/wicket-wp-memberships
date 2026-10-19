@@ -3,7 +3,7 @@ import { __ } from "@wordpress/i18n";
 import apiFetch from "@wordpress/api-fetch";
 import AdminNoticeStack from "../../shared/components/AdminNoticeStack";
 import AdminPageErrorBoundary from "../../shared/components/AdminPageErrorBoundary";
-import { Wrap } from "../../shared/styled_elements";
+import { GlobalSelectMenuStyle, Wrap } from "../../shared/styled_elements";
 import { API_URL } from "../../shared/constants";
 import {
   buildBundleConfigPayload,
@@ -43,7 +43,10 @@ const BundleConfigPageContent = ({
     recordRequest,
     wpPostsOptions,
     wcProductOptions,
+    tierOptions,
+    tiersRequest,
     retryRecord,
+    retryTiers,
     loadPostOptions,
     loadProductOptions,
     isRecordReady,
@@ -120,6 +123,25 @@ const BundleConfigPageContent = ({
           },
         ]
       : []),
+    ...(tiersRequest.status === "error"
+      ? [
+          {
+            id: "tiers-error",
+            status: "warning",
+            message: getPrimaryErrorMessage(
+              tiersRequest.error,
+              __(
+                "The list of membership tiers could not be loaded. Retry to select eligible tiers.",
+                "wicket-memberships",
+              ),
+            ),
+            action: {
+              label: __("Retry loading", "wicket-memberships"),
+              onClick: retryTiers,
+            },
+          },
+        ]
+      : []),
     ...submitErrors.map((message, index) => ({
       id: `submit-error-${index}`,
       status: "warning",
@@ -129,6 +151,7 @@ const BundleConfigPageContent = ({
 
   return (
     <Wrap>
+      <GlobalSelectMenuStyle />
       <AdminNoticeStack notices={notices} />
       <BundleConfigForm
         form={form}
@@ -142,6 +165,8 @@ const BundleConfigPageContent = ({
         onSubmit={handleSubmit}
         postId={postId}
         setForm={setForm}
+        tierOptions={tierOptions}
+        tiersRequest={tiersRequest}
         wcProductOptions={wcProductOptions}
         wpPostsOptions={wpPostsOptions}
       />

@@ -54,7 +54,11 @@ Adds an individual member seat to a bundle. Supports two modes: enrolling a new 
 | `400` | `bundle_ended` | Today is past the bundle's end date |
 | `400` | `ambiguous_product` | Tier has multiple products and `product_id` was not supplied |
 | `400` | `invalid_user` | MDP person UUID could not be resolved to a WP user |
-| `400` | `invalid_tier` | Tier post not found or wrong CPT |
+| `400` | `invalid_tier` | Tier post not found, wrong CPT, or not an individual tier |
+| `400` | `invalid_membership` | `existing_membership_post_id` not found or wrong CPT |
+| `400` | `invalid_membership_type` | Existing membership is not an individual membership |
+| `400` | `membership_already_in_bundle` | Existing membership already belongs to a bundle — move it instead |
+| `400` | `invalid_membership_status` | Existing membership is not `pending`, `active`, or `delayed` |
 | `400` | `create_failed` | Membership record creation failed |
 :::
 
@@ -87,6 +91,69 @@ curl -X POST "https://example.com/wp-json/wicket_member/v1/bundle/123/add_member
     "tier_post_id": 88,
     "existing_membership_post_id": 456
   }'
+```
+:::
+
+---
+
+## Find a person's eligible existing memberships
+
+**`GET /wp-json/wicket_member/v1/bundle/{bundle_post_id}/eligible_memberships`**
+
+Looks up a person's standalone individual memberships that are eligible to become a seat in this bundle — the discovery step behind `add_member`'s `"existing"` mode. Read-only; does not create a WordPress user.
+
+Resolves the WP user by `user_login` (the MDP UUID) first, then by the MDP person's primary email — the same fallback `add_member`'s `"new"` mode uses when creating a user, so this lookup and that write path agree on which WP account a person maps to.
+
+Gated by the same admin capability as every other route on this controller, with no additional per-person or per-org scoping — consistent with `add_member`, a write route on this same `person_uuid` input under the same gate.
+
+### URL parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `bundle_post_id` | `integer` | Yes | Post ID of the bundle. |
+
+### Query parameters
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `person_uuid` | `string` | Yes | MDP person UUID to look up eligible active memberships for. |
+
+### Response
+
+`200 OK`
+
+```json
+{
+    "memberships": [
+        {
+            "membership_post_id": 456,
+            "tier_post_id": 88,
+            "tier_name": "Individual — Gold",
+            "starts_at": "2026-01-01T00:00:00Z",
+            "ends_at": "2026-12-31T23:59:59Z",
+            "status": "active"
+        }
+    ]
+}
+```
+
+A membership qualifies when it belongs to the resolved user, has status `pending`, `active`, or `delayed`, is not already linked to any bundle, and its tier is eligible for this bundle's config. Empty array when none qualify, including when the person has no WordPress account yet.
+
+### Errors
+
+:::details Error codes
+| Status | Code | Cause |
+|---|---|---|
+| `404` | `bundle_not_found` | `bundle_post_id` does not resolve to a bundle |
+| `400` | `missing_person_uuid` | `person_uuid` is empty |
+:::
+
+### Example
+
+:::details Example
+```bash
+curl -X GET "https://example.com/wp-json/wicket_member/v1/bundle/123/eligible_memberships?person_uuid=member-person-uuid" \
+  -H "X-WP-Nonce: {nonce}"
 ```
 :::
 

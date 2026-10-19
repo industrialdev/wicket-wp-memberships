@@ -11,6 +11,7 @@ import {
 } from "../utils/formUtils";
 import ApprovalSection from "./ApprovalSection";
 import CycleSection from "./CycleSection";
+import EligibleTiersSection from "./EligibleTiersSection";
 import GeneralSettingsSection from "./GeneralSettingsSection";
 import GracePeriodSection from "./GracePeriodSection";
 import RenewalTypeSection from "./RenewalTypeSection";
@@ -28,6 +29,8 @@ const BundleConfigForm = ({
   isEditing,
   wpPostsOptions,
   wcProductOptions,
+  tierOptions,
+  tiersRequest,
   loadPostOptions,
   loadProductOptions,
 }) => {
@@ -146,6 +149,23 @@ const BundleConfigForm = ({
         />
 
         {/* ApprovalSection hidden — approval system not in use */}
+
+        <EligibleTiersSection
+          eligibleTierIds={form.bundle_config_data.eligible_tier_ids}
+          isDisabled={isInteractionLocked}
+          isLoading={isEditing && !isRecordReady}
+          isLoadingOptions={tiersRequest?.status === "loading"}
+          onChange={(eligibleTierIds) =>
+            setForm((currentForm) => ({
+              ...currentForm,
+              bundle_config_data: {
+                ...currentForm.bundle_config_data,
+                eligible_tier_ids: eligibleTierIds,
+              },
+            }))
+          }
+          tierOptions={tierOptions}
+        />
 
         <RenewalTypeSection
           form={form}

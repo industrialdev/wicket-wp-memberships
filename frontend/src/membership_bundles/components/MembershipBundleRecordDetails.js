@@ -194,6 +194,7 @@ const MembershipBundleRecordDetails = ({ record, bundlePageData, onRecordUpdated
       <AddMemberToBundleModal
         isOpen={isAddMemberOpen}
         bundlePostId={bundlePostId}
+        eligibleTierIds={bundlePageData?.config_eligible_tier_ids ?? []}
         onRequestClose={() => setIsAddMemberOpen(false)}
         onSuccess={(response) => {
           setIsAddMemberOpen(false);
