@@ -60,10 +60,6 @@ Repair work only — kept separate from Engineering Docs so novel feature work i
 - [Monthly Subscription Inherits a Sibling Annual Subscription's Next Payment Date](bugfix/monthly-subscription-inherits-annual-next-payment-date.md) — WWID-2425: in a checkout that creates both a monthly and an annual subscription, the deferred `woocommerce_subscription_status_updated` closure in `update_membership_subscription()` was not bound to its own subscription and wrote the annual membership's term-end `next_payment` onto the monthly one, silently and with no order note. Grace 0 is why the leaked date passed WC's `end > next_payment` validation. Fixed by binding both deferred closures in that method to their target subscription id — +21/−4 lines, no date calculation changed. Includes the full dump forensics, the rejected higher-risk options, and the data remediation still outstanding
 - [WP Private Content Plus Collision — Admin Product & Page Pickers](bugfix/wppcp-product-picker-collision.md) — Why product/variation/page lookups use plugin endpoints instead of `/wc/v3/products` and `/wp/v2/pages`; WPCP filters every REST query and clobbers `post__not_in`. Includes regression coverage, the three harness prerequisites, and proposed coverage for the pages endpoint (WWID-1763)
 
-## Public Docs (External Developers & New Team Members)
-- [Overview](public/index.md) — Entry point for all public developer documentation
-- [Membership Bundles](public/membership-bundles/index.md) — Class APIs, REST endpoints, and conceptual guides for the Membership Bundles feature
-
 ## Guides (End Users)
 - [Transfer a Membership to a New Owner](guides/membership_transfer.md) — Move a membership to a different person; keeps the remaining term
 - [Switch a Membership to a Different Tier](guides/membership_switch.md) — Move a member to a different tier; keeps the end date

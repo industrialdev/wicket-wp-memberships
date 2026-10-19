@@ -525,7 +525,7 @@ Builds renewal/grace/pending callout arrays for every membership bundle owned by
 
 Each bundle's `membership_data` entry is shaped to match the individual-membership format `Membership_Controller::get_membership_callouts()` already produces, specifically so the `ac-callout` block's rendering can dispatch on the same flags for both: `next_tier`, `form_page`, and `subscription_renewal` (always `false` for bundles today).
 
-Evaluates three callout types per bundle, using the same window rules as [Renewal Types](../public/membership-bundles/concepts/renewal-types.md): `pending_approval` (status is `pending`), `early_renewal` (`early_renew_at <= now < ends_at`), `grace_period` (`ends_at < now <= expires_at`). Skips bundles with no config. `group_owner` in the return value is reserved for future nested bundle-within-bundle callouts and is always empty today.
+Evaluates three callout types per bundle, using the same window rules as Renewal Types: `pending_approval` (status is `pending`), `early_renewal` (`early_renew_at <= now < ends_at`), `grace_period` (`ends_at < now <= expires_at`). Skips bundles with no config. `group_owner` in the return value is reserved for future nested bundle-within-bundle callouts and is always empty today.
 
 ---
 

@@ -80,8 +80,6 @@ docs/
   product/      ← implementer + support: one file per WP admin settings page/section
   engineering/  ← developer + agent: hooks, filters, architecture, source reference
   guides/       ← end-user: task-oriented how-tos in plain language
-  public/       ← external-facing developer docs (Laravel-style API reference)
-    membership-bundles/  ← public docs for the Membership Bundles feature
   index.md      ← entry point — list all docs by directory
   AGENTS.md     ← this file
 ```
@@ -91,43 +89,7 @@ docs/
 - Does the doc explain a WP admin UI screen, setting, or configuration option? → `product/`
 - Does the doc explain hooks, filters, PHP classes, source files, or non-UI developer contracts? → `engineering/`
 - Does the doc walk a non-technical person through completing a task? → `guides/`
-- Does the doc describe public PHP class APIs, REST endpoints, or concepts for external developers? → `public/`
 - When in doubt between `product/` and `engineering/`: if a support team member needs it to configure the plugin, it's `product/`. If a developer needs it to write code, it's `engineering/`.
-
-### `public/` maintenance rules
-
-`docs/public/membership-bundles/` must stay in sync with the source code. Update the relevant file whenever any of the following change:
-
-| Changed | Update |
-|---|---|
-| `Membership_Bundle` public methods, meta keys, or hooks | `public/membership-bundles/classes/membership-bundle.md` |
-| `Membership_Bundle_Config` public methods | `public/membership-bundles/classes/membership-bundle-config.md` |
-| `Membership_Bundle_Admin_Controller` public methods | `public/membership-bundles/classes/membership-bundle-admin-controller.md` |
-| Bundle REST endpoint parameters, responses, or routes | `public/membership-bundles/endpoints/` (relevant file) |
-| Bundle config dates endpoint | `public/membership-bundles/endpoints/bundle-config-dates.md` |
-| Status constants, transition rules, cron triggers, renewal flow | `public/membership-bundles/concepts/bundle-lifecycle.md` |
-| Renewal type, grace period, or cycle logic | `public/membership-bundles/concepts/renewal-types.md` |
-| Member add/remove/move semantics | `public/membership-bundles/concepts/member-handling.md` |
-
-Do not leave `docs/public/` stale after a code change. It is read by external developers and must reflect current behaviour.
-
-`docs/public/react/` must stay in sync with the React frontend source in `frontend/src/`. Update the relevant file whenever any of the following change:
-
-| Changed | Update |
-|---|---|
-| `shared/services/api.js` — function added, removed, or signature changed | `public/react/shared/api.md` |
-| `shared/constants.js`, `shared/cycleUtils.js`, `shared/utils/pagination.js` | `public/react/shared/constants.md` |
-| `shared/styled_elements.js` | `public/react/shared/styled-elements.md` |
-| Any shared component in `shared/components/` | `public/react/modern/shared-components.md` |
-| `membership_bundles/` components or hooks | `public/react/modern/membership-bundles.md` |
-| `membership_bundle_configs/` components, hooks, or utils | `public/react/modern/bundle-configs.md` |
-| `create_membership_bundle/` components | `public/react/modern/membership-bundles.md` |
-| `members/` files (index.js, edit.js, bundle_list.js, modals) | `public/react/legacy/members.md` |
-| `membership_configs/` files | `public/react/legacy/membership-configs.md` |
-| `membership_tiers/` files | `public/react/legacy/membership-tiers.md` |
-| Entry points change in `webpack.config.js` | `public/react/index.md` |
-| New component-based feature added | Create new file under `public/react/modern/`, add sidebar entry in `config.mts` |
-| Legacy file refactored to component-based | Move/update doc from `public/react/legacy/` to `public/react/modern/` |
 
 ---
 
@@ -232,7 +194,7 @@ Frontmatter `audience` field is the secondary filter for pipelines that need fin
 
 ## LLM and Agent Guidelines
 
-When an agent is asked to answer a question about configuring the plugin, read `docs/product/` first. When asked about code, hooks, or implementation, read `docs/engineering/` first. When asked to write end-user documentation, write to `docs/guides/`. When asked to write or update external-facing developer documentation (public API reference, endpoint docs, conceptual guides for Membership Bundles), work in `docs/public/membership-bundles/`.
+When an agent is asked to answer a question about configuring the plugin, read `docs/product/` first. When asked about code, hooks, or implementation, read `docs/engineering/` first. When asked to write end-user documentation, write to `docs/guides/`.
 
 Before writing any frontmatter field that references code (`php_class`, `db_option_prefix`, `source_files`):
 1. Verify the class exists — grep the codebase
