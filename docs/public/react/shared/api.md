@@ -50,7 +50,7 @@ Three namespaced base paths are exported from `shared/constants.js` and used int
 | `updateBundleChangeOwnership` | POST | `/wicket_member/v1/bundle/<id>/change_owner` | Updated bundle object |
 | `fetchTiers` | GET | `/wp/v2/wicket_mship_tier` | WordPress post objects for all published tiers |
 | `fetchMembershipTiers` | GET | `/wicket_member/v1/membership_tiers` | Tier objects |
-| `fetchTiersInfo` | GET | `/wicket_member/v1/membership_tier_info` | Tier info objects for given UUIDs |
+| `fetchTiersInfo` | GET | `/wicket_member/v1/membership_tier_info` | Tier info objects for all tiers |
 | `fetchWcProducts` | GET | `/wc/v3/products` | WooCommerce product objects |
 | `fetchProductVariations` | GET | `/wc/v3/products/<id>/variations` | WooCommerce variation objects |
 | `fetchMembershipProducts` | GET | `/wicket_member/v1/membership_products` | Product/variation display name objects |
@@ -440,15 +440,11 @@ Fetches membership tiers through the plugin's own REST endpoint, supporting rich
 
 ---
 
-### `fetchTiersInfo(tierIds)`
+### `fetchTiersInfo()`
 
-Resolves a list of tier UUIDs to their full tier info objects.
+Fetches tier info for every tier. Takes no arguments: the endpoint returns all tiers regardless of input, so it can run in parallel with the member list request.
 
-| Name | Type | Required | Description |
-|---|---|---|---|
-| `tierIds` | `string[]` | Yes | Array of MDP tier UUIDs to look up |
-
-**Endpoint:** `GET /wicket_member/v1/membership_tier_info?filter[tier_uuid][]=...`
+**Endpoint:** `GET /wicket_member/v1/membership_tier_info`
 
 **Returns:** Promise resolving to an array of tier info objects.
 

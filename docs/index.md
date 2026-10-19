@@ -21,9 +21,11 @@ audience: [implementer, support, developer, end-user]
 
 ### Tools
 - [Subscription Sync Tool — Engineering Reference](engineering/memberships_sync.md) — How `custom/memberships-sync.php` links subscriptions to memberships and syncs per-seat MDP seat counts
+- [Autorenew Status](engineering/autorenew-status.md) — `Autorenew::is_autorenewing()` reference and steps to test auto-renew locally (staging-site override required)
 
 ### Class Reference
 - [Admin_Controller](engineering/Class-Admin_Controller.md) — Admin menu pages, status transition validation, React app mounting
+- [Autorenew](engineering/Class-Autorenew.md) — Single source of truth for whether a membership's linked subscription will actually auto-renew, and why
 - [Helper](engineering/Class-Helper.md) — Static utilities: CPT slugs, status names, allowed transitions, logging
 - [Import_Controller](engineering/Class-Import_Controller.md) — CSV import for individual and organization memberships
 - [Bundle_Import_Controller](engineering/Class-Bundle_Import_Controller.md) — CSV import for membership bundles (launch-time migration)
@@ -55,6 +57,7 @@ Repair work only — kept separate from Engineering Docs so novel feature work i
 
 - [Monthly Autopay Form Flow — Hidden Renewal Callout & Orphaned Subscription](bugfix/monthly-autopay-form-flow-renewal-callout.md) — Why the renewal callout was hidden for the whole renewal window on monthly autopay Form Flow tiers, and why the old subscription kept billing past the term after a renewal. Both autopay checks in `get_membership_callouts()`, and the new `Subscription_Manager::terminate_at_membership_end()` clamp
 - [Annual Autopay Form Flow — Callout Still Hidden & Term-End Auto Payment](bugfix/annual-autopay-form-flow-renewal-callout.md) — Why the monthly repair did not reach annual subscriptions, and why those carry an armed term-end payment that auto-creates a membership with the renewal form bypassed. Drops the billing-period test from both autopay gates and removes the superseded subscription's `next_payment` so no renewal order is generated
+- [Monthly Subscription Inherits a Sibling Annual Subscription's Next Payment Date](bugfix/monthly-subscription-inherits-annual-next-payment-date.md) — WWID-2425: in a checkout that creates both a monthly and an annual subscription, the deferred `woocommerce_subscription_status_updated` closure in `update_membership_subscription()` was not bound to its own subscription and wrote the annual membership's term-end `next_payment` onto the monthly one, silently and with no order note. Grace 0 is why the leaked date passed WC's `end > next_payment` validation. Fixed by binding both deferred closures in that method to their target subscription id — +21/−4 lines, no date calculation changed. Includes the full dump forensics, the rejected higher-risk options, and the data remediation still outstanding
 - [WP Private Content Plus Collision — Admin Product & Page Pickers](bugfix/wppcp-product-picker-collision.md) — Why product/variation/page lookups use plugin endpoints instead of `/wc/v3/products` and `/wp/v2/pages`; WPCP filters every REST query and clobbers `post__not_in`. Includes regression coverage, the three harness prerequisites, and proposed coverage for the pages endpoint (WWID-1763)
 
 ## Public Docs (External Developers & New Team Members)

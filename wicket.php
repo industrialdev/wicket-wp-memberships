@@ -162,6 +162,11 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
           }
           // Default true: preserves pre-existing behaviour on installs that have never saved this setting.
           $_ENV['WICKET_MSHIP_AUTORENEW_OVERRIDE'] = isset($options['wicket_mship_autorenew_override']) ? (bool)$options['wicket_mship_autorenew_override'] : true;
+          if(isset($options['wicket_mship_autorenew_audit'])) {
+            if($options['wicket_mship_autorenew_audit']) {
+              $_ENV['WICKET_MSHIP_AUTORENEW_AUDIT']=true;
+            }
+          }
           if (isset($options['wicket_mship_mdp_timezone'])) {
             if ($options['wicket_mship_mdp_timezone']) {
               $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] = $options['wicket_mship_mdp_timezone'];
@@ -201,6 +206,8 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       new Membership_Bundle_WP_REST_Controller;
       new Membership_Subscription_Controller;
       new Helper;
+      new Autorenew_Sync;
+      new Autorenew_Audit;
       new Settings;
       new Utilities;
 
@@ -243,6 +250,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //plugin option settings & page including debug
       add_action( 'admin_menu', array ( __NAMESPACE__.'\\Settings' , 'wicket_membership_add_settings_page' ));
       add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'wicket_membership_register_settings' ));
+      add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'handle_manual_action_links' ));
+      add_action( 'admin_enqueue_scripts', array( __NAMESPACE__.'\\Settings' , 'enqueue_settings_assets' ));
+      add_filter( 'admin_body_class', array( __NAMESPACE__.'\\Settings' , 'settings_admin_body_class' ));
 
       //check order items before and at checkout process
 
@@ -267,6 +277,19 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
       // bundle renewal-order creation: claim/queue, WCS admin-action intercept, per-member repricing
       new Membership_Bundle_Renewal_Order_Controller;
+
+      //opt-in nightly autorenew drift audit; only scheduled while the setting is on, since
+      //the batch handler itself is only registered by Autorenew_Audit's constructor in that case
+      //deferred to the 'wp' hook like every other Action Scheduler call in this file — calling
+      //as_unschedule_all_actions() directly here runs during plugin construction, before Action
+      //Scheduler's functions are loaded, and fatals the entire site.
+      if ( ! empty( $_ENV['WICKET_MSHIP_AUTORENEW_AUDIT'] ) ) {
+        add_action('wp', array($this, 'schedule_daily_membership_autorenew_audit'), 10, 2);
+      } else {
+        add_action('wp', function() {
+          as_unschedule_all_actions('wicket_mship_autorenew_audit_hook', [], 'wicket-memberships');
+        });
+      }
 
       //checkbox toggle - can be used for view subscriptions
       add_action('init', [__NAMESPACE__.'\\Utilities', 'autorenew_checkbox_toggle_switch']);
@@ -333,6 +356,15 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
         $next_run_time = new \DateTime('tomorrow 4:00', $timezone);
         $next_run_time->setTimezone(new \DateTimeZone('UTC'));
         as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_activation_hook');
+      }
+    }
+
+    public static function schedule_daily_membership_autorenew_audit() {
+      if (!as_next_scheduled_action('wicket_mship_autorenew_audit_hook', [], 'wicket-memberships')) {
+        $timezone = wp_timezone();
+        $next_run_time = new \DateTime('tomorrow 4:30', $timezone);
+        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
+        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'wicket_mship_autorenew_audit_hook', [], 'wicket-memberships');
       }
     }
 
@@ -485,5 +517,6 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 	// the class autoloads via the composer PSR-4 map (Wicket_Memberships\ => includes/).
 	if ( defined( 'WP_CLI' ) && WP_CLI ) {
 		\WP_CLI::add_command( 'wicket-mship tier', \Wicket_Memberships\CLI\Tier_Sync_Command::class );
+		\WP_CLI::add_command( 'wicket-mship external-id', \Wicket_Memberships\CLI\External_Id_Repair_Command::class );
 	}
 }

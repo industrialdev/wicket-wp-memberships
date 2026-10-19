@@ -187,7 +187,12 @@ class Helper {
   }
 
   public static function is_valid_membership_post( $membership_post_id ) {
-    return ( !empty( get_post_status( $membership_post_id ) ) && get_post_status( $membership_post_id ) == 'publish' );
+    // Type check (WWID-2665): any published post of any type used to pass.
+    $post = get_post( $membership_post_id );
+    if ( empty( $post ) || empty( $post->post_type ) ) {
+      return false;
+    }
+    return $post->post_type === self::get_membership_cpt_slug() && get_post_status( $membership_post_id ) == 'publish';
   }
 
   public static function get_all_status_names() {
@@ -264,7 +269,10 @@ class Helper {
         ],
       ];
     } else {
-      return new \StdClass();
+      // Terminal and unknown statuses allow no transitions; always an array
+      // (WWID-2665): array consumers on /admin/status_options fataled on the
+      // old StdClass return.
+      return [];
     }
   }
 
@@ -277,13 +285,18 @@ class Helper {
    * @return array
    */
   public static function get_membership_post_data_from_membership_json( $membership_json, $json_encoded = true, $dir = 'post' ) {
+    // WWID-2665 audit note: DEAD CODE today - both production callers are
+    // commented out (Admin_Controller ~155 and ~300). The $dir comparison
+    // below is fixed (was an assignment), but the 'order' branch is
+    // unverified and its mapping/empty-check logic looks inverted. Do not
+    // call without fixing those first.
     $membership_post_data = array();
     if( $json_encoded === true ) {
       $membership_array = json_decode( $membership_json, true);
     } else {
       $membership_array = $membership_json;
     }
-    if($dir = 'post') {
+    if('post' === $dir) {
       $mapping_keys = [
         'membership_wp_user_display_name' => 'user_name',
         'membership_wp_user_email' => 'user_email',
@@ -675,6 +688,93 @@ class Helper {
     ] );
 
     return ! empty( $posts ) ? (int) $posts[0] : null;
+  }
+
+  /**
+   * Determine whether a product is in a membership product category.
+   *
+   * Uses the categories selected in the plugin settings, which always include the "Membership" category.
+   *
+   * @since 1.0.123
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @param  int  $product_id  Parent product ID; categories are stored on the parent.
+   *
+   * @return bool  True when the product is in a membership category; false when no categories resolve.
+   */
+  public static function is_in_membership_category( $product_id ) {
+    $categories = self::get_membership_category_ids();
+
+    // has_term() with an empty list matches any categorised product.
+    return ! empty( $categories ) && has_term( $categories, 'product_cat', $product_id );
+  }
+
+  /**
+   * Get the product category term IDs selected as Membership Categories.
+   *
+   * Reads `wicket_mship_membership_categories`. Until that key is saved, it uses the union of
+   * the legacy `wicket_show_mship_order_org_search[categorychoice]` and the base plugin's
+   * `wicket_admin_settings_membership_categories`, as each previously drove different consumers.
+   * The "Membership" product category is always included, whatever is selected.
+   *
+   * @since 1.0.123
+   *
+   * @see Settings::wicket_membership_plugin_options_validate()  Writes both keys on save.
+   * @see Helper::get_default_membership_category_ids()
+   *
+   * @return int[]  Product category term IDs.
+   */
+  public static function get_membership_category_ids() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+
+    if ( self::has_saved_membership_categories() ) {
+      $categories = (array) $options['wicket_mship_membership_categories'];
+    } else {
+      // Until saved, keep both legacy sources so no existing consumer narrows on deploy.
+      $categories = array_merge(
+        (array) ( $options['wicket_show_mship_order_org_search']['categorychoice'] ?? [] ),
+        function_exists( 'wicket_get_option' ) ? (array) wicket_get_option( 'wicket_admin_settings_membership_categories', [] ) : []
+      );
+    }
+
+    $categories = array_merge( $categories, self::get_default_membership_category_ids() );
+
+    // Normalize stored values to term IDs; drop empties that cast to 0.
+    return array_values( array_unique( array_filter( array_map( 'absint', $categories ) ) ) );
+  }
+
+  /**
+   * Get the term IDs of the built-in "Membership" product category.
+   *
+   * Matches by name or slug, as has_term( 'Membership' ) does, so a renamed or
+   * re-slugged category still counts.
+   *
+   * @since 1.0.123
+   *
+   * @return int[]  The term ID, or empty when the category does not exist.
+   */
+  public static function get_default_membership_category_ids() {
+    $term = get_term_by( 'name', 'Membership', 'product_cat' ) ?: get_term_by( 'slug', 'membership', 'product_cat' );
+
+    return $term ? [ (int) $term->term_id ] : [];
+  }
+
+  /**
+   * Whether Membership Categories has been saved under its new key on this site.
+   *
+   * Sibling plugins use this to keep their legacy behaviour until a site opts in by saving.
+   *
+   * @since 1.0.123
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @return bool  True once `wicket_mship_membership_categories` exists in the plugin options.
+   */
+  public static function has_saved_membership_categories() {
+    $options = get_option( 'wicket_membership_plugin_options' );
+
+    return is_array( $options ) && array_key_exists( 'wicket_mship_membership_categories', $options );
   }
 
   public static function get_user_switch_to_url($user_id) {
