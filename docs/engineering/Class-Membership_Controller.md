@@ -212,6 +212,12 @@ Daily cron hook to expire memberships whose expiration date was yesterday.
 **daily_membership_grace_period_hook()** (static)
 Daily cron hook to move memberships to grace period whose end date was yesterday.
 
+**get_membership_callouts($user_id = null, $status = "")**
+Returns callout data for memberships in early renewal, grace period, or pending approval. With `WICKET_MSHIP_SECTION_CALLOUT_SUPPRESSION` set, early-renewal and grace entries for `section`-category tiers are dropped when an active or delayed `primary`-category membership of the same person and type ends more than a day after the section's term (WWID-2837). Suppression is skipped for entries carrying a `subscription_renewal` link. Tier categories come from `tier_data['mdp_category']`, written by the tier sync command.
+
+**suppress_section_callouts_covered_by_primary(...)** (private)
+Applies the WWID-2837 suppression filter to the early-renewal and grace arrays; see `get_membership_callouts()`.
+
 ## See Also
 
 - [Subscription_Manager](Class-Subscription_Manager.md) — intended home for subscription-touching logic; owns the `end`/`next_payment` collision guards this class calls

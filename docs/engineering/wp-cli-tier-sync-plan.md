@@ -155,8 +155,8 @@ wp wicket-mship tier list   [--source=<mdp|local>] [--format=<table|json|csv>]
 For each MDP tier returned by the API:
 1. Look up an existing local tier by `mdp_tier_uuid`.
 2. If none exists → **create** a `wicket_mship_tier` post, populate `tier_data`
-   (`mdp_tier_uuid`, `mdp_tier_name`, `config_id`, `type`, sensible defaults).
-3. If one exists → **skip** by default; optionally refresh `mdp_tier_name` if it drifted
+   (`mdp_tier_uuid`, `mdp_tier_name`, `mdp_category`, `config_id`, `type`, sensible defaults).
+3. If one exists → **skip** by default; optionally refresh `mdp_tier_name` / `mdp_category` if either drifted
    (report as "updated").
 4. Emit a per-tier result line and a final summary (`created`, `skipped`, `updated`, `errors`).
 
@@ -251,9 +251,9 @@ operator can preview before syncing and diff after. Cheap to build, high diagnos
      starts from empty products, so the editor handles the empty case by design.
 
 ### Still to confirm during implementation
-5. **Update policy.** On an existing tier, only refresh `mdp_tier_name`, or leave the local
-   post fully untouched? Proposal: refresh name only, never touch config/products.
-   - yes
+5. **Update policy.** On an existing tier, refresh `mdp_tier_name` and `mdp_category` only, or leave the local
+   post fully untouched? Proposal: refresh name and category only, never touch config/products.
+   - yes (category added to the policy with WWID-2837: callout suppression reads it, so it must not go stale)
 6. **`approval_required` mapping.** Staging shows only `approval_not_required`. Confirm the
    opposite enum value (assumed `approval_required`) against a tenant that uses it before
    auto-seeding `tier_data['approval_required']`. Safe fallback: default to `false`.

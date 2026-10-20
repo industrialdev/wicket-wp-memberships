@@ -30,6 +30,7 @@ This document describes the structure and external linkage of membership tiers i
 [
   'mdp_tier_uuid' => 'external-mdp-uuid-123',
   'mdp_tier_name' => 'Gold',
+  'mdp_category' => 'primary', // MDP tier category ('primary', 'section', ...); copied from the MDP tier on sync. Read by callout suppression (WWID-2837) and tier admin display.
   'config_id' => 321, // Reference to the config post
   'type' => 'individual', // or 'organization'
   'renewal_type' => 'subscription', // or 'current_tier', 'sequential_logic', 'form_flow'

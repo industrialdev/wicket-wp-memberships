@@ -180,8 +180,9 @@ class Tier_Sync_Command {
       } else {
         // Load the existing tier once for both the name-drift check and the product check.
         $existing_tier = new Membership_Tier( $existing_id );
-        // Existing tier: only a name drift is actionable (update policy = name only).
-        $action        = ( $existing_tier->get_mdp_tier_name() !== $name ) ? 'update' : 'skip';
+        // Existing tier: name or category drift is actionable (update policy = name + category).
+        $mdp_category   = (string) ( $mdp_tier['attributes']['category'] ?? '' );
+        $action        = ( $existing_tier->get_mdp_tier_name() !== $name || ( $existing_tier->tier_data['mdp_category'] ?? '' ) !== $mdp_category ) ? 'update' : 'skip';
 
         // Only surface a product decision for existing tiers when backfill was requested.
         if ( $backfill_products ) {
@@ -208,7 +209,7 @@ class Tier_Sync_Command {
     // column when a product flag is active, keeping the default output unchanged.
     $this->print_results( $plan, $format, $create_products || $backfill_products );
     WP_CLI::log( sprintf(
-      'Plan: %d to create, %d to update (name), %d unchanged.',
+      'Plan: %d to create, %d to update (name/category), %d unchanged.',
       count( $to_create ),
       count( $to_update ),
       count( $plan ) - count( $to_create ) - count( $to_update )
@@ -257,9 +258,9 @@ class Tier_Sync_Command {
         ++$created;
         WP_CLI::log( sprintf( 'Created tier #%d "%s" (%s).', $post_id, $row['name'], $row['uuid'] ) );
       } elseif ( 'update' === $row['action'] ) {
-        $this->refresh_tier_name( (int) $row['post_id'], $row['name'] );
+        $this->refresh_tier_identity( (int) $row['post_id'], $row['name'], (string) ( $row['mdp']['attributes']['category'] ?? '' ) );
         ++$updated;
-        WP_CLI::log( sprintf( 'Updated name on tier #%d to "%s".', $row['post_id'], $row['name'] ) );
+        WP_CLI::log( sprintf( 'Updated name/category on tier #%d to "%s".', $row['post_id'], $row['name'] ) );
       }
 
       // Backfill a product onto an existing product-less tier. Independent of the name update
@@ -651,6 +652,9 @@ class Tier_Sync_Command {
     $tier_data = array(
       'mdp_tier_uuid' => (string) ( $mdp_tier['id'] ?? '' ),
       'mdp_tier_name' => (string) ( $attributes['name_en'] ?? '' ),
+      // MDP membership category ('primary', 'section', ...). Callout suppression
+      // reads this, so it must survive sync and admin edits.
+      'mdp_category'  => (string) ( $attributes['category'] ?? '' ),
       'config_id'     => (int) $config_id,
       'type'          => $type,
       // Sensible, benign default; the actual renewal path is configured in the admin UI.
@@ -671,14 +675,16 @@ class Tier_Sync_Command {
   }
 
   /**
-   * Refresh only the `mdp_tier_name` on an existing tier (update policy = name only).
+   * Refresh the `mdp_tier_name` and `mdp_category` on an existing tier
+   * (update policy = name + category). Other tier_data keys are preserved.
    *
    * @param int    $post_id  Existing tier post ID.
    * @param string $name     New MDP name (`name_en`).
+   * @param string $category New MDP category.
    *
    * @return void
    */
-  private function refresh_tier_name( $post_id, $name ) {
+  private function refresh_tier_identity( $post_id, $name, $category ) {
     $tier = new Membership_Tier( $post_id );
 
     if ( ! is_array( $tier->tier_data ) ) {
@@ -687,6 +693,7 @@ class Tier_Sync_Command {
 
     $tier_data                  = $tier->tier_data;
     $tier_data['mdp_tier_name'] = (string) $name;
+    $tier_data['mdp_category']  = (string) $category;
     $tier->update_tier_data( $tier_data );
   }
 
