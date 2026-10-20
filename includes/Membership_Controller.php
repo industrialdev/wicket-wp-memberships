@@ -2523,7 +2523,8 @@ function get_item_data ( $other_data, $cart_item ) {
         $section_type    = (string) ( $entry['membership']['meta']['membership_type'] ?? '' );
         $covered = false;
         foreach ( $active_primary_terms as $term ) {
-          if ( '' !== $term['type'] && $term['type'] !== $section_type ) {
+          // An unknown type on either side cannot contradict the other, so it never disqualifies.
+          if ( '' !== $term['type'] && '' !== $section_type && $term['type'] !== $section_type ) {
             continue;
           }
           if ( $term['ends_at'] > $section_ends_at + DAY_IN_SECONDS ) {

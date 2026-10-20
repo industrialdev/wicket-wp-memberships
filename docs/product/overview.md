@@ -52,6 +52,7 @@ Valid statuses: `pending`, `active`, `grace_period`, `delayed`, `expired`, `canc
 | `WICKET_MSHIP_SUBSCRIPTION_RENEW` | Subscription-based renewal |
 | `WICKET_MSHIP_ASSIGN_SUBSCRIPTION` | Linking subscriptions to memberships |
 | `WICKET_MSHIP_AUTORENEW_TOGGLE` | Shows autorenew checkbox on subscriptions |
+| `WICKET_MSHIP_SECTION_CALLOUT_SUPPRESSION` | Hides section renewal callouts when an active primary covers a later term (WWID-2837) |
 | `BYPASS_WICKET` | Skips MDP sync (local dev) |
 | `ALLOW_LOCAL_IMPORTS` | Enables CSV import REST endpoints |
 

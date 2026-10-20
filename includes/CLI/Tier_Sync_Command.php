@@ -181,7 +181,8 @@ class Tier_Sync_Command {
         // Load the existing tier once for both the name-drift check and the product check.
         $existing_tier = new Membership_Tier( $existing_id );
         // Existing tier: name or category drift is actionable (update policy = name + category).
-        $mdp_category   = (string) ( $mdp_tier['attributes']['category'] ?? '' );
+        // Lowercased to match what refresh writes, or capitalized MDP values would drift forever.
+        $mdp_category   = strtolower( (string) ( $mdp_tier['attributes']['category'] ?? '' ) );
         $action        = ( $existing_tier->get_mdp_tier_name() !== $name || ( $existing_tier->tier_data['mdp_category'] ?? '' ) !== $mdp_category ) ? 'update' : 'skip';
 
         // Only surface a product decision for existing tiers when backfill was requested.

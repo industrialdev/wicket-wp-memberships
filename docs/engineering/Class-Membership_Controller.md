@@ -52,6 +52,7 @@ source_files: ["includes/Membership_Controller.php"]
 - `error_notice()`
 - `get_my_memberships($flag = 'all', $tier_uuid = '', $user_id = null)`
 - `get_membership_callouts($user_id = null, $status = "")`
+- `suppress_section_callouts_covered_by_primary(...)` (private)
 - `add_late_fee_product_to_subscription_renewal_order($subscription_id)`
 - `get_members_list_group_by_filter($groupby)`
 - `get_members_list($type, $page, $posts_per_page, $status, $search = '', $filter = [], $order_col = null, $order_dir = null)`
@@ -184,9 +185,6 @@ Outputs an error notice in the WordPress admin UI.
 
 **get_my_memberships($flag = 'all', $tier_uuid = '', $user_id = null)**
 Retrieves all memberships for a user, optionally filtered by status and tier UUID.
-
-**get_membership_callouts($user_id = null, $status = "")**
-Returns callout data for memberships in early renewal, grace period, or pending approval, for use in the account center.
 
 **add_late_fee_product_to_subscription_renewal_order($subscription_id)**
 Adds a late fee product to a subscription renewal order if not already present.

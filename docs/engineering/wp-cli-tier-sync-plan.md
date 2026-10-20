@@ -357,7 +357,7 @@ wp wicket-mship tier list [--source=<source>] [--format=<format>]
 Fetches every MDP tier (paginated), matches each against local tiers by `mdp_tier_uuid`,
 and creates the missing ones. Created tiers are attached to `--config-id`, linked by UUID,
 and left with **no products** (added later in the admin UI). Existing tiers are skipped;
-only a drifted `mdp_tier_name` is refreshed.
+only a drifted `mdp_tier_name` or `mdp_category` is refreshed.
 
 | Arg | Required | Default | Values | Purpose |
 |---|---|---|---|---|
@@ -373,6 +373,7 @@ Behavior notes:
 - **Idempotent** — re-running creates nothing already linked by `mdp_tier_uuid`.
 - Live writes require `--yes` or an interactive `y/n` confirmation.
 - Per created tier, `tier_data` is written as: `mdp_tier_uuid`, `mdp_tier_name` (`name_en`),
+  `mdp_category` (lowercased from MDP `category`),
   `config_id`, `type`, `renewal_type: subscription` (benign default), `approval_required`
   (from MDP `approval`), `product_data: []`, and — for organization tiers — `seat_type`
   (`unlimited_assignments ? per_range_of_seats : per_seat`). `membership_tier_slug` is set
