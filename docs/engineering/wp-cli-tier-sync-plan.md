@@ -397,7 +397,7 @@ create   individual    Student Member                           3fd27d2f-e47d-4a
 create   organization  Veterinary Clinic Membership for 2 - 5   53580191-ffad-477e-83ee-aceea9265a3b
 create   organization  Veterinary Clinic Membership for 6+      4caf0d73-48e6-47e2-86a0-b642ea975e1d
 ...
-Plan: 14 to create, 0 to update (name), 16 unchanged.
+Plan: 14 to create, 0 to update (name/category), 16 unchanged.
 Success: Dry run complete — no changes written.
 ```
 
@@ -534,8 +534,8 @@ afterward for `per_seat`.
   `--backfill-products` touches only `skip`/`update` rows whose `product_data` is **empty**. A
   tier that already has products is never modified by either flag — backfill only fills a gap,
   it never clobbers or replaces an existing linkage.
-- **Backfill is the one sanctioned exception to the name-only update policy.** Normally an
-  existing tier's `tier_data` is only name-refreshed (§6.5); `--backfill-products` additionally
+- **Backfill is the one sanctioned exception to the name/category update policy.** Normally an
+  existing tier's `tier_data` is only name/category-refreshed (§6.5); `--backfill-products` additionally
   writes `product_data` on an otherwise-empty tier. It is gated behind the explicit flag and
   the write confirmation, and it leaves every other `tier_data` field untouched.
 - **SKU keyed on UUID** → re-running never creates a duplicate product, even after a
@@ -575,7 +575,7 @@ afterward for `per_seat`.
 ### 13.8 Decisions / open questions
 
 - **Backfill existing product-less tiers.** ✅ **Adopted** as `--backfill-products` (§13.2).
-  It is the sanctioned exception to the name-only update policy (§13.6) and the remediation
+  It is the sanctioned exception to the name/category update policy (§13.6) and the remediation
   path for tiers synced empty before this feature — directly the failure surfaced in §13.10.
   Kept as a *separate* opt-in flag (not folded into `--create-products`) so an operator can
   remediate an existing site without also re-running a create pass.

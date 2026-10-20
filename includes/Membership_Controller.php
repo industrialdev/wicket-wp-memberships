@@ -2515,6 +2515,11 @@ function get_item_data ( $other_data, $cart_item ) {
         }
 
         $section_ends_at = strtotime( $entry['membership']['meta']['membership_ends_at'] ?? '' );
+        // strtotime('') is false and false + DAY_IN_SECONDS reads as covered, so fail open.
+        if ( false === $section_ends_at ) {
+          $kept[] = $entry;
+          continue;
+        }
         $section_type    = (string) ( $entry['membership']['meta']['membership_type'] ?? '' );
         $covered = false;
         foreach ( $active_primary_terms as $term ) {

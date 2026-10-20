@@ -46,8 +46,8 @@ class Tier_Sync_Command {
   /**
    * Create local membership tiers from the external MDP tiers.
    *
-   * For each MDP tier: if a local tier already links to its UUID it is skipped (its name is
-   * refreshed if it drifted); otherwise a new `wicket_mship_tier` post is created linked by
+   * For each MDP tier: if a local tier already links to its UUID it is skipped (its name and
+   * category are refreshed if either drifted); otherwise a new `wicket_mship_tier` post is created linked by
    * `mdp_tier_uuid` and attached to the config given by --config-id. Newly created tiers
    * have no products — product selection is completed afterwards in the admin UI.
    *
@@ -590,7 +590,7 @@ class Tier_Sync_Command {
    *
    * Backs `--backfill-products`. Guards against clobbering: a tier that already has products
    * is left untouched. Only `product_data` is written — every other `tier_data` field is
-   * preserved, making this the single sanctioned exception to the name-only update policy.
+   * preserved, making this the single sanctioned exception to the name/category update policy.
    * If the meta write does not take, a product freshly created here is trashed so no orphan
    * remains.
    *
@@ -654,7 +654,7 @@ class Tier_Sync_Command {
       'mdp_tier_name' => (string) ( $attributes['name_en'] ?? '' ),
       // MDP membership category ('primary', 'section', ...). Callout suppression
       // reads this, so it must survive sync and admin edits.
-      'mdp_category'  => (string) ( $attributes['category'] ?? '' ),
+      'mdp_category'  => strtolower( (string) ( $attributes['category'] ?? '' ) ),
       'config_id'     => (int) $config_id,
       'type'          => $type,
       // Sensible, benign default; the actual renewal path is configured in the admin UI.
@@ -693,7 +693,7 @@ class Tier_Sync_Command {
 
     $tier_data                  = $tier->tier_data;
     $tier_data['mdp_tier_name'] = (string) $name;
-    $tier_data['mdp_category']  = (string) $category;
+    $tier_data['mdp_category']  = strtolower( (string) $category );
     $tier->update_tier_data( $tier_data );
   }
 
