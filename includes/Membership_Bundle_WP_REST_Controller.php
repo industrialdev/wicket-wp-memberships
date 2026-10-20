@@ -394,9 +394,12 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
      * Member-scoped counterpart to the staff-only /mdp_person/search route
      * (Membership_WP_REST_Controller::mdp_person_lookup): gated by
      * permissions_check_bundle_org_member, so only members of the bundle's
-     * owning org can search. Returns plain MDP person matches only — no
-     * eligibility computation. Tier eligibility is still enforced by
-     * add_member at submit time (see Membership_Bundle_Config::is_tier_eligible_for_bundle()).
+     * owning org can search. Each MDP person match carries a
+     * `bundle_eligibility` summary ({ eligible, in_bundle, not_eligible }
+     * tier counts, computed with the same rules as eligible_tiers/mine) so
+     * the modal can flag people with nothing addable before they're
+     * selected. Tier eligibility is still enforced by add_member at submit
+     * time (see Membership_Bundle_Config::is_tier_eligible_for_bundle()).
      */
     register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/search_eligible_members', [
       [
@@ -1139,7 +1142,11 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     // finds nothing.
     $override = apply_filters( 'wicket_mship_bundle_eligible_member_search', null, $term, [ 'bundle_post_id' => $bundle_post_id ] );
     if ( null !== $override ) {
-      return rest_ensure_response( is_array( $override ) ? $this->attach_person_avatar_urls( $override ) : $override );
+      return rest_ensure_response(
+        is_array( $override )
+          ? $this->attach_bundle_eligibility_summaries( $this->attach_person_avatar_urls( $override ), $bundle_post_id )
+          : $override
+      );
     }
 
     $response = wicket_search_person( $term );
@@ -1148,7 +1155,51 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       return new WP_REST_Response( [ 'error' => 'Person search failed.' ], 500 );
     }
 
-    return rest_ensure_response( $this->attach_person_avatar_urls( $response ) );
+    return rest_ensure_response(
+      $this->attach_bundle_eligibility_summaries( $this->attach_person_avatar_urls( $response ), $bundle_post_id )
+    );
+  }
+
+  /**
+   * Add a `bundle_eligibility` summary to each person search result:
+   * { eligible: int, in_bundle: int, not_eligible: int } — counts of this
+   * bundle's tiers per eligibility_status for that person, using exactly the
+   * rules (and the wicket_mship_bundle_tier_eligibility_status filter) that
+   * eligible_tiers/mine applies once the person is selected. The modal uses
+   * it to label and lock results with zero eligible tiers.
+   *
+   * Results without an `id`, or a bundle that fails to resolve, are left
+   * without the key — the modal treats a missing summary as "unknown" and
+   * keeps the row selectable, so this can never block a valid add.
+   *
+   * @param array $people [{ id, full_name, primary_email_address, ... }, ...]
+   * @return array
+   */
+  private function attach_bundle_eligibility_summaries( array $people, int $bundle_post_id ): array {
+    $person_uuids = [];
+    foreach ( $people as $person ) {
+      if ( is_array( $person ) && ! empty( $person['id'] ) ) {
+        $person_uuids[] = (string) $person['id'];
+      }
+    }
+
+    if ( empty( $person_uuids ) ) {
+      return $people;
+    }
+
+    $summaries = Membership_Bundle_Admin_Controller::get_person_eligibility_summaries( $bundle_post_id, $person_uuids );
+    if ( ! is_array( $summaries ) ) {
+      return $people;
+    }
+
+    foreach ( $people as $index => $person ) {
+      $person_uuid = is_array( $person ) ? (string) ( $person['id'] ?? '' ) : '';
+      if ( '' !== $person_uuid && isset( $summaries[ $person_uuid ] ) ) {
+        $people[ $index ]['bundle_eligibility'] = $summaries[ $person_uuid ];
+      }
+    }
+
+    return $people;
   }
 
   /**

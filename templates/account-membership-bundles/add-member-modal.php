@@ -161,23 +161,52 @@ if ( ! defined( 'ABSPATH' ) ) {
           </template>
 
           <template x-if="!selectedPerson && results.length > 0">
-            <div class="wicket-mship-add-member-modal__results-list">
-              <template x-for="person in results" :key="person.id">
-                <button type="button" class="wicket-mship-add-member-modal__result-row" @click="selectPerson(person)">
-                  <span class="wicket-mship-add-member-modal__result-avatar" aria-hidden="true">
-                    <template x-if="person.avatar_url">
-                      <img :src="person.avatar_url" alt="" loading="lazy" />
+            <div>
+              <p
+                class="wicket-mship-add-member-modal__results-summary"
+                x-show="ineligibleResultCount() > 0"
+                x-text="resultsSummaryText()"
+              ></p>
+              <div class="wicket-mship-add-member-modal__results-list">
+                <!-- People with zero eligible tiers stay in the list (so the
+                     member can see the search did find them) but are labelled,
+                     visually muted, sorted below selectable people, and locked
+                     via aria-disabled + a guarded click handler. aria-disabled
+                     rather than the disabled attribute keeps the row focusable,
+                     so screen-reader users still hear why it can't be chosen. -->
+                <template x-for="person in sortedResults()" :key="person.id">
+                  <button
+                    type="button"
+                    class="wicket-mship-add-member-modal__result-row"
+                    :class="{ 'wicket-mship-add-member-modal__result-row--ineligible': !isPersonSelectable(person) }"
+                    :aria-disabled="isPersonSelectable(person) ? 'false' : 'true'"
+                    @click="selectPerson(person)"
+                  >
+                    <span class="wicket-mship-add-member-modal__result-avatar" aria-hidden="true">
+                      <template x-if="person.avatar_url">
+                        <img :src="person.avatar_url" alt="" loading="lazy" />
+                      </template>
+                    </span>
+                    <span class="wicket-mship-add-member-modal__result-info">
+                      <span class="wicket-mship-add-member-modal__result-name" x-text="person.full_name"></span>
+                      <span class="wicket-mship-add-member-modal__result-email" x-text="person.primary_email_address"></span>
+                      <template x-for="col in extraColumns" :key="col.key">
+                        <span class="wicket-mship-add-member-modal__result-extra" x-show="person[col.key]" x-text="person[col.key] ? col.label + ': ' + person[col.key] : ''"></span>
+                      </template>
+                      <template x-if="!isPersonSelectable(person)">
+                        <span class="wicket-mship-add-member-modal__result-reason" x-text="personIneligibleReason(person)"></span>
+                      </template>
+                    </span>
+                    <template x-if="person.bundle_eligibility">
+                      <span
+                        class="wicket-mship-add-member-modal__badge wicket-mship-add-member-modal__result-badge"
+                        :class="personBadgeClass(person)"
+                        x-text="personBadgeLabel(person)"
+                      ></span>
                     </template>
-                  </span>
-                  <span class="wicket-mship-add-member-modal__result-info">
-                    <span class="wicket-mship-add-member-modal__result-name" x-text="person.full_name"></span>
-                    <span class="wicket-mship-add-member-modal__result-email" x-text="person.primary_email_address"></span>
-                    <template x-for="col in extraColumns" :key="col.key">
-                      <span class="wicket-mship-add-member-modal__result-extra" x-show="person[col.key]" x-text="person[col.key] ? col.label + ': ' + person[col.key] : ''"></span>
-                    </template>
-                  </span>
-                </button>
-              </template>
+                  </button>
+                </template>
+              </div>
             </div>
           </template>
 
@@ -223,9 +252,23 @@ if ( ! defined( 'ABSPATH' ) ) {
                 </p>
               </template>
 
-              <div class="wicket-mship-add-member-modal__tier-list" x-show="!tiersLoading && !tiersError && tiers.length > 0">
-                <template x-for="tier in tiers" :key="tier.id">
-                  <div class="wicket-mship-add-member-modal__tier-row">
+              <template x-if="!tiersLoading && !tiersError && tiers.length > 0 && eligibleTiers().length === 0">
+                <p class="wicket-mship-add-member-modal__empty">
+                  <?php esc_html_e( 'This member has no memberships that can be added to this bundle.', 'wicket-memberships' ); ?>
+                </p>
+              </template>
+
+              <!-- Eligible tiers are always listed first; 'in_bundle' and
+                   'not_eligible' tiers are collapsed behind the toggle below
+                   by default (expanded automatically when nothing is
+                   eligible, so the member can see why) to keep the
+                   selectable rows and the footer actions near the top. -->
+              <div class="wicket-mship-add-member-modal__tier-list" x-show="!tiersLoading && !tiersError && visibleTiers().length > 0">
+                <template x-for="tier in visibleTiers()" :key="tier.id">
+                  <div
+                    class="wicket-mship-add-member-modal__tier-row"
+                    :class="{ 'wicket-mship-add-member-modal__tier-row--muted': !isTierSelectable(tier) }"
+                  >
                     <label
                       class="wicket-mship-add-member-modal__tier-checkbox-label"
                       :class="{ 'wicket-mship-add-member-modal__tier-checkbox-label--disabled': !isTierSelectable(tier) }"
@@ -270,6 +313,16 @@ if ( ! defined( 'ABSPATH' ) ) {
                   </div>
                 </template>
               </div>
+
+              <template x-if="!tiersLoading && !tiersError && otherTiers().length > 0 && eligibleTiers().length > 0">
+                <button
+                  type="button"
+                  class="wicket-mship-add-member-modal__other-tiers-toggle"
+                  :aria-expanded="showOtherTiers ? 'true' : 'false'"
+                  @click="showOtherTiers = ! showOtherTiers"
+                  x-text="otherTiersToggleLabel()"
+                ></button>
+              </template>
 
               <div class="wicket-mship-add-member-modal__footer wicket-mship-add-member-modal__footer--split">
                 <span class="wicket-mship-add-member-modal__selected-count" x-text="selectedCount() + ' <?php echo esc_js( __( 'Membership(s) selected', 'wicket-memberships' ) ); ?>'"></span>
@@ -430,6 +483,9 @@ if ( ! defined( 'ABSPATH' ) ) {
       tiers: [],
       checkedTiers: {},
       selectedTierProducts: {},
+      // Whether 'in_bundle'/'not_eligible' tiers are expanded on the
+      // selection step — see visibleTiers().
+      showOtherTiers: false,
 
       submitting: false,
       submitError: '',
@@ -456,6 +512,7 @@ if ( ! defined( 'ABSPATH' ) ) {
         this.tiers = [];
         this.checkedTiers = {};
         this.selectedTierProducts = {};
+        this.showOtherTiers = false;
         this.submitting = false;
         this.submitError = '';
       },
@@ -516,10 +573,90 @@ if ( ! defined( 'ABSPATH' ) ) {
       },
 
       async selectPerson( person ) {
+        if ( ! this.isPersonSelectable( person ) ) {
+          return;
+        }
         this.selectedPerson = person;
         this.checkedTiers = {};
         this.selectedTierProducts = {};
+        this.showOtherTiers = false;
         await this.fetchTiers();
+      },
+
+      // bundle_eligibility is attached by search_eligible_members:
+      // { eligible, in_bundle, not_eligible } tier counts for this bundle.
+      // A missing summary means "unknown" (e.g. a search override returned
+      // people without an id) — keep those selectable so this can never
+      // block a valid add; add_member still validates on submit.
+      isPersonSelectable( person ) {
+        const summary = person && person.bundle_eligibility;
+        if ( ! summary ) {
+          return true;
+        }
+        return Number( summary.eligible ) > 0;
+      },
+
+      // Selectable people first; original (relevance) order kept otherwise.
+      sortedResults() {
+        return [
+          ...this.results.filter( ( person ) => this.isPersonSelectable( person ) ),
+          ...this.results.filter( ( person ) => ! this.isPersonSelectable( person ) ),
+        ];
+      },
+
+      ineligibleResultCount() {
+        return this.results.filter( ( person ) => ! this.isPersonSelectable( person ) ).length;
+      },
+
+      resultsSummaryText() {
+        const total = this.results.length;
+        const selectable = total - this.ineligibleResultCount();
+        return <?php echo wp_json_encode( __( '%1$d of %2$d members found can be added to this bundle.', 'wicket-memberships' ) ); ?>
+          .replace( '%1$d', selectable )
+          .replace( '%2$d', total );
+      },
+
+      // True when every tier this person holds is already a bundle seat.
+      isPersonAllInBundle( person ) {
+        const summary = person && person.bundle_eligibility;
+        return !! summary
+          && Number( summary.eligible ) === 0
+          && Number( summary.in_bundle ) > 0
+          && Number( summary.not_eligible ) === 0;
+      },
+
+      personBadgeLabel( person ) {
+        const summary = person && person.bundle_eligibility;
+        if ( ! summary ) {
+          return '';
+        }
+        const eligible = Number( summary.eligible );
+        if ( eligible === 1 ) {
+          return <?php echo wp_json_encode( __( '1 eligible membership', 'wicket-memberships' ) ); ?>;
+        }
+        if ( eligible > 1 ) {
+          return <?php echo wp_json_encode( __( '%d eligible memberships', 'wicket-memberships' ) ); ?>.replace( '%d', eligible );
+        }
+        if ( this.isPersonAllInBundle( person ) ) {
+          return <?php echo wp_json_encode( __( 'Already in bundle', 'wicket-memberships' ) ); ?>;
+        }
+        return <?php echo wp_json_encode( __( 'Not eligible', 'wicket-memberships' ) ); ?>;
+      },
+
+      personBadgeClass( person ) {
+        if ( this.isPersonSelectable( person ) ) {
+          return 'wicket-mship-add-member-modal__badge--eligible';
+        }
+        return this.isPersonAllInBundle( person )
+          ? 'wicket-mship-add-member-modal__badge--in-bundle'
+          : 'wicket-mship-add-member-modal__badge--not-eligible';
+      },
+
+      personIneligibleReason( person ) {
+        if ( this.isPersonAllInBundle( person ) ) {
+          return <?php echo wp_json_encode( __( "Can't be selected — their memberships are already in a bundle.", 'wicket-memberships' ) ); ?>;
+        }
+        return <?php echo wp_json_encode( __( "Can't be selected — no memberships eligible for this bundle.", 'wicket-memberships' ) ); ?>;
       },
 
       backToSearch() {
@@ -582,6 +719,36 @@ if ( ! defined( 'ABSPATH' ) ) {
           return true;
         }
         return tier.eligibility_status === 'eligible';
+      },
+
+      // Tiers the member can act on: 'eligible', or no eligibility context.
+      eligibleTiers() {
+        return this.tiers.filter( ( tier ) => this.isTierSelectable( tier ) );
+      },
+
+      // 'in_bundle' + 'not_eligible' tiers — informational only.
+      otherTiers() {
+        return this.tiers.filter( ( tier ) => ! this.isTierSelectable( tier ) );
+      },
+
+      // Eligible tiers first; the rest only when expanded, or when there is
+      // nothing eligible (so the member can still see why).
+      visibleTiers() {
+        const eligible = this.eligibleTiers();
+        if ( eligible.length === 0 || this.showOtherTiers ) {
+          return [ ...eligible, ...this.otherTiers() ];
+        }
+        return eligible;
+      },
+
+      otherTiersToggleLabel() {
+        const count = this.otherTiers().length;
+        if ( this.showOtherTiers ) {
+          return <?php echo wp_json_encode( __( 'Hide memberships that can\'t be added', 'wicket-memberships' ) ); ?>;
+        }
+        return count === 1
+          ? <?php echo wp_json_encode( __( 'Show 1 membership that can\'t be added', 'wicket-memberships' ) ); ?>
+          : <?php echo wp_json_encode( __( 'Show %d memberships that can\'t be added', 'wicket-memberships' ) ); ?>.replace( '%d', count );
       },
 
       eligibilityBadgeLabel( status ) {

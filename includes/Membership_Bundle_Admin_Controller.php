@@ -974,6 +974,66 @@ class Membership_Bundle_Admin_Controller {
    * @return array|\WP_REST_Response Array of { id, name, products: [{ product_id, variation_id, name, price }], eligibility_status?, membership_status?, membership_status_label?, starts_at?, ends_at? }.
    */
   public static function get_eligible_tiers_for_bundle( int $bundle_post_id, string $person_uuid = '' ) {
+    $tiers = self::build_bundle_tier_rows( $bundle_post_id );
+    if ( $tiers instanceof \WP_REST_Response ) {
+      return $tiers;
+    }
+
+    // Skipped entirely when no person is selected yet (bundle-level tier
+    // listing before step 2 of the Add Member modal has a selectedPerson) —
+    // every tier keeps its plain { id, name, products } shape and the
+    // frontend simply doesn't render eligibility badges/dates.
+    if ( '' !== $person_uuid ) {
+      $tiers = self::annotate_tier_rows_for_person( $tiers, $bundle_post_id, $person_uuid );
+    }
+
+    return $tiers;
+  }
+
+  /**
+   * Per-person eligibility summary for the Add Member search results step.
+   *
+   * Runs the exact same per-tier rules as get_eligible_tiers_for_bundle()
+   * (including the `wicket_mship_bundle_tier_eligibility_status` filter and
+   * the "hide record-less tiers" rule), but builds the bundle's tier rows
+   * only once for the whole result set, so the search endpoint can tell the
+   * modal up front which people have nothing addable — instead of the member
+   * only finding out after selecting them.
+   *
+   * @param int      $bundle_post_id
+   * @param string[] $person_uuids MDP person UUIDs from the search results.
+   * @return array<string, array{eligible:int, in_bundle:int, not_eligible:int}>|\WP_REST_Response
+   *         Keyed by person UUID. Counts are of tiers in each eligibility_status.
+   */
+  public static function get_person_eligibility_summaries( int $bundle_post_id, array $person_uuids ) {
+    $tiers = self::build_bundle_tier_rows( $bundle_post_id );
+    if ( $tiers instanceof \WP_REST_Response ) {
+      return $tiers;
+    }
+
+    $summaries = [];
+    foreach ( array_unique( array_filter( array_map( 'strval', $person_uuids ) ) ) as $person_uuid ) {
+      $counts = [ 'eligible' => 0, 'in_bundle' => 0, 'not_eligible' => 0 ];
+      foreach ( self::annotate_tier_rows_for_person( $tiers, $bundle_post_id, $person_uuid ) as $tier_row ) {
+        $status = $tier_row['eligibility_status'] ?? '';
+        if ( isset( $counts[ $status ] ) ) {
+          $counts[ $status ]++;
+        }
+      }
+      $summaries[ $person_uuid ] = $counts;
+    }
+
+    return $summaries;
+  }
+
+  /**
+   * The bundle's eligible individual tiers as plain { id, name, products }
+   * rows, with WC product/variation names and prices resolved — the
+   * person-independent half of get_eligible_tiers_for_bundle().
+   *
+   * @return array|\WP_REST_Response 404 response when the bundle doesn't exist.
+   */
+  private static function build_bundle_tier_rows( int $bundle_post_id ) {
     $bundle = new Membership_Bundle( $bundle_post_id );
     if ( $bundle->post_id <= 0 ) {
       return new \WP_REST_Response( [ 'error' => 'Membership bundle not found.' ], 404 );
@@ -1065,92 +1125,97 @@ class Membership_Bundle_Admin_Controller {
     }
     unset( $tier_row );
 
-    // Skipped entirely when no person is selected yet (bundle-level tier
-    // listing before step 2 of the Add Member modal has a selectedPerson) —
-    // every tier keeps its plain { id, name, products } shape and the
-    // frontend simply doesn't render eligibility badges/dates.
-    if ( '' !== $person_uuid ) {
-      // Resolved once so the eligibility filter below can receive a WP user
-      // ID without every callback repeating the lookup. 0 when the person
-      // has no local WP user yet (e.g. never logged in) — callbacks must
-      // handle that rather than assume a user exists.
-      $local_user = get_user_by( 'login', $person_uuid );
-      $user_id    = $local_user ? (int) $local_user->ID : 0;
+    return $tiers;
+  }
 
-      $hidden_tier_ids = [];
+  /**
+   * Annotate plain tier rows (from build_bundle_tier_rows()) with
+   * eligibility_status / membership_status / dates for one person, and drop
+   * tiers the person holds no membership record for — the person-specific
+   * half of get_eligible_tiers_for_bundle(). See that method's docblock for
+   * the full status rules.
+   */
+  private static function annotate_tier_rows_for_person( array $tiers, int $bundle_post_id, string $person_uuid ): array {
+    // Resolved once so the eligibility filter below can receive a WP user
+    // ID without every callback repeating the lookup. 0 when the person
+    // has no local WP user yet (e.g. never logged in) — callbacks must
+    // handle that rather than assume a user exists.
+    $local_user = get_user_by( 'login', $person_uuid );
+    $user_id    = $local_user ? (int) $local_user->ID : 0;
 
-      foreach ( $tiers as &$tier_row ) {
-        $tier      = new Membership_Tier( $tier_row['id'] );
-        $tier_uuid = $tier->get_mdp_tier_uuid();
+    $hidden_tier_ids = [];
 
-        // 'In Bundle' checks across ALL bundles, not just this one — a
-        // person already holding this tier's seat in any *active* bundle
-        // (this one or a different one) is not re-addable, so the check
-        // isn't scoped to $bundle.
-        $in_bundle_post = self::find_active_bundled_membership_for_person_and_tier( $person_uuid, $tier_uuid );
-        $active_post    = $in_bundle_post ?: self::find_active_membership_for_person_and_tier( $person_uuid, $tier_uuid );
+    foreach ( $tiers as &$tier_row ) {
+      $tier      = new Membership_Tier( $tier_row['id'] );
+      $tier_uuid = $tier->get_mdp_tier_uuid();
 
-        if ( $in_bundle_post ) {
-          $tier_row['eligibility_status'] = 'in_bundle';
-        } elseif ( $active_post ) {
-          $tier_row['eligibility_status'] = 'eligible';
-        } else {
-          $tier_row['eligibility_status'] = 'not_eligible';
-        }
+      // 'In Bundle' checks across ALL bundles, not just this one — a
+      // person already holding this tier's seat in any *active* bundle
+      // (this one or a different one) is not re-addable, so the check
+      // isn't scoped to $bundle.
+      $in_bundle_post = self::find_active_bundled_membership_for_person_and_tier( $person_uuid, $tier_uuid );
+      $active_post    = $in_bundle_post ?: self::find_active_membership_for_person_and_tier( $person_uuid, $tier_uuid );
 
-        $raw_status = $active_post ? get_post_meta( $active_post->ID, 'membership_status', true ) : null;
-
-        $tier_row['membership_status']       = $raw_status;
-        // Human-readable label for the UI's status badge — reuses the same
-        // status→label map as the admin status dropdown (Helper::get_all_status_names())
-        // instead of the frontend guessing at underscore/hyphen casing.
-        $tier_row['membership_status_label'] = $raw_status && isset( Helper::get_all_status_names()[ $raw_status ] )
-          ? Helper::get_all_status_names()[ $raw_status ]['name']
-          : null;
-        $tier_row['starts_at']               = $active_post ? get_post_meta( $active_post->ID, 'membership_starts_at', true ) : null;
-        $tier_row['ends_at']                 = $active_post ? get_post_meta( $active_post->ID, 'membership_ends_at', true ) : null;
-
-        // Instance-specific eligibility rules (e.g. requiring an MDP person
-        // status such as good standing) belong in the site's theme/plugin,
-        // not here. Applied after the row is fully built so callbacks see
-        // the membership status/dates. Safe to apply to every status,
-        // including 'in_bundle': add_member() independently rejects a
-        // duplicate seat ('already_in_bundle'), so a filter can only change
-        // what the modal shows, not create a second seat. Unknown return
-        // values are discarded (fall back to the default).
-        $filtered_status = apply_filters(
-          'wicket_mship_bundle_tier_eligibility_status',
-          $tier_row['eligibility_status'],
-          $tier_row,
-          $person_uuid,
-          $user_id,
-          $bundle_post_id,
-          $active_post
-        );
-
-        if ( in_array( $filtered_status, [ 'eligible', 'in_bundle', 'not_eligible' ], true ) ) {
-          $tier_row['eligibility_status'] = $filtered_status;
-        }
-
-        // A tier the person has no membership record for at all isn't
-        // applicable to them, so it's hidden rather than shown as
-        // 'not_eligible' — otherwise every tier in the plugin would be listed
-        // as Not Eligible for a person who holds just one. 'not_eligible' is
-        // kept only when a backing record exists (e.g. a site filter rejected
-        // an active membership). Checked after the filter so a filter can
-        // still surface a record-less tier by returning 'eligible'.
-        if ( 'not_eligible' === $tier_row['eligibility_status'] && ! $active_post ) {
-          $hidden_tier_ids[ $tier_row['id'] ] = true;
-        }
+      if ( $in_bundle_post ) {
+        $tier_row['eligibility_status'] = 'in_bundle';
+      } elseif ( $active_post ) {
+        $tier_row['eligibility_status'] = 'eligible';
+      } else {
+        $tier_row['eligibility_status'] = 'not_eligible';
       }
-      unset( $tier_row );
 
-      if ( ! empty( $hidden_tier_ids ) ) {
-        $tiers = array_values( array_filter(
-          $tiers,
-          fn( $tier_row ) => ! isset( $hidden_tier_ids[ $tier_row['id'] ] )
-        ) );
+      $raw_status = $active_post ? get_post_meta( $active_post->ID, 'membership_status', true ) : null;
+
+      $tier_row['membership_status']       = $raw_status;
+      // Human-readable label for the UI's status badge — reuses the same
+      // status→label map as the admin status dropdown (Helper::get_all_status_names())
+      // instead of the frontend guessing at underscore/hyphen casing.
+      $tier_row['membership_status_label'] = $raw_status && isset( Helper::get_all_status_names()[ $raw_status ] )
+        ? Helper::get_all_status_names()[ $raw_status ]['name']
+        : null;
+      $tier_row['starts_at']               = $active_post ? get_post_meta( $active_post->ID, 'membership_starts_at', true ) : null;
+      $tier_row['ends_at']                 = $active_post ? get_post_meta( $active_post->ID, 'membership_ends_at', true ) : null;
+
+      // Instance-specific eligibility rules (e.g. requiring an MDP person
+      // status such as good standing) belong in the site's theme/plugin,
+      // not here. Applied after the row is fully built so callbacks see
+      // the membership status/dates. Safe to apply to every status,
+      // including 'in_bundle': add_member() independently rejects a
+      // duplicate seat ('already_in_bundle'), so a filter can only change
+      // what the modal shows, not create a second seat. Unknown return
+      // values are discarded (fall back to the default).
+      $filtered_status = apply_filters(
+        'wicket_mship_bundle_tier_eligibility_status',
+        $tier_row['eligibility_status'],
+        $tier_row,
+        $person_uuid,
+        $user_id,
+        $bundle_post_id,
+        $active_post
+      );
+
+      if ( in_array( $filtered_status, [ 'eligible', 'in_bundle', 'not_eligible' ], true ) ) {
+        $tier_row['eligibility_status'] = $filtered_status;
       }
+
+      // A tier the person has no membership record for at all isn't
+      // applicable to them, so it's hidden rather than shown as
+      // 'not_eligible' — otherwise every tier in the plugin would be listed
+      // as Not Eligible for a person who holds just one. 'not_eligible' is
+      // kept only when a backing record exists (e.g. a site filter rejected
+      // an active membership). Checked after the filter so a filter can
+      // still surface a record-less tier by returning 'eligible'.
+      if ( 'not_eligible' === $tier_row['eligibility_status'] && ! $active_post ) {
+        $hidden_tier_ids[ $tier_row['id'] ] = true;
+      }
+    }
+    unset( $tier_row );
+
+    if ( ! empty( $hidden_tier_ids ) ) {
+      $tiers = array_values( array_filter(
+        $tiers,
+        fn( $tier_row ) => ! isset( $hidden_tier_ids[ $tier_row['id'] ] )
+      ) );
     }
 
     return $tiers;

@@ -764,6 +764,41 @@
   border-color: var(--interactive, #2563eb);
 }
 
+/* Person with zero eligible tiers for this bundle — still listed so the
+   member can see the search found them, but muted and not clickable. */
+.wicket-mship-add-member-modal__result-row--ineligible {
+  cursor: not-allowed;
+  background: var(--bg-neutral-lightest, #f9fafb);
+}
+
+.wicket-mship-add-member-modal__result-row--ineligible:hover {
+  border-color: var(--border-light, #e5e7eb);
+}
+
+.wicket-mship-add-member-modal__result-row--ineligible .wicket-mship-add-member-modal__result-avatar,
+.wicket-mship-add-member-modal__result-row--ineligible .wicket-mship-add-member-modal__result-name,
+.wicket-mship-add-member-modal__result-row--ineligible .wicket-mship-add-member-modal__result-email,
+.wicket-mship-add-member-modal__result-row--ineligible .wicket-mship-add-member-modal__result-extra {
+  opacity: 0.65;
+}
+
+/* Pushed to the right edge of the row, after the name/email column. */
+.wicket-mship-add-member-modal__result-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.wicket-mship-add-member-modal__result-reason {
+  font-size: var(--body-sm-font-size, 0.85rem);
+  color: var(--state-error, #dc2626);
+}
+
+.wicket-mship-add-member-modal__results-summary {
+  font-size: var(--body-sm-font-size, 0.9rem);
+  color: var(--text-content-secondary, #4b5563);
+  margin: 0 0 var(--space-100, 0.5rem);
+}
+
 .wicket-mship-add-member-modal__person-card {
   display: flex;
   align-items: center;
@@ -829,6 +864,24 @@
   border: 1px solid var(--border-light, #e5e7eb);
   border-radius: var(--border-radius-100, 0.5rem);
   padding: var(--space-150, 0.75rem);
+}
+
+.wicket-mship-add-member-modal__tier-row--muted {
+  background: var(--bg-neutral-lightest, #f9fafb);
+}
+
+/* Disclosure for 'in_bundle'/'not_eligible' tiers — collapsed by default. */
+.wicket-mship-add-member-modal__other-tiers-toggle {
+  display: inline-block;
+  margin-top: var(--space-150, 0.75rem);
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: var(--body-sm-font-size, 0.9rem);
+  font-weight: 600;
+  color: var(--interactive, #2563eb);
+  text-decoration: underline;
+  cursor: pointer;
 }
 
 .wicket-mship-add-member-modal__tier-checkbox-label {
