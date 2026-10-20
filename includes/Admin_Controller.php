@@ -1316,7 +1316,8 @@ class Admin_Controller {
    * Creates a new membership on the target tier, preserves the remaining term of the original
    * membership (the END date never changes), cancels the original (ends/expires now, grace 0) and
    * patches its MDP record. The target tier may define a different grace period, so on BOTH triggers
-   * the new membership's expiry is recomputed as end_date + new-tier grace.
+   * the new membership's expiry is recomputed as end_date + new-tier grace. The new MDP record's
+   * external_id is set to the new post ID here, once per switch, on both triggers.
    *
    * Records — every switch writes the new membership's user-meta record and its record on the order
    * keying its lifecycle events (write_switch_membership_records()), marks the old user-meta record
@@ -1346,6 +1347,7 @@ class Admin_Controller {
    * @see    Admin_Controller::retire_switched_subscription()
    * @see    Admin_Controller::write_switch_membership_records()
    * @see    Admin_Controller::handle_failed_switch_replacement()
+   * @see    \Wicket_Memberships\Membership_Controller::assign_membership_external_id()
    *
    * @param  int         $membership_post_id  Post ID of the membership being switched (the one replaced).
    * @param  int         $new_tier_post_id    Post ID of the tier to switch to.
@@ -1547,6 +1549,14 @@ class Admin_Controller {
     update_post_meta( $new_post_id, 'membership_type', $membership_tier->tier_data['type'] );
     update_post_meta( $new_post_id, 'membership_starts_at', $switch_iso_date );
     update_post_meta( $new_post_id, 'membership_grace_period_days', $membership_grace_period_days );
+
+    // The switch line never reaches create_local_membership_record(), which links every other new
+    // membership, so link the new MDP record to its WP post here. Runs after the meta copy so any
+    // external_id flag inherited from the old post is replaced by this attempt's result.
+    // Return value ignored on purpose: failures are flagged via post meta (_collision/_failed) and
+    // wc-logs; the switch must complete regardless.
+    $switch_wicket_membership_type = $membership_type === 'organization' ? 'organization_memberships' : 'person_memberships';
+    ( new Membership_Controller() )->assign_membership_external_id( $membership_wicket_uuid, $switch_wicket_membership_type, $new_post_id );
 
     // The switched membership keeps the inherited END date, but the target tier can carry a different
     // grace period, so recompute the expiry as end_date + new-tier grace on BOTH triggers. Only the
