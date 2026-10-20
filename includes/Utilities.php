@@ -3,6 +3,8 @@
 namespace Wicket_Memberships;
 
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Autorenew;
+use Wicket_Memberships\Autorenew_Sync;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -28,6 +30,7 @@ class Utilities {
 
     add_filter( 'woocommerce_cart_item_quantity', [$this, 'disable_cart_item_quantity'], 10, 3);
     add_filter( 'woocommerce_cart_item_remove_link', [$this, 'hide_cart_item_remove_link'], 10, 3);
+    add_filter( 'wcs_view_subscription_actions', [$this, 'maybe_hide_subscription_actions'], 100, 1 );
     add_action( 'wp_trash_post', [$this, 'delete_wicket_membership_in_mdp' ], 10, 2);
     // Use the pre_trash_post FILTER (not the wp_trash_post action) so we can
     // abort the trash before WordPress changes the post status, and redirect
@@ -162,6 +165,19 @@ class Utilities {
    * Show error notice for bulk product trash protection on the product list page.
    */
 
+  /**
+   * Displays the raw manual-renewal flag and the computed autorenew status for a subscription
+   * in the admin order/subscription details screen.
+   *
+   * Split into two separate rows deliberately: the raw flag and the computed answer can
+   * disagree (e.g. the flag says autopay is on, but the payment gateway on file doesn't
+   * actually support scheduled payments), so showing only one of them can mislead an admin
+   * into thinking a subscription will renew when it won't, or vice versa.
+   *
+   * @param  \WC_Order $order  The order or subscription object being viewed.
+   *
+   * @return void
+   */
   public function display_autopay_status_row_admin($order) {
     if (!is_object($order) || !method_exists($order, 'get_type')) {
       return;
@@ -172,11 +188,51 @@ class Utilities {
     if (!method_exists($order, 'get_requires_manual_renewal')) {
       return;
     }
-    $is_manual = $order->get_requires_manual_renewal();
-    $autopay_status = $is_manual ? __('Off', 'wicket-memberships') : __('On', 'wicket-memberships');
+
+    $requires_manual_renewal = $order->get_requires_manual_renewal();
+    $manual_renewal_state = $requires_manual_renewal ? __('Yes', 'wicket-memberships') : __('No', 'wicket-memberships');
+
+    // Read the stored value Autorenew_Sync keeps refreshed, rather than recomputing live on every
+    // render. A subscription can be tied to more than one wicket_membership post (bundle line
+    // items), but resolve_status() only ever looks at the subscription itself, so every
+    // membership on the same subscription always resolves to the same stored status — reading
+    // whichever one comes back first is correct, not a lossy shortcut.
+    $membership_post_ids = get_posts([
+      'post_type' => 'wicket_membership',
+      'post_status' => 'publish',
+      'numberposts' => 1,
+      'meta_query' => [
+        [ 'key' => 'membership_subscription_id', 'value' => $order->get_id(), 'compare' => '=' ],
+      ],
+      'fields' => 'ids',
+    ]);
+
+    // No linked membership post at all (e.g. a subscription with no membership yet) — nothing to
+    // read or compute, so skip this row entirely rather than rendering a synthetic guess.
+    if (empty($membership_post_ids)) {
+      echo '<div class="order_data_column">
+        <p><strong>' . esc_html__('Requires Manual Renewal', 'wicket-memberships') . '</strong> '
+          . wc_help_tip(esc_html__('Whether this subscription is forced to renew manually, blocking automatic payment. Usually set by the customer using the autorenew toggle on the front end.', 'wicket-memberships'))
+        . '<br />' . esc_html($manual_renewal_state) . '</p>
+      </div>';
+      return;
+    }
+
+    // get_stored_status() computes and stores the value once if it's never been computed (e.g. a
+    // membership created before this cache existed) — a one-time cost, not a live recompute on
+    // every render.
+    $autorenew_status = Autorenew_Sync::get_stored_status($membership_post_ids[0]);
+    $autorenew_state = $autorenew_status['result'] ? __('Automatic Payment', 'wicket-memberships') : __('Manual Payment', 'wicket-memberships');
+    $autorenew_reason = $autorenew_status['reason'];
+
     echo '<div class="order_data_column">
-      <h4>' . esc_html__('Autopay Enabled', 'wicket-memberships') . '</h4>
-      <p><strong>' . esc_html($autopay_status) . '</strong></p>
+      <p><strong>' . esc_html__('Requires Manual Renewal', 'wicket-memberships') . '</strong> '
+        . wc_help_tip(esc_html__('Whether this subscription is forced to renew manually, blocking automatic payment. Usually set by the customer using the autorenew toggle on the front end.', 'wicket-memberships'))
+      . '<br />' . esc_html($manual_renewal_state) . '</p>
+      <p><strong>' . esc_html__('Auto-Renew State', 'wicket-memberships') . '</strong> '
+        . wc_help_tip(esc_html__('Whether this subscription will renew by automatic or manual payment. This value is cached and may take a few minutes to update after a change.', 'wicket-memberships'))
+      . '<br />' . esc_html($autorenew_state)
+      . ( $autorenew_reason ? ' ' . wc_help_tip(esc_html($autorenew_reason)) : '' ) . '</p>
     </div>';
   }
 
@@ -230,12 +286,26 @@ class Utilities {
     }
     $memberships =  wicket_get_person_memberships( $person_uuid );
 
+    // Shape guard (WWID-2665): the SDK can return junk for non-person and
+    // non-org membership types; never iterate an unvalidated payload.
+    if ( ! is_array( $memberships ) || ! isset( $memberships['data'] ) || ! is_array( $memberships['data'] ) ) {
+      return 'failed';
+    }
+
+    $response = [];
     foreach($memberships['data'] as $membership) {
+      // Skip malformed entries: a non-array row, or one without an id and
+      // type, must not raise notices here (WWID-2665).
+      if ( ! is_array( $membership ) || empty( $membership['id'] ) || empty( $membership['type'] ) ) {
+        continue;
+      }
       $membership_wicket_uuid = $membership['id'];
       if($membership['type'] == 'person_memberships') {
         $response_api = wicket_delete_person_membership( $membership_wicket_uuid );
       } elseif($membership['type'] == 'organization_memberships') {
         $response_api = wicket_delete_organization_membership( $membership_wicket_uuid );
+      } else {
+        continue;
       }
       if(is_wp_error( $response_api )) {
         $response[$membership_wicket_uuid] = $response_api->get_error_message( 'wicket_api_error' );
@@ -278,13 +348,13 @@ class Utilities {
    * This is a private helper called by both prevent_trash_linked_product() and
    * intercept_variation_removal() so the business logic lives in one place.
    *
+   * @see Helper::is_in_membership_category()
+   *
    * @param  int         $product_id  WooCommerce product post ID (parent, not variation).
    * @return string|null  Human-readable reason string, or null if unprotected.
    */
   private function get_membership_product_block_message( int $product_id ): ?string {
-    $membership_categories = wicket_get_option( 'wicket_admin_settings_membership_categories' );
-
-    if ( ! has_term( $membership_categories, 'product_cat', $product_id ) ) {
+    if ( ! Helper::is_in_membership_category( $product_id ) ) {
       return null;
     }
 
@@ -562,16 +632,17 @@ class Utilities {
   /**
  * Disable remove item on cart page when in Membership category.
  *
+ * @see Helper::get_membership_category_ids()
+ *
  * @param string $product_remove The remove html.
  * @param string $cart_item_key The cart item key.
- * @param array $cart_item The cart item object.
- * @return string The modified product quantity html (with hidden input).
+ * @return string The remove link html; empties the whole cart for membership items.
  */
   function hide_cart_item_remove_link($product_remove, $cart_item_key)
   {
     if (is_cart()) {
       $item = WC()->cart->get_cart_item( $cart_item_key );
-      $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
+      $membership_categories = Helper::get_membership_category_ids();
       $category = get_term_by( 'slug', 'membership_late_fee', 'product_cat' );
       $cat_id = $category->term_id;
       $membership_categories[] = $cat_id;
@@ -587,6 +658,8 @@ class Utilities {
  * Disable quantity input on cart page when in Membership category.
  *
  * @param string $product_quantity The current product quantity html.
+ * @see Helper::get_membership_category_ids()
+ *
  * @param string $cart_item_key The cart item key.
  * @param array $cart_item The cart item object.
  * @return string The modified product quantity html (with hidden input).
@@ -594,7 +667,7 @@ class Utilities {
   function disable_cart_item_quantity($product_quantity, $cart_item_key, $cart_item)
   {
     if (is_cart()) {
-      $membership_categories = wicket_get_option('wicket_admin_settings_membership_categories');
+      $membership_categories = Helper::get_membership_category_ids();
       $category = get_term_by( 'slug', 'membership_late_fee', 'product_cat' );
       $cat_id = $category->term_id;
       $membership_categories[] = $cat_id;
@@ -645,14 +718,55 @@ class Utilities {
     }
   }
 
-  function is_wicket_show_mship_order_org_search() {
+  /**
+   * Remove the Cancel, Reactivate and Resubscribe actions from the member's View Subscription page
+   * when their Hide Subscription Self-Serve settings are on.
+   *
+   * Only hides the buttons; admins can still change subscriptions in WooCommerce.
+   *
+   * @since 1.0.123
+   *
+   * @see Settings_Fields::wicket_mship_hide_subscription_cancel()
+   * @see Settings_Fields::wicket_mship_hide_subscription_reactivate()
+   * @see Settings_Fields::wicket_mship_hide_subscription_resubscribe()
+   *
+   * @param  array  $actions  Subscription actions from wcs_view_subscription_actions, keyed by action.
+   *
+   * @return array  Actions without the ones whose hide setting is on.
+   */
+  public function maybe_hide_subscription_actions( $actions ) {
+    if ( ! is_array( $actions ) ) {
+      return $actions;
+    }
+
     $options = get_option( 'wicket_membership_plugin_options' );
-    if(isset($options['wicket_show_mship_order_org_search'])) {
-      if(!empty($options['wicket_show_mship_order_org_search'])) {
-        return true;
+    // Setting key => WooCommerce Subscriptions action key.
+    $hideable = [
+      'wicket_mship_hide_subscription_cancel'      => 'cancel',
+      'wicket_mship_hide_subscription_reactivate'  => 'reactivate',
+      'wicket_mship_hide_subscription_resubscribe' => 'resubscribe',
+    ];
+
+    foreach ( $hideable as $setting => $action ) {
+      if ( ! empty( $options[ $setting ] ) ) {
+        unset( $actions[ $action ] );
       }
     }
-    return false;
+
+    return $actions;
+  }
+
+  /**
+   * Whether the org-search metabox is enabled on the WC Subscription admin page.
+   *
+   * Enabled whenever any Membership Category is selected; there is no separate toggle.
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @return bool  True when at least one Membership Category is saved.
+   */
+  function is_wicket_show_mship_order_org_search() {
+    return ! empty( Helper::get_membership_category_ids() );
   }
 
   function set_subscription_postmeta_suborg_uuid() {
@@ -661,13 +775,26 @@ class Utilities {
     }
   }
 
+  /**
+   * Add the org-search metabox to a subscription with a membership item missing its org UUID.
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @param  string    $post_type  Current admin screen post type (unused; required by add_meta_boxes).
+   * @param  \WP_Post  $post       Subscription post being edited.
+   *
+   * @return void
+   */
   function wicket_sub_org_select_metabox( $post_type, $post ) {
     $sub = wcs_get_subscription($post->ID);
     if(empty($sub)) {
       return;
     }
-    $options = get_option( 'wicket_membership_plugin_options' );
-    $categories_selected = $options['wicket_show_mship_order_org_search']['categorychoice'];
+    $categories_selected = Helper::get_membership_category_ids();
+    // has_term() with an empty list matches any categorised product.
+    if ( empty( $categories_selected ) ) {
+      return;
+    }
     $subscription_products = $sub->get_items();
     foreach( $subscription_products as $item ) {
       if(empty($product_id)) {
@@ -966,7 +1093,8 @@ function wicket_sub_org_select_callback( $subscription ) {
       add_action('wp', [__NAMESPACE__.'\\Utilities', 'wc_autorenew_toggle_filters']);
       add_action('wp_footer', [__NAMESPACE__.'\\Utilities', 'wicket_wc_enqueue_scripts_autorenew_toggle']);
       add_action('wp_ajax_auto_renew_enabled_for_user', [__NAMESPACE__.'\\Utilities', 'handle_user_auto_renew_toggle']);
-      add_action('wp_ajax_nopriv_auto_renew_enabled_for_user', [__NAMESPACE__.'\\Utilities', 'handle_user_auto_renew_toggle']); // Allow guests if needed
+      // No nopriv registration (WWID-2665): the toggle mutates a user's autopay
+      // flag, so anonymous visitors never get an endpoint.
       add_action('wp_enqueue_scripts', [__NAMESPACE__.'\\Utilities', 'enqueue_mship_ajax_script']);
     }
   }
@@ -991,10 +1119,9 @@ function wicket_sub_org_select_callback( $subscription ) {
       $subscription_id = get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true );
     }
     if(!empty($subscription_id)) {
-      $sub = wcs_get_subscription( $subscription_id );
-      if(!empty($sub)) {
-        $is_autopay_enabled = !empty($sub->get_requires_manual_renewal()) ? false : true;
-      }
+      // Use the single source of truth for autorenew status rather than the raw manual-renewal
+      // flag, so the checkbox reflects whether the subscription will really auto-renew.
+      $is_autopay_enabled = Autorenew::is_autorenewing( ['membership_subscription_id' => $subscription_id] );
       $checked = !empty($is_autopay_enabled) ? 'checked' : '';
     } else {
       $user_autopay_enabled = get_user_meta( get_current_user_id(), 'subscription_autopay_enabled', true);
@@ -1020,12 +1147,9 @@ function wicket_sub_org_select_callback( $subscription ) {
    * @return void
    */
   public static function wicket_wc_enqueue_scripts_autorenew_toggle() {
-    wp_localize_script('auto_renew_enabled_for_user',
-      'wicket_mship_ajax_object',
-      ['ajaxurl' => admin_url('admin-ajax.php'),
-      'user_id' => get_current_user_id()
-      ]
-    );
+    // The toggle nonce ships through enqueue_mship_ajax_script()'s localize
+    // on the 'ajax-script' handle (WWID-2665): this function only prints the
+    // toggle markup and its inline script.
     ?>
     <style>
         .wicket-wc-toggle {
@@ -1101,6 +1225,7 @@ function wicket_sub_org_select_callback( $subscription ) {
                   type: 'POST',
                   data: {
                       action: 'auto_renew_enabled_for_user',
+                      nonce: wicket_mship_ajax_object.autorenew_nonce,
                       user_id: wicket_mship_ajax_object.user_id,
                       <?php
                         if(isset($_REQUEST['subscription_id']) && !empty($_REQUEST['subscription_id'])) {
@@ -1125,23 +1250,60 @@ function wicket_sub_org_select_callback( $subscription ) {
     <?php
   }
 
+  /**
+   * Handle the autorenew toggle AJAX request (action auto_renew_enabled_for_user).
+   *
+   * Gates in order: logged-in caller, valid `wicket_mship_autorenew_toggle`
+   * nonce, and self-ownership of the targeted user unless the caller holds
+   * manage_woocommerce. A supplied subscription must belong to the targeted
+   * user (same capability exception) before `_requires_manual_renewal`
+   * flips. Always answers JSON and terminates via wp_send_json_*.
+   *
+   * @return void
+   */
   public static function handle_user_auto_renew_toggle() {
+    // WWID-2665 gate: logged-in callers only, valid nonce, and a user may
+    // flip only their own flag unless they hold manage_woocommerce.
+    if (!is_user_logged_in()) {
+        wp_send_json_error(['message' => 'Authentication required.'], 403);
+    }
+    // $die=false keeps the JSON error shape; the default die prints a plain -1 body.
+    if (!check_ajax_referer('wicket_mship_autorenew_toggle', 'nonce', false)) {
+        wp_send_json_error(['message' => 'Invalid security token.'], 403);
+    }
     if (!isset($_POST['user_id']) || !isset($_POST['enabled'])) {
         wp_send_json_error(['message' => 'Invalid request.']);
     }
     $user_id = intval($_POST['user_id']);
+    if ($user_id !== get_current_user_id() && !current_user_can('manage_woocommerce')) {
+        wp_send_json_error(['message' => 'You are not allowed to change this setting.'], 403);
+    }
     $enabled = $_POST['enabled'] == 1 ? 'yes' : 'no';
+    $subscription_id = 0;
     if( isset($_POST['subscription_id']) ) {
-      $subscription_id = $_POST['subscription_id'];
+      $subscription_id = intval($_POST['subscription_id']);
     } else if( isset($_POST['membership_post_id_renew']) ) {
-      $subscription_id = get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true );
+      $subscription_id = intval( get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true ) );
     }
     if(!empty($subscription_id)) {
       $subscription = wcs_get_subscription($subscription_id);
+      if (!$subscription) {
+        wp_send_json_error(['message' => 'Subscription not found.'], 404);
+      }
+      // WWID-2665 IDOR guard: the subscription must belong to the targeted
+      // user unless the caller holds manage_woocommerce.
+      if (intval($subscription->get_customer_id()) !== $user_id && !current_user_can('manage_woocommerce')) {
+        wp_send_json_error(['message' => 'You are not allowed to change this subscription.'], 403);
+      }
       $subscription_renewal_boolean = $enabled == 'yes' ? 'false' : 'true'; //reverse to set manual_renewal_enabeld;
       $subscription->update_meta_data('_requires_manual_renewal', $subscription_renewal_boolean);
       $subscription->save();
       $subscription->add_order_note('Customer turned '.($enabled == 'yes' ? 'on' : 'off').' automatic renewals via the Wicket Toggle. Manual renewal flag set to '.$subscription_renewal_boolean);
+
+      // The manual-renewal flag isn't a status change, so it doesn't fire
+      // woocommerce_subscription_status_updated (Autorenew_Sync's other listener) — refresh
+      // directly here instead. See A0007.
+      Autorenew_Sync::refresh_for_subscription( $subscription_id );
     }
     update_user_meta($user_id, 'subscription_autopay_enabled', $enabled);
     wp_send_json_success(['message' => 'Auto-renew status updated for '.$user_id, 'status' => $enabled]);
@@ -1172,7 +1334,8 @@ function wicket_sub_org_select_callback( $subscription ) {
     // Always register the ajax object for use by other scripts
     wp_localize_script('ajax-script', 'wicket_mship_ajax_object', [
         'ajaxurl' => admin_url('admin-ajax.php'),
-        'user_id' => get_current_user_id()
+        'user_id' => get_current_user_id(),
+        'autorenew_nonce' => wp_create_nonce('wicket_mship_autorenew_toggle')
     ]);
   }
 
