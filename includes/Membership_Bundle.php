@@ -3342,6 +3342,216 @@ class Membership_Bundle {
     ];
   }
 
+  // Coverage callout (member-facing).
+
+  /**
+   * Find the membership bundles currently paying for a user's own membership.
+   *
+   * A user is "covered" by a bundle when they hold a membership record linked to it
+   * (membership_bundle_id meta) whose status is active, delayed or grace_period, and the
+   * bundle itself is in one of those statuses. Pending and ended records are left out:
+   * the callout is about coverage the member has right now, not coverage being set up
+   * or already lapsed.
+   *
+   * Bundles the user owns are skipped — the owner manages the bundle through the
+   * Membership Bundles List block, and "contact the bundle owner" would point them at
+   * themselves.
+   *
+   * @param int $user_id WP user ID of the member.
+   * @return int[] Unique bundle post IDs, oldest membership first.
+   */
+  public static function get_covering_bundle_ids_for_user( int $user_id ): array {
+    if ( $user_id <= 0 ) {
+      return [];
+    }
+
+    $covered_statuses = [
+      Wicket_Memberships::STATUS_ACTIVE,
+      Wicket_Memberships::STATUS_DELAYED,
+      Wicket_Memberships::STATUS_GRACE,
+    ];
+
+    $membership_ids = get_posts( [
+      'post_type'   => Helper::get_membership_cpt_slug(),
+      'post_status' => 'publish',
+      'numberposts' => -1,
+      'fields'      => 'ids',
+      'orderby'     => 'ID',
+      'order'       => 'ASC',
+      'meta_query'  => [
+        'relation' => 'AND',
+        [
+          'key'   => 'user_id',
+          'value' => $user_id,
+        ],
+        [
+          'key'     => 'membership_bundle_id',
+          'value'   => 0,
+          'compare' => '>',
+          'type'    => 'NUMERIC',
+        ],
+        [
+          'key'     => 'membership_status',
+          'value'   => $covered_statuses,
+          'compare' => 'IN',
+        ],
+      ],
+    ] );
+
+    // A member can hold several tiers in the same bundle — one callout per bundle.
+    $bundle_ids = [];
+    foreach ( $membership_ids as $membership_id ) {
+      $bundle_id = (int) get_post_meta( $membership_id, 'membership_bundle_id', true );
+      if ( $bundle_id > 0 ) {
+        $bundle_ids[ $bundle_id ] = $bundle_id;
+      }
+    }
+
+    $covering = [];
+    foreach ( $bundle_ids as $bundle_id ) {
+      $bundle = new self( $bundle_id );
+      if ( ! $bundle->post_id ) {
+        continue;
+      }
+
+      if ( ! in_array( $bundle->get_membership_status(), $covered_statuses, true ) ) {
+        continue;
+      }
+      if ( $bundle->get_owner_id() === $user_id ) {
+        continue;
+      }
+      $covering[] = $bundle_id;
+    }
+
+    return $covering;
+  }
+
+  /**
+   * Values for the coverage callout placeholders, for this bundle.
+   *
+   * {organization_name} and {bundle_owner_name} come from the bundle, so they differ per
+   * member. {site_name} and {site_name_contact_link} come from the block's settings.
+   *
+   * Values are plain text (not escaped), except {site_name_contact_link}, which is not
+   * returned here: it is HTML and is built by get_coverage_callout().
+   * Missing data falls back to generic wording rather than an empty string, so the
+   * sentence still reads correctly (e.g. "Your organization is currently paying…").
+   *
+   * @param string $site_name Site name from the block; empty = the WordPress site title.
+   * @return array<string, string> Placeholder token (with braces) => value.
+   */
+  public function get_coverage_callout_placeholders( string $site_name = '' ): array {
+    // org_name is denormalised onto the bundle at set_organization(); only fall back to
+    // the org lookup (cached option, else a live MDP call) when it is missing.
+    $org_name = (string) get_post_meta( $this->post_id, 'org_name', true );
+    if ( $org_name === '' ) {
+      $org      = $this->get_organization();
+      $org_name = is_array( $org ) && ! empty( $org['name'] ) ? (string) $org['name'] : '';
+    }
+
+    $owner     = $this->get_owner();
+    $site_name = trim( $site_name );
+
+    $placeholders = [
+      '{organization_name}' => $org_name !== '' ? $org_name : __( 'Your organization', 'wicket-memberships' ),
+      '{bundle_owner_name}' => ! empty( $owner['name'] ) ? $owner['name'] : __( 'your membership bundle administrator', 'wicket-memberships' ),
+      '{site_name}'         => $site_name !== '' ? $site_name : wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES ),
+    ];
+
+    /**
+     * Filter the coverage callout placeholder values for a bundle.
+     *
+     * Add a key to support a new placeholder, or change a value. Values must be plain
+     * text; they are escaped on output.
+     *
+     * @param array<string, string> $placeholders Placeholder token => value.
+     * @param Membership_Bundle     $bundle       The covering bundle.
+     */
+    return (array) apply_filters( 'wicket_mship_bundle_coverage_callout_placeholders', $placeholders, $this );
+  }
+
+  /**
+   * Default coverage callout wording — the block's heading/message attribute defaults.
+   *
+   * @return array{heading: string, message: string}
+   */
+  public static function get_default_coverage_callout_copy(): array {
+    return [
+      'heading' => __( '{organization_name} is currently paying for your membership.', 'wicket-memberships' ),
+      'message' => __( 'If you no longer work here, please contact {site_name_contact_link} or {bundle_owner_name} to update this.', 'wicket-memberships' ),
+    ];
+  }
+
+  /**
+   * Build the member-facing coverage callout for this bundle.
+   *
+   * Wording comes from the Membership Bundle Coverage Callout block's settings; empty
+   * heading/message fall back to get_default_coverage_callout_copy(). Placeholders:
+   * {organization_name}, {bundle_owner_name}, {site_name}, {site_name_contact_link}
+   * (the site name linked to site_contact_link; plain site name when no link is set).
+   *
+   * Does not check who is viewing — callers decide that (see
+   * get_covering_bundle_ids_for_user()).
+   *
+   * @param array $settings {
+   *   @type string $heading           Heading text with placeholders.
+   *   @type string $message           Message text with placeholders (basic HTML allowed).
+   *   @type string $site_name         Value for {site_name}; empty = site title.
+   *   @type string $site_contact_link URL or mailto: for {site_name_contact_link}.
+   * }
+   * @return array{bundle_post_id: int, header: string, content: string}|null
+   *   header is plain text (escape with esc_html); content is sanitized HTML
+   *   (wp_kses_post, paragraphs added). Null when the filter hides it.
+   */
+  public function get_coverage_callout( array $settings = [] ): ?array {
+    if ( ! $this->post_id ) {
+      return null;
+    }
+
+    $defaults = self::get_default_coverage_callout_copy();
+    $heading  = trim( (string) ( $settings['heading'] ?? '' ) );
+    $message  = trim( (string) ( $settings['message'] ?? '' ) );
+    $heading  = $heading !== '' ? $heading : $defaults['heading'];
+    $message  = $message !== '' ? $message : $defaults['message'];
+
+    $placeholders = $this->get_coverage_callout_placeholders( (string) ( $settings['site_name'] ?? '' ) );
+    $contact_url  = esc_url( trim( (string) ( $settings['site_contact_link'] ?? '' ) ) );
+
+    // Heading is plain text: a link can't render there, so the link placeholder becomes
+    // the plain site name. Escaped later by the template.
+    $heading = wp_strip_all_tags( strtr( $heading, $placeholders + [
+      '{site_name_contact_link}' => $placeholders['{site_name}'],
+    ] ) );
+
+    // Message may contain editor HTML: escape the data values first so e.g. an org name
+    // from MDP can never inject markup, then sanitize the whole string.
+    $escaped_placeholders = array_map( 'esc_html', $placeholders );
+    $escaped_placeholders['{site_name_contact_link}'] = $contact_url !== ''
+      ? '<a href="' . $contact_url . '">' . $escaped_placeholders['{site_name}'] . '</a>'
+      : $escaped_placeholders['{site_name}'];
+
+    $content = wpautop( wp_kses_post( strtr( $message, $escaped_placeholders ) ) );
+
+    $callout = [
+      'bundle_post_id' => $this->post_id,
+      'header'         => $heading,
+      'content'        => $content,
+    ];
+
+    /**
+     * Filter the membership bundle coverage callout before it is rendered.
+     *
+     * Return null to hide the callout for this bundle.
+     *
+     * @param array|null        $callout  Callout data (see get_coverage_callout()).
+     * @param Membership_Bundle $bundle   The covering bundle.
+     * @param array             $settings Block settings passed to get_coverage_callout().
+     */
+    $callout = apply_filters( 'wicket_mship_bundle_coverage_callout', $callout, $this, $settings );
+
+    return is_array( $callout ) ? $callout : null;
+  }
+
   // Renewal callouts (member-facing).
 
   /**

@@ -3,7 +3,7 @@
 **File:** `includes/Membership_Bundle_Block_Controller.php`
 **Namespace:** `Wicket_Memberships`
 
-Registers the `wicket-memberships/membership-bundles-list` Gutenberg block — a plain (non-ACF) dynamic block with no configurable attributes. The front end is rendered entirely by `includes/blocks/membership-bundles-list/render.php`, which switches between two PHP + Alpine.js templates on the SAME rendered page based on the current URL: `templates/account-membership-bundles/list.php` (the "Membership Bundle - List" screen, default) when there is no `bundle_post_id` query param, or `templates/account-membership-bundles/detail.php` (the "Membership Bundle - Detail/Manage" screen — status/dates, tier breakdown, members table) when `bundle_post_id` is a positive integer. This lets `list.php`'s "Manage Bundle" links stay simple (just add `bundle_post_id` to the current URL) without needing a second page or any mechanism to locate one. The editor preview uses a small no-build `index.js` (registered via block.json's `editorScript`, with dependencies declared in the sibling `index.asset.php` since there's no webpack/`@wordpress/scripts` step) that wraps `<ServerSideRender>` — this is what makes the block reliably show up and preview in the inserter; block.json alone (render-only, no editor script) is not sufficient on all WP/Gutenberg versions.
+Registers two Gutenberg blocks: `wicket-memberships/membership-bundles-list` (below) and `wicket-memberships/membership-bundle-coverage-callout` (see "Coverage callout block"). `membership-bundles-list` is a plain (non-ACF) dynamic block with no configurable attributes. The front end is rendered entirely by `includes/blocks/membership-bundles-list/render.php`, which switches between two PHP + Alpine.js templates on the SAME rendered page based on the current URL: `templates/account-membership-bundles/list.php` (the "Membership Bundle - List" screen, default) when there is no `bundle_post_id` query param, or `templates/account-membership-bundles/detail.php` (the "Membership Bundle - Detail/Manage" screen — status/dates, tier breakdown, members table) when `bundle_post_id` is a positive integer. This lets `list.php`'s "Manage Bundle" links stay simple (just add `bundle_post_id` to the current URL) without needing a second page or any mechanism to locate one. The editor preview uses a small no-build `index.js` (registered via block.json's `editorScript`, with dependencies declared in the sibling `index.asset.php` since there's no webpack/`@wordpress/scripts` step) that wraps `<ServerSideRender>` — this is what makes the block reliably show up and preview in the inserter; block.json alone (render-only, no editor script) is not sufficient on all WP/Gutenberg versions.
 
 ## Why a separate controller
 
@@ -13,7 +13,7 @@ Block registration is an `init`-time, editor-facing concern, distinct from the R
 
 ### `register_block(): void`
 
-Hooked to `init`. Calls `register_block_type( __DIR__ . '/blocks/membership-bundles-list' )`, which reads the block's `block.json`.
+Hooked to `init`. Calls `register_block_type()` for `blocks/membership-bundles-list` and `blocks/membership-bundle-coverage-callout`, reading each block's `block.json`.
 
 ### `is_alpine_available(): bool` (static)
 
@@ -82,6 +82,15 @@ Hooked to `admin_post_wicket_mship_bundle_renewal_order` (logged-in only; there 
 ### `get_renewal_error_message( string $code ): string` (static)
 
 Maps a renewal error code to plain-language copy for `detail.php`. `not_renewable`, `no_members` and `forbidden`/`not_found` each get a specific message; anything else gets a generic "try again" message. An empty code returns `''`.
+
+## Coverage callout block
+
+`wicket-memberships/membership-bundle-coverage-callout` (`includes/blocks/membership-bundle-coverage-callout/`) — plain dynamic block, no Alpine, no REST. Intended for the account centre / member portal: it tells a member which organization is paying for their membership. No buttons.
+
+- **Attributes** (block sidebar, `index.js`): `heading`, `message` (wording with placeholders; empty = default wording), `siteName` (value for `{site_name}`; empty = site title), `siteContactLink` (URL or `mailto:` for `{site_name_contact_link}`, which renders the site name as a link). `{organization_name}` and `{bundle_owner_name}` are per member, filled from the covering bundle — not editable. See `Membership_Bundle::get_coverage_callout()`.
+- `render.php`: logged-in only. For each ID from `Membership_Bundle::get_covering_bundle_ids_for_user( get_current_user_id() )` it calls `get_coverage_callout()` with the attributes and includes `templates/account-membership-bundles/coverage-callout.php` once per callout, inside a single `get_block_wrapper_attributes()` wrapper. Renders nothing when the member isn't covered (including owners of their own bundle), so it is safe on a page every member sees.
+- `index.js` / `index.asset.php`: no-build editor script — `InspectorControls` fields plus `<ServerSideRender>` with an `EmptyResponsePlaceholder`, since the editing user usually isn't covered by a bundle and the preview would otherwise be empty.
+- `style.css`: `.wicket-mship-bundle-coverage-callout*` — card-call-out markup with the theme's info colors (`--state-info-primary`, `--bg-accent-light`).
 
 ## Related
 

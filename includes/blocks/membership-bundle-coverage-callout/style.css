@@ -1,0 +1,41 @@
+/**
+ * Styles for wicket-memberships/membership-bundle-coverage-callout.
+ *
+ * Auto-enqueued by WordPress via block.json's "style" key, only on pages that
+ * render the block. Card markup mirrors the base plugin's card-call-out
+ * component (see the renewal callout in membership-bundles-list/style.css);
+ * colors use the theme's info tokens since this is a notice, not an action.
+ */
+
+.wicket-mship-bundle-coverage-callouts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-200, 1rem);
+  margin-bottom: var(--space-300, 1.5rem);
+}
+
+.wicket-mship-bundle-coverage-callout .component-card-call-out {
+  padding: var(--space-250, 1.25rem) var(--space-300, 1.5rem);
+  border-radius: var(--card-accent-corner-radius, 12px);
+  border: var(--border-call-out, 1px) solid var(--state-info-primary, #4AB2DE);
+  background-color: var(--bg-accent-light, #dde6fc);
+}
+
+.wicket-mship-bundle-coverage-callout__title {
+  margin-bottom: var(--space-150, 0.75rem);
+}
+
+.wicket-mship-bundle-coverage-callout__content > :last-child {
+  margin-bottom: 0;
+}
+
+/* Editor-only placeholder (index.js) for editors not covered by a bundle. */
+.wicket-mship-bundle-coverage-callout-editor-placeholder {
+  padding: 1rem 1.25rem;
+  border: 1px dashed #949494;
+  border-radius: 4px;
+}
+
+.wicket-mship-bundle-coverage-callout-editor-placeholder p {
+  margin: 0.5rem 0 0;
+}

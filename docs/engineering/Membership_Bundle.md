@@ -82,6 +82,8 @@ All `WP_Error` codes that can be returned by this class's public methods:
 |---|---|---|---|---|
 | `wicket_memberships_individual_membership_created_for_bundle` | filter | `add_member()` | `array $result` | Allows modification of created membership result; must return array with `membership_post_id` |
 | `wicket_mship_bundle_renewal_callout` | filter | `get_renewal_callout()` | `array $callout, Membership_Bundle $bundle` | Modify the renewal callout, or return `null` to hide it (also blocks member-portal renewal orders) |
+| `wicket_mship_bundle_coverage_callout` | filter | `get_coverage_callout()` | `array $callout, Membership_Bundle $bundle, array $settings` | Modify the member-facing coverage callout, or return `null` to hide it for this bundle |
+| `wicket_mship_bundle_coverage_callout_placeholders` | filter | `get_coverage_callout_placeholders()` | `array $placeholders, Membership_Bundle $bundle` | Add or change coverage callout placeholder values (`{token}` => plain-text value) |
 | `wicket_mship_bundle_line_item_meta` | filter | `add_subscription_line_item()` | `array $meta, array $context` (`item_id`, `membership_post_id`, `product_id`, `user_id`, `bundle`) | Add/modify meta written to the member's bundle subscription line item (e.g. OBA bar ID). `_membership_post_id` is protected and cannot be changed; `null`/`''` values are skipped |
 | `wicket_bundle_early_renew_at` | AS action | `schedule_date_trigger_jobs()` | `[ 'bundle_post_id' => int ]` | Fires when `early_renew_at` date reached |
 | `wicket_bundle_ends_at` | AS action | `schedule_date_trigger_jobs()` | `[ 'bundle_post_id' => int ]` | Fires when `ends_at` date reached |
@@ -546,6 +548,39 @@ Each bundle's `membership_data` entry is shaped to match the individual-membersh
 Evaluates three callout types per bundle, using the same window rules as Renewal Types: `pending_approval` (status is `pending`), `early_renewal` (`early_renew_at <= now < ends_at`), `grace_period` (`ends_at < now <= expires_at`). Skips bundles with no config. `group_owner` in the return value is reserved for future nested bundle-within-bundle callouts and is always empty today.
 
 ---
+
+## Coverage Callout (member-facing)
+
+Drives the **Membership Bundle Coverage Callout** block (`includes/blocks/membership-bundle-coverage-callout/`), which tells a member that an organization is paying for their membership through a bundle. Unlike the renewal callout it is shown to bundle *members*, not the owner, and it is not part of the ACC `ac-callout` feed. All wording lives in the block's attributes — nothing is stored on the bundle or bundle config.
+
+### `get_covering_bundle_ids_for_user( int $user_id ): int[]` (static)
+
+Bundle post IDs currently covering `$user_id`: the user holds a `wicket_membership` record with `membership_bundle_id` > 0 and status `active`, `delayed` or `grace_period`, and the bundle is in one of those statuses too. De-duplicated (several tiers in one bundle → one ID), oldest membership first. Bundles the user owns are skipped — the owner manages the bundle through the Membership Bundles List block, and "contact the bundle owner" would point at themselves.
+
+### `get_coverage_callout_placeholders( string $site_name = '' ): array`
+
+Placeholder token => plain-text value. Values are not escaped; callers escape for their context.
+
+| Placeholder | Value | Fallback when missing |
+|---|---|---|
+| `{organization_name}` | `org_name` bundle meta, else `get_organization()['name']` | "Your organization" |
+| `{bundle_owner_name}` | `get_owner()['name']` (display name) | "your membership bundle administrator" |
+| `{site_name}` | `$site_name` (block's Site name field) | `get_bloginfo( 'name' )` |
+
+`{site_name_contact_link}` is not in this map — it is HTML, built by `get_coverage_callout()`. Passes through `wicket_mship_bundle_coverage_callout_placeholders`.
+
+### `get_default_coverage_callout_copy(): array{heading, message}` (static)
+
+Translatable defaults used when the block's heading/message are empty: heading "{organization_name} is currently paying for your membership.", message "If you no longer work here, please contact {site_name_contact_link} or {bundle_owner_name} to update this."
+
+### `get_coverage_callout( array $settings = [] ): ?array`
+
+`$settings` = the block attributes: `heading`, `message`, `site_name`, `site_contact_link`. Returns `{ bundle_post_id, header, content }` or `null`.
+
+- `header`: plain text (placeholders replaced, tags stripped; `{site_name_contact_link}` becomes the plain site name) — escape with `esc_html()`.
+- `content`: sanitized HTML. Data values are `esc_html()`'d before replacement; `{site_name_contact_link}` becomes `<a href="{esc_url(site_contact_link)}">{site name}</a>` (any URL or `mailto:`), or the plain site name when no link is set; then `wp_kses_post()` + `wpautop()`.
+
+Passes through `wicket_mship_bundle_coverage_callout` (`$callout, $bundle, $settings`); returning `null` hides it. Does not check the viewer — callers use `get_covering_bundle_ids_for_user()`.
 
 ## Renewal Callouts & Member-Portal Renewal
 

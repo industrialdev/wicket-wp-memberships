@@ -3,11 +3,12 @@
 namespace Wicket_Memberships;
 
 /**
- * Registers the membership-bundles-list Gutenberg block.
+ * Registers the membership bundle Gutenberg blocks (membership-bundles-list,
+ * membership-bundle-coverage-callout).
  *
- * Plain (non-ACF) dynamic block: block.json declares a "render" file, so
- * WordPress calls includes/blocks/membership-bundles-list/render.php directly
- * with no editor script and no attributes to manage. Kept intentionally
+ * Plain (non-ACF) dynamic blocks: each block.json declares a "render" file, so
+ * WordPress calls includes/blocks/<block>/render.php directly with no
+ * attributes to manage. Kept intentionally
  * separate from the REST/admin controllers in this plugin since block
  * registration is a distinct concern (init-time, editor-facing) from REST
  * routing or admin CRUD.
@@ -133,10 +134,13 @@ class Membership_Bundle_Block_Controller {
   }
 
   /**
-   * Register the membership-bundles-list block from its block.json.
+   * Register the plugin's blocks from their block.json files:
+   * - membership-bundles-list: owner-facing list + detail/manage view.
+   * - membership-bundle-coverage-callout: member-facing "your membership is paid by…" notice.
    */
   public function register_block(): void {
     register_block_type( __DIR__ . '/blocks/membership-bundles-list' );
+    register_block_type( __DIR__ . '/blocks/membership-bundle-coverage-callout' );
   }
 
   /**
