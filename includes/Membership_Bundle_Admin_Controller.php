@@ -1011,10 +1011,18 @@ class Membership_Bundle_Admin_Controller {
       return $tiers;
     }
 
+    $person_uuids = array_values( array_unique( array_filter( array_map( 'strval', $person_uuids ) ) ) );
+
+    // One membership query for the whole result set instead of two meta
+    // queries per person per tier — the per-tier queries took search past
+    // the gateway timeout on sites with many tiers/memberships.
+    $membership_index = self::load_membership_index_for_people( $person_uuids );
+
     $summaries = [];
-    foreach ( array_unique( array_filter( array_map( 'strval', $person_uuids ) ) ) as $person_uuid ) {
-      $counts = [ 'eligible' => 0, 'in_bundle' => 0, 'not_eligible' => 0 ];
-      foreach ( self::annotate_tier_rows_for_person( $tiers, $bundle_post_id, $person_uuid ) as $tier_row ) {
+    foreach ( $person_uuids as $person_uuid ) {
+      $counts            = [ 'eligible' => 0, 'in_bundle' => 0, 'not_eligible' => 0 ];
+      $person_membership = $membership_index[ strtolower( $person_uuid ) ] ?? [];
+      foreach ( self::annotate_tier_rows_for_person( $tiers, $bundle_post_id, $person_uuid, $person_membership ) as $tier_row ) {
         $status = $tier_row['eligibility_status'] ?? '';
         if ( isset( $counts[ $status ] ) ) {
           $counts[ $status ]++;
@@ -1134,8 +1142,21 @@ class Membership_Bundle_Admin_Controller {
    * tiers the person holds no membership record for — the person-specific
    * half of get_eligible_tiers_for_bundle(). See that method's docblock for
    * the full status rules.
+   *
+   * @param array|null $person_memberships This person's slice of
+   *        load_membership_index_for_people() (tier UUID => { in_bundle, active }).
+   *        Omit to load it here — callers annotating many people should
+   *        preload the index once for all of them instead.
    */
-  private static function annotate_tier_rows_for_person( array $tiers, int $bundle_post_id, string $person_uuid ): array {
+  private static function annotate_tier_rows_for_person( array $tiers, int $bundle_post_id, string $person_uuid, ?array $person_memberships = null ): array {
+    if ( null === $person_memberships ) {
+      $person_memberships = self::load_membership_index_for_people( [ $person_uuid ] )[ strtolower( $person_uuid ) ] ?? [];
+    }
+
+    // Tier UUIDs resolved once per tier ID per request — the same tier rows
+    // are annotated once per search result.
+    static $tier_uuid_cache = [];
+
     // Resolved once so the eligibility filter below can receive a WP user
     // ID without every callback repeating the lookup. 0 when the person
     // has no local WP user yet (e.g. never logged in) — callbacks must
@@ -1146,15 +1167,21 @@ class Membership_Bundle_Admin_Controller {
     $hidden_tier_ids = [];
 
     foreach ( $tiers as &$tier_row ) {
-      $tier      = new Membership_Tier( $tier_row['id'] );
-      $tier_uuid = $tier->get_mdp_tier_uuid();
+      if ( ! array_key_exists( $tier_row['id'], $tier_uuid_cache ) ) {
+        $tier_uuid_cache[ $tier_row['id'] ] = strtolower( (string) ( new Membership_Tier( $tier_row['id'] ) )->get_mdp_tier_uuid() );
+      }
+      $tier_uuid = $tier_uuid_cache[ $tier_row['id'] ];
 
       // 'In Bundle' checks across ALL bundles, not just this one — a
       // person already holding this tier's seat in any *active* bundle
       // (this one or a different one) is not re-addable, so the check
-      // isn't scoped to $bundle.
-      $in_bundle_post = self::find_active_bundled_membership_for_person_and_tier( $person_uuid, $tier_uuid );
-      $active_post    = $in_bundle_post ?: self::find_active_membership_for_person_and_tier( $person_uuid, $tier_uuid );
+      // isn't scoped to $bundle. Same rules as
+      // find_active_bundled_membership_for_person_and_tier() /
+      // find_active_membership_for_person_and_tier(), resolved from the
+      // preloaded index — see load_membership_index_for_people().
+      $tier_memberships = '' !== $tier_uuid ? ( $person_memberships[ $tier_uuid ] ?? null ) : null;
+      $in_bundle_post   = $tier_memberships['in_bundle'] ?? null;
+      $active_post      = $in_bundle_post ?: ( $tier_memberships['active'] ?? null );
 
       if ( $in_bundle_post ) {
         $tier_row['eligibility_status'] = 'in_bundle';
@@ -1219,6 +1246,81 @@ class Membership_Bundle_Admin_Controller {
     }
 
     return $tiers;
+  }
+
+  /**
+   * Load every membership record for a set of people in a single query and
+   * index it for annotate_tier_rows_for_person().
+   *
+   * Applies the same rules as find_active_bundled_membership_for_person_and_tier()
+   * ('in_bundle': membership not cancelled/expired, linked to a bundle whose
+   * own status is active) and find_active_membership_for_person_and_tier()
+   * ('active': membership_status active, most recent first), but in PHP over
+   * one result set instead of two multi-join postmeta queries per person per
+   * tier. get_posts() primes the meta cache for every returned post in one
+   * extra query, so the get_post_meta() reads below don't hit the database.
+   *
+   * Keys are lower-cased (MySQL's meta_value comparison is case-insensitive,
+   * PHP array keys aren't).
+   *
+   * @param string[] $person_uuids
+   * @return array<string, array<string, array{in_bundle: \WP_Post|null, active: \WP_Post|null}>>
+   *         person UUID => tier UUID => matching posts.
+   */
+  private static function load_membership_index_for_people( array $person_uuids ): array {
+    $person_uuids = array_values( array_unique( array_filter( array_map( 'strval', $person_uuids ) ) ) );
+    if ( empty( $person_uuids ) ) {
+      return [];
+    }
+
+    $posts = get_posts( [
+      'post_type'     => Helper::get_membership_cpt_slug(),
+      'post_status'   => 'any',
+      'numberposts'   => -1,
+      'orderby'       => 'date',
+      'order'         => 'DESC',
+      'no_found_rows' => true,
+      'meta_query'    => [
+        [ 'key' => 'membership_user_uuid', 'value' => $person_uuids, 'compare' => 'IN' ],
+      ],
+    ] );
+
+    $index                 = [];
+    $bundle_status_cache   = [];
+    $membership_controller = new Membership_Controller();
+
+    foreach ( $posts as $post ) {
+      $person_key = strtolower( (string) get_post_meta( $post->ID, 'membership_user_uuid', true ) );
+      $tier_key   = strtolower( (string) get_post_meta( $post->ID, 'membership_tier_uuid', true ) );
+      if ( '' === $person_key || '' === $tier_key ) {
+        continue;
+      }
+
+      if ( ! isset( $index[ $person_key ][ $tier_key ] ) ) {
+        $index[ $person_key ][ $tier_key ] = [ 'in_bundle' => null, 'active' => null ];
+      }
+
+      $status = (string) get_post_meta( $post->ID, 'membership_status', true );
+
+      if ( null === $index[ $person_key ][ $tier_key ]['active'] && Wicket_Memberships::STATUS_ACTIVE === $status ) {
+        $index[ $person_key ][ $tier_key ]['active'] = $post;
+      }
+
+      if ( null === $index[ $person_key ][ $tier_key ]['in_bundle'] && ! in_array( $status, [ 'cancelled', 'expired' ], true ) ) {
+        $bundle_id = (int) get_post_meta( $post->ID, 'membership_bundle_id', true );
+        if ( $bundle_id > 0 ) {
+          if ( ! array_key_exists( $bundle_id, $bundle_status_cache ) ) {
+            $containing_bundle                 = $membership_controller->get_membership_bundle( $post->ID );
+            $bundle_status_cache[ $bundle_id ] = $containing_bundle ? $containing_bundle->get_membership_status() : false;
+          }
+          if ( Wicket_Memberships::STATUS_ACTIVE === $bundle_status_cache[ $bundle_id ] ) {
+            $index[ $person_key ][ $tier_key ]['in_bundle'] = $post;
+          }
+        }
+      }
+    }
+
+    return $index;
   }
 
   /**
