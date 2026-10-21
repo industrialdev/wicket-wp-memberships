@@ -51,6 +51,7 @@ Represents a Membership Bundle Config CPT record (`wicket_mship_bcfg`). Combines
 - `get_current_calendar_season()`
 - `get_period_data()`
 - `is_valid_renewal_date($membership, $date = null)`
+- `get_early_renew_at_for_end($end_date_iso)`
 - `get_membership_dates($membership = [])`
 - `get_renewal_type()`
 - `is_renewal_subscription()`
@@ -135,13 +136,18 @@ Returns the active season matching today's date, or false if none matches.
 Returns `{ period_count, period_type }` based on cycle type. Defaults to `{ 1, 'year' }` for calendar configs.
 
 **is_valid_renewal_date($membership, $date = null)**
-Checks whether the given date falls within the valid renewal window for the membership.
+Returns the early-renewal opening (UTC ISO 8601) when the renewal is attempted before it, or null when renewal is allowed. The window opens N days before the current `membership_ends_at`. Mirrors `Membership_Config::is_valid_renewal_date()`.
+
+**get_early_renew_at_for_end($end_date_iso)**
+MDP midnight of the end's MDP calendar day minus the renewal window, as UTC ISO 8601. Returns null when no renewal window is configured.
 
 **get_membership_dates($membership = [])**
 Calculates and returns membership start, end, grace-period expiry, and early-renewal dates. Pass an empty array for new memberships that should start today.
 
 Supported `$membership` keys:
-- `membership_ends_at` (string) — ISO 8601 end date of the current period; used for renewals. The next period starts the day after this date.
+- `membership_ends_at` (string) — ISO 8601 end date of the current period; used for renewals. The next period starts the day after this date, in the MDP timezone.
+
+All day maths runs on the MDP calendar day. `early_renew_at` is counted back from the returned term's own `end_date`, for new and renewed terms.
 - `start_date` (string) — ISO 8601 date override for a new membership start. When provided (with no `membership_ends_at`), all date calculations are anchored to this date instead of `'now'`.
 
 **get_renewal_type()**

@@ -420,6 +420,16 @@ class Helper {
   }
 
 
+  /**
+   * A membership post's public meta as a flat array, with every `*_at` date as a Y-m-d day.
+   *
+   * Dates are the MDP calendar day: an MDP end of day (23:59:59, stored as UTC) is the next
+   * UTC day west of UTC. Meta keys starting with `_` are left out.
+   *
+   * @param  int $post_id  The wicket_membership post ID.
+   *
+   * @return array<string, mixed>  Meta key => single value.
+   */
   public static function get_post_meta( $post_id ) {
     $post_meta = get_post_meta( $post_id );
     $new_meta = [];
@@ -431,7 +441,12 @@ class Helper {
           return;
         }
         if( str_ends_with( $key, '_at' ) ) {
-          return $new_meta[$key] = date( "Y-m-d", strtotime( $val[0] ));
+          // A bare Y-m-d is already a calendar day; unparseable values keep the old 1970-01-01.
+          if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $val[0] ) ) {
+            return $new_meta[$key] = $val[0];
+          }
+          $timestamp = strtotime( (string) $val[0] );
+          return $new_meta[$key] = $timestamp === false ? date( 'Y-m-d', 0 ) : Utilities::format_mdp_date( 'Y-m-d', $timestamp );
         }
         return $new_meta[$key] = $val[0];
       }

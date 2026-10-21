@@ -78,7 +78,7 @@ class Membership_Bundle {
    * @param int    $membership_bundle_config_id Post ID of the linked Membership_Bundle_Config.
    * @param string $org_uuid                   MDP organisation UUID.
    * @param string $owner_uuid                 MDP person UUID of the bundle owner.
-   * @param string $start_date                 ISO 8601 start date for the membership period.
+   * @param string $start_date                 Start date for the membership period: ISO 8601, or a bare Y-m-d read as an MDP calendar day. Stored as its MDP day start.
    * @param bool   $sync_to_mdp                Whether to create the bundle in MDP. Set false when
    *                                           importing a bundle that already exists in MDP, to avoid
    *                                           creating a duplicate record there.
@@ -117,15 +117,15 @@ class Membership_Bundle {
       throw new \RuntimeException( 'owner_uuid is not a valid UUID.' );
     }
 
-    // Validate start_date is parseable and normalize to UTC ISO 8601.
+    // Validate start_date is parseable and normalize to its MDP day start (UTC ISO 8601).
+    // A bare Y-m-d is an MDP calendar day; read as UTC midnight it is the previous day west of UTC.
     if ( empty( $start_date ) ) {
       Wicket()->log()->error( 'Membership_Bundle::create: start_date is empty', ['source' => 'wicket-memberships'] );
       throw new \RuntimeException( 'start_date is empty.' );
     }
     try {
-      $start_dt = new \DateTime( $start_date );
-      $start_dt->setTimezone( new \DateTimeZone( 'UTC' ) );
-      $start_date = $start_dt->format( 'Y-m-d\TH:i:s\Z' );
+      $start_dt   = Utilities::get_mdp_day_start( $start_date );
+      $start_date = $start_dt->format( 'c' );
     } catch ( \Exception $e ) {
       Wicket()->log()->error( 'Membership_Bundle::create: start_date could not be parsed', ['source' => 'wicket-memberships', 'start_date' => $start_date] );
       throw new \RuntimeException( 'start_date is not a valid date string.' );
@@ -153,8 +153,7 @@ class Membership_Bundle {
 
     // Bundle memberships activate immediately on creation. Future start dates still use
     // delayed so the daily activation hook can promote them on schedule.
-    $current_date = Utilities::get_utc_datetime()->format( 'c' );
-    if ( strtotime( $start_date ) > strtotime( $current_date ) ) {
+    if ( $start_dt->getTimestamp() > time() ) {
       $initial_status = Wicket_Memberships::STATUS_DELAYED;
     } else {
       $initial_status = Wicket_Memberships::STATUS_ACTIVE;
@@ -936,8 +935,8 @@ class Membership_Bundle {
       if ( ! empty( $sub ) ) {
         $sub->update_status( 'cancelled' );
         if ( ! empty( $meta_data['membership_ends_at'] ) && $current_status !== Wicket_Memberships::STATUS_GRACE ) {
-          $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
-          $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+          // End of the membership's MDP end day, as UTC (what WCS expects).
+          $subscription_end = Utilities::get_mdp_day_end( $meta_data['membership_ends_at'] );
           $sub->update_dates( [
             'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
           ] );
@@ -2892,7 +2891,7 @@ class Membership_Bundle {
         $early_renew_at_iso = '';
         if ( $new_ends_ts ) {
           $early_renew_dt = ( new \DateTime( '@' . $new_ends_ts ) )
-            ->setTimezone( new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' ) );
+            ->setTimezone( Utilities::get_mdp_timezone() );
           if ( $renewal_window_days !== false ) {
             $early_renew_dt->modify( '-' . absint( $renewal_window_days ) . ' days' );
           }
@@ -3184,15 +3183,15 @@ class Membership_Bundle {
       $sub->add_order_note( sprintf(
         'Membership bundle (ID: %d) date edit synced subscription dates. Next Payment: %s End: %s',
         $this->post_id,
-        $is_renewal_subscription ? date( 'Y-m-d', strtotime( $dates['ends_at'] ) ) : 'none',
-        date( 'Y-m-d', strtotime( $end_source ) )
+        $is_renewal_subscription ? Utilities::format_mdp_date( 'Y-m-d', strtotime( $dates['ends_at'] ) ) : 'none',
+        Utilities::format_mdp_date( 'Y-m-d', strtotime( $end_source ) )
       ) );
     } catch ( \Exception $e ) {
       $sub->add_order_note( sprintf(
         'Membership bundle (ID: %d) attempted to sync subscription dates but failed. Next Payment: %s End: %s Error: %s',
         $this->post_id,
-        $is_renewal_subscription ? date( 'Y-m-d', strtotime( $dates['ends_at'] ) ) : 'none',
-        date( 'Y-m-d', strtotime( $end_source ) ),
+        $is_renewal_subscription ? Utilities::format_mdp_date( 'Y-m-d', strtotime( $dates['ends_at'] ) ) : 'none',
+        Utilities::format_mdp_date( 'Y-m-d', strtotime( $end_source ) ),
         $e->getMessage()
       ) );
     }

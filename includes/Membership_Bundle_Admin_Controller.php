@@ -583,7 +583,7 @@ class Membership_Bundle_Admin_Controller {
 
     // Day maths in the MDP timezone: UTC truncation and DST crossings shift the day.
     $renewal_window_days = $config ? $config->get_renewal_window_days() : false;
-    $mdp_timezone        = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $mdp_timezone        = Utilities::get_mdp_timezone();
     $early_renew_ymd     = ( new \DateTime( '@' . $starts_at ) )->setTimezone( $mdp_timezone )->format( 'Y-m-d' );
     if ( $renewal_window_days !== false ) {
       $early_renew_ymd = ( new \DateTime( '@' . $ends_at ) )->setTimezone( $mdp_timezone )
@@ -1986,7 +1986,7 @@ class Membership_Bundle_Admin_Controller {
       $subscription->add_order_note( sprintf(
         'Membership bundle (ID: %d) renewal type changed to subscription. Next payment set to %s.',
         $bundle->post_id,
-        $next_payment
+        Utilities::format_mdp_date( 'Y-m-d', strtotime( $next_payment . ' UTC' ) )
       ) );
       $subscription->save();
     } else {

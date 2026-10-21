@@ -86,14 +86,14 @@ class Import_Controller {
 
           if( empty( $record['Expires_At'] ) ) {
             // Calculate expires_at from ends_at + grace period, set to end of day
-            $expires_date = date('Y-m-d', strtotime( $record['Ends_At'] . " + {$membership_tier_array['grace_period_days']} days" ));
+            $expires_date = self::mdp_ymd_from_end( $record['Ends_At'], (int) $membership_tier_array['grace_period_days'] );
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $expires_date )->format('c');
           } else {
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $record['Expires_At'] )->format('c');
           }
 
           // Calculate early_renew_at from ends_at - early renew days, set to start of day
-          $early_renew_date = date('Y-m-d', strtotime( $record['Ends_At'] . " - {$membership_tier_array['early_renew_days']} days" ));
+          $early_renew_date = self::mdp_ymd_from_end( $record['Ends_At'], -1 * (int) $membership_tier_array['early_renew_days'] );
           $membership_post_mapping['membership_early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date )->format('c');
 
           $membership_post_mapping['membership_seats'] = 1;
@@ -198,14 +198,14 @@ class Import_Controller {
 
           if( empty( $record['Expires_At'] ) ) {
             // Calculate expires_at from ends_at + grace period, set to end of day
-            $expires_date = date('Y-m-d', strtotime( $record['Ends_At'] . " + {$membership_tier_array['grace_period_days']} days" ));
+            $expires_date = self::mdp_ymd_from_end( $record['Ends_At'], (int) $membership_tier_array['grace_period_days'] );
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $expires_date )->format('c');
           } else {
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $record['Expires_At'] )->format('c');
           }
 
           // Calculate early_renew_at from ends_at - early renew days, set to start of day
-          $early_renew_date = date('Y-m-d', strtotime( $record['Ends_At'] . " - {$membership_tier_array['early_renew_days']} days" ));
+          $early_renew_date = self::mdp_ymd_from_end( $record['Ends_At'], -1 * (int) $membership_tier_array['early_renew_days'] );
           $membership_post_mapping['membership_early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date )->format('c');
 
           $membership_post_mapping['org_name'] = $record['Organization'];
@@ -339,17 +339,46 @@ class Import_Controller {
     return $query->have_posts() ? (int) $query->posts[0] : 0;
   }
 
+  /**
+   * The MDP calendar day $days days after (or before, when negative) an import end date.
+   *
+   * Counted on the end's MDP day: the UTC day of an MDP end-of-day is the next day west of UTC.
+   *
+   * @param  string $ends_at  End date from the CSV (bare Y-m-d as an MDP day, or ISO 8601).
+   * @param  int    $days     Days to add; negative counts back.
+   *
+   * @return string  Y-m-d in the MDP timezone.
+   */
+  private static function mdp_ymd_from_end( $ends_at, $days ) {
+    return Utilities::get_mdp_day_end( $ends_at )->setTimezone( Utilities::get_mdp_timezone() )
+      ->modify( sprintf( '%+d days', $days ) )->format( 'Y-m-d' );
+  }
+
+  /**
+   * Derive an imported membership's status from its dates relative to now.
+   *
+   * The grace window (ends_at to expires_at) imports as active, not grace_period.
+   *
+   * @param  string $membership_starts_at   Start date (ISO 8601 or any strtotime() format).
+   * @param  string $membership_ends_at     End date (ISO 8601 or any strtotime() format).
+   * @param  string $membership_expires_at  Expiry date, end of the grace window.
+   *
+   * @return string|null  A Wicket_Memberships::STATUS_* value, or null (with a PHP warning)
+   *                      when no branch matches: now equals ends_at with no grace window,
+   *                      or a date fails to parse.
+   */
   private function get_status( $membership_starts_at, $membership_ends_at, $membership_expires_at ) {
     $membership_starts_at = strtotime( $membership_starts_at );
     $membership_ends_at = strtotime( $membership_ends_at );
     $membership_expires_at = strtotime( $membership_expires_at );
-    if( current_time( 'timestamp' ) >= $membership_starts_at && current_time( 'timestamp' ) < $membership_ends_at ) {
+    $now = time();
+    if( $now >= $membership_starts_at && $now < $membership_ends_at ) {
       $status = Wicket_Memberships::STATUS_ACTIVE;
-    } else if (current_time( 'timestamp' ) >= $membership_ends_at && current_time( 'timestamp' ) < $membership_expires_at ) {
+    } else if ($now >= $membership_ends_at && $now < $membership_expires_at ) {
       $status = Wicket_Memberships::STATUS_ACTIVE;
-    } else if( $membership_starts_at > current_time( 'timestamp' ) ) {
+    } else if( $membership_starts_at > $now ) {
       $status = Wicket_Memberships::STATUS_DELAYED;
-    } else if ( $membership_ends_at < current_time( 'timestamp' ) ) {
+    } else if ( $membership_ends_at < $now ) {
       $status = Wicket_Memberships::STATUS_EXPIRED;
     }
     return $status;

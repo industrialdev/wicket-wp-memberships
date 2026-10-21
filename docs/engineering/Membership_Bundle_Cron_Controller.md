@@ -41,7 +41,7 @@ AS single-action hooks (`wicket_bundle_early_renew_at`, `wicket_bundle_ends_at`,
 | `wicket_memberships_bundle_renewal_complete` | `cancel_old_bundle_after_renewal()` | dispatched when `process_bundle_renewal_members()` final batch completes |
 | `wicket_memberships_bundle_cancel_old_on_starts_at` | `cancel_old_bundle_on_new_starts_at()` | scheduled AS single action |
 
-Daily handlers are registered as recurring daily actions starting tomorrow (midnight, site timezone). The renewal batch handler is a single-action job dispatched on each renewal order.
+Daily handlers are registered as recurring daily actions starting tomorrow (midnight, MDP timezone; existing schedules keep their time). The renewal batch handler is a single-action job dispatched on each renewal order.
 
 ## Methods
 
