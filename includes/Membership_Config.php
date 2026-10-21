@@ -1,6 +1,18 @@
 <?php
 namespace Wicket_Memberships;
 
+/**
+ * Membership configuration model.
+ *
+ * @see atlas://packages/wicket-wp-memberships.md#date-and-lifecycle-calculation-engine
+ *
+ * ARCHITECTURAL GUARDRAIL:
+ * Manages renewal windows, late fees, and date calculation engines.
+ * Preserve direct date calculations and state handling. AI agents MUST NOT
+ * perform speculative refactoring into multi-layer OOP services.
+ *
+ * @package Wicket_Memberships
+ */
 class Membership_Config {
 
   private $post_id;
