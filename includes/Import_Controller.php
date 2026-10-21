@@ -86,14 +86,14 @@ class Import_Controller {
 
           if( empty( $record['Expires_At'] ) ) {
             // Calculate expires_at from ends_at + grace period, set to end of day
-            $expires_date = date('Y-m-d', strtotime( $record['Ends_At'] . " + {$membership_tier_array['grace_period_days']} days" ));
+            $expires_date = self::mdp_ymd_from_end( $record['Ends_At'], (int) $membership_tier_array['grace_period_days'] );
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $expires_date )->format('c');
           } else {
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $record['Expires_At'] )->format('c');
           }
 
           // Calculate early_renew_at from ends_at - early renew days, set to start of day
-          $early_renew_date = date('Y-m-d', strtotime( $record['Ends_At'] . " - {$membership_tier_array['early_renew_days']} days" ));
+          $early_renew_date = self::mdp_ymd_from_end( $record['Ends_At'], -1 * (int) $membership_tier_array['early_renew_days'] );
           $membership_post_mapping['membership_early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date )->format('c');
 
           $membership_post_mapping['membership_seats'] = 1;
@@ -198,14 +198,14 @@ class Import_Controller {
 
           if( empty( $record['Expires_At'] ) ) {
             // Calculate expires_at from ends_at + grace period, set to end of day
-            $expires_date = date('Y-m-d', strtotime( $record['Ends_At'] . " + {$membership_tier_array['grace_period_days']} days" ));
+            $expires_date = self::mdp_ymd_from_end( $record['Ends_At'], (int) $membership_tier_array['grace_period_days'] );
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $expires_date )->format('c');
           } else {
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $record['Expires_At'] )->format('c');
           }
 
           // Calculate early_renew_at from ends_at - early renew days, set to start of day
-          $early_renew_date = date('Y-m-d', strtotime( $record['Ends_At'] . " - {$membership_tier_array['early_renew_days']} days" ));
+          $early_renew_date = self::mdp_ymd_from_end( $record['Ends_At'], -1 * (int) $membership_tier_array['early_renew_days'] );
           $membership_post_mapping['membership_early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date )->format('c');
 
           $membership_post_mapping['org_name'] = $record['Organization'];
@@ -337,6 +337,21 @@ class Import_Controller {
     ];
     $query = new \WP_Query( $args );
     return $query->have_posts() ? (int) $query->posts[0] : 0;
+  }
+
+  /**
+   * The MDP calendar day $days days after (or before, when negative) an import end date.
+   *
+   * Counted on the end's MDP day: the UTC day of an MDP end-of-day is the next day west of UTC.
+   *
+   * @param  string $ends_at  End date from the CSV (bare Y-m-d as an MDP day, or ISO 8601).
+   * @param  int    $days     Days to add; negative counts back.
+   *
+   * @return string  Y-m-d in the MDP timezone.
+   */
+  private static function mdp_ymd_from_end( $ends_at, $days ) {
+    return Utilities::get_mdp_day_end( $ends_at )->setTimezone( Utilities::get_mdp_timezone() )
+      ->modify( sprintf( '%+d days', $days ) )->format( 'Y-m-d' );
   }
 
   /**

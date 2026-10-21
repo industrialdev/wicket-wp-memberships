@@ -57,7 +57,7 @@ class Membership_Bundle {
    * @param int    $membership_bundle_config_id Post ID of the linked Membership_Bundle_Config.
    * @param string $org_uuid                   MDP organisation UUID.
    * @param string $owner_uuid                 MDP person UUID of the bundle owner.
-   * @param string $start_date                 ISO 8601 start date for the membership period.
+   * @param string $start_date                 Start date for the membership period: ISO 8601, or a bare Y-m-d read as an MDP calendar day. Stored as its MDP day start.
    * @param bool   $sync_to_mdp                Whether to create the bundle in MDP. Set false when
    *                                           importing a bundle that already exists in MDP, to avoid
    *                                           creating a duplicate record there.
@@ -96,15 +96,15 @@ class Membership_Bundle {
       throw new \RuntimeException( 'owner_uuid is not a valid UUID.' );
     }
 
-    // Validate start_date is parseable and normalize to UTC ISO 8601.
+    // Validate start_date is parseable and normalize to its MDP day start (UTC ISO 8601).
+    // A bare Y-m-d is an MDP calendar day; read as UTC midnight it is the previous day west of UTC.
     if ( empty( $start_date ) ) {
       Wicket()->log()->error( 'Membership_Bundle::create: start_date is empty', ['source' => 'wicket-memberships'] );
       throw new \RuntimeException( 'start_date is empty.' );
     }
     try {
-      $start_dt = new \DateTime( $start_date );
-      $start_dt->setTimezone( new \DateTimeZone( 'UTC' ) );
-      $start_date = $start_dt->format( 'Y-m-d\TH:i:s\Z' );
+      $start_dt   = Utilities::get_mdp_day_start( $start_date );
+      $start_date = $start_dt->format( 'c' );
     } catch ( \Exception $e ) {
       Wicket()->log()->error( 'Membership_Bundle::create: start_date could not be parsed', ['source' => 'wicket-memberships', 'start_date' => $start_date] );
       throw new \RuntimeException( 'start_date is not a valid date string.' );
@@ -132,8 +132,7 @@ class Membership_Bundle {
 
     // Bundle memberships activate immediately on creation. Future start dates still use
     // delayed so the daily activation hook can promote them on schedule.
-    $current_date = Utilities::get_utc_datetime()->format( 'c' );
-    if ( strtotime( $start_date ) > strtotime( $current_date ) ) {
+    if ( $start_dt->getTimestamp() > time() ) {
       $initial_status = Wicket_Memberships::STATUS_DELAYED;
     } else {
       $initial_status = Wicket_Memberships::STATUS_ACTIVE;

@@ -78,8 +78,10 @@ class Bundle_Import_Controller {
     } else {
       // Same fallback Import_Controller uses: derive expires_at from ends_at + the
       // config's grace period when the CSV doesn't supply one explicitly.
-      $grace_period_days = $config->get_late_fee_window_days();
-      $expires_date = date( 'Y-m-d', strtotime( $record['Ends_At'] . " + {$grace_period_days} days" ) );
+      // Counted on the end's MDP day; no grace period configured means expiry on the end day.
+      $grace_period_days = (int) $config->get_late_fee_window_days();
+      $expires_date = Utilities::get_mdp_day_end( $record['Ends_At'] )->setTimezone( Utilities::get_mdp_timezone() )
+        ->modify( "+{$grace_period_days} days" )->format( 'Y-m-d' );
       $expires_at = Utilities::get_mdp_day_end( $expires_date )->format( 'c' );
     }
 
