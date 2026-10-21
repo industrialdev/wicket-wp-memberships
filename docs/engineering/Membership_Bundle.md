@@ -82,6 +82,7 @@ All `WP_Error` codes that can be returned by this class's public methods:
 |---|---|---|---|---|
 | `wicket_memberships_individual_membership_created_for_bundle` | filter | `add_member()` | `array $result` | Allows modification of created membership result; must return array with `membership_post_id` |
 | `wicket_mship_bundle_renewal_callout` | filter | `get_renewal_callout()` | `array $callout, Membership_Bundle $bundle` | Modify the renewal callout, or return `null` to hide it (also blocks member-portal renewal orders) |
+| `wicket_mship_bundle_renewal_reminder` | filter | `get_renewal_reminder()` | `array $reminder, int $user_id, array $settings` | Modify the owner-facing renewal reminder (account centre), or return `null` to hide it. To drop one bundle from every renewal prompt, filter `wicket_mship_bundle_renewal_callout` instead |
 | `wicket_mship_bundle_coverage_callout` | filter | `get_coverage_callout()` | `array $callout, Membership_Bundle $bundle, array $settings` | Modify the member-facing coverage callout, or return `null` to hide it for this bundle |
 | `wicket_mship_bundle_coverage_callout_placeholders` | filter | `get_coverage_callout_placeholders()` | `array $placeholders, Membership_Bundle $bundle` | Add or change coverage callout placeholder values (`{token}` => plain-text value) |
 | `wicket_mship_bundle_line_item_meta` | filter | `add_subscription_line_item()` | `array $meta, array $context` (`item_id`, `membership_post_id`, `product_id`, `user_id`, `bundle`) | Add/modify meta written to the member's bundle subscription line item (e.g. OBA bar ID). `_membership_post_id` is protected and cannot be changed; `null`/`''` values are skipped |
@@ -581,6 +582,34 @@ Translatable defaults used when the block's heading/message are empty: heading "
 - `content`: sanitized HTML. Data values are `esc_html()`'d before replacement; `{site_name_contact_link}` becomes `<a href="{esc_url(site_contact_link)}">{site name}</a>` (any URL or `mailto:`), or the plain site name when no link is set; then `wp_kses_post()` + `wpautop()`.
 
 Passes through `wicket_mship_bundle_coverage_callout` (`$callout, $bundle, $settings`); returning `null` hides it. Does not check the viewer — callers use `get_covering_bundle_ids_for_user()`.
+
+## Renewal Reminder (owner-facing, account centre)
+
+Drives the **Membership Bundle Renewal Reminder** block (`includes/blocks/membership-bundle-renewal-reminder/`, template `templates/account-membership-bundles/renewal-reminder.php`) for the Account Centre landing page. One notice covering every bundle the owner has due; it links to the Manage Membership Bundles page and never starts a renewal or creates orders. All wording lives in the block's attributes.
+
+### `get_owner_renewal_due_bundles( int $user_id, ?int $now = null ): array` (static)
+
+Bundles owned by `$user_id` (status `active`, `delayed` or `grace_period`) for which `get_renewal_callout()` returns a callout — so exactly the bundles with a "Renew" prompt on the detail view and a badge on the list view. Each row: `bundle_post_id`, `type` (`early_renewal`|`grace_period`), `bundle_name`, `org_name` (from `org_name` meta, no live MDP fallback), `ends_at`, `expires_at` (raw ISO). Sorted by `ends_at` ascending. Memoised per request on `$user_id` + reference time. Also backs `Membership_Bundle_Block_Controller::get_bundles_requiring_attention_count()` (account-menu badge).
+
+### `get_default_renewal_reminder_copy( int $count = 1, bool $lapsed = false ): array{heading, message, button_label}` (static)
+
+Translatable defaults, pluralised on `$count` (`_n()`); `$lapsed` switches to "overdue" wording. Plural heading uses `{bundle_count}`.
+
+### `get_manage_bundles_page_url(): string` (static)
+
+Permalink of `Helper::get_membership_bundles_manage_page_id()` when published, else `''`. Carries `?wicket_wp_membership_debug_days` through when `WICKET_MEMBERSHIPS_DEBUG_RENEW` is on.
+
+### `get_renewal_reminder( int $user_id, array $settings = [] ): ?array` (static)
+
+`$settings`: `heading`, `message`, `button_label` (each empty = default). Placeholder: `{bundle_count}`. Returns `{ type, header, content, button_label, manage_url, bundles }` or `null` when nothing is due.
+
+- `type`: `grace_period` when any bundle is lapsed, else `early_renewal`.
+- `header` / `button_label`: plain text — escape with `esc_html()`. `content`: `wp_kses_post()` + `wpautop()`. `manage_url`: unescaped, `''` when no manage page.
+- `bundles`: `get_owner_renewal_due_bundles()`.
+
+Passes through `wicket_mship_bundle_renewal_reminder`. Does not check the viewer beyond using `$user_id` as the owner — `render.php` passes the current user.
+
+**Relation to the ACC callout feed:** `get_owner_callouts()` still adds one `grace_period` entry per lapsed bundle to ACC's `ac-callout` feed. If the landing page also has that block, a lapsed bundle is announced by both.
 
 ## Renewal Callouts & Member-Portal Renewal
 

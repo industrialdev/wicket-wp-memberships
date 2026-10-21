@@ -3,7 +3,7 @@
 **File:** `includes/Membership_Bundle_Block_Controller.php`
 **Namespace:** `Wicket_Memberships`
 
-Registers two Gutenberg blocks: `wicket-memberships/membership-bundles-list` (below) and `wicket-memberships/membership-bundle-coverage-callout` (see "Coverage callout block"). `membership-bundles-list` is a plain (non-ACF) dynamic block with no configurable attributes. The front end is rendered entirely by `includes/blocks/membership-bundles-list/render.php`, which switches between two PHP + Alpine.js templates on the SAME rendered page based on the current URL: `templates/account-membership-bundles/list.php` (the "Membership Bundle - List" screen, default) when there is no `bundle_post_id` query param, or `templates/account-membership-bundles/detail.php` (the "Membership Bundle - Detail/Manage" screen — status/dates, tier breakdown, members table) when `bundle_post_id` is a positive integer. This lets `list.php`'s "Manage Bundle" links stay simple (just add `bundle_post_id` to the current URL) without needing a second page or any mechanism to locate one. The editor preview uses a small no-build `index.js` (registered via block.json's `editorScript`, with dependencies declared in the sibling `index.asset.php` since there's no webpack/`@wordpress/scripts` step) that wraps `<ServerSideRender>` — this is what makes the block reliably show up and preview in the inserter; block.json alone (render-only, no editor script) is not sufficient on all WP/Gutenberg versions.
+Registers three Gutenberg blocks: `wicket-memberships/membership-bundles-list` (below), `wicket-memberships/membership-bundle-coverage-callout` (see "Coverage callout block") and `wicket-memberships/membership-bundle-renewal-reminder` (see "Renewal reminder block"). `membership-bundles-list` is a plain (non-ACF) dynamic block with no configurable attributes. The front end is rendered entirely by `includes/blocks/membership-bundles-list/render.php`, which switches between two PHP + Alpine.js templates on the SAME rendered page based on the current URL: `templates/account-membership-bundles/list.php` (the "Membership Bundle - List" screen, default) when there is no `bundle_post_id` query param, or `templates/account-membership-bundles/detail.php` (the "Membership Bundle - Detail/Manage" screen — status/dates, tier breakdown, members table) when `bundle_post_id` is a positive integer. This lets `list.php`'s "Manage Bundle" links stay simple (just add `bundle_post_id` to the current URL) without needing a second page or any mechanism to locate one. The editor preview uses a small no-build `index.js` (registered via block.json's `editorScript`, with dependencies declared in the sibling `index.asset.php` since there's no webpack/`@wordpress/scripts` step) that wraps `<ServerSideRender>` — this is what makes the block reliably show up and preview in the inserter; block.json alone (render-only, no editor script) is not sufficient on all WP/Gutenberg versions.
 
 ## Why a separate controller
 
@@ -13,7 +13,7 @@ Block registration is an `init`-time, editor-facing concern, distinct from the R
 
 ### `register_block(): void`
 
-Hooked to `init`. Calls `register_block_type()` for `blocks/membership-bundles-list` and `blocks/membership-bundle-coverage-callout`, reading each block's `block.json`.
+Hooked to `init`. Calls `register_block_type()` for `blocks/membership-bundles-list`, `blocks/membership-bundle-coverage-callout` and `blocks/membership-bundle-renewal-reminder`, reading each block's `block.json`.
 
 ### `is_alpine_available(): bool` (static)
 
@@ -29,7 +29,7 @@ Callers (currently `includes/blocks/membership-bundles-list/render.php`) must tr
 
 Counts the current WP user's owned `wicket_mship_bundle` posts that are currently showing a renewal callout: `early_renewal` (inside the renewal window) or `grace_period`. Returns `0` when nobody is logged in.
 
-Loads the owner's bundles in status `active`, `delayed` or `grace_period` (the only statuses `Membership_Bundle::get_renewal_state()` can match) and counts those where `Membership_Bundle::get_renewal_callout()` is not `null`. The account-menu badge therefore matches the detail view exactly. Already-renewed terms, autopay early renewals, bundles with no usable renewal flow, and the global "Disable Renewal Callouts" setting are all excluded. Expired bundles are not counted.
+Returns `count( Membership_Bundle::get_owner_renewal_due_bundles( get_current_user_id() ) )` — the same list the Renewal reminder block renders, so the account-menu badge and the reminder always agree. That helper loads the owner's bundles in status `active`, `delayed` or `grace_period` (the only statuses `Membership_Bundle::get_renewal_state()` can match) and keeps those where `Membership_Bundle::get_renewal_callout()` is not `null`, so the badge also matches the detail view exactly. Already-renewed terms, autopay early renewals, bundles with no usable renewal flow, and the global "Disable Renewal Callouts" setting are all excluded. Expired bundles are not counted.
 
 ### `get_nav_badge_href_fragments(): array` (static, private)
 
@@ -91,6 +91,16 @@ Maps a renewal error code to plain-language copy for `detail.php`. `not_renewabl
 - `render.php`: logged-in only. For each ID from `Membership_Bundle::get_covering_bundle_ids_for_user( get_current_user_id() )` it calls `get_coverage_callout()` with the attributes and includes `templates/account-membership-bundles/coverage-callout.php` once per callout, inside a single `get_block_wrapper_attributes()` wrapper. Renders nothing when the member isn't covered (including owners of their own bundle), so it is safe on a page every member sees.
 - `index.js` / `index.asset.php`: no-build editor script — `InspectorControls` fields plus `<ServerSideRender>` with an `EmptyResponsePlaceholder`, since the editing user usually isn't covered by a bundle and the preview would otherwise be empty.
 - `style.css`: `.wicket-mship-bundle-coverage-callout*` — card-call-out markup with the theme's info colors (`--state-info-primary`, `--bg-accent-light`).
+
+## Renewal reminder block
+
+`wicket-memberships/membership-bundle-renewal-reminder` (`includes/blocks/membership-bundle-renewal-reminder/`) — plain dynamic block, no Alpine, no REST. Intended for the Account Centre landing page: tells a bundle owner that one or more of their bundles are due for renewal and links to the Manage Membership Bundles page. It never starts a renewal or checkout — an owner can have several bundles due in the same period, each renewed from its own detail view.
+
+- **Attributes** (block sidebar, `index.js`): `heading`, `message`, `buttonLabel` (empty = default wording, which is pluralised and switches to "overdue" wording when any bundle is in its grace period; custom wording is used for both states and supports `{bundle_count}`), `showBundleList` (default `true`: list each due bundle). See `Membership_Bundle::get_renewal_reminder()`.
+- `render.php`: logged-in only, and only when `WICKET_MSHIP_ENABLE_BUNDLES` is on. Calls `Membership_Bundle::get_renewal_reminder( get_current_user_id(), … )` and includes `templates/account-membership-bundles/renewal-reminder.php` inside a `get_block_wrapper_attributes()` wrapper. Renders nothing when no owned bundle is due, so it is safe on a page every member sees. When `WICKET_MEMBERSHIPS_DEBUG_RENEW` is on, it first renders `templates/account-membership-bundles/debug-notice.php` (the `?wicket_wp_membership_debug_days=N` hint, shown even when nothing is due on the simulated date) and enqueues the `membership-bundles-list` block stylesheet, where the notice's styles live.
+- `renewal-reminder.php`: one card-call-out — yellow (`early_renewal`) while every bundle is inside its renewal window, red (`grace_period`) once any is lapsed; colors match `renewal-callout.php`. Optional list of due bundles ("Org – Bundle" label linked to `?bundle_post_id=` on the manage page, "Renewal due"/"Lapsed" badge, renewal date or — when lapsed — "Renew by" the grace-period end, on the MDP-local day with the raw ISO string as a tooltip). One button to the manage page (`get_component( 'button' )`, plain `<a>` fallback). With no manage page configured the button is omitted and admins (`manage_options`) see a note.
+- `index.js` / `index.asset.php`: no-build editor script — `InspectorControls` fields plus `<ServerSideRender>` with an `EmptyResponsePlaceholder`, since the editing user usually has no bundle due.
+- `style.css`: `.wicket-mship-bundle-renewal-reminder*`.
 
 ## Related
 

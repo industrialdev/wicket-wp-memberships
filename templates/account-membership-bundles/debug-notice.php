@@ -3,15 +3,19 @@
  * Membership Bundle - Renewal Callout Debug Notice
  *
  * QA helper shown at the top of the Membership Bundles List block (list and
- * detail views) when WICKET_MEMBERSHIPS_DEBUG_RENEW is on. Mirrors the
- * ACC callout debug notice so testers can preview the early_renewal /
- * grace_period callouts N days ahead via ?wicket_wp_membership_debug_days=N.
+ * detail views) and the Membership Bundle Renewal Reminder block when
+ * WICKET_MEMBERSHIPS_DEBUG_RENEW is on. Mirrors the ACC callout debug notice
+ * so testers can preview the early_renewal / grace_period callouts N days
+ * ahead via ?wicket_wp_membership_debug_days=N.
  *
  * Gated on WICKET_MEMBERSHIPS_DEBUG_RENEW (not WICKET_MEMBERSHIPS_DEBUG_ACC)
  * because that is the flag Membership_Bundle::get_renewal_reference_time()
  * checks — showing the hint without it would advertise a param that does nothing.
  *
- * Included by includes/blocks/membership-bundles-list/render.php.
+ * Included by includes/blocks/membership-bundles-list/render.php and
+ * includes/blocks/membership-bundle-renewal-reminder/render.php. Styles live in
+ * membership-bundles-list/style.css; the reminder block enqueues that sheet
+ * itself while the flag is on.
  *
  * @package Wicket_Memberships
  */

@@ -4,7 +4,7 @@ namespace Wicket_Memberships;
 
 /**
  * Registers the membership bundle Gutenberg blocks (membership-bundles-list,
- * membership-bundle-coverage-callout).
+ * membership-bundle-coverage-callout, membership-bundle-renewal-reminder).
  *
  * Plain (non-ACF) dynamic blocks: each block.json declares a "render" file, so
  * WordPress calls includes/blocks/<block>/render.php directly with no
@@ -137,10 +137,13 @@ class Membership_Bundle_Block_Controller {
    * Register the plugin's blocks from their block.json files:
    * - membership-bundles-list: owner-facing list + detail/manage view.
    * - membership-bundle-coverage-callout: member-facing "your membership is paid by…" notice.
+   * - membership-bundle-renewal-reminder: owner-facing "bundles due for renewal" notice
+   *   for the account centre landing page.
    */
   public function register_block(): void {
     register_block_type( __DIR__ . '/blocks/membership-bundles-list' );
     register_block_type( __DIR__ . '/blocks/membership-bundle-coverage-callout' );
+    register_block_type( __DIR__ . '/blocks/membership-bundle-renewal-reminder' );
   }
 
   /**
@@ -174,16 +177,13 @@ class Membership_Bundle_Block_Controller {
    * attention: bundles currently showing a renewal callout on the detail
    * view — early_renewal (inside the renewal window) or grace_period.
    *
-   * Delegates the decision to Membership_Bundle::get_renewal_callout() rather
-   * than matching statuses here, so the account-menu badge counts exactly the
-   * bundles the owner will find a "Renew" prompt on: already-renewed terms,
-   * autopay early renewals, bundles with no usable renewal flow, and the
-   * global "Disable Renewal Callouts" setting are all excluded the same way.
-   * Expired bundles are not counted — they get no renewal callout.
-   *
-   * Only bundles in a status get_renewal_state() can match (active, delayed,
-   * grace_period) are loaded, keeping the per-bundle work to the few that can
-   * actually qualify.
+   * Delegates to Membership_Bundle::get_owner_renewal_due_bundles(), the same
+   * list the Membership Bundle Renewal Reminder block renders, so the
+   * account-menu badge and the reminder always agree. That helper decides via
+   * Membership_Bundle::get_renewal_callout(): already-renewed terms, autopay
+   * early renewals, bundles with no usable renewal flow, and the global
+   * "Disable Renewal Callouts" setting are all excluded the same way. Expired
+   * bundles are not counted — they get no renewal callout.
    *
    * @return int
    */
@@ -192,37 +192,7 @@ class Membership_Bundle_Block_Controller {
       return 0;
     }
 
-    $bundle_ids = get_posts( [
-      'post_type'   => Helper::get_membership_bundle_cpt_slug(),
-      'post_status' => 'publish',
-      'numberposts' => -1,
-      'fields'      => 'ids',
-      'meta_query'  => [
-        'relation' => 'AND',
-        [
-          'key'   => 'user_id',
-          'value' => get_current_user_id(),
-        ],
-        [
-          'key'     => 'membership_status',
-          'value'   => [
-            Wicket_Memberships::STATUS_ACTIVE,
-            Wicket_Memberships::STATUS_DELAYED,
-            Wicket_Memberships::STATUS_GRACE,
-          ],
-          'compare' => 'IN',
-        ],
-      ],
-    ] );
-
-    $count = 0;
-    foreach ( $bundle_ids as $bundle_id ) {
-      if ( ( new Membership_Bundle( (int) $bundle_id ) )->get_renewal_callout() !== null ) {
-        $count++;
-      }
-    }
-
-    return $count;
+    return count( Membership_Bundle::get_owner_renewal_due_bundles( get_current_user_id() ) );
   }
 
   /**

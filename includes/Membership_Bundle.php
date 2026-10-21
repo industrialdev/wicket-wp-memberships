@@ -3552,6 +3552,243 @@ class Membership_Bundle {
     return is_array( $callout ) ? $callout : null;
   }
 
+  // Renewal reminder (owner-facing, account centre landing page).
+
+  /**
+   * Bundles owned by a user that are currently due for renewal, for the
+   * Membership Bundle Renewal Reminder block and the account-menu badge.
+   *
+   * "Due" means get_renewal_callout() returns a callout, so this list always
+   * matches the bundles that show a "Renew" prompt on the detail view and a badge on
+   * the list view. Already-renewed terms, autopay early renewals, bundles with no usable
+   * renewal flow and the global "Disable Renewal Callouts" setting are all excluded
+   * there, so they are excluded here too.
+   *
+   * Memoised per request ($user_id + reference time): the account centre page renders
+   * both the nav badge (wp_head) and the reminder block, and each would otherwise walk
+   * every owned bundle's renewal orders again.
+   *
+   * @param int      $user_id WP user ID of the bundle owner.
+   * @param int|null $now     UTC timestamp; defaults to get_renewal_reference_time().
+   * @return array<int, array{
+   *   bundle_post_id: int,
+   *   type: string,
+   *   bundle_name: string,
+   *   org_name: string,
+   *   ends_at: string,
+   *   expires_at: string
+   * }> Soonest ends_at first. Names are plain text (escape on output); dates are the
+   *    raw ISO 8601 strings stored on the bundle.
+   */
+  public static function get_owner_renewal_due_bundles( int $user_id, ?int $now = null ): array {
+    static $cache = [];
+
+    if ( $user_id <= 0 ) {
+      return [];
+    }
+
+    $now       = $now ?? self::get_renewal_reference_time();
+    $cache_key = $user_id . ':' . $now;
+    if ( isset( $cache[ $cache_key ] ) ) {
+      return $cache[ $cache_key ];
+    }
+
+    // Only statuses get_renewal_state() can match — keeps the per-bundle order lookups
+    // in get_renewal_callout() to the few bundles that can actually qualify.
+    $bundle_ids = get_posts( [
+      'post_type'   => Helper::get_membership_bundle_cpt_slug(),
+      'post_status' => 'publish',
+      'numberposts' => -1,
+      'fields'      => 'ids',
+      'meta_query'  => [
+        'relation' => 'AND',
+        [
+          'key'   => 'user_id',
+          'value' => $user_id,
+        ],
+        [
+          'key'     => 'membership_status',
+          'value'   => [
+            Wicket_Memberships::STATUS_ACTIVE,
+            Wicket_Memberships::STATUS_DELAYED,
+            Wicket_Memberships::STATUS_GRACE,
+          ],
+          'compare' => 'IN',
+        ],
+      ],
+    ] );
+
+    $iso_code = self::get_callout_language();
+    $due      = [];
+
+    foreach ( $bundle_ids as $bundle_id ) {
+      $bundle = new self( (int) $bundle_id );
+      if ( ! $bundle->post_id ) {
+        continue;
+      }
+
+      $callout = $bundle->get_renewal_callout( $iso_code, $now );
+      if ( ! $callout ) {
+        continue;
+      }
+
+      $dates = $bundle->get_dates();
+      $due[] = [
+        'bundle_post_id' => $bundle->post_id,
+        'type'           => (string) $callout['type'],
+        'bundle_name'    => wp_specialchars_decode( $bundle->get_name(), ENT_QUOTES ),
+        // Denormalised at set_organization(); deliberately no live MDP fallback here —
+        // this runs on every account centre page load.
+        'org_name'       => wp_specialchars_decode( (string) get_post_meta( $bundle->post_id, 'org_name', true ), ENT_QUOTES ),
+        'ends_at'        => $dates['ends_at'] ?? '',
+        'expires_at'     => $dates['expires_at'] ?? '',
+      ];
+    }
+
+    // Most urgent first, so the bundle the owner should deal with next leads the list.
+    usort( $due, static function ( array $a, array $b ): int {
+      return (int) strtotime( $a['ends_at'] ) <=> (int) strtotime( $b['ends_at'] );
+    } );
+
+    $cache[ $cache_key ] = $due;
+    return $due;
+  }
+
+  /**
+   * Default renewal reminder wording — used when the block's heading/message/button
+   * label are empty. Pluralised on $count and switched to "overdue" wording when any of
+   * the bundles is already past its end date (grace period).
+   *
+   * @param int  $count  Number of bundles due.
+   * @param bool $lapsed Whether at least one bundle is in its grace period.
+   * @return array{heading: string, message: string, button_label: string}
+   */
+  public static function get_default_renewal_reminder_copy( int $count = 1, bool $lapsed = false ): array {
+    if ( $lapsed ) {
+      return [
+        'heading'      => _n(
+          'Your membership bundle renewal is overdue.',
+          'You have {bundle_count} membership bundles to renew, and at least one is overdue.',
+          $count,
+          'wicket-memberships'
+        ),
+        'message'      => __( 'Review and renew each bundle before its grace period ends to keep your members covered.', 'wicket-memberships' ),
+        'button_label' => _n( 'Review bundle', 'Review bundles', $count, 'wicket-memberships' ),
+      ];
+    }
+
+    return [
+      'heading'      => _n(
+        'Your membership bundle is due for renewal.',
+        'You have {bundle_count} membership bundles due for renewal.',
+        $count,
+        'wicket-memberships'
+      ),
+      'message'      => __( 'Review the members in each bundle and renew it from the Manage Group Membership page.', 'wicket-memberships' ),
+      'button_label' => _n( 'Review bundle', 'Review bundles', $count, 'wicket-memberships' ),
+    ];
+  }
+
+  /**
+   * URL of the configured "Manage Membership Bundles" page (Settings > Wicket
+   * Memberships > Membership Bundles), or '' when none is set or it is not published.
+   *
+   * Carries ?wicket_wp_membership_debug_days through when the QA date override is
+   * active, so a tester following the link sees the same simulated date there.
+   *
+   * @return string Unescaped URL.
+   */
+  public static function get_manage_bundles_page_url(): string {
+    $page_id = Helper::get_membership_bundles_manage_page_id();
+    if ( $page_id <= 0 || get_post_status( $page_id ) !== 'publish' ) {
+      return '';
+    }
+
+    $url = (string) get_permalink( $page_id );
+
+    // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- debug-only read, gated by env flag.
+    if ( $url !== '' && ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && ! empty( $_GET['wicket_wp_membership_debug_days'] ) ) {
+      $url = add_query_arg( 'wicket_wp_membership_debug_days', (int) $_GET['wicket_wp_membership_debug_days'], $url ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+    }
+
+    return $url;
+  }
+
+  /**
+   * Build the owner-facing renewal reminder: one notice covering every bundle the user
+   * owns that is due for renewal.
+   *
+   * Deliberately does not start a renewal or create orders — an owner can have several
+   * bundles due in the same period, each renewed separately from its detail view. The
+   * reminder only says renewals are due and links to the Manage Membership Bundles page.
+   *
+   * @param int   $user_id  WP user ID of the bundle owner.
+   * @param array $settings {
+   *   Block attributes. Empty strings fall back to get_default_renewal_reminder_copy().
+   *
+   *   @type string $heading      Heading text; supports {bundle_count}.
+   *   @type string $message      Message text; supports {bundle_count}; basic HTML allowed.
+   *   @type string $button_label Button label.
+   * }
+   * @return array{
+   *   type: string,
+   *   header: string,
+   *   content: string,
+   *   button_label: string,
+   *   manage_url: string,
+   *   bundles: array
+   * }|null
+   *   type is grace_period when any bundle is lapsed, else early_renewal. header and
+   *   button_label are plain text (escape on output); content is sanitized HTML;
+   *   manage_url is unescaped ('' when no manage page is configured); bundles is
+   *   get_owner_renewal_due_bundles(). Null when nothing is due or the filter hides it.
+   */
+  public static function get_renewal_reminder( int $user_id, array $settings = [] ): ?array {
+    $bundles = self::get_owner_renewal_due_bundles( $user_id );
+    if ( empty( $bundles ) ) {
+      return null;
+    }
+
+    $count  = count( $bundles );
+    $lapsed = in_array( self::CALLOUT_GRACE_PERIOD, array_column( $bundles, 'type' ), true );
+
+    // Per-field fallback, so an editor can override just the button label, say.
+    $defaults = self::get_default_renewal_reminder_copy( $count, $lapsed );
+    $heading  = trim( (string) ( $settings['heading'] ?? '' ) );
+    $message  = trim( (string) ( $settings['message'] ?? '' ) );
+    $button   = trim( (string) ( $settings['button_label'] ?? '' ) );
+    $heading  = $heading !== '' ? $heading : $defaults['heading'];
+    $message  = $message !== '' ? $message : $defaults['message'];
+    $button   = $button !== '' ? $button : $defaults['button_label'];
+
+    $placeholders = [
+      '{bundle_count}' => number_format_i18n( $count ),
+    ];
+
+    $reminder = [
+      'type'         => $lapsed ? self::CALLOUT_GRACE_PERIOD : self::CALLOUT_EARLY_RENEWAL,
+      'header'       => wp_strip_all_tags( strtr( $heading, $placeholders ) ),
+      'content'      => wpautop( wp_kses_post( strtr( $message, $placeholders ) ) ),
+      'button_label' => wp_strip_all_tags( strtr( $button, $placeholders ) ),
+      'manage_url'   => self::get_manage_bundles_page_url(),
+      'bundles'      => $bundles,
+    ];
+
+    /**
+     * Filter the owner-facing membership bundle renewal reminder before it is rendered.
+     *
+     * Return null to hide it. To hide a single bundle from the reminder and from the
+     * other renewal prompts alike, filter wicket_mship_bundle_renewal_callout instead.
+     *
+     * @param array|null $reminder Reminder data (see get_renewal_reminder()).
+     * @param int        $user_id  The bundle owner.
+     * @param array      $settings Block settings passed to get_renewal_reminder().
+     */
+    $reminder = apply_filters( 'wicket_mship_bundle_renewal_reminder', $reminder, $user_id, $settings );
+
+    return is_array( $reminder ) ? $reminder : null;
+  }
+
   // Renewal callouts (member-facing).
 
   /**

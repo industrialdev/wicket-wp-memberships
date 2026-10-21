@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "wicket-memberships/membership-bundle-renewal-reminder",
+  "title": "Membership Bundle Renewal Reminder",
+  "category": "wicket",
+  "description": "Tells the current logged-in bundle owner that one or more of their membership bundles are due for renewal and links to the Manage Membership Bundles page. Does not start a renewal. Renders nothing when no bundle is due.",
+  "textdomain": "wicket-memberships",
+  "editorScript": "file:./index.js",
+  "style": "file:./style.css",
+  "render": "file:./render.php",
+  "attributes": {
+    "heading": {
+      "type": "string",
+      "default": ""
+    },
+    "message": {
+      "type": "string",
+      "default": ""
+    },
+    "buttonLabel": {
+      "type": "string",
+      "default": ""
+    },
+    "showBundleList": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "supports": {
+    "html": false,
+    "multiple": false
+  }
+}
