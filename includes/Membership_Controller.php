@@ -501,8 +501,17 @@ function get_item_data ( $other_data, $cart_item ) {
    */
 
   /**
-   * Catch the Order Status Changed hook
-   * Process the order product(s) memberships
+   * Create memberships for the products on an order once it reaches processing.
+   *
+   * A 1-month subscription only creates its membership when its parent order is
+   * processed on the day the subscription was created, so a re-processed order does
+   * not create a second membership. Both days are read in the MDP timezone.
+   *
+   * @param  int|\WC_Abstract_Order $order_id  Order ID from the status hook, or the order itself.
+   *
+   * @return void
+   *
+   * @see Membership_Controller::get_memberships_data_from_subscription_products()
    */
   public static function catch_order_completed( $order_id ) {
     $order = $order_id instanceof \WC_Abstract_Order ? $order_id : wc_get_order( $order_id );
@@ -543,10 +552,13 @@ function get_item_data ( $other_data, $cart_item ) {
 
     Utilities::wc_log_mship_error( ['Creating a membership', ['order_id'=>$order_id]]);
 
+    // Compare both days in the MDP timezone: WCS returns date_created in UTC, so mixing it
+    // with the site-local day skipped evening purchases.
+    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
     foreach($subscriptions as $subscription) {
-      $today = current_time( 'Y-m-d' );
+      $today = ( new \DateTime( 'now', $mdp_timezone ) )->format( 'Y-m-d' );
       $created_date = $subscription->get_date( 'date_created' );
-      $created_date = date( 'Y-m-d', strtotime($created_date));
+      $created_date = ( new \DateTime( $created_date, new \DateTimeZone( 'UTC' ) ) )->setTimezone( $mdp_timezone )->format( 'Y-m-d' );
       Utilities::wicket_logger( 'MSHIP CREATED sub date compare monthly', ['today'=>$today, 'created_date'=>$created_date]);
       if($subscription->get_billing_period() == 'month' && $subscription->get_billing_interval() == 1) {
         if( $created_date !== $today) {
