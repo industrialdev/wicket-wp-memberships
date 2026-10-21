@@ -486,14 +486,21 @@ class Membership_Config {
    * them in UTC lands on the wrong calendar day for any zone offset from UTC.
    * Converting back to the MDP timezone first recovers the intended local day.
    *
-   * @param string $iso_date ISO 8601 datetime (typically a get_mdp_day_* result).
+   * A bare Y-m-d (e.g. from Helper::get_post_meta() copied into user meta) is already an MDP
+   * calendar day, so it is built in the MDP timezone rather than read as UTC midnight.
+   *
+   * @param string $iso_date ISO 8601 datetime (typically a get_mdp_day_* result) or a bare Y-m-d.
    * @param string $modify   Optional relative modify applied in the MDP timezone.
    * @return string Y-m-d in the MDP timezone.
    */
   private function mdp_local_ymd( $iso_date, $modify = '' ) {
     $mdp_timezone = Utilities::get_mdp_timezone();
-    $dt = new \DateTime( $iso_date );
-    $dt->setTimezone( $mdp_timezone );
+    if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', trim( (string) $iso_date ) ) ) {
+      $dt = new \DateTime( trim( $iso_date ), $mdp_timezone );
+    } else {
+      $dt = new \DateTime( $iso_date );
+      $dt->setTimezone( $mdp_timezone );
+    }
     if ( $modify !== '' ) {
       $dt->modify( $modify );
     }

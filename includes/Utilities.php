@@ -1344,7 +1344,7 @@ function wicket_sub_org_select_callback( $subscription ) {
    * The configured MDP timezone.
    *
    * Uses the base plugin's wicket_time_get_mdp_timezone() (2.2.21+), which falls back to UTC with a
-   * logged warning on an empty or invalid setting. Older base plugins: read the setting directly.
+   * logged warning on an empty or invalid setting. Older base plugins get the same handling here.
    *
    * @since 1.0.123
    *
@@ -1355,7 +1355,19 @@ function wicket_sub_org_select_callback( $subscription ) {
       return wicket_time_get_mdp_timezone();
     }
 
-    return new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    // Same validation as the base helper. wicket.php loads the setting into $_ENV.
+    $setting  = $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? '';
+    $timezone = is_string( $setting ) ? trim( $setting ) : '';
+    if ( $timezone === '' ) {
+      return new \DateTimeZone( 'UTC' );
+    }
+
+    try {
+      return new \DateTimeZone( $timezone );
+    } catch ( \Exception $e ) {
+      self::wc_log_mship_error( 'Invalid WICKET_MSHIP_MDP_TIMEZONE "' . $timezone . '"; using UTC.', 'warning' );
+      return new \DateTimeZone( 'UTC' );
+    }
   }
 
   /**
