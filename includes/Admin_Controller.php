@@ -34,7 +34,7 @@ class Admin_Controller {
       var wicketMembershipsSettings = <?php echo wp_json_encode( [
         'WICKET_MSHIP_MERGE_TOOLS'          => $_ENV['WICKET_MSHIP_MERGE_TOOLS'] ?? '',
         'WICKET_MSHIP_MULTI_TIER_RENEWALS'  => $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] ?? '',
-        'WICKET_MSHIP_MDP_TIMEZONE'         => $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC',
+        'WICKET_MSHIP_MDP_TIMEZONE'         => Utilities::get_mdp_timezone()->getName(),
       ] ); ?>;
     </script>
     <?php
@@ -230,7 +230,8 @@ class Admin_Controller {
       
       // If the membership is in grace period, set the expiry to now
       else if( $current_post_status == Wicket_Memberships::STATUS_GRACE) {
-        $current_end_date = $membership_post_meta['membership_ends_at'] ?? get_post_meta( $membership_post_id, 'membership_ends_at', true );
+        // The stored value, not Helper::get_post_meta()'s Y-m-d day, so the end keeps its MDP 23:59:59.
+        $current_end_date = get_post_meta( $membership_post_id, 'membership_ends_at', true );
         $meta_data = [
           'membership_status' => $new_post_status,
           'membership_ends_at' => $current_end_date,
@@ -485,6 +486,16 @@ class Admin_Controller {
     }
   }
 
+  /**
+   * Build the membership rows for the admin edit page of a person or organization.
+   *
+   * Rows are sorted by start date, then by MDP tier weight; each includes order and
+   * subscription details (next payment shown as its MDP calendar day).
+   *
+   * @param  int|string $id  WP user ID (numeric) for a person, or an organization UUID.
+   *
+   * @return array  Membership rows for the React edit page.
+   */
   public static function get_membership_entity_records( $id ) {
     $self = new self();
     $statuses = Helper::get_all_status_names();
@@ -629,7 +640,7 @@ class Admin_Controller {
           $membership_item['subscription']['status'] = $sub->get_status();
           $sub_next_payment_date = $sub->get_time('next_payment');
           if( empty($sub_next_payment_date_set ) && !empty($sub_next_payment_date ) && ($meta['membership_status'] == 'delayed' || $meta['membership_status'] == 'active')) {
-            $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub_next_payment_date), wp_timezone() ))->format('Y-m-d');
+            $membership_item['subscription']['next_payment_date'] = Utilities::format_mdp_date( 'Y-m-d', $sub_next_payment_date );
             $sub_next_payment_date_set = true;
           } else {
             $membership_item['subscription']['next_payment_date'] = 'N/A';
@@ -1574,7 +1585,7 @@ class Admin_Controller {
 
     // Add the grace days to the end's calendar day in the MDP timezone, then snap to MDP end-of-day.
     // The stored end is UTC, so its UTC day can be the day after the MDP day.
-    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $mdp_timezone = Utilities::get_mdp_timezone();
     $expires_date = ( new \DateTime( $end_date_iso ) )
       ->setTimezone( $mdp_timezone )
       ->modify( '+' . $grace_days . ' days' )

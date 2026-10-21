@@ -286,7 +286,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
      * @return int  Unix timestamp.
      */
     private static function next_nightly_run_timestamp( $time ) {
-      $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+      $mdp_timezone = Utilities::get_mdp_timezone();
       return ( new \DateTime( 'tomorrow ' . $time, $mdp_timezone ) )->getTimestamp();
     }
 
@@ -340,6 +340,16 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       }
     }
 
+    /**
+     * Validate the cart's membership items, adding WooCommerce notices for any that cannot be bought.
+     *
+     * Hooked on cart, add-to-cart and checkout. Blocks pending renewal orders, org tiers without an
+     * org, and renewals before the early-renewal window opens.
+     *
+     * @param  mixed $checkout_order  Hook argument (cart contents or checkout data); unused.
+     *
+     * @return void
+     */
     public function memberships_verify_cart( $checkout_order ) {
       $cannot_process = [];
       if( !empty( $_ENV['check_renewals_orders_in_cart'] )) {
@@ -409,7 +419,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
             $early_renewal_date = $config->is_valid_renewal_date( $membership_current );
             //if we are trying to renew a membership check that we are in the renewal period
             if( !empty( $early_renewal_date ) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] )) {
-              wc_add_notice(sprintf(__("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date))), 'error');
+              wc_add_notice(sprintf(__("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), Utilities::format_mdp_date("l jS \of F Y", strtotime($early_renewal_date))), 'error');
               return;
             }
           }

@@ -323,7 +323,7 @@ class Membership_Config {
 
   private function get_seasonal_end_date( $membership = [] ) {
     // Get MDP timezone, fallback to UTC
-    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $mdp_timezone = Utilities::get_mdp_timezone();
 
     $is_new_membership = empty($membership);
     $seasons = $this->get_calendar_seasons();
@@ -376,12 +376,12 @@ class Membership_Config {
    * Check whether a renewal is being attempted outside the renewal window.
    *
    * Despite the name, a value is returned only when the renewal is NOT allowed: before the
-   * early-renew date, or on/after expiry. Callers treat a non-empty return as "blocked".
+   * early-renewal window opens. Callers treat a non-empty return as "blocked".
    *
-   * @param  array       $membership  Current membership data array (from user meta).
+   * @param  array       $membership  Current membership data array (needs membership_ends_at).
    * @param  string|null $date        Date to test instead of now (any strtotime() format).
    *
-   * @return string|null  The membership's early-renew date when blocked, null when renewal is allowed.
+   * @return string|null  The window's opening (UTC ISO 8601) when blocked, null when renewal is allowed.
    */
   public function is_valid_renewal_date( $membership, $date = null ) {
     if( $date ) {
@@ -389,12 +389,11 @@ class Membership_Config {
     } else {
       $current_timestamp = time();
     }
-    $dates = $this->get_membership_dates( $membership );
-    // The window opens N days before the CURRENT membership's end; $dates describes the next term.
+    // The window opens N days before the CURRENT membership's end.
     $early_renew_at = $this->get_early_renew_at_for_end( $membership['membership_ends_at'] );
 
-    if( ( $early_renew_at !== null && $current_timestamp < strtotime( $early_renew_at ) ) || ( $current_timestamp >= strtotime( $dates['expires_at'] ) ) ) {
-      return $early_renew_at ?? $membership['membership_early_renew_at'];
+    if( $early_renew_at !== null && $current_timestamp < strtotime( $early_renew_at ) ) {
+      return $early_renew_at;
     }
   }
 
@@ -492,7 +491,7 @@ class Membership_Config {
    * @return string Y-m-d in the MDP timezone.
    */
   private function mdp_local_ymd( $iso_date, $modify = '' ) {
-    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $mdp_timezone = Utilities::get_mdp_timezone();
     $dt = new \DateTime( $iso_date );
     $dt->setTimezone( $mdp_timezone );
     if ( $modify !== '' ) {
@@ -511,7 +510,7 @@ class Membership_Config {
    * @return string ISO 8601 end datetime (MDP end-of-day, expressed as UTC).
    */
   private function season_end_containing( $start_iso ) {
-    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $mdp_timezone = Utilities::get_mdp_timezone();
     $seasons = $this->get_calendar_seasons();
 
     $membership_start_dt = Utilities::get_mdp_day_start( $start_iso );
@@ -608,7 +607,7 @@ class Membership_Config {
    * @return string|null Y-m-d season start, or null.
    */
   public function get_season_start_for_date( $iso ) {
-    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $mdp_timezone = Utilities::get_mdp_timezone();
     $seasons = $this->get_calendar_seasons();
     if ( ! is_array( $seasons ) ) {
       return null;

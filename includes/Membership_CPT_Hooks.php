@@ -221,10 +221,8 @@ class Membership_CPT_Hooks {
         // Parse the ISO 8601 date (stored in UTC)
         $datetime = new \DateTime( $date_value, new \DateTimeZone('UTC') );
         
-        // Apply MDP timezone if configured
-        if ( !empty( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ) ) {
-          $datetime->setTimezone( new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ) );
-        }
+        // Show the MDP calendar day (UTC when no MDP timezone is configured)
+        $datetime->setTimezone( Utilities::get_mdp_timezone() );
         
         // Display date with full ISO 8601 datetime in tooltip
         $date_display = $datetime->format( 'Y-m-d' );
