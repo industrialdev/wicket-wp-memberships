@@ -155,8 +155,8 @@ wp wicket-mship tier list   [--source=<mdp|local>] [--format=<table|json|csv>]
 For each MDP tier returned by the API:
 1. Look up an existing local tier by `mdp_tier_uuid`.
 2. If none exists → **create** a `wicket_mship_tier` post, populate `tier_data`
-   (`mdp_tier_uuid`, `mdp_tier_name`, `config_id`, `type`, sensible defaults).
-3. If one exists → **skip** by default; optionally refresh `mdp_tier_name` if it drifted
+   (`mdp_tier_uuid`, `mdp_tier_name`, `mdp_category`, `config_id`, `type`, sensible defaults).
+3. If one exists → **skip** by default; optionally refresh `mdp_tier_name` / `mdp_category` if either drifted
    (report as "updated").
 4. Emit a per-tier result line and a final summary (`created`, `skipped`, `updated`, `errors`).
 
@@ -251,9 +251,9 @@ operator can preview before syncing and diff after. Cheap to build, high diagnos
      starts from empty products, so the editor handles the empty case by design.
 
 ### Still to confirm during implementation
-5. **Update policy.** On an existing tier, only refresh `mdp_tier_name`, or leave the local
-   post fully untouched? Proposal: refresh name only, never touch config/products.
-   - yes
+5. **Update policy.** On an existing tier, refresh `mdp_tier_name` and `mdp_category` only, or leave the local
+   post fully untouched? Proposal: refresh name and category only, never touch config/products.
+   - yes (category added to the policy with WWID-2837: callout suppression reads it, so it must not go stale)
 6. **`approval_required` mapping.** Staging shows only `approval_not_required`. Confirm the
    opposite enum value (assumed `approval_required`) against a tenant that uses it before
    auto-seeding `tier_data['approval_required']`. Safe fallback: default to `false`.
@@ -357,7 +357,7 @@ wp wicket-mship tier list [--source=<source>] [--format=<format>]
 Fetches every MDP tier (paginated), matches each against local tiers by `mdp_tier_uuid`,
 and creates the missing ones. Created tiers are attached to `--config-id`, linked by UUID,
 and left with **no products** (added later in the admin UI). Existing tiers are skipped;
-only a drifted `mdp_tier_name` is refreshed.
+only a drifted `mdp_tier_name` or `mdp_category` is refreshed.
 
 | Arg | Required | Default | Values | Purpose |
 |---|---|---|---|---|
@@ -373,6 +373,7 @@ Behavior notes:
 - **Idempotent** — re-running creates nothing already linked by `mdp_tier_uuid`.
 - Live writes require `--yes` or an interactive `y/n` confirmation.
 - Per created tier, `tier_data` is written as: `mdp_tier_uuid`, `mdp_tier_name` (`name_en`),
+  `mdp_category` (lowercased from MDP `category`),
   `config_id`, `type`, `renewal_type: subscription` (benign default), `approval_required`
   (from MDP `approval`), `product_data: []`, and — for organization tiers — `seat_type`
   (`unlimited_assignments ? per_range_of_seats : per_seat`). `membership_tier_slug` is set
@@ -397,7 +398,7 @@ create   individual    Student Member                           3fd27d2f-e47d-4a
 create   organization  Veterinary Clinic Membership for 2 - 5   53580191-ffad-477e-83ee-aceea9265a3b
 create   organization  Veterinary Clinic Membership for 6+      4caf0d73-48e6-47e2-86a0-b642ea975e1d
 ...
-Plan: 14 to create, 0 to update (name), 16 unchanged.
+Plan: 14 to create, 0 to update (name/category), 16 unchanged.
 Success: Dry run complete — no changes written.
 ```
 
@@ -534,8 +535,8 @@ afterward for `per_seat`.
   `--backfill-products` touches only `skip`/`update` rows whose `product_data` is **empty**. A
   tier that already has products is never modified by either flag — backfill only fills a gap,
   it never clobbers or replaces an existing linkage.
-- **Backfill is the one sanctioned exception to the name-only update policy.** Normally an
-  existing tier's `tier_data` is only name-refreshed (§6.5); `--backfill-products` additionally
+- **Backfill is the one sanctioned exception to the name/category update policy.** Normally an
+  existing tier's `tier_data` is only name/category-refreshed (§6.5); `--backfill-products` additionally
   writes `product_data` on an otherwise-empty tier. It is gated behind the explicit flag and
   the write confirmation, and it leaves every other `tier_data` field untouched.
 - **SKU keyed on UUID** → re-running never creates a duplicate product, even after a
@@ -575,7 +576,7 @@ afterward for `per_seat`.
 ### 13.8 Decisions / open questions
 
 - **Backfill existing product-less tiers.** ✅ **Adopted** as `--backfill-products` (§13.2).
-  It is the sanctioned exception to the name-only update policy (§13.6) and the remediation
+  It is the sanctioned exception to the name/category update policy (§13.6) and the remediation
   path for tiers synced empty before this feature — directly the failure surfaced in §13.10.
   Kept as a *separate* opt-in flag (not folded into `--create-products`) so an operator can
   remediate an existing site without also re-running a create pass.

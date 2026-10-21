@@ -52,6 +52,7 @@ source_files: ["includes/Membership_Controller.php"]
 - `error_notice()`
 - `get_my_memberships($flag = 'all', $tier_uuid = '', $user_id = null)`
 - `get_membership_callouts($user_id = null, $status = "")`
+- `suppress_section_callouts_covered_by_primary(...)` (private)
 - `add_late_fee_product_to_subscription_renewal_order($subscription_id)`
 - `get_members_list_group_by_filter($groupby)`
 - `get_members_list($type, $page, $posts_per_page, $status, $search = '', $filter = [], $order_col = null, $order_dir = null)`
@@ -199,9 +200,6 @@ Outputs an error notice in the WordPress admin UI.
 **get_my_memberships($flag = 'all', $tier_uuid = '', $user_id = null)**
 Retrieves all memberships for a user, optionally filtered by status and tier UUID.
 
-**get_membership_callouts($user_id = null, $status = "")**
-Returns callout data for memberships in early renewal, grace period, or pending approval, for use in the account center.
-
 **add_late_fee_product_to_subscription_renewal_order($subscription_id)**
 Adds a late fee product to a subscription renewal order if not already present.
 
@@ -237,6 +235,12 @@ Returns true if the membership post has a `membership_bundle_id` meta value set,
 
 **get_membership_bundle($membership_post_id)**
 Returns a `Membership_Bundle` object for the membership bundle the membership belongs to, or false if the `membership_bundle_id` meta is not set.
+
+**get_membership_callouts($user_id = null, $status = "")**
+Returns callout data for memberships in early renewal, grace period, or pending approval. With `WICKET_MSHIP_SECTION_CALLOUT_SUPPRESSION` set, early-renewal and grace entries for `section`-category tiers are dropped when an active or delayed `primary`-category membership of the same person and type ends more than a day after the section's term (WWID-2837). Suppression is skipped for entries carrying a `subscription_renewal` link. Tier categories come from `tier_data['mdp_category']`, written by the tier sync command.
+
+**suppress_section_callouts_covered_by_primary(...)** (private)
+Applies the WWID-2837 suppression filter to the early-renewal and grace arrays; see `get_membership_callouts()`.
 
 ## See Also
 
