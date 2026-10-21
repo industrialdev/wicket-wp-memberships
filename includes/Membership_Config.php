@@ -372,11 +372,22 @@ class Membership_Config {
     return $selected_end_dt->setTimezone( new \DateTimeZone('UTC') )->format('c');
   }
 
+  /**
+   * Check whether a renewal is being attempted outside the renewal window.
+   *
+   * Despite the name, a value is returned only when the renewal is NOT allowed: before the
+   * early-renew date, or on/after expiry. Callers treat a non-empty return as "blocked".
+   *
+   * @param  array       $membership  Current membership data array (from user meta).
+   * @param  string|null $date        Date to test instead of now (any strtotime() format).
+   *
+   * @return string|null  The membership's early-renew date when blocked, null when renewal is allowed.
+   */
   public function is_valid_renewal_date( $membership, $date = null ) {
     if( $date ) {
       $current_timestamp = strtotime( $date );
     } else {
-      $current_timestamp = current_time( 'timestamp' );
+      $current_timestamp = time();
     }
     $dates = $this->get_membership_dates( $membership );
 
