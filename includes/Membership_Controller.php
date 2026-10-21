@@ -44,6 +44,10 @@ class Membership_Controller {
    */
   const MEMBERS_IDS_TRANSIENT_TTL = 5 * MINUTE_IN_SECONDS;
 
+  /** MDP membership category names. Clients can rename these in the MDP; the sync copies whatever the tier declares. */
+  const MEMBERSHIP_CATEGORY_PRIMARY = 'primary';
+  const MEMBERSHIP_CATEGORY_SECTION = 'section';
+
   /** True once a membership write has queued the member list cache flush for this request. */
   private static $member_list_cache_stale = false;
 
@@ -2073,6 +2077,8 @@ function get_item_data ( $other_data, $cart_item ) {
     $pending_approval = [];
     $debug = [];
     $multi_tier_renewals = [];
+    $tier_category_by_post_id = [];
+    $active_primary_terms = [];
 
     $iso_code = apply_filters( 'wpml_current_language', null );
     if( empty( $iso_code )) {
@@ -2169,6 +2175,21 @@ function get_item_data ( $other_data, $cart_item ) {
 
       if( !empty( $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] )) {
         $membership_data['multi_tier_renewal'] = $Membership_Config->is_multitier_renewal();
+      }
+
+      // Category evidence for renewed-primary section suppression (WWID-2837).
+      // Collected for every resolvable record, before the status-specific branches:
+      // an expired-but-renewed primary never reaches the emit branches, yet its
+      // replacement term is exactly the evidence the suppression needs.
+      $tier_category = (string) ( $Membership_Tier->tier_data['mdp_category'] ?? '' );
+      $tier_category_by_post_id[ $membership->ID ] = $tier_category;
+      if ( self::MEMBERSHIP_CATEGORY_PRIMARY === $tier_category
+        && in_array( $membership->membership_status, [ Wicket_Memberships::STATUS_ACTIVE, Wicket_Memberships::STATUS_DELAYED ], true )
+      ) {
+        $active_primary_terms[] = [
+          'ends_at' => strtotime( $membership->membership_ends_at ),
+          'type'    => (string) ( $membership->membership_type ?? '' ),
+        ];
       }
 
       $membership_data['next_tier'] = false;
@@ -2435,11 +2456,96 @@ function get_item_data ( $other_data, $cart_item ) {
       #echo "Renewal start" . $timing_debug . (int) ( ( strtotime($membership_data['meta']['membership_ends_at']) - $current_time ) / 86400 ) . ' days';
       #echo "//-->$debug_comment_eol";
     }
+    unset( $membership );
 
     if(!empty($_ENV['WICKET_MSHIP_DISABLE_RENEWALS'])) {
       return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
     }
+
+    if( !empty( $_ENV['WICKET_MSHIP_SECTION_CALLOUT_SUPPRESSION'] ) ) {
+      [ $early_renewal, $grace_period ] = $this->suppress_section_callouts_covered_by_primary(
+        $early_renewal,
+        $grace_period,
+        $tier_category_by_post_id,
+        $active_primary_terms,
+        $debug_comment_hide,
+        $debug_comment_eol
+      );
+    }
+
     return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'debug' => $debug, 'membership_exists' => $membership_exists ];
+  }
+
+  /**
+   * Drop early-renewal and grace callouts for section memberships when an
+   * active or delayed primary covers a term beyond theirs (WWID-2837:
+   * product rule — a member is renewed once the primary is; outstanding
+   * sections expire quietly instead of nagging).
+   *
+   * The primary is identified by term, not by renewal linkage: its
+   * membership_ends_at must exceed the section's by more than a day, so an
+   * equally-ended unrenewed season keeps every callout in the next window.
+   * Deliberately person-scoped, not config-scoped: OBA sections live in
+   * different multi-tier configs than their primary.
+   *
+   * @param array $early_renewal
+   * @param array $grace_period
+   * @param array $tier_category_by_post_id membership post ID => tier mdp_category
+   * @param array $active_primary_terms [['ends_at' => ts, 'type' => string], ...]
+   * @param string $debug_comment_hide
+   * @param string $debug_comment_eol
+   * @return array [$early_renewal, $grace_period]
+   */
+  private function suppress_section_callouts_covered_by_primary( $early_renewal, $grace_period, $tier_category_by_post_id, $active_primary_terms, $debug_comment_hide, $debug_comment_eol ) {
+    $keep = function( array $entries ) use ( $tier_category_by_post_id, $active_primary_terms, $debug_comment_hide, $debug_comment_eol ) {
+      $kept = [];
+      foreach ( $entries as $entry ) {
+        $post_id  = $entry['membership']['ID'] ?? 0;
+        $category = $tier_category_by_post_id[ $post_id ] ?? '';
+        if ( self::MEMBERSHIP_CATEGORY_SECTION !== $category ) {
+          $kept[] = $entry;
+          continue;
+        }
+
+        // A renewal-invoice link means the member is actively mid-renewal (or a
+        // payment failed) — that link is their route back in, never hide it.
+        if ( ! empty( $entry['membership']['subscription_renewal'] ) ) {
+          $kept[] = $entry;
+          continue;
+        }
+
+        $section_ends_at = strtotime( $entry['membership']['meta']['membership_ends_at'] ?? '' );
+        // strtotime('') is false and false + DAY_IN_SECONDS reads as covered, so fail open.
+        if ( false === $section_ends_at ) {
+          $kept[] = $entry;
+          continue;
+        }
+        $section_type    = (string) ( $entry['membership']['meta']['membership_type'] ?? '' );
+        $covered = false;
+        foreach ( $active_primary_terms as $term ) {
+          // An unknown type on either side cannot contradict the other, so it never disqualifies.
+          if ( '' !== $term['type'] && '' !== $section_type && $term['type'] !== $section_type ) {
+            continue;
+          }
+          if ( $term['ends_at'] > $section_ends_at + DAY_IN_SECONDS ) {
+            $covered = true;
+            break;
+          }
+        }
+
+        if ( $covered ) {
+          echo "<$debug_comment_hide--";
+          echo 'Suppressing ' . self::MEMBERSHIP_CATEGORY_SECTION . " renewal callout for membership $post_id: active primary covers a later term";
+          echo "//-->$debug_comment_eol";
+          continue;
+        }
+
+        $kept[] = $entry;
+      }
+      return $kept;
+    };
+
+    return [ $keep( $early_renewal ), $keep( $grace_period ) ];
   }
 
   public function add_late_fee_product_to_subscription_renewal_order($subscription_id) {
