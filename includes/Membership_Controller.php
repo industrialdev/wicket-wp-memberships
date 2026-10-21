@@ -2231,12 +2231,8 @@ function get_item_data ( $other_data, $cart_item ) {
 
       //We are calculating the early renew date globally from the config assigned to the tier
       //$membership_early_renew_at = strtotime( $membership->membership_early_renew_at ); //this was old way was set per membership
-      $membership_early_renew_days = $Membership_Config->get_renewal_window_days();
-      
-      // Calculate early renewal date using same pattern as membership_config
-      $early_renew_utc = new \DateTime($membership->membership_ends_at, new \DateTimeZone('UTC'));
-      $early_renew_date_string = $early_renew_utc->modify('-'.$membership_early_renew_days.' days')->format('Y-m-d');
-      $early_renew_at = Utilities::get_mdp_day_start($early_renew_date_string);
+      // Same opening checkout enforces (is_valid_renewal_date()). No window configured: no early window.
+      $early_renew_at = Utilities::get_utc_datetime( $Membership_Config->get_early_renew_at_for_end( $membership->membership_ends_at ) ?? $membership->membership_ends_at );
       
       // For backwards compatibility with timestamp-based comparisons below
       $membership_early_renew_at = $early_renew_at->getTimestamp();

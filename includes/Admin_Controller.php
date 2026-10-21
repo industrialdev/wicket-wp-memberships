@@ -668,6 +668,17 @@ class Admin_Controller {
     return $membership_items;
   }
 
+  /**
+   * Save an admin edit of a membership's dates, owner and next-tier settings.
+   *
+   * Dates are snapped to MDP day boundaries; the early-renew date is recalculated from the new
+   * end with the tier config's renewal window, and the changes are pushed to the MDP.
+   *
+   * @param  array $data  Edit payload: membership_post_id, membership_starts_at / ends_at / expires_at,
+   *                      optional new_owner_uuid, renewal_type and next-tier fields.
+   *
+   * @return \WP_REST_Response  Always 200; failures are reported in the body's `error` key.
+   */
   public static function update_membership_entity_record( $data ) {
     $date_update_response = '';
     $ownership_change_response = '';
@@ -750,12 +761,9 @@ class Admin_Controller {
       }
       $membership_tier = new Membership_Tier( $membership_tier_id );
       $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
-      $renewal_window_days = $config->get_renewal_window_days();
-      
-      // Calculate early renew date by subtracting renewal window days from end date
-      $membership_early_renew_at = clone $membership_ends_at;
-      $membership_early_renew_at->modify("-$renewal_window_days days");
-      $membership_early_renew_at = Utilities::get_mdp_day_start($membership_early_renew_at->format('Y-m-d'));
+      // Same early-renew rule as purchase and checkout; no window configured falls back to the end.
+      $early_renew_iso = $config->get_early_renew_at_for_end( $membership_ends_at->format('c') );
+      $membership_early_renew_at = Utilities::get_utc_datetime( $early_renew_iso ?? $membership_ends_at->format('c') );
 
       // Calculate grace period days using DateTime diff
       $grace_period_days = abs($membership_ends_at->diff($membership_expires_at)->days);
