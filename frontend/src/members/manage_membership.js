@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
+import moment from 'moment-timezone';
 import { __ } from '@wordpress/i18n';
 import { BorderedBox, LabelWpStyled, SelectWpStyled, AsyncSelectWpStyled } from '../styled_elements';
 import { Button, Modal, Icon } from '@wordpress/components';
 import { addQueryArgs } from '@wordpress/url';
 import apiFetch from '@wordpress/api-fetch';
-import { PLUGIN_API_URL } from '../constants';
+import { PLUGIN_API_URL, PLUGIN_SETTINGS } from '../constants';
 import { transferMembership } from '../services/api';
 import SwitchMembership from './switch_membership';
 
@@ -54,8 +55,8 @@ const ManageMembership = ({ membership }) => {
                 setFutureStartWarning(null);
                 // Check if membership_starts_at is in the future
                 const startDate = new Date(membership.data.membership_starts_at);
-                const now = new Date();
-                now.setHours(0, 0, 0, 0);
+                // Today's midnight in the MDP timezone, not the admin's browser timezone.
+                const now = moment.tz(PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC').startOf('day').toDate();
                 console.log('manage_membership');
                 console.log(now);
                 console.log(startDate);

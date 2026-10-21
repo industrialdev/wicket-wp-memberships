@@ -1341,6 +1341,52 @@ function wicket_sub_org_select_callback( $subscription ) {
 
 
   /**
+   * The configured MDP timezone.
+   *
+   * Uses the base plugin's wicket_time_get_mdp_timezone() (2.2.21+), which falls back to UTC with a
+   * logged warning on an empty or invalid setting. Older base plugins get the same handling here.
+   *
+   * @since 1.0.123
+   *
+   * @return \DateTimeZone
+   */
+  public static function get_mdp_timezone() {
+    // Resolve once per setting value: an invalid setting would otherwise log a warning on every call.
+    static $resolved = [];
+    $key = (string) ( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? '' ) . '|' . (string) getenv( 'WICKET_MSHIP_MDP_TIMEZONE' );
+    if ( ! isset( $resolved[ $key ] ) ) {
+      $resolved[ $key ] = self::resolve_mdp_timezone();
+    }
+
+    return $resolved[ $key ];
+  }
+
+  /**
+   * Resolve the MDP timezone setting, uncached. See get_mdp_timezone().
+   *
+   * @return \DateTimeZone
+   */
+  private static function resolve_mdp_timezone() {
+    if ( function_exists( 'wicket_time_get_mdp_timezone' ) ) {
+      return wicket_time_get_mdp_timezone();
+    }
+
+    // Same validation as the base helper. wicket.php loads the setting into $_ENV.
+    $setting  = $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? '';
+    $timezone = is_string( $setting ) ? trim( $setting ) : '';
+    if ( $timezone === '' ) {
+      return new \DateTimeZone( 'UTC' );
+    }
+
+    try {
+      return new \DateTimeZone( $timezone );
+    } catch ( \Exception $e ) {
+      self::wc_log_mship_error( 'Invalid WICKET_MSHIP_MDP_TIMEZONE "' . $timezone . '"; using UTC.', 'warning' );
+      return new \DateTimeZone( 'UTC' );
+    }
+  }
+
+  /**
    * Get a DateTime object in UTC timezone.
    * This is used to provide consistent time handling across different server configurations.
    *
@@ -1359,8 +1405,7 @@ function wicket_sub_org_select_callback( $subscription ) {
    */
   public static function get_mdp_now()
   {
-    // Get MDP timezone from environment variable, fallback to UTC
-    $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+    $mdp_timezone = self::get_mdp_timezone();
 
     // Build "now" in MDP timezone, then normalize output to UTC
     $mdp_now = new \DateTime('now', $mdp_timezone);
@@ -1434,8 +1479,7 @@ function wicket_sub_org_select_callback( $subscription ) {
    */
   public static function get_mdp_day_start($date_string = 'now')
   {
-    // Get MDP timezone from environment variable, fallback to UTC
-    $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+    $mdp_timezone = self::get_mdp_timezone();
 
     $mdp_date = self::parse_as_mdp_date($date_string, $mdp_timezone);
 
@@ -1455,8 +1499,7 @@ function wicket_sub_org_select_callback( $subscription ) {
    */
   public static function get_mdp_day_end($date_string = 'now')
   {
-    // Get MDP timezone from environment variable, fallback to UTC
-    $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+    $mdp_timezone = self::get_mdp_timezone();
 
     $mdp_date = self::parse_as_mdp_date($date_string, $mdp_timezone);
 
@@ -1465,6 +1508,29 @@ function wicket_sub_org_select_callback( $subscription ) {
 
     // Convert to UTC and return
     return $mdp_date->setTimezone(new \DateTimeZone('UTC'));
+  }
+
+  /**
+   * Format a Unix timestamp in the MDP timezone, translated to the site locale.
+   *
+   * For dates shown to members and admins (notices, order notes), so an MDP end of day
+   * such as 23:59:59 in New York reads as that day, not the next UTC day.
+   *
+   * @since 1.0.123
+   *
+   * @param  string    $format     A date() format string.
+   * @param  int|false $timestamp  Unix timestamp; false (a failed strtotime()) formats as an empty string.
+   *
+   * @return string  The formatted date.
+   *
+   * @see wp_date()
+   */
+  public static function format_mdp_date( $format, $timestamp ) {
+    if ( $timestamp === false || $timestamp === null || $timestamp === '' ) {
+      return '';
+    }
+
+    return wp_date( $format, (int) $timestamp, self::get_mdp_timezone() );
   }
 
 

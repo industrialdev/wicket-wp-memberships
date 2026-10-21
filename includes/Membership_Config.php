@@ -323,7 +323,7 @@ class Membership_Config {
 
   private function get_seasonal_end_date( $membership = [] ) {
     // Get MDP timezone, fallback to UTC
-    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $mdp_timezone = Utilities::get_mdp_timezone();
 
     $is_new_membership = empty($membership);
     $seasons = $this->get_calendar_seasons();
@@ -372,23 +372,63 @@ class Membership_Config {
     return $selected_end_dt->setTimezone( new \DateTimeZone('UTC') )->format('c');
   }
 
+  /**
+   * Check whether a renewal is being attempted outside the renewal window.
+   *
+   * Despite the name, a value is returned only when the renewal is NOT allowed: before the
+   * early-renewal window opens. Callers treat a non-empty return as "blocked".
+   *
+   * @param  array       $membership  Current membership data array (needs membership_ends_at).
+   * @param  string|null $date        Date to test instead of now (any strtotime() format).
+   *
+   * @return string|null  The window's opening (UTC ISO 8601) when blocked, null when renewal is allowed.
+   */
   public function is_valid_renewal_date( $membership, $date = null ) {
     if( $date ) {
       $current_timestamp = strtotime( $date );
     } else {
-      $current_timestamp = current_time( 'timestamp' );
+      $current_timestamp = time();
     }
-    $dates = $this->get_membership_dates( $membership );
+    // The window opens N days before the CURRENT membership's end.
+    $early_renew_at = $this->get_early_renew_at_for_end( $membership['membership_ends_at'] );
 
-    if( ( $current_timestamp <= strtotime( $dates['early_renew_at'] ) ) || ( $current_timestamp >= strtotime( $dates['expires_at'] ) ) ) {
-      return $membership['membership_early_renew_at'] ;
+    if( $early_renew_at !== null && $current_timestamp < strtotime( $early_renew_at ) ) {
+      return $early_renew_at;
     }
   }
 
   /**
-   * Determine the STart And ENd Date based on config settings
-   * If this is a renewal we need to consider early renewal still in previous membership date period
-   * @return array membership dates
+   * The early-renewal opening for a membership ending at $end_date_iso.
+   *
+   * MDP midnight of the end's MDP calendar day minus the renewal window, so a 77-day window on a
+   * Dec 31 end opens Oct 15 (Oct 15 to Dec 30 is 77 days; the end day is not counted).
+   *
+   * @since 1.0.123
+   *
+   * @param  string $end_date_iso  Membership end (ISO 8601, typically MDP end-of-day as UTC).
+   *
+   * @return string|null  UTC ISO 8601, or null when no renewal window is configured.
+   */
+  public function get_early_renew_at_for_end( $end_date_iso ) {
+    $early_renewal_in_days = $this->get_renewal_window_days();
+    if ( empty( $early_renewal_in_days ) ) {
+      return null;
+    }
+
+    $early_renew_date_string = $this->mdp_local_ymd( $end_date_iso, '-' . $early_renewal_in_days . ' days' );
+    return Utilities::get_mdp_day_start( $early_renew_date_string )->format( 'c' );
+  }
+
+  /**
+   * Determine the start and end dates (plus expiry and early renewal) from the config.
+   *
+   * A new membership starts today; a renewal starts the day after the current one ends.
+   * All dates are MDP day boundaries, returned as UTC ISO 8601.
+   *
+   * @param  array $membership  Current membership data (needs membership_ends_at) for a renewal;
+   *                            empty for a new membership.
+   *
+   * @return array{start_date:string,end_date:string,expires_at?:string,early_renew_at?:string}
    */
   public function get_membership_dates( $membership = [] ) {
     $cycle_data = $this->get_cycle_data();
@@ -397,18 +437,19 @@ class Membership_Config {
       $period_count  = ! empty( $cycle_data['anniversary_data']["period_count"] ) && is_numeric ($cycle_data['anniversary_data']["period_count"]) ? $cycle_data['anniversary_data']["period_count"] : 1; 
       $period_type  = !in_array( $cycle_data['anniversary_data']["period_type"], ['year','month','day'] )
                         ? 'year' : $cycle_data['anniversary_data']["period_type"];      
-      $the_end_date = date("Y-m-d", strtotime($dates['start_date'] . "+".$period_count . " " . $period_type));
+      // Count the period from the start's MDP calendar day; its UTC day is a day early east of UTC.
+      $the_end_date = $this->mdp_local_ymd( $dates['start_date'], '+' . $period_count . ' ' . $period_type );
       if( in_array( $period_type, ['year', 'month'])
           && (! empty($cycle_data['anniversary_data']['align_end_dates_enabled']) && $cycle_data['anniversary_data']['align_end_dates_enabled'] !== false ) ) {
         switch( $cycle_data['anniversary_data']["align_end_dates_type"] ) {
           case 'first-day-of-month':
-            $the_end_date = date("Y-m-1", strtotime($dates['start_date'] . "+".$period_count . " ".$period_type));
+            $the_end_date = date("Y-m-1", strtotime($the_end_date));
             break;
           case '15th-of-month':
-            $the_end_date = date("Y-m-15", strtotime($dates['start_date'] . "+".$period_count . " ".$period_type));
+            $the_end_date = date("Y-m-15", strtotime($the_end_date));
             break;
           case 'last-day-of-month':
-            $the_end_date = date("Y-m-t", strtotime($dates['start_date'] . "+".$period_count . " ".$period_type));
+            $the_end_date = date("Y-m-t", strtotime($the_end_date));
             break;
         }
       }
@@ -429,12 +470,10 @@ class Membership_Config {
       $dates['expires_at'] = Utilities::get_mdp_day_end($expires_date_string)->format('c');
     }
 
-    $early_renewal_in_days = $this->get_renewal_window_days();
-    if (!empty($early_renewal_in_days)) {
-      // Same MDP-day anchoring as the grace block. A zone AHEAD of UTC shifts a
-      // day-start backward in UTC, so taking Y-m-d in UTC loses a day here.
-      $early_renew_date_string = $this->mdp_local_ymd( $dates['start_date'], '-' . $early_renewal_in_days . ' days' );
-      $dates['early_renew_at'] = Utilities::get_mdp_day_start($early_renew_date_string)->format('c');
+    // This membership's own early-renewal opening, counted back from its end.
+    $early_renew_at = $this->get_early_renew_at_for_end( $dates['end_date'] );
+    if ( $early_renew_at !== null ) {
+      $dates['early_renew_at'] = $early_renew_at;
     }
 
     return $dates;
@@ -447,14 +486,21 @@ class Membership_Config {
    * them in UTC lands on the wrong calendar day for any zone offset from UTC.
    * Converting back to the MDP timezone first recovers the intended local day.
    *
-   * @param string $iso_date ISO 8601 datetime (typically a get_mdp_day_* result).
+   * A bare Y-m-d (e.g. from Helper::get_post_meta() copied into user meta) is already an MDP
+   * calendar day, so it is built in the MDP timezone rather than read as UTC midnight.
+   *
+   * @param string $iso_date ISO 8601 datetime (typically a get_mdp_day_* result) or a bare Y-m-d.
    * @param string $modify   Optional relative modify applied in the MDP timezone.
    * @return string Y-m-d in the MDP timezone.
    */
   private function mdp_local_ymd( $iso_date, $modify = '' ) {
-    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
-    $dt = new \DateTime( $iso_date );
-    $dt->setTimezone( $mdp_timezone );
+    $mdp_timezone = Utilities::get_mdp_timezone();
+    if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', trim( (string) $iso_date ) ) ) {
+      $dt = new \DateTime( trim( $iso_date ), $mdp_timezone );
+    } else {
+      $dt = new \DateTime( $iso_date );
+      $dt->setTimezone( $mdp_timezone );
+    }
     if ( $modify !== '' ) {
       $dt->modify( $modify );
     }
@@ -471,7 +517,7 @@ class Membership_Config {
    * @return string ISO 8601 end datetime (MDP end-of-day, expressed as UTC).
    */
   private function season_end_containing( $start_iso ) {
-    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $mdp_timezone = Utilities::get_mdp_timezone();
     $seasons = $this->get_calendar_seasons();
 
     $membership_start_dt = Utilities::get_mdp_day_start( $start_iso );
@@ -522,19 +568,20 @@ class Membership_Config {
       $period_type = ! in_array( $cycle_data['anniversary_data']['period_type'], [ 'year', 'month', 'day' ], true )
         ? 'year' : $cycle_data['anniversary_data']['period_type'];
 
-      $the_end_date = date( 'Y-m-d', strtotime( $dates['start_date'] . '+' . $period_count . ' ' . $period_type ) );
+      // Count the period from the start's MDP calendar day; its UTC day is a day early east of UTC.
+      $the_end_date = $this->mdp_local_ymd( $dates['start_date'], '+' . $period_count . ' ' . $period_type );
       if ( in_array( $period_type, [ 'year', 'month' ], true )
         && ! empty( $cycle_data['anniversary_data']['align_end_dates_enabled'] )
         && $cycle_data['anniversary_data']['align_end_dates_enabled'] !== false ) {
         switch ( $cycle_data['anniversary_data']['align_end_dates_type'] ) {
           case 'first-day-of-month':
-            $the_end_date = date( 'Y-m-1', strtotime( $dates['start_date'] . '+' . $period_count . ' ' . $period_type ) );
+            $the_end_date = date( 'Y-m-1', strtotime( $the_end_date ) );
             break;
           case '15th-of-month':
-            $the_end_date = date( 'Y-m-15', strtotime( $dates['start_date'] . '+' . $period_count . ' ' . $period_type ) );
+            $the_end_date = date( 'Y-m-15', strtotime( $the_end_date ) );
             break;
           case 'last-day-of-month':
-            $the_end_date = date( 'Y-m-t', strtotime( $dates['start_date'] . '+' . $period_count . ' ' . $period_type ) );
+            $the_end_date = date( 'Y-m-t', strtotime( $the_end_date ) );
             break;
         }
       }
@@ -549,10 +596,9 @@ class Membership_Config {
       $dates['expires_at'] = Utilities::get_mdp_day_end( $expires_date_string )->format( 'c' );
     }
 
-    $early_renewal_in_days = $this->get_renewal_window_days();
-    if ( ! empty( $early_renewal_in_days ) ) {
-      $early_renew_date_string = $this->mdp_local_ymd( $dates['start_date'], '-' . $early_renewal_in_days . ' days' );
-      $dates['early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date_string )->format( 'c' );
+    $early_renew_at = $this->get_early_renew_at_for_end( $dates['end_date'] );
+    if ( $early_renew_at !== null ) {
+      $dates['early_renew_at'] = $early_renew_at;
     }
 
     return $dates;
@@ -568,7 +614,7 @@ class Membership_Config {
    * @return string|null Y-m-d season start, or null.
    */
   public function get_season_start_for_date( $iso ) {
-    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $mdp_timezone = Utilities::get_mdp_timezone();
     $seasons = $this->get_calendar_seasons();
     if ( ! is_array( $seasons ) ) {
       return null;

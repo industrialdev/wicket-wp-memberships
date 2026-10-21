@@ -275,42 +275,81 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action('init', [__NAMESPACE__.'\\Utilities', 'autorenew_checkbox_toggle_switch']);
     }
 
+    /**
+     * Unix time of the next occurrence of a wall-clock time tomorrow in the MDP timezone.
+     *
+     * Used as the first run of the nightly jobs. Only applies when a job is first scheduled;
+     * existing recurring actions keep their time.
+     *
+     * @param  string $time  Wall-clock time, e.g. '3:00'.
+     *
+     * @return int  Unix timestamp.
+     */
+    private static function next_nightly_run_timestamp( $time ) {
+      $mdp_timezone = Utilities::get_mdp_timezone();
+      return ( new \DateTime( 'tomorrow ' . $time, $mdp_timezone ) )->getTimestamp();
+    }
+
+    /**
+     * Schedule the nightly expiry job at 3:00 MDP time, if it is not already scheduled.
+     *
+     * @return void
+     *
+     * @see Membership_Controller::daily_membership_expiry_hook()
+     */
     public static function schedule_daily_membership_expiry() {
       if (!as_next_scheduled_action('schedule_daily_membership_expiry_hook')) {
-        $timezone = wp_timezone();
-        $next_run_time = new \DateTime('tomorrow 3:00', $timezone);
-        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
-        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_expiry_hook');
+        as_schedule_recurring_action(self::next_nightly_run_timestamp('3:00'), DAY_IN_SECONDS, 'schedule_daily_membership_expiry_hook');
       }
     }
 
+    /**
+     * Schedule the nightly grace-period job at 3:30 MDP time, if it is not already scheduled.
+     *
+     * @return void
+     *
+     * @see Membership_Controller::daily_membership_grace_period_hook()
+     */
     public static function schedule_daily_membership_grace_period() {
       if (!as_next_scheduled_action('schedule_daily_membership_grace_period_hook')) {
-        $timezone = wp_timezone();
-        $next_run_time = new \DateTime('tomorrow 3:30', $timezone);
-        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
-        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_grace_period_hook');
+        as_schedule_recurring_action(self::next_nightly_run_timestamp('3:30'), DAY_IN_SECONDS, 'schedule_daily_membership_grace_period_hook');
       }
     }
 
+    /**
+     * Schedule the nightly activation job at 4:00 MDP time, if it is not already scheduled.
+     *
+     * @return void
+     *
+     * @see Membership_Controller::daily_membership_activation_hook()
+     */
     public static function schedule_daily_membership_activation() {
       if (!as_next_scheduled_action('schedule_daily_membership_activation_hook')) {
-        $timezone = wp_timezone();
-        $next_run_time = new \DateTime('tomorrow 4:00', $timezone);
-        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
-        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_activation_hook');
+        as_schedule_recurring_action(self::next_nightly_run_timestamp('4:00'), DAY_IN_SECONDS, 'schedule_daily_membership_activation_hook');
       }
     }
 
+    /**
+     * Schedule the nightly autorenew audit at 4:30 MDP time, if it is not already scheduled.
+     *
+     * @return void
+     */
     public static function schedule_daily_membership_autorenew_audit() {
       if (!as_next_scheduled_action('wicket_mship_autorenew_audit_hook', [], 'wicket-memberships')) {
-        $timezone = wp_timezone();
-        $next_run_time = new \DateTime('tomorrow 4:30', $timezone);
-        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
-        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'wicket_mship_autorenew_audit_hook', [], 'wicket-memberships');
+        as_schedule_recurring_action(self::next_nightly_run_timestamp('4:30'), DAY_IN_SECONDS, 'wicket_mship_autorenew_audit_hook', [], 'wicket-memberships');
       }
     }
 
+    /**
+     * Validate the cart's membership items, adding WooCommerce notices for any that cannot be bought.
+     *
+     * Hooked on cart, add-to-cart and checkout. Blocks pending renewal orders, org tiers without an
+     * org, and renewals before the early-renewal window opens.
+     *
+     * @param  mixed $checkout_order  Hook argument (cart contents or checkout data); unused.
+     *
+     * @return void
+     */
     public function memberships_verify_cart( $checkout_order ) {
       $cannot_process = [];
       if( !empty( $_ENV['check_renewals_orders_in_cart'] )) {
@@ -380,7 +419,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
             $early_renewal_date = $config->is_valid_renewal_date( $membership_current );
             //if we are trying to renew a membership check that we are in the renewal period
             if( !empty( $early_renewal_date ) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] )) {
-              wc_add_notice(sprintf(__("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date))), 'error');
+              wc_add_notice(sprintf(__("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), Utilities::format_mdp_date("l jS \of F Y", strtotime($early_renewal_date))), 'error');
               return;
             }
           }
