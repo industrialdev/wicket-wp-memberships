@@ -255,8 +255,8 @@ class Admin_Controller {
         if(! empty( $sub )) {
           $sub->update_status( 'cancelled' );
           if( ! empty( $meta_data['membership_ends_at'] ) && $current_post_status != Wicket_Memberships::STATUS_GRACE ) {
-            $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
-            $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+            // End of the membership's MDP end day, as UTC (what WCS expects).
+            $subscription_end = Utilities::get_mdp_day_end( $meta_data['membership_ends_at'] );
             $sub->update_dates([
               'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
             ]);
@@ -285,8 +285,8 @@ class Admin_Controller {
         if(! empty( $sub )) {
           $sub->update_status( 'cancelled' );
           if( ! empty( $meta_data['membership_ends_at'] ) ) {
-            $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
-            $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+            // End of the membership's MDP end day, as UTC (what WCS expects).
+            $subscription_end = Utilities::get_mdp_day_end( $meta_data['membership_ends_at'] );
             $sub->update_dates([
               'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
             ]);
@@ -947,6 +947,17 @@ class Admin_Controller {
     return new \WP_REST_Response($response_array, $response_code);
   }
 
+  /**
+   * Create a draft renewal order and yearly subscription for a membership from the admin.
+   *
+   * Tags the order and subscription line items with `_membership_post_id_renew` so payment
+   * renews the existing membership rather than creating a new one.
+   *
+   * @param  \WP_REST_Request|array $request  Needs membership_post_id, product_id and optional variation_id.
+   *
+   * @return \WP_REST_Response  200 with the order_url on success, 400 when the membership is
+   *                            missing or not active, or the product is not found.
+   */
   public static function create_renewal_order( $request ) {
     $response_array = [];
 
@@ -1013,7 +1024,7 @@ class Admin_Controller {
       'customer_id' => $customer_wp_id,
       'billing_period' => 'year',
       'billing_interval' => 1,
-      'start_date' => current_time( 'mysql' ),
+      'start_date' => current_time( 'mysql', true ), // WCS expects GMT.
     ) );
     $subscription->add_product( $wc_product );
     $subscription->calculate_totals();
@@ -1175,6 +1186,17 @@ class Admin_Controller {
     }
   }
 
+  /**
+   * Create a draft order and yearly subscription that switches a membership to another product.
+   *
+   * Tags the order and subscription line items with `_membership_post_id_switch` so payment
+   * performs the switch.
+   *
+   * @param  int $membership_post_id  The wicket_membership post being switched.
+   * @param  int $switch_post_id      Product (or variation) ID to switch to.
+   *
+   * @return \WP_REST_Response  200 with the order edit redirect_url on success, 400 on invalid input.
+   */
   public function create_switch_order( $membership_post_id, $switch_post_id ) {
     $product_id = $switch_post_id;
     if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
@@ -1223,7 +1245,7 @@ class Admin_Controller {
       'customer_id' => $customer_wp_id,
       'billing_period' => 'year',
       'billing_interval' => 1,
-      'start_date' => current_time( 'mysql' ),
+      'start_date' => current_time( 'mysql', true ), // WCS expects GMT.
     ) );
     $subscription->add_product( $wc_product );
     $subscription->calculate_totals();
