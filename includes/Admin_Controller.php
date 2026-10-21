@@ -1282,7 +1282,8 @@ class Admin_Controller {
       // and the cancelled membership ends now (not midnight).
       $switch_iso_date = Utilities::get_mdp_now()->format('c');
     } else {
-      $switch_iso_date = (new \DateTime( date("Y-m-d", strtotime($switch_date)), wp_timezone() ))->format('c');
+      // A dated switch starts at midnight in the MDP timezone, like every other membership start.
+      $switch_iso_date = Utilities::get_mdp_day_start( $switch_date )->format('c');
     }
 
     $user_id = get_post_meta( $membership_post_id, 'user_id', true );
@@ -1298,8 +1299,8 @@ class Admin_Controller {
     $membership_type = $membership_tier->tier_data['type'];
 
     $membership_starts_at = $switch_iso_date;
+    // Already MDP end-of-day as UTC ISO, so the MDP record keeps the same end as the post.
     $membership_ends_at = get_post_meta( $membership_post_id, 'membership_ends_at', true);
-    $membership_ends_at = (new \DateTime( date("Y-m-d", strtotime($membership_ends_at)), wp_timezone() ))->format('c');
     $membership_grace_period_days = $config->get_late_fee_window_days();
 
     // Capture the OLD membership's MDP identity/start before mutating its meta.
@@ -1541,9 +1542,11 @@ class Admin_Controller {
       return $end_date_iso;
     }
 
-    // Add the grace days to the end date, then snap to end-of-day in the MDP timezone. Take the
-    // calendar date (Y-m-d) so the offset carried on $end_date_iso cannot shift the day.
-    $expires_date = ( new \DateTime( $end_date_iso, new \DateTimeZone( 'UTC' ) ) )
+    // Add the grace days to the end's calendar day in the MDP timezone, then snap to MDP end-of-day.
+    // The stored end is UTC, so its UTC day can be the day after the MDP day.
+    $mdp_timezone = new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' );
+    $expires_date = ( new \DateTime( $end_date_iso ) )
+      ->setTimezone( $mdp_timezone )
       ->modify( '+' . $grace_days . ' days' )
       ->format( 'Y-m-d' );
 
