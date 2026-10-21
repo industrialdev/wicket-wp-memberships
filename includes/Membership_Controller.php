@@ -45,6 +45,10 @@ class Membership_Controller {
    */
   const MEMBERS_IDS_TRANSIENT_TTL = 5 * MINUTE_IN_SECONDS;
 
+  /** MDP membership category names. Clients can rename these in the MDP; the sync copies whatever the tier declares. */
+  const MEMBERSHIP_CATEGORY_PRIMARY = 'primary';
+  const MEMBERSHIP_CATEGORY_SECTION = 'section';
+
   /** True once a membership write has queued the member list cache flush for this request. */
   private static $member_list_cache_stale = false;
 
@@ -225,7 +229,19 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Check if the renewal order date for this item is within the renewal period
+   * Block a renewal order line item when the membership's early-renewal window has not opened.
+   *
+   * The renewed membership comes from the item's `_membership_post_id_renew` meta, or the
+   * customer's active membership on the same tier. Skipped when WICKET_MEMBERSHIPS_DEBUG_RENEW is set.
+   *
+   * @param  \WC_Order_Item_Product $item           The order line item being created.
+   * @param  string                 $cart_item_key  Cart item key (unused).
+   * @param  array                  $values         Cart item values (unused).
+   * @param  \WC_Order              $order          The order being created.
+   *
+   * @throws \Exception  With the "can renew starting" notice when the window has not opened.
+   *
+   * @return void
    */
   public static function validate_renewal_order_items( $item, $cart_item_key, $values, $order ) {
     $self = new self();
@@ -252,7 +268,7 @@ function get_item_data ( $other_data, $cart_item ) {
       $early_renewal_date = $config->is_valid_renewal_date( $membership_current );
     }
     if( !empty( $early_renewal_date ) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] )) {
-      $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date)));
+      $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), Utilities::format_mdp_date("l jS \of F Y", strtotime($early_renewal_date)));
       throw new \Exception( $error_text );
     }
   }
@@ -506,8 +522,17 @@ function get_item_data ( $other_data, $cart_item ) {
    */
 
   /**
-   * Catch the Order Status Changed hook
-   * Process the order product(s) memberships
+   * Create memberships for the products on an order once it reaches processing.
+   *
+   * A 1-month subscription only creates its membership when its parent order is
+   * processed on the day the subscription was created, both days read in the MDP
+   * timezone. Otherwise the whole order is skipped.
+   *
+   * @param  int|\WC_Abstract_Order $order_id  Order ID from the status hook, or the order itself.
+   *
+   * @return void
+   *
+   * @see Membership_Controller::get_memberships_data_from_subscription_products()
    */
   public static function catch_order_completed( $order_id ) {
     $order = $order_id instanceof \WC_Abstract_Order ? $order_id : wc_get_order( $order_id );
@@ -570,10 +595,13 @@ function get_item_data ( $other_data, $cart_item ) {
 
     Utilities::wc_log_mship_error( ['Creating a membership', ['order_id'=>$order_id]]);
 
+    // Both days in the MDP timezone; WCS returns date_created as a UTC string.
+    $mdp_timezone = Utilities::get_mdp_timezone();
     foreach($subscriptions as $subscription) {
-      $today = current_time( 'Y-m-d' );
-      $created_date = $subscription->get_date( 'date_created' );
-      $created_date = date( 'Y-m-d', strtotime($created_date));
+      $today = ( new \DateTime( 'now', $mdp_timezone ) )->format( 'Y-m-d' );
+      // WCS returns 0 when no date is set; an empty day never matches, so the gate skips.
+      $created_ts = strtotime( (string) $subscription->get_date( 'date_created' ) );
+      $created_date = $created_ts ? ( new \DateTime( '@' . $created_ts ) )->setTimezone( $mdp_timezone )->format( 'Y-m-d' ) : '';
       Utilities::wicket_logger( 'MSHIP CREATED sub date compare monthly', ['today'=>$today, 'created_date'=>$created_date]);
       if($subscription->get_billing_period() == 'month' && $subscription->get_billing_interval() == 1) {
         if( $created_date !== $today) {
@@ -837,14 +865,22 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Add renewal transition dates to Advanced Scheduler - fallback with wp_cron
+   * Schedule a membership's lifecycle events and hand over from the previous membership.
+   *
+   * Schedules early-renew, end and expiry actions via Action Scheduler (wp_cron fallback).
+   * When this is a renewal, the previous membership is expired now if the new one has
+   * already started, otherwise at the new start. Adds an order note describing the result.
+   *
+   * @param  array $membership  Membership data with ISO dates, post IDs and parent order/product IDs.
+   *
+   * @return void
    */
   public function scheduler_dates_for_expiry( $membership ) {
     $membership_starts_at = strtotime( $membership['membership_starts_at'] );
     $membership_early_renew_at = strtotime( $membership['membership_early_renew_at'] );
     $membership_ends_at = strtotime( $membership['membership_ends_at'] );
     $membership_expires_at = strtotime( $membership['membership_expires_at'] );
-    $order_note = 'New membership ID #'.$membership['membership_post_id'].' created from '.date('Y-m-d', $membership_starts_at).' to '.date('Y-m-d', $membership_ends_at);
+    $order_note = 'New membership ID #'.$membership['membership_post_id'].' created from '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at).' to '.Utilities::format_mdp_date('Y-m-d', $membership_ends_at);
 
     if( self::should_schedule_expiry_notification_jobs( $membership ) ) {
       $args = [
@@ -861,15 +897,16 @@ function get_item_data ( $other_data, $cart_item ) {
         as_schedule_single_action( $membership_expires_at, 'add_membership_expires_at', $args, 'wicket-membership-plugin', false );
       }
       //to expire old membership when new one starts
+      // (the old one's last day is one second before the new start, so DST can't shift it)
       if( !empty( $membership['previous_membership_post_id'] ) ) {
-        if( current_time( 'timestamp' ) >= $membership_starts_at ) {
+        if( time() >= $membership_starts_at ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
-          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.date('Y-m-d', $membership_starts_at);
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         } else {
           as_schedule_single_action( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ], 'wicket-membership-plugin', false );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
-          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.date('Y-m-d', $membership_starts_at);
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         }
       }
     } else {
@@ -880,14 +917,14 @@ function get_item_data ( $other_data, $cart_item ) {
       }
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
-        if( current_time( 'timestamp' ) >= $membership_starts_at ) {
+        if( time() >= $membership_starts_at ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
-          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.date('Y-m-d', $membership_starts_at);
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         } else {
           wp_schedule_single_event( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ] );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
-          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.date('Y-m-d', $membership_starts_at);
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         }
       }
     }
@@ -1217,6 +1254,12 @@ function get_item_data ( $other_data, $cart_item ) {
    * NOTE: Woo Subscriptions will ALWAYS set the [next_payment_date] when the subscription STATUS CHANGES to 'active' while the end_date IS SET.
    * - Set the dates on the 'woocommerce_subscription_status_updated' hook (after the subscription is created) to avoid this behavior
    * - Necessary because subscription status is changed after this code is run for new subscriptions
+   *
+   * @param  array    $membership           Membership data with ISO dates and membership_subscription_id.
+   * @param  string[] $fields               Which dates to write: start_date, end_date, next_payment_date.
+   * @param  bool     $subcription_created  True when the subscription was just created in this request.
+   *
+   * @return string|void  An error message when WCS rejects the dates, otherwise nothing.
    */
   public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ], $subcription_created = false ) {
     if( function_exists( 'wcs_get_subscription' )) {
@@ -1293,18 +1336,18 @@ function get_item_data ( $other_data, $cart_item ) {
           $order_note = 'Membership ' .$membership['membership_post_id'].' changed these subscription dates. ';
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
           if(!empty($dates_to_update['next_payment'])) {
-            $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date)).'('.$dates_to_update['next_payment'].')';
+            $order_note .= '<br> Next Payment Date: '.Utilities::format_mdp_date('Y-m-d', strtotime($end_date)).'('.$dates_to_update['next_payment'].')';
             $this->schedule_force_set_next_payment_date( $subscription_id, $dates_to_update['next_payment']);
           }
-          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_or_end_date)).'('.$dates_to_update['end'].')';
+          $order_note .= '<br> End Date: '.Utilities::format_mdp_date('Y-m-d', strtotime($expire_or_end_date)).'('.$dates_to_update['end'].')';
           $sub->add_order_note($order_note);
         } catch (\Exception $e) {
           $order_note = 'Membership ' .$membership['membership_post_id'].' attempted to change these subscription dates. '.$e->getMessage();
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
           if(!empty($dates_to_update['next_payment'])) {
-            $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+            $order_note .= '<br> Next Payment Date: '.Utilities::format_mdp_date('Y-m-d', strtotime($end_date));
           }
-          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
+          $order_note .= '<br> End Date: '.Utilities::format_mdp_date('Y-m-d', strtotime($expire_date));
           $sub->add_order_note($order_note);
           return 'ERROR on Subscription Update: '. $e->getMessage();
         }
@@ -1877,6 +1920,18 @@ function get_item_data ( $other_data, $cart_item ) {
     return $membership_wicket_uuid;
   }
 
+  /**
+   * Save membership meta to the local post, recalculating status from its dates.
+   *
+   * Status (delayed / active / grace_period / expired) is derived from now against the
+   * start, end and expiry dates, unless the incoming status is cancelled. Missing dates
+   * fall back to the stored meta. Also refreshes the stored autorenew status.
+   *
+   * @param  int   $membership_post_id  The wicket_membership post ID.
+   * @param  array $meta_data           Meta fields to write; only the fields being changed.
+   *
+   * @return int|\WP_Error  Post ID on success, WP_Error on failure (from wp_update_post()).
+   */
   public function update_local_membership_record( $membership_post_id, $meta_data ) {
 
     // If the incoming status is already cancelled, do not recalculate the status
@@ -1885,8 +1940,8 @@ function get_item_data ( $other_data, $cart_item ) {
       && $meta_data['membership_status'] === Wicket_Memberships::STATUS_CANCELLED;
 
     if ( ! $is_cancelled ) {
-      // Determine membership status based on today's date vs. start/end/expiry dates.
-      $today             = current_time( 'timestamp' );
+      // Determine membership status from now vs. start/end/expiry dates.
+      $now               = time();
       $starts_at         = ! empty( $meta_data['membership_starts_at'] )
         ? strtotime( $meta_data['membership_starts_at'] )
         : strtotime( (string) get_post_meta( $membership_post_id, 'membership_starts_at', true ) );
@@ -1910,11 +1965,11 @@ function get_item_data ( $other_data, $cart_item ) {
       $grace_period_days = isset( $grace_period_days ) ? $grace_period_days : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
 
       if ( $starts_at && $ends_at ) {
-        if ( $today < $starts_at ) {
+        if ( $now < $starts_at ) {
           $meta_data['membership_status'] = Wicket_Memberships::STATUS_DELAYED;
-        } elseif ( $today <= $ends_at ) {
+        } elseif ( $now <= $ends_at ) {
           $meta_data['membership_status'] = Wicket_Memberships::STATUS_ACTIVE;
-        } elseif ( $grace_period_days > 0 && $today <= $expiry_at ) {
+        } elseif ( $grace_period_days > 0 && $now <= $expiry_at ) {
           $meta_data['membership_status'] = Wicket_Memberships::STATUS_GRACE;
         } else {
           $meta_data['membership_status'] = Wicket_Memberships::STATUS_EXPIRED;
@@ -2372,7 +2427,16 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Get Memberships in Renewal Periods
+   * Build the renewal callouts (early renewal, grace period, pending approval) for a user.
+   *
+   * Compares each membership's dates and subscription next-payment time against now to
+   * decide which callout, if any, it belongs to, and skips ones autopay will renew.
+   * Emits HTML debug comments when WICKET_MEMBERSHIPS_DEBUG_ACC is set.
+   *
+   * @param  int|null $user_id  WP user ID; defaults to the current user when null.
+   * @param  string   $status   Optional membership status to restrict the lookup to.
+   *
+   * @return array{early_renewal:array,grace_period:array,pending_approval:array,debug:array,membership_exists:array}
    */
   public function get_membership_callouts( $user_id = null, $status = "" ) {
     $membership_exists = [];
@@ -2384,6 +2448,8 @@ function get_item_data ( $other_data, $cart_item ) {
     $group_owner_callouts = [];
     $debug = [];
     $multi_tier_renewals = [];
+    $tier_category_by_post_id = [];
+    $active_primary_terms = [];
 
     $iso_code = apply_filters( 'wpml_current_language', null );
     if( empty( $iso_code )) {
@@ -2488,6 +2554,21 @@ function get_item_data ( $other_data, $cart_item ) {
         $membership_data['multi_tier_renewal'] = $Membership_Config->is_multitier_renewal();
       }
 
+      // Category evidence for renewed-primary section suppression (WWID-2837).
+      // Collected for every resolvable record, before the status-specific branches:
+      // an expired-but-renewed primary never reaches the emit branches, yet its
+      // replacement term is exactly the evidence the suppression needs.
+      $tier_category = (string) ( $Membership_Tier->tier_data['mdp_category'] ?? '' );
+      $tier_category_by_post_id[ $membership->ID ] = $tier_category;
+      if ( self::MEMBERSHIP_CATEGORY_PRIMARY === $tier_category
+        && in_array( $membership->membership_status, [ Wicket_Memberships::STATUS_ACTIVE, Wicket_Memberships::STATUS_DELAYED ], true )
+      ) {
+        $active_primary_terms[] = [
+          'ends_at' => strtotime( $membership->membership_ends_at ),
+          'type'    => (string) ( $membership->membership_type ?? '' ),
+        ];
+      }
+
       $membership_data['next_tier'] = false;
       $membership_data['form_page'] = false;
 
@@ -2507,24 +2588,20 @@ function get_item_data ( $other_data, $cart_item ) {
 
       //We are calculating the early renew date globally from the config assigned to the tier
       //$membership_early_renew_at = strtotime( $membership->membership_early_renew_at ); //this was old way was set per membership
-      $membership_early_renew_days = $Membership_Config->get_renewal_window_days();
-      
-      // Calculate early renewal date using same pattern as membership_config
-      $early_renew_utc = new \DateTime($membership->membership_ends_at, new \DateTimeZone('UTC'));
-      $early_renew_date_string = $early_renew_utc->modify('-'.$membership_early_renew_days.' days')->format('Y-m-d');
-      $early_renew_at = Utilities::get_mdp_day_start($early_renew_date_string);
+      // Same opening checkout enforces (is_valid_renewal_date()). No window configured: no early window.
+      $early_renew_at = Utilities::get_utc_datetime( $Membership_Config->get_early_renew_at_for_end( $membership->membership_ends_at ) ?? $membership->membership_ends_at );
       
       // For backwards compatibility with timestamp-based comparisons below
       $membership_early_renew_at = $early_renew_at->getTimestamp();
       
       // Get MDP timezone for display formatting
-      $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+      $mdp_timezone = Utilities::get_mdp_timezone();
       //set the meta for debug only / below we determine mship is in early_renewal/grace_period and add to response sent to ACC plugin
       $membership_data['meta']['membership_early_renew_at'] = $early_renew_at->setTimezone($mdp_timezone)->format('Y-m-d\TH:i:sP');
 
       $membership_ends_at = strtotime( $membership->membership_ends_at );
       $membership_expires_at = strtotime( $membership->membership_expires_at );
-      $current_time =  current_time( 'timestamp' );
+      $current_time =  time();
       $membership_data['ends_in_days'] = ceil( ( $membership_ends_at - $current_time ) / 86400 );
       if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && !empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
         $current_time =  strtotime ( date( "Y-m-d") . '+' . $_REQUEST['wicket_wp_membership_debug_days'] . ' days');
@@ -2587,10 +2664,10 @@ function get_item_data ( $other_data, $cart_item ) {
           // the raw flag and a status blocklist here.
           $is_autopay_enabled = Autorenew::is_autorenewing( $membership_data['meta'] );
           $next_payment_date = $sub->get_time( 'next_payment' );
-          if( $is_autopay_enabled && !empty($next_payment_date) && (current_time( 'timestamp' ) < $next_payment_date) && ! $allow_form_flow_early_callout) {
+          if( $is_autopay_enabled && !empty($next_payment_date) && (time() < $next_payment_date) && ! $allow_form_flow_early_callout) {
             echo "<$debug_comment_hide--";
             echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
-            echo '|'.( strtotime($next_payment_date) - current_time( 'timestamp' ) );
+            echo '|'.( strtotime($next_payment_date) - time() );
             echo "//-->$debug_comment_eol";
             continue;
           }
@@ -2710,7 +2787,7 @@ function get_item_data ( $other_data, $cart_item ) {
             // the raw flag and a status blocklist here.
             $is_autopay_enabled = Autorenew::is_autorenewing( $membership_data['meta'] );
             $next_payment_date = $sub->get_time( 'next_payment' );
-            if(empty($next_payment_date) || (current_time( 'timestamp' ) > $next_payment_date)) {
+            if(empty($next_payment_date) || (time() > $next_payment_date)) {
               $is_autopay_enabled = false;
             }
             // Form Flow: autopay cannot complete a form, so it must not stand in for the renewal
@@ -2752,6 +2829,7 @@ function get_item_data ( $other_data, $cart_item ) {
       #echo "Renewal start" . $timing_debug . (int) ( ( strtotime($membership_data['meta']['membership_ends_at']) - $current_time ) / 86400 ) . ' days';
       #echo "//-->$debug_comment_eol";
     }
+    unset( $membership );
 
     // Group owner callouts are independent of individual membership posts — a bundle
     // owner may own a bundle without having a linked individual membership post.
@@ -2763,7 +2841,91 @@ function get_item_data ( $other_data, $cart_item ) {
     if(!empty($_ENV['WICKET_MSHIP_DISABLE_RENEWALS'])) {
       return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'group_owner' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
     }
+
+    if( !empty( $_ENV['WICKET_MSHIP_SECTION_CALLOUT_SUPPRESSION'] ) ) {
+      [ $early_renewal, $grace_period ] = $this->suppress_section_callouts_covered_by_primary(
+        $early_renewal,
+        $grace_period,
+        $tier_category_by_post_id,
+        $active_primary_terms,
+        $debug_comment_hide,
+        $debug_comment_eol
+      );
+    }
+
     return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'group_owner' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
+  }
+
+  /**
+   * Drop early-renewal and grace callouts for section memberships when an
+   * active or delayed primary covers a term beyond theirs (WWID-2837:
+   * product rule — a member is renewed once the primary is; outstanding
+   * sections expire quietly instead of nagging).
+   *
+   * The primary is identified by term, not by renewal linkage: its
+   * membership_ends_at must exceed the section's by more than a day, so an
+   * equally-ended unrenewed season keeps every callout in the next window.
+   * Deliberately person-scoped, not config-scoped: OBA sections live in
+   * different multi-tier configs than their primary.
+   *
+   * @param array $early_renewal
+   * @param array $grace_period
+   * @param array $tier_category_by_post_id membership post ID => tier mdp_category
+   * @param array $active_primary_terms [['ends_at' => ts, 'type' => string], ...]
+   * @param string $debug_comment_hide
+   * @param string $debug_comment_eol
+   * @return array [$early_renewal, $grace_period]
+   */
+  private function suppress_section_callouts_covered_by_primary( $early_renewal, $grace_period, $tier_category_by_post_id, $active_primary_terms, $debug_comment_hide, $debug_comment_eol ) {
+    $keep = function( array $entries ) use ( $tier_category_by_post_id, $active_primary_terms, $debug_comment_hide, $debug_comment_eol ) {
+      $kept = [];
+      foreach ( $entries as $entry ) {
+        $post_id  = $entry['membership']['ID'] ?? 0;
+        $category = $tier_category_by_post_id[ $post_id ] ?? '';
+        if ( self::MEMBERSHIP_CATEGORY_SECTION !== $category ) {
+          $kept[] = $entry;
+          continue;
+        }
+
+        // A renewal-invoice link means the member is actively mid-renewal (or a
+        // payment failed) — that link is their route back in, never hide it.
+        if ( ! empty( $entry['membership']['subscription_renewal'] ) ) {
+          $kept[] = $entry;
+          continue;
+        }
+
+        $section_ends_at = strtotime( $entry['membership']['meta']['membership_ends_at'] ?? '' );
+        // strtotime('') is false and false + DAY_IN_SECONDS reads as covered, so fail open.
+        if ( false === $section_ends_at ) {
+          $kept[] = $entry;
+          continue;
+        }
+        $section_type    = (string) ( $entry['membership']['meta']['membership_type'] ?? '' );
+        $covered = false;
+        foreach ( $active_primary_terms as $term ) {
+          // An unknown type on either side cannot contradict the other, so it never disqualifies.
+          if ( '' !== $term['type'] && '' !== $section_type && $term['type'] !== $section_type ) {
+            continue;
+          }
+          if ( $term['ends_at'] > $section_ends_at + DAY_IN_SECONDS ) {
+            $covered = true;
+            break;
+          }
+        }
+
+        if ( $covered ) {
+          echo "<$debug_comment_hide--";
+          echo 'Suppressing ' . self::MEMBERSHIP_CATEGORY_SECTION . " renewal callout for membership $post_id: active primary covers a later term";
+          echo "//-->$debug_comment_eol";
+          continue;
+        }
+
+        $kept[] = $entry;
+      }
+      return $kept;
+    };
+
+    return [ $keep( $early_renewal ), $keep( $grace_period ) ];
   }
 
   public function add_late_fee_product_to_subscription_renewal_order($subscription_id) {
@@ -3564,15 +3726,28 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Change status of Membership to Expires
-   * @return int
+   * Cutoff the nightly status jobs compare stored dates against: 24 hours before now.
+   *
+   * Formatted as UTC ISO 8601 so it string-compares (meta_query CHAR) against the stored
+   * UTC date meta. Lags real time by 24 hours, so a date is acted on the night after it passes.
+   *
+   * @return string  UTC ISO 8601 timestamp, e.g. 2026-10-20T08:00:00+00:00.
+   */
+  private static function get_daily_job_cutoff_iso() {
+    return ( new \DateTime( '@' . ( time() - DAY_IN_SECONDS ) ) )->format( 'Y-m-d\TH:i:sP' );
+  }
+
+  /**
+   * Nightly job: expire active or grace-period memberships whose expiry has passed the cutoff.
+   *
+   * @return int  Number of memberships set to expired.
+   *
+   * @see Membership_Controller::get_daily_job_cutoff_iso()
    */
   public static function daily_membership_expiry_hook() {
     $self = new self();
     $memberships_updated = [];
-    $yesterday_timestamp = current_time('timestamp') - 86400;
-    //$membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
-    $membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, new \DateTimeZone('UTC') ))->format('Y-m-d\TH:i:sP');
+    $membership_expires_at = self::get_daily_job_cutoff_iso();
     //lookup all memberships expired yesterday
     $args = array(
       'post_type' => $self->membership_cpt_slug,
@@ -3628,14 +3803,16 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Change status of Membership to Active (from Delayed)
-   * @return int
+   * Nightly job: activate delayed memberships whose start has passed the cutoff.
+   *
+   * @return int  Number of memberships set to active.
+   *
+   * @see Membership_Controller::get_daily_job_cutoff_iso()
    */
   public static function daily_membership_activation_hook() {
     $self = new self();
     $memberships_updated = [];
-    $yesterday_timestamp = current_time('timestamp') - 86400;
-    $membership_starts_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d\TH:i:sP');
+    $membership_starts_at = self::get_daily_job_cutoff_iso();
     $args = array(
       'post_type' => $self->membership_cpt_slug,
       'post_status' => 'publish',
@@ -3671,16 +3848,16 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Change status of Membership to Grace Period
-   * @return int
+   * Nightly job: move active memberships whose end has passed the cutoff into grace period.
+   *
+   * @return int  Number of memberships set to grace period.
+   *
+   * @see Membership_Controller::get_daily_job_cutoff_iso()
    */
-
   public static function daily_membership_grace_period_hook() {
     $self = new self();
     $memberships_updated = [];
-    $yesterday_timestamp = current_time('timestamp') - 86400;
-    //$membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
-    $membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, new \DateTimeZone('UTC') ))->format('Y-m-d\TH:i:sP');
+    $membership_ends_at = self::get_daily_job_cutoff_iso();
     //lookup all memberships expired yesterday
     $args = array(
       'post_type' => $self->membership_cpt_slug,

@@ -194,8 +194,10 @@ const MemberEdit = ({ memberType, recordId, membershipUuid, individualMemberEdit
       memberships.map((m) => {
         if (m.ID == postId) {
           m.data.membership_status = newStatus;
-          m.data.membership_ends_at = moment.utc(responseData.membership_ends_at).endOf('day').toISOString();
-          m.data.membership_expires_at = moment.utc(responseData.membership_expires_at).endOf('day').toISOString();
+          // The response dates are MDP calendar days; end them at MDP end of day, as the server does.
+          const statusMdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+          m.data.membership_ends_at = moment.tz(responseData.membership_ends_at, statusMdpTimezone).endOf('day').toISOString();
+          m.data.membership_expires_at = moment.tz(responseData.membership_expires_at, statusMdpTimezone).endOf('day').toISOString();
           m.updatedNow = true;
         }
         return m;
