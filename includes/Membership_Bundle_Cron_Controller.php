@@ -54,21 +54,21 @@ class Membership_Bundle_Cron_Controller {
 
   public static function schedule_daily_bundle_grace_period(): void {
     if ( ! as_next_scheduled_action( 'schedule_daily_bundle_grace_period_hook' ) ) {
-      $next_run_time = new \DateTime( 'tomorrow', wp_timezone() );
+      $next_run_time = new \DateTime( 'tomorrow', Utilities::get_mdp_timezone() );
       as_schedule_recurring_action( $next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_bundle_grace_period_hook', [], 'wicket-memberships' );
     }
   }
 
   public static function schedule_daily_bundle_expiry(): void {
     if ( ! as_next_scheduled_action( 'schedule_daily_bundle_expiry_hook' ) ) {
-      $next_run_time = new \DateTime( 'tomorrow', wp_timezone() );
+      $next_run_time = new \DateTime( 'tomorrow', Utilities::get_mdp_timezone() );
       as_schedule_recurring_action( $next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_bundle_expiry_hook', [], 'wicket-memberships' );
     }
   }
 
   public static function schedule_daily_bundle_activation(): void {
     if ( ! as_next_scheduled_action( 'schedule_daily_bundle_activation_hook' ) ) {
-      $next_run_time = new \DateTime( 'tomorrow', wp_timezone() );
+      $next_run_time = new \DateTime( 'tomorrow', Utilities::get_mdp_timezone() );
       as_schedule_recurring_action( $next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_bundle_activation_hook', [], 'wicket-memberships' );
     }
   }

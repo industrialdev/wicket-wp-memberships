@@ -134,13 +134,14 @@ class Bundle_Import_Controller {
     $starts_at = strtotime( $starts_at );
     $ends_at = strtotime( $ends_at );
     $expires_at = strtotime( $expires_at );
-    if ( current_time( 'timestamp' ) >= $starts_at && current_time( 'timestamp' ) < $ends_at ) {
+    $now = time();
+    if ( $now >= $starts_at && $now < $ends_at ) {
       return Wicket_Memberships::STATUS_ACTIVE;
-    } else if ( current_time( 'timestamp' ) >= $ends_at && current_time( 'timestamp' ) < $expires_at ) {
+    } else if ( $now >= $ends_at && $now < $expires_at ) {
       return Wicket_Memberships::STATUS_ACTIVE;
-    } else if ( $starts_at > current_time( 'timestamp' ) ) {
+    } else if ( $starts_at > $now ) {
       return Wicket_Memberships::STATUS_DELAYED;
-    } else if ( $ends_at < current_time( 'timestamp' ) ) {
+    } else if ( $ends_at < $now ) {
       return Wicket_Memberships::STATUS_EXPIRED;
     }
   }

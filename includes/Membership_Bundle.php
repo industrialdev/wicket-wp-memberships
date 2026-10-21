@@ -899,8 +899,8 @@ class Membership_Bundle {
       if ( ! empty( $sub ) ) {
         $sub->update_status( 'cancelled' );
         if ( ! empty( $meta_data['membership_ends_at'] ) && $current_status !== Wicket_Memberships::STATUS_GRACE ) {
-          $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
-          $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+          // End of the membership's MDP end day, as UTC (what WCS expects).
+          $subscription_end = Utilities::get_mdp_day_end( $meta_data['membership_ends_at'] );
           $sub->update_dates( [
             'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
           ] );
@@ -2797,7 +2797,7 @@ class Membership_Bundle {
         $early_renew_at_iso = '';
         if ( $new_ends_ts ) {
           $early_renew_dt = ( new \DateTime( '@' . $new_ends_ts ) )
-            ->setTimezone( new \DateTimeZone( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC' ) );
+            ->setTimezone( Utilities::get_mdp_timezone() );
           if ( $renewal_window_days !== false ) {
             $early_renew_dt->modify( '-' . absint( $renewal_window_days ) . ' days' );
           }
@@ -3150,7 +3150,7 @@ class Membership_Bundle {
       ],
     ] );
 
-    $current_time = current_time( 'timestamp' );
+    $current_time = time();
     if ( ! empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && ! empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
       $current_time = strtotime( date( 'Y-m-d' ) . '+' . (int) $_REQUEST['wicket_wp_membership_debug_days'] . ' days' );
     }
