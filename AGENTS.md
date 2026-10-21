@@ -47,7 +47,7 @@ This is a WordPress plugin rooted at `wicket.php`. It manages memberships on top
 
 ## Coding Style & Documentation Standards
 
-- PHP 8.1+, namespaced under `Wicket_Memberships\`.
+- PHP 8.2+, namespaced under `Wicket_Memberships\`.
 - Classes use `PascalCase` with underscores (e.g. `Membership_Controller`). Methods use `snake_case`.
 - Meta keys: Flat `post_meta` on membership posts; serialized arrays (`tier_data`, `cycle_data`) on tier/config posts.
 - Dates: ISO 8601 strings anchored in UTC via `Utilities::get_mdp_day_start()` / `get_mdp_day_end()`.
