@@ -694,14 +694,15 @@ function get_item_data ( $other_data, $cart_item ) {
         as_schedule_single_action( $membership_expires_at, 'add_membership_expires_at', $args, 'wicket-membership-plugin', false );
       }
       //to expire old membership when new one starts
+      // (the old one's last day is one second before the new start, so DST can't shift it)
       if( !empty( $membership['previous_membership_post_id'] ) ) {
         if( time() >= $membership_starts_at ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . Utilities::format_mdp_date('Y-m-d', strtotime("-1 day", $membership_starts_at));
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
           $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         } else {
           as_schedule_single_action( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ], 'wicket-membership-plugin', false );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . Utilities::format_mdp_date('Y-m-d', strtotime("-1 day", $membership_starts_at));
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
           $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         }
       }
@@ -715,11 +716,11 @@ function get_item_data ( $other_data, $cart_item ) {
       if( !empty( $membership['previous_membership_post_id'] ) ) {
         if( time() >= $membership_starts_at ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . Utilities::format_mdp_date('Y-m-d', strtotime("-1 day", $membership_starts_at));
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
           $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         } else {
           wp_schedule_single_event( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ] );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . Utilities::format_mdp_date('Y-m-d', strtotime("-1 day", $membership_starts_at));
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
           $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         }
       }

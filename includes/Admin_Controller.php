@@ -489,7 +489,7 @@ class Admin_Controller {
   /**
    * Build the membership rows for the admin edit page of a person or organization.
    *
-   * Rows are sorted by start date, then by MDP tier weight; each includes order and
+   * Rows are sorted newest start date first, then by MDP tier weight; each includes order and
    * subscription details (next payment shown as its MDP calendar day).
    *
    * @param  int|string $id  WP user ID (numeric) for a person, or an organization UUID.
@@ -974,8 +974,8 @@ class Admin_Controller {
    *
    * @param  \WP_REST_Request|array $request  Needs membership_post_id, product_id and optional variation_id.
    *
-   * @return \WP_REST_Response  200 with the order_url on success, 400 when the membership is
-   *                            missing or not active, or the product is not found.
+   * @return \WP_REST_Response  200 with the order_url on success; 400 when the membership is missing,
+   *                            not active / grace_period / delayed, or the product is not found.
    */
   public static function create_renewal_order( $request ) {
     $response_array = [];

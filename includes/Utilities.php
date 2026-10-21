@@ -1351,6 +1351,22 @@ function wicket_sub_org_select_callback( $subscription ) {
    * @return \DateTimeZone
    */
   public static function get_mdp_timezone() {
+    // Resolve once per setting value: an invalid setting would otherwise log a warning on every call.
+    static $resolved = [];
+    $key = (string) ( $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? '' ) . '|' . (string) getenv( 'WICKET_MSHIP_MDP_TIMEZONE' );
+    if ( ! isset( $resolved[ $key ] ) ) {
+      $resolved[ $key ] = self::resolve_mdp_timezone();
+    }
+
+    return $resolved[ $key ];
+  }
+
+  /**
+   * Resolve the MDP timezone setting, uncached. See get_mdp_timezone().
+   *
+   * @return \DateTimeZone
+   */
+  private static function resolve_mdp_timezone() {
     if ( function_exists( 'wicket_time_get_mdp_timezone' ) ) {
       return wicket_time_get_mdp_timezone();
     }
