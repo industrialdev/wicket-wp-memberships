@@ -11,7 +11,7 @@ namespace Wicket_Memberships;
 class Settings_Jobs {
 
   /**
-   * Next pending run of a scheduled action, as "Y-m-d H:i" in site time.
+   * Next pending run of a scheduled action, as "Y-m-d H:i" in the MDP timezone.
    *
    * @param  string  $hook   Action Scheduler hook.
    * @param  string  $group  Action Scheduler group; empty matches any group.
@@ -26,7 +26,8 @@ class Settings_Jobs {
     $action = as_get_scheduled_actions( $args );
     if ( ! empty( $action ) ) {
       foreach ( $action as $a ) {
-        return date( "Y-m-d H:i", strtotime( json_decode( json_encode( $a->get_schedule()->get_date() ) )->date ) );
+        $next = $a->get_schedule()->get_date();
+        return $next ? Utilities::format_mdp_date( 'Y-m-d H:i', $next->getTimestamp() ) : null;
       }
     }
     return null;
@@ -77,7 +78,7 @@ class Settings_Jobs {
     ];
     ?>
     <h3>Daily Membership Jobs</h3>
-    <p>These jobs move memberships between statuses daily through Action Scheduler and should always be scheduled. Run Now triggers a job immediately.</p>
+    <p>These jobs move memberships between statuses daily through Action Scheduler and should always be scheduled. Run Now triggers a job immediately. Next Run times are in the MDP timezone (<?php echo esc_html( Utilities::get_mdp_timezone()->getName() ); ?>).</p>
     <?php self::render_jobs_table( $daily_rows ); ?>
 
     <h3>Diagnostics &amp; Maintenance</h3>
