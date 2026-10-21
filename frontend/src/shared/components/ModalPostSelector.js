@@ -5,7 +5,7 @@ import styled from "styled-components";
 import WicketModal from "./WicketModal";
 import WicketButton from "./WicketButton";
 import { LabelWpStyled } from "../styled_elements";
-import { WP_ADMIN_URL } from "../constants";
+import { WP_ADMIN_URL, formatDateWithTooltip } from "../constants";
 
 const PAGE_SIZE = 20;
 
@@ -360,6 +360,8 @@ const ModalPostSelector = ({
     if (rawValue === undefined || rawValue === null || rawValue === "") return "—";
     if (col.format === "currency") return formatPrice(rawValue);
     if (col.format === "date")     return formatDate(rawValue, true);
+    // Membership dates are MDP day boundaries; show the MDP day, not the browser's.
+    if (col.format === "mdpDate")  return formatDateWithTooltip(rawValue);
     return String(rawValue);
   };
 
@@ -544,7 +546,7 @@ const ModalPostSelector = ({
         key={col.key}
         $width={col.width}
         $flex={col.flex}
-        title={display}
+        title={typeof display === "string" ? display : undefined}
       >
         {display}
       </Col>

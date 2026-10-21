@@ -84,7 +84,7 @@ class Membership_Bundle_Cron_Controller {
    */
   public static function daily_bundle_grace_period_hook(): int {
     $bundles_updated      = [];
-    $yesterday_utc      = gmdate( 'Y-m-d\TH:i:sP', current_time( 'timestamp' ) - DAY_IN_SECONDS );
+    $yesterday_utc      = ( new \DateTime( '@' . ( time() - DAY_IN_SECONDS ) ) )->format( 'Y-m-d\TH:i:sP' );
     $membership_ends_at = $yesterday_utc;
 
     $args = [
@@ -128,7 +128,7 @@ class Membership_Bundle_Cron_Controller {
    */
   public static function daily_bundle_expiry_hook(): int {
     $bundles_updated        = [];
-    $yesterday_utc         = gmdate( 'Y-m-d\TH:i:sP', current_time( 'timestamp' ) - DAY_IN_SECONDS );
+    $yesterday_utc         = ( new \DateTime( '@' . ( time() - DAY_IN_SECONDS ) ) )->format( 'Y-m-d\TH:i:sP' );
     $membership_expires_at = $yesterday_utc;
 
     $args = [
@@ -181,7 +181,7 @@ class Membership_Bundle_Cron_Controller {
    */
   public static function daily_bundle_activation_hook(): int {
     $bundles_updated       = [];
-    $yesterday_utc        = gmdate( 'Y-m-d\TH:i:sP', current_time( 'timestamp' ) - DAY_IN_SECONDS );
+    $yesterday_utc        = ( new \DateTime( '@' . ( time() - DAY_IN_SECONDS ) ) )->format( 'Y-m-d\TH:i:sP' );
     $membership_starts_at = $yesterday_utc;
 
     $args = [

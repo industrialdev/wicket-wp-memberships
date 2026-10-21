@@ -3089,15 +3089,15 @@ class Membership_Bundle {
       $sub->add_order_note( sprintf(
         'Membership bundle (ID: %d) date edit synced subscription dates. Next Payment: %s End: %s',
         $this->post_id,
-        $is_renewal_subscription ? date( 'Y-m-d', strtotime( $dates['ends_at'] ) ) : 'none',
-        date( 'Y-m-d', strtotime( $end_source ) )
+        $is_renewal_subscription ? Utilities::format_mdp_date( 'Y-m-d', strtotime( $dates['ends_at'] ) ) : 'none',
+        Utilities::format_mdp_date( 'Y-m-d', strtotime( $end_source ) )
       ) );
     } catch ( \Exception $e ) {
       $sub->add_order_note( sprintf(
         'Membership bundle (ID: %d) attempted to sync subscription dates but failed. Next Payment: %s End: %s Error: %s',
         $this->post_id,
-        $is_renewal_subscription ? date( 'Y-m-d', strtotime( $dates['ends_at'] ) ) : 'none',
-        date( 'Y-m-d', strtotime( $end_source ) ),
+        $is_renewal_subscription ? Utilities::format_mdp_date( 'Y-m-d', strtotime( $dates['ends_at'] ) ) : 'none',
+        Utilities::format_mdp_date( 'Y-m-d', strtotime( $end_source ) ),
         $e->getMessage()
       ) );
     }

@@ -400,8 +400,8 @@ const AddMemberToBundleModal = ({
             }
             columns={[
               { key: "title",      label: __("Tier Name",    "wicket-memberships"), flex: 1,   searchable: true },
-              { key: "starts_at",  label: __("Start Date",   "wicket-memberships"), width: 160, format: "date" },
-              { key: "ends_at",    label: __("End Date",     "wicket-memberships"), width: 160, format: "date" },
+              { key: "starts_at",  label: __("Start Date",   "wicket-memberships"), width: 160, format: "mdpDate" },
+              { key: "ends_at",    label: __("End Date",     "wicket-memberships"), width: 160, format: "mdpDate" },
               { key: "status",     label: __("Status",       "wicket-memberships"), width: 120 },
             ]}
           />
