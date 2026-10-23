@@ -31,9 +31,10 @@ This is a WordPress plugin rooted at `wicket.php`. It manages memberships on top
 - `custom/`: Optional hook integration files (Gravity Forms integration, multi-tier renewals, subscription sync).
 - `automate-woo/triggers/`: AutomateWoo trigger classes for membership lifecycle events.
 - `tests/`: PHPUnit tests and custom factories for CPTs and WooCommerce products.
-- `docs/`: Feature documentation and reference material.
+- `docs/`: public end-user guides only.
 - `csv_import.php`, `csv_post.php`, `csv_import_threads.php`: CLI and HTTP CSV import tooling.
 
+> Atlas is the single knowledge base for all Wicket documentation; this repo docs/ folder carries only public end-consumer guides.
 > For the complete class inventory, custom post type specifications, lifecycle state machine, and REST routes, see `@see atlas://packages/wicket-wp-memberships.md`.
 
 ## Build, Test, and Development Commands
