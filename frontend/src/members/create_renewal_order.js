@@ -1,4 +1,5 @@
 import { __ } from "@wordpress/i18n";
+import { createInterpolateElement } from "@wordpress/element";
 import { useState } from "react";
 import { WC_PRODUCT_TYPES } from "../constants";
 import {
@@ -210,6 +211,12 @@ const CreateRenewalOrder = ({ membership }) => {
 
   console.log(createRenewalOrderFormData);
 
+  // A manual order here would open a second subscription beside the one WCS already renews.
+  const isSubscriptionRenewal =
+    membership.savedRenewalType === "subscription" ||
+    (membership.savedRenewalType === "inherited" &&
+      membership.data.tierRenewalType === "subscription");
+
   return (
     <>
       <BorderedBox>
@@ -222,9 +229,10 @@ const CreateRenewalOrder = ({ membership }) => {
               variant="secondary"
               // Disable the button if the membership is not "Active, Grace Period, or Delayed"
               disabled={
-                membership.data.membership_status_slug !== "active" &&
-                membership.data.membership_status_slug !== "grace_period" &&
-                membership.data.membership_status_slug !== "delayed"
+                isSubscriptionRenewal ||
+                (membership.data.membership_status_slug !== "active" &&
+                  membership.data.membership_status_slug !== "grace_period" &&
+                  membership.data.membership_status_slug !== "delayed")
               }
               onClick={() => {
                 openCreateRenewalOrderModal();
@@ -235,6 +243,30 @@ const CreateRenewalOrder = ({ membership }) => {
               {__("Create Renewal Order", "wicket-memberships")}
             </Button>
           </div>
+          {isSubscriptionRenewal && (
+            <p className="description" style={{ maxWidth: "260px" }}>
+              {membership.subscription?.link
+                  ? createInterpolateElement(
+                      __(
+                        "Subscription type renewals must be processed using the <a>related subscription</a>.",
+                        "wicket-memberships",
+                      ),
+                      {
+                        a: (
+                          <a
+                            href={membership.subscription.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          />
+                        ),
+                      },
+                    )
+                  : __(
+                      "Subscription type renewals must be processed using the related subscription.",
+                      "wicket-memberships",
+                    )}
+            </p>
+          )}
         </div>
       </BorderedBox>
 

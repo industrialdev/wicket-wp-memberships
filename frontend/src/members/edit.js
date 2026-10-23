@@ -313,6 +313,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             membership.data.tierRenewalType = 'current_tier';
           }
           console.log('tierRenewalType' + membership.data.tierRenewalType);
+          // The dropdown edits renewalType live; renewal actions follow the saved value.
+          membership.savedRenewalType = membership.data.renewalType;
 
           // Set initial membership owner options
           tempMembershipOwnerOptions.push({
@@ -456,6 +458,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
             if (m.ID == membershipId) {
               m.updatingNow = false;
               m.updateResult = updateMessage;
+              if (response.success) {
+                m.savedRenewalType = m.data.renewalType;
+              }
             }
             return m;
           })
