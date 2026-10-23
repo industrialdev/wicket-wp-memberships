@@ -3191,9 +3191,11 @@ function get_item_data ( $other_data, $cart_item ) {
   public function get_members_filters( $type ) {
     $cache_key = self::MEMBERS_FILTERS_TRANSIENT_PREFIX . sanitize_key( $type );
     $cached    = get_transient( $cache_key );
-    if ( false !== $cached ) {
+    // An earlier empty result was cached as '', which the list UI cannot render.
+    if ( is_array( $cached ) ) {
       return $cached;
     }
+    $filters = [ 'tiers' => [], 'membership_status' => [] ];
     $args = array(
       'post_type' => $this->membership_cpt_slug,
       'post_status' => 'publish',
