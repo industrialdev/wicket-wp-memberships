@@ -331,6 +331,11 @@ class Utilities {
         }
       }
     }
+
+    if ( get_post_type( $post_id ) === Helper::get_membership_bundle_cpt_slug() ) {
+      $bundle = new Membership_Bundle( $post_id );
+      $bundle->sync_mdp_delete();
+    }
   }
 
   function show_membership_delete_error() {

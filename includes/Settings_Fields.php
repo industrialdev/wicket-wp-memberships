@@ -50,6 +50,12 @@ class Settings_Fields {
           'wicket_mship_autorenew_override' => 'Auto-Renew Override',
         ] ],
       ],
+      'membership_bundles' => [
+        'membership_bundles_settings' => [ 'Membership Bundles', [ Settings_Page::class, 'section_membership_bundles_text' ], [
+          'wicket_mship_enable_bundles'                 => 'Enable Membership Bundles',
+          'wicket_mship_consolidate_renewal_line_items' => 'Line Item Consolidation',
+        ] ],
+      ],
       'import' => [
         'import_access' => [ 'Command-Line Import', [ Settings_Page::class, 'section_import_text' ], [
           'allow_local_imports' => 'Allow Local Imports',
@@ -119,6 +125,39 @@ class Settings_Fields {
     if ( $description ) {
       echo '<p class="description">' . $description . '</p>';
     }
+  }
+
+  /**
+   * Render the enable Membership Bundles checkbox.
+   *
+   * @return void
+   */
+  public static function wicket_mship_enable_bundles() {
+    self::render_checkbox(
+      'wicket_mship_enable_bundles',
+      'Enable the Membership Bundles system',
+      'When enabled, the Membership Bundles list page and Bundle Configs menu appear in the admin.'
+        . '<br><span style="color:#b32d2e;font-weight:bold;">Note:</span> Disabling this toggle <strong>only hides the admin pages</strong>. It does <strong>not</strong> cancel, delete, or disable any existing membership bundles, bundle configs, or their associated Action Scheduler jobs. All scheduled background processing for existing bundles will continue to run unaffected.'
+    );
+  }
+
+  /**
+   * Render the bundle renewal line item consolidation checkbox.
+   *
+   * On by default: a site that has never saved this setting has no key, which reads as enabled.
+   *
+   * @see Settings::is_renewal_line_item_consolidation_enabled()
+   *
+   * @return void
+   */
+  public static function wicket_mship_consolidate_renewal_line_items() {
+    self::render_checkbox(
+      'wicket_mship_consolidate_renewal_line_items',
+      'Combine identical charges on bundle renewal orders into one line with a quantity',
+      'Applies to lines added per member while a renewal order is priced, such as late fees. Lines combine only when the product, price, tax class, and line details all match; member lines are never combined. Each consolidation is recorded in an order note.'
+        . '<br>Example: two members each charged "Late Fee 1" at $50 become one "Late Fee 1" line, quantity 2, $100.',
+      '1'
+    );
   }
 
   /**

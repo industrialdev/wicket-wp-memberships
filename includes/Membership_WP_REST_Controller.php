@@ -92,6 +92,19 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     )
     );
     /**
+    * Get Group Data WP
+    * Filter by bundle post IDs
+    */
+    register_rest_route( $this->namespace, '/membership_bundle_info', array(
+      array(
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => array( $this, 'get_bundle_info' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+    )
+    );
+
+    /**
     * Get all published WP pages, ignoring any visibility restrictions from third-party
     * plugins (e.g. WP Private Content Plus), for use in tier renewal form page selectors.
     */
@@ -265,7 +278,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     register_rest_route( $this->namespace, '/admin/manage_status', array(
       array(
         'methods'  => \WP_REST_Server::CREATABLE,
-        'callback'  => array( $this, 'admin_manage_status' ),
+        'callback'  => array( $this, 'bundle_admin_manage_status' ),
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
       //'schema' => array( $this, '' ),
@@ -332,6 +345,14 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
+    register_rest_route( $this->namespace, '/import/membership_bundle', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'import_membership_bundle' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+      ),
+    )
+    );
   }
     //lookahead person name search
     register_rest_route( $this->namespace, '/mdp_person/search', array(
@@ -369,6 +390,31 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     ) );
 
     /**
+     * Resolve WooCommerce product and variation names by ID.
+     *
+     * GET /wicket_member/v1/membership_products?ids[]=123&ids[]=456
+     *
+     * Accepts a mixed list of product IDs and variation IDs. Each ID is resolved
+     * via wc_get_product() which handles both types transparently. Returns a flat
+     * array of objects with id, name, type, product_id, and variation_id fields.
+     */
+    register_rest_route( $this->namespace, '/membership_products', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_membership_products' ],
+        'permission_callback' => [ $this, 'permissions_check_read' ],
+        'args'                => [
+          'ids' => [
+            'required'    => false,
+            'type'        => 'array',
+            'items'       => [ 'type' => 'integer' ],
+            'description' => 'List of WC product or variation IDs to resolve.',
+          ],
+        ],
+      ],
+    ] );
+
+    /**
      * Transfer Membership
      */
     register_rest_route( $this->namespace, '/membership/(?P<membership_post_id>\d+)/transfer_membership', array(
@@ -389,6 +435,46 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
     ) );
+  }
+
+  /**
+   * GET /membership_products
+   *
+   * Accepts a mixed list of WC product IDs and variation IDs via ?ids[]=.
+   * wc_get_product() resolves both transparently — no need for the caller
+   * to distinguish between them.
+   *
+   * Each entry in the response includes:
+   *   id           — the ID that was passed in
+   *   name         — display name (variation name when variation, product name otherwise)
+   *   type         — WC product type slug (e.g. "subscription", "variable-subscription", "variation")
+   *   product_id   — parent product ID (same as id for non-variations)
+   *   variation_id — variation ID, or null for non-variations
+   */
+  public function get_membership_products( \WP_REST_Request $request ) {
+    $ids = array_map( 'intval', (array) $request->get_param( 'ids' ) );
+    $ids = array_filter( $ids );
+
+    $results = [];
+
+    foreach ( $ids as $id ) {
+      $product = wc_get_product( $id );
+      if ( ! $product ) {
+        continue;
+      }
+
+      $is_variation = $product instanceof \WC_Product_Variation;
+
+      $results[] = [
+        'id'           => $id,
+        'name'         => $product->get_name(),
+        'type'         => $product->get_type(),
+        'product_id'   => $is_variation ? $product->get_parent_id() : $id,
+        'variation_id' => $is_variation ? $id : null,
+      ];
+    }
+
+    return rest_ensure_response( $results );
   }
 
   public function memberships_merge_webhook_consumer( \WP_REST_Request $request ) {
@@ -477,6 +563,12 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     return rest_ensure_response( $response );
   }
 
+  public function import_membership_bundle( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = (new Bundle_Import_Controller() )->create_bundle( $params );
+    return rest_ensure_response( $response );
+  }
+
   public function get_membership_entity( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $response = Admin_Controller::get_membership_entity_records( $params['entity_id'] );
@@ -495,9 +587,9 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     return rest_ensure_response( $response );
   }
 
-  public function admin_manage_status( \WP_REST_Request $request ) {
+  public function bundle_admin_manage_status( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Admin_Controller::admin_manage_status( $params['post_id'], $params['status']);
+    $response = Admin_Controller::bundle_admin_manage_status( $params['post_id'], $params['status']);
     return rest_ensure_response( $response );
   }
 
@@ -563,6 +655,12 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $org_info = Membership_Controller::get_org_info( $params['filter']['org_uuid'], $params['properties'] );
     return rest_ensure_response( $org_info );
+  }
+
+  public function get_bundle_info( \WP_REST_Request $request ) {
+    $params    = $request->get_params();
+    $bundle_ids = isset( $params['filter']['bundle_id'] ) ? (array) $params['filter']['bundle_id'] : [];
+    return rest_ensure_response( Membership_Controller::get_bundle_info( $bundle_ids ) );
   }
 
   public function get_org_data(  \WP_REST_Request $request  ) {

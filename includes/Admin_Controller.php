@@ -34,6 +34,7 @@ class Admin_Controller {
       var wicketMembershipsSettings = <?php echo wp_json_encode( [
         'WICKET_MSHIP_MERGE_TOOLS'          => $_ENV['WICKET_MSHIP_MERGE_TOOLS'] ?? '',
         'WICKET_MSHIP_MULTI_TIER_RENEWALS'  => $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] ?? '',
+        'adminUrl'                          => esc_url( admin_url() ),
         'WICKET_MSHIP_MDP_TIMEZONE'         => Utilities::get_mdp_timezone()->getName(),
       ] ); ?>;
     </script>
@@ -93,7 +94,7 @@ class Admin_Controller {
    * @param string $new_post_status
    * @return \WP_REST_Response
    */
-  public static function admin_manage_status( $membership_post_id, $new_post_status ) {
+  public static function bundle_admin_manage_status( $membership_post_id, $new_post_status ) {
 
     $tomorrow_iso_date = Utilities::get_mdp_day_end("+1 day")->format('c');
     $yesterday_iso_date = Utilities::get_mdp_day_start("-1 day")->format('c');
@@ -480,7 +481,7 @@ class Admin_Controller {
     foreach( $memberships as $membership) {
       update_post_meta( $membership->ID, 'org_name', $org_name);
       $customer_meta = get_user_meta( $membership->user_id, '_wicket_membership_'.$membership->ID );
-      $customer_meta_array = json_decode( $customer_meta[0], true);
+      $customer_meta_array = json_decode( $customer_meta[0] ?? '', true) ?? [];
       $customer_meta_array['org_name'] = $org_name;
       update_user_meta( $membership->user_id, '_wicket_membership_'.$membership->ID, json_encode( $customer_meta_array) );
     }
@@ -564,6 +565,7 @@ class Admin_Controller {
         }
       );
       $membership_item['ID'] = $membership->ID;
+      $membership_item['mdp_link_collision'] = ! empty( $meta_data['_wicket_membership_external_id_collision'] );
       if( !empty( $mdp_link )) {
         $membership_item['mdp_membership_link'] = $mdp_link . '/memberships/' . $meta['membership_wicket_uuid'];
         $membership_item['max_assignments'] = $org_memberships[ $meta['membership_wicket_uuid'] ]['membership']['attributes']['max_assignments'] ?? 0;
@@ -581,6 +583,9 @@ class Admin_Controller {
       }
       if(empty($membership_data['membership_next_tier_subscription_renewal'])) {
         $membership_data['membership_next_tier_subscription_renewal'] = get_post_meta( $membership->ID, 'membership_next_tier_subscription_renewal', true);
+      }
+      if(empty($membership_data['membership_next_tier_form_page_id'])) {
+        $membership_data['membership_next_tier_form_page_id'] = get_post_meta( $membership->ID, 'membership_next_tier_form_page_id', true);
       }
       $membership_data['membership_next_tier_id'] = (int) $membership_data['membership_next_tier_id'];
       $membership_data['membership_next_tier_form_page_id'] = (int) $membership_data['membership_next_tier_form_page_id'];
@@ -656,6 +661,28 @@ class Admin_Controller {
       $membership_item['switch_to_url'] = Helper::get_user_switch_to_url( $meta['user_id'] );
       $membership_item['_sort_start_ts'] = strtotime($meta['membership_starts_at'] ?? '');
       $membership_item['_sort_tier_weight'] = $tier_sort_weights[$meta['membership_tier_uuid'] ?? ''] ?? 0;
+
+      $bundle_id = get_post_meta( $membership->ID, 'membership_bundle_id', true );
+      if ( !empty( $bundle_id ) ) {
+        $bundle_obj        = new Membership_Bundle( (int) $bundle_id );
+        $bundle_owner      = $bundle_obj->get_owner();
+        $bundle_dates      = $bundle_obj->get_dates();
+        $bundle_mdp_uuid = (string) get_post_meta( (int) $bundle_id, 'membership_bundle_mdp_uuid', true );
+        $membership_item['is_membership_bundle'] = true;
+        $membership_item['bundle_id']            = (int) $bundle_id;
+        $membership_item['bundle_name']          = $bundle_obj->get_name();
+        $membership_item['bundle_admin_name']    = $bundle_owner ? $bundle_owner['name'] : '';
+        $membership_item['bundle_starts_at']     = $bundle_dates['starts_at'] ?? '';
+        $membership_item['bundle_ends_at']       = $bundle_dates['ends_at'] ?? '';
+        $membership_item['bundle_edit_url']      = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_BUNDLE_MEMBER_PAGE_SLUG . '&id=' . $bundle_obj->get_bundle_group_uuid() );
+        $person_uuid = $membership_data['membership_user_uuid'] ?? '';
+        $membership_item['bundle_mdp_link']      = ( $person_uuid && ! empty( $wicket_settings['wicket_admin'] ) )
+          ? rtrim( $wicket_settings['wicket_admin'], '/' ) . '/people/' . $person_uuid . '/memberships'
+          : '';
+      } else {
+        $membership_item['is_membership_bundle'] = false;
+      }
+
       $membership_items[] = $membership_item;
     }
 
@@ -767,8 +794,8 @@ class Admin_Controller {
       if(empty($membership_tier_id)) {
         $response_array['error'] = 'Error: '.$ownership_change_response.'Membership tier not found. ';
         $response_array['response'] = Helper::get_post_meta( $membership_post_id );
-        $response_code = 200;  
-        return new \WP_REST_Response($response_array, $response_code);  
+        $response_code = 200;
+        return new \WP_REST_Response($response_array, $response_code);
       }
       $membership_tier = new Membership_Tier( $membership_tier_id );
       $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
@@ -921,7 +948,7 @@ class Admin_Controller {
         $order = wc_get_order( $order_id );
         if(!empty($order)) {
           $order_meta = get_post_meta( $order_id, '_wicket_membership_'.$membership['membership_product_id'] );
-          $order_meta_array = json_decode( $order_meta[0], true);
+          $order_meta_array = json_decode( $order_meta[0] ?? '', true) ?? [];
           $order_meta_array['membership_wp_user_id'] = $user->ID;
           $order_meta_array['membership_wp_user_display_name'] = $user->display_name;
           $order_meta_array['membership_wp_user_email'] = $user->user_email;
@@ -940,7 +967,7 @@ class Admin_Controller {
         $sub = wcs_get_subscription( $subscription_id );
         if( !empty( $sub )) {
           $subscription_meta = get_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] );
-          $subscription_meta_array = json_decode( $subscription_meta[0], true);
+          $subscription_meta_array = json_decode( $subscription_meta[0] ?? '', true) ?? [];
           $subscription_meta_array['user_id'] = $user->ID;
           $subscription_meta_array['user_name'] = $user->display_name;
           $subscription_meta_array['user_email'] = $user->user_email;
@@ -1150,7 +1177,7 @@ class Admin_Controller {
       update_post_meta( $membership_post_id, 'user_email', $merged_user->user_email);
 
       $customer_meta = get_user_meta( $orig_user_id, '_wicket_membership_'.$membership_post_id );
-      $customer_meta_array = json_decode( $customer_meta[0], true);
+      $customer_meta_array = json_decode( $customer_meta[0] ?? '', true) ?? [];
 
       if(empty($customer_meta)) {
         $customer_meta = get_post_meta( $membership_post_id );
@@ -1489,7 +1516,13 @@ class Admin_Controller {
     // original, so unscheduling that key and re-adding it simply moves the same event to the new date.
     if ( ! empty( $old_membership_parent_order_id ) && ! empty( $old_membership_product_id )
          && strtotime( $new_membership_expires_at ) !== strtotime( (string) $old_membership_expires_at )
-         && function_exists( 'as_unschedule_action' ) && function_exists( 'as_schedule_single_action' ) ) {
+         && function_exists( 'as_unschedule_action' ) && function_exists( 'as_schedule_single_action' )
+         // Bundle members never had this job scheduled in the first place — see should_schedule_expiry_notification_jobs().
+         && Membership_Controller::should_schedule_expiry_notification_jobs( [
+              'membership_parent_order_id' => $old_membership_parent_order_id,
+              'membership_product_id'      => $old_membership_product_id,
+              'membership_bundle_id'       => get_post_meta( $new_post_id, 'membership_bundle_id', true ),
+            ] ) ) {
       $expiry_event_args = [
         'membership_parent_order_id' => $old_membership_parent_order_id,
         'membership_product_id'      => $old_membership_product_id,

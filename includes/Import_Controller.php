@@ -70,23 +70,32 @@ class Import_Controller {
           $membership_post_mapping['membership_tier_slug'] = $record['Membership_Tier_Slug'];
           $membership_post_mapping['membership_tier_cat'] = $record['Membership_Tier_Category'];
           $membership_post_mapping['membership_tier_post_id'] = $membership_tier_post_id;
-          
+
+          // Bundle member path: when the row carries a Membership_Bundle_UUID, create the
+          // membership THROUGH the bundle instead of as a standalone record. This is the
+          // only way a member gets the bundle's dates/status, the bundle subscription line
+          // item, and correct MDP linkage — re-implementing that here would duplicate and
+          // risk drifting from Membership_Bundle::add_member()'s tested logic.
+          if ( ! empty( $record['Membership_Bundle_UUID'] ) ) {
+            return $this->create_bundle_member( $record, $user, $membership_tier_post_id );
+          }
+
           // Localize timestamps to MDP timezone with appropriate start/end of day
           $membership_post_mapping['membership_starts_at'] = Utilities::get_mdp_day_start( $record['Starts_At'] )->format('c');
           $membership_post_mapping['membership_ends_at'] = Utilities::get_mdp_day_end( $record['Ends_At'] )->format('c');
-          
+
           if( empty( $record['Expires_At'] ) ) {
             // Calculate expires_at from ends_at + grace period, set to end of day
-            $expires_date = date('Y-m-d', strtotime( $record['Ends_At'] . " + {$membership_tier_array['grace_period_days']} days" ));
+            $expires_date = self::mdp_ymd_from_end( $record['Ends_At'], (int) $membership_tier_array['grace_period_days'] );
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $expires_date )->format('c');
           } else {
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $record['Expires_At'] )->format('c');
           }
-          
+
           // Calculate early_renew_at from ends_at - early renew days, set to start of day
-          $early_renew_date = date('Y-m-d', strtotime( $record['Ends_At'] . " - {$membership_tier_array['early_renew_days']} days" ));
+          $early_renew_date = self::mdp_ymd_from_end( $record['Ends_At'], -1 * (int) $membership_tier_array['early_renew_days'] );
           $membership_post_mapping['membership_early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date )->format('c');
-          
+
           $membership_post_mapping['membership_seats'] = 1;
           $membership_post_mapping['membership_wicket_uuid'] = $record['Person_Membership_UUID'];
           $membership_post_mapping['membership_tier_uuid'] = $membership_tier_array['tier_uuid'];
@@ -186,19 +195,19 @@ class Import_Controller {
           // Localize timestamps to MDP timezone with appropriate start/end of day
           $membership_post_mapping['membership_starts_at'] = Utilities::get_mdp_day_start( $record['Starts_At'] )->format('c');
           $membership_post_mapping['membership_ends_at'] = Utilities::get_mdp_day_end( $record['Ends_At'] )->format('c');
-          
+
           if( empty( $record['Expires_At'] ) ) {
             // Calculate expires_at from ends_at + grace period, set to end of day
-            $expires_date = date('Y-m-d', strtotime( $record['Ends_At'] . " + {$membership_tier_array['grace_period_days']} days" ));
+            $expires_date = self::mdp_ymd_from_end( $record['Ends_At'], (int) $membership_tier_array['grace_period_days'] );
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $expires_date )->format('c');
           } else {
             $membership_post_mapping['membership_expires_at'] = Utilities::get_mdp_day_end( $record['Expires_At'] )->format('c');
           }
-          
+
           // Calculate early_renew_at from ends_at - early renew days, set to start of day
-          $early_renew_date = date('Y-m-d', strtotime( $record['Ends_At'] . " - {$membership_tier_array['early_renew_days']} days" ));
+          $early_renew_date = self::mdp_ymd_from_end( $record['Ends_At'], -1 * (int) $membership_tier_array['early_renew_days'] );
           $membership_post_mapping['membership_early_renew_at'] = Utilities::get_mdp_day_start( $early_renew_date )->format('c');
-          
+
           $membership_post_mapping['org_name'] = $record['Organization'];
           $membership_post_mapping['organization_uuid'] = $record['Organization_UUID'];
           $membership_post_mapping['membership_seats'] = $record['Max_assignments'];
@@ -248,35 +257,132 @@ class Import_Controller {
           return new \WP_REST_Response(['success' => 'Organization Membership created: External_ID#'.$response ]);
         }
 
-        /**
-         * Derive an imported membership's status from its dates relative to now.
-         *
-         * The grace window (ends_at to expires_at) imports as active, not grace_period.
-         *
-         * @param  string $membership_starts_at   Start date (ISO 8601 or any strtotime() format).
-         * @param  string $membership_ends_at     End date (ISO 8601 or any strtotime() format).
-         * @param  string $membership_expires_at  Expiry date, end of the grace window.
-         *
-         * @return string|null  A Wicket_Memberships::STATUS_* value, or null (with a PHP warning)
-         *                      when no branch matches: now equals ends_at with no grace window,
-         *                      or a date fails to parse.
-         */
-        private function get_status( $membership_starts_at, $membership_ends_at, $membership_expires_at ) {
-          $membership_starts_at = strtotime( $membership_starts_at );
-          $membership_ends_at = strtotime( $membership_ends_at );
-          $membership_expires_at = strtotime( $membership_expires_at );
-          $now = time();
-          if( $now >= $membership_starts_at && $now < $membership_ends_at ) {
-            $status = Wicket_Memberships::STATUS_ACTIVE;
-          } else if ($now >= $membership_ends_at && $now < $membership_expires_at ) {
-            $status = Wicket_Memberships::STATUS_ACTIVE;
-          } else if( $membership_starts_at > $now ) {
-            $status = Wicket_Memberships::STATUS_DELAYED;
-          } else if ( $membership_ends_at < $now ) {
-            $status = Wicket_Memberships::STATUS_EXPIRED;
-          }
-          return $status;
-        }
+  /**
+   * Create a membership record through its bundle, for an individual import row
+   * carrying a Membership_Bundle_UUID. Operators must import bundles before members —
+   * the duplicate check above runs by membership_wicket_uuid before this branch, so a
+   * member imported before its bundle exists has no re-link path on a later re-run.
+   */
+  private function create_bundle_member( $record, $user, $membership_tier_post_id ) {
+    $bundle_post_id = $this->find_bundle_post_id_by_mdp_uuid( $record['Membership_Bundle_UUID'] );
+    if ( empty( $bundle_post_id ) ) {
+      return new \WP_REST_Response( [ 'error' => 'Membership Bundle not found for Membership_Bundle_UUID#' . $record['Membership_Bundle_UUID'] . '. Import bundles before members.' ] );
+    }
+
+    $bundle = new Membership_Bundle( $bundle_post_id );
+
+    // Same eligibility gate as the admin add-member flow
+    // (Membership_Bundle_Admin_Controller::add_member()), applied here since
+    // this import path calls Membership_Bundle::add_member() directly and
+    // never goes through that controller. A bundle with no config linked
+    // (or an invalid config) is treated as all-tiers-eligible by the
+    // null-safe wrapper, not rejected — matches the config field's own
+    // fallback rule.
+    if ( ! Membership_Bundle_Config::is_tier_eligible_for_bundle( $bundle, $membership_tier_post_id ) ) {
+      // 'success'/'outcome' here, not 'error' — matches the existing skip/error
+      // vocabulary the rest of this plugin's row-level import responses already
+      // use (see Bundle_Import_Controller::log_and_respond()), so this reads as
+      // a graceful skip rather than a hard failure to any consumer that
+      // branches on the presence of an 'error' key.
+      return new \WP_REST_Response( [
+        'success' => 'Skipped: membership tier is not eligible for this bundle configuration. Membership_Bundle_UUID#' . $record['Membership_Bundle_UUID'],
+        'outcome' => 'skipped',
+        'reason'  => 'tier_not_eligible',
+      ] );
+    }
+
+    $tier = new Membership_Tier( $membership_tier_post_id );
+    $products = $tier->get_products_data();
+    if ( empty( $products ) ) {
+      return new \WP_REST_Response( [ 'error' => 'Membership tier has no products configured.' ] );
+    }
+    // Resolve the tier's first product explicitly (variation preferred), matching the
+    // standalone import's behavior — avoids provision_individual_membership_record()'s
+    // stricter ambiguous_product error on tiers with more than one product. Bundle
+    // renewal's sequential_logic next-tier resolution (Membership_Bundle_Cron_Controller
+    // ::process_bundle_renewal_members()) mirrors this same first-product,
+    // variation-preferred pick for consistency.
+    $product_id = ! empty( $products[0]['variation_id'] ) ? $products[0]['variation_id'] : $products[0]['product_id'];
+
+    $result = $bundle->add_member(
+      user_id: $user->ID,
+      tier_post_id: $membership_tier_post_id,
+      product_id: $product_id,
+      // skip_status_guard: this import path is the only caller allowed to attach members
+      // to a non-manageable (expired/cancelled/grace-period) bundle — historical bundles
+      // being migrated at launch are commonly in one of those states.
+      skip_status_guard: true
+    );
+
+    if ( is_wp_error( $result ) ) {
+      return new \WP_REST_Response( [ 'error' => 'Bundle member creation failed: ' . $result->get_error_message() ] );
+    }
+
+    return new \WP_REST_Response( [ 'success' => 'Individual Membership created through bundle: Membership post#' . $result ] );
+  }
+
+  private function find_bundle_post_id_by_mdp_uuid( $mdp_uuid ) {
+    $args = [
+      'post_type'      => Helper::get_membership_bundle_cpt_slug(),
+      'post_status'    => 'any',
+      'meta_query'     => [
+        [
+          'key'     => 'membership_bundle_mdp_uuid',
+          'value'   => $mdp_uuid,
+          'compare' => '=',
+        ],
+      ],
+      'posts_per_page' => 1,
+      'fields'         => 'ids',
+    ];
+    $query = new \WP_Query( $args );
+    return $query->have_posts() ? (int) $query->posts[0] : 0;
+  }
+
+  /**
+   * The MDP calendar day $days days after (or before, when negative) an import end date.
+   *
+   * Counted on the end's MDP day: the UTC day of an MDP end-of-day is the next day west of UTC.
+   *
+   * @param  string $ends_at  End date from the CSV (bare Y-m-d as an MDP day, or ISO 8601).
+   * @param  int    $days     Days to add; negative counts back.
+   *
+   * @return string  Y-m-d in the MDP timezone.
+   */
+  private static function mdp_ymd_from_end( $ends_at, $days ) {
+    return Utilities::get_mdp_day_end( $ends_at )->setTimezone( Utilities::get_mdp_timezone() )
+      ->modify( sprintf( '%+d days', $days ) )->format( 'Y-m-d' );
+  }
+
+  /**
+   * Derive an imported membership's status from its dates relative to now.
+   *
+   * The grace window (ends_at to expires_at) imports as active, not grace_period.
+   *
+   * @param  string $membership_starts_at   Start date (ISO 8601 or any strtotime() format).
+   * @param  string $membership_ends_at     End date (ISO 8601 or any strtotime() format).
+   * @param  string $membership_expires_at  Expiry date, end of the grace window.
+   *
+   * @return string|null  A Wicket_Memberships::STATUS_* value, or null (with a PHP warning)
+   *                      when no branch matches: now equals ends_at with no grace window,
+   *                      or a date fails to parse.
+   */
+  private function get_status( $membership_starts_at, $membership_ends_at, $membership_expires_at ) {
+    $membership_starts_at = strtotime( $membership_starts_at );
+    $membership_ends_at = strtotime( $membership_ends_at );
+    $membership_expires_at = strtotime( $membership_expires_at );
+    $now = time();
+    if( $now >= $membership_starts_at && $now < $membership_ends_at ) {
+      $status = Wicket_Memberships::STATUS_ACTIVE;
+    } else if ($now >= $membership_ends_at && $now < $membership_expires_at ) {
+      $status = Wicket_Memberships::STATUS_ACTIVE;
+    } else if( $membership_starts_at > $now ) {
+      $status = Wicket_Memberships::STATUS_DELAYED;
+    } else if ( $membership_ends_at < $now ) {
+      $status = Wicket_Memberships::STATUS_EXPIRED;
+    }
+    return $status;
+  }
 
   private function get_tier_by_id( $tier_id ) {
     $response['ID'] = $tier_id;

@@ -20,6 +20,7 @@ class Settings_Page {
   const SETTINGS_TABS = [
     'general'   => 'General',
     'renewals'  => 'Renewals',
+    'membership_bundles' => 'Bundles',
     'import'    => 'Import',
     'developer' => 'Developer',
   ];
@@ -288,6 +289,15 @@ class Settings_Page {
    */
   public static function section_membership_products_text() {
     echo '<p>Selecting any category also enables organization search on subscription orders.</p>';
+  }
+
+  /**
+   * Intro text for the Command-Line Import section.
+   *
+   * @return void
+   */
+  public static function section_membership_bundles_text() {
+    echo '<p>Settings for the Membership Bundles system.</p>';
   }
 
   /**

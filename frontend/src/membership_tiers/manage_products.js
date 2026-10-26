@@ -19,9 +19,9 @@ import {
   ActionRow,
   FormFlex,
   ModalStyled,
-} from "../styled_elements";
-import { fetchProductVariations, fetchWcProducts } from "../services/api";
-import { WC_PRODUCT_TYPES } from "../constants";
+} from "../shared/styled_elements";
+import { fetchProductVariations, fetchWcProducts } from "../shared/services/api";
+import { WC_PRODUCT_TYPES } from "../shared/constants";
 
 const MarginedFlex = styled(Flex)`
   margin: 15px 0;

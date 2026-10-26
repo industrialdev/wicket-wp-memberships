@@ -7,7 +7,10 @@ import {
   fetchMembers,
   fetchTiersInfo,
   fetchMembershipFilters,
-} from "../services/api";
+} from "../shared/services/api";
+import { SelectWpStyled } from "../shared/styled_elements";
+import Pagination from "../shared/components/Pagination";
+import { getPagedFromUrl, updatePageInUrl } from "../shared/utils/pagination";
 
 const SortableHeader = ({ label, col, currentCol, currentDir, onSort }) => {
   const isActive = currentCol === col;
@@ -26,7 +29,8 @@ const SortableHeader = ({ label, col, currentCol, currentDir, onSort }) => {
   );
 };
 
-const MemberList = ({ memberType, editMemberUrl }) => {
+const MemberList = ({ memberType, editMemberUrl, filterBundleId, filterTierUuid, bundlesEnabled }) => {
+  const showBundlesColumn = memberType === 'individual' && bundlesEnabled === '1';
   const [isLoading, setIsLoading] = useState(true);
 
   const [members, setMembers] = useState([]);
@@ -40,21 +44,25 @@ const MemberList = ({ memberType, editMemberUrl }) => {
   const [activeTab, setActiveTab] = useState('all');
   const [tabCounts, setTabCounts] = useState({ all: 0, pending: 0, grace_period: 0 });
 
+  const initialFilter = {};
+  if (filterBundleId) initialFilter.membership_bundle_id = filterBundleId;
+  if (filterTierUuid) initialFilter.membership_tier = filterTierUuid;
+
   const [searchParams, setSearchParams] = useState({
     type: memberType,
-    page: 1,
+    page: getPagedFromUrl(),
     posts_per_page: 10,
     status: "",
     order_col: "post_modified",
     order_dir: "DESC",
-    // filter: {
-    //   membership_status: '',
-    //   membership_tier: '',
-    // },
     search: "",
+    ...(Object.keys(initialFilter).length ? { filter: initialFilter } : {}),
   });
 
   const [tempSearchParams, setTempSearchParams] = useState(searchParams);
+  const [tempStatus, setTempStatus] = useState(null);
+  const [tempTier, setTempTier] = useState(null);
+  const [tempGroup, setTempGroup] = useState(null);
 
   // console.log(tempSearchParams);
   console.log(searchParams);
@@ -64,16 +72,27 @@ const MemberList = ({ memberType, editMemberUrl }) => {
 
     fetchMembers(params)
       .then((response) => {
+        const computedTotalPages = Math.ceil(response.count / params.posts_per_page);
         setMembers(response.results);
         setTotalMembers(response.count);
-        setTotalPages(Math.ceil(response.count / params.posts_per_page));
+        setTotalPages(computedTotalPages);
         setIsLoading(false);
+
+        // A page past the end (e.g. after a filter shrinks the list) resets to page 1.
+        if (params.page > computedTotalPages && computedTotalPages > 0) {
+          const fixed = { ...params, page: 1 };
+          setSearchParams(fixed);
+          updatePageInUrl(1);
+          getMembers(fixed);
+          return;
+        }
 
         // An unfiltered list returns exactly the total the "All" tab displays.
         // Reusing it avoids a second request that repeats the same full scan.
         if (!params.filter || !params.filter.membership_status) {
           setTabCounts((prev) => ({ ...prev, all: response.count }));
         }
+
       })
       .catch((error) => {
         console.error(error);
@@ -123,6 +142,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
     const newDir = searchParams.order_col === col && searchParams.order_dir === 'ASC' ? 'DESC' : 'ASC';
     const newSearchParams = { ...searchParams, order_col: col, order_dir: newDir, page: 1 };
     setSearchParams(newSearchParams);
+    updatePageInUrl(1);
     getMembers(newSearchParams);
   };
 
@@ -135,6 +155,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
       newSearchParams.filter = { membership_status: tab };
     }
     setSearchParams(newSearchParams);
+    updatePageInUrl(1);
     getMembers(newSearchParams);
   };
 
@@ -154,8 +175,6 @@ const MemberList = ({ memberType, editMemberUrl }) => {
   };
 
   useEffect(() => {
-    // https://localhost/wp-json/wicket_member/v1/memberships?order_col=start_date&order_dir=ASC&type=individual
-    // https://localhost/wp-json/wicket_member/v1/memberships?order_col=start_date&order_dir=ASC&filter[membership_status]=expired&filter[membership_tier]=88d6a08a-ab3c-4f01-93d7-ddf07995ab25&search=Veterinary&type=individual
     getMembershipFilters();
     getMembers(searchParams);
     getTabCounts();
@@ -164,6 +183,27 @@ const MemberList = ({ memberType, editMemberUrl }) => {
     // tier column by the full duration of the member query.
     getTiersInfo();
   }, []);
+
+  // Seed filter dropdowns from prop-driven initial values once filter options load.
+  useEffect(() => {
+    if (membershipFilters === null) return;
+    if (filterBundleId && membershipFilters.bundles) {
+      const match = membershipFilters.bundles.find((g) => String(g.value) === String(filterBundleId));
+      if (match) setTempGroup({ value: match.value, label: match.label });
+    }
+  }, [membershipFilters]);
+
+  // Tier seeding depends on tiersInfo which loads after the first members fetch.
+  useEffect(() => {
+    if (membershipFilters === null || tiersInfo === null || tempTier !== null) return;
+    if (filterTierUuid && membershipFilters.tiers) {
+      const match = membershipFilters.tiers.find((t) => t.value === filterTierUuid);
+      if (match) {
+        const info = getTierInfo(match.value);
+        if (info) setTempTier({ value: match.value, label: info.name });
+      }
+    }
+  }, [membershipFilters, tiersInfo]);
 
   return (
     <>
@@ -218,6 +258,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                 page: 1,
               };
               setSearchParams(newSearchParams);
+              updatePageInUrl(1);
               getMembers(newSearchParams);
             }
           }
@@ -249,74 +290,92 @@ const MemberList = ({ memberType, editMemberUrl }) => {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const newSearchParams = {
-                ...searchParams,
-                filter: {
-                  membership_status: tempSearchParams.filter.membership_status,
-                  membership_tier: tempSearchParams.filter.membership_tier,
-                },
-              };
-              // remove if empty filter values
-              if (newSearchParams.filter.membership_status === "") {
-                delete newSearchParams.filter.membership_status;
-              }
-              if (newSearchParams.filter.membership_tier === "") {
-                delete newSearchParams.filter.membership_tier;
+              const newSearchParams = { ...searchParams, page: 1 };
+              const filter = {};
+              if (tempStatus !== null) filter.membership_status = tempStatus.value;
+              if (tempTier !== null) filter.membership_tier = tempTier.value;
+              if (tempGroup !== null) filter.membership_bundle_id = tempGroup.value;
+              if (Object.keys(filter).length) {
+                newSearchParams.filter = filter;
+              } else {
+                delete newSearchParams.filter;
               }
               setSearchParams(newSearchParams);
+              updatePageInUrl(1);
               getMembers(newSearchParams);
             }}
           >
-            <div className="alignleft actions">
-              <select
-                name="filter_status"
-                id="filter_status"
-                onChange={(e) => {
-                  setTempSearchParams({
-                    ...tempSearchParams,
-                    filter: {
-                      ...tempSearchParams.filter,
-                      membership_status: e.target.value,
-                    },
-                  });
+            <div className="alignleft actions" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <SelectWpStyled
+                inputId="filter_status"
+                classNamePrefix="select"
+                isClearable
+                placeholder={__("All Statuses", "wicket-memberships")}
+                value={tempStatus}
+                onChange={(option) => setTempStatus(option)}
+                options={
+                  membershipFilters !== null
+                    ? membershipFilters.membership_status.map((status) => ({
+                        value: status.name,
+                        label: status.value,
+                      }))
+                    : []
+                }
+                styles={{
+                  container: (base) => ({ ...base, minWidth: 180 }),
+                  control: (base) => ({ ...base, minHeight: 30, height: 30 }),
+                  valueContainer: (base) => ({ ...base, height: 30, padding: "0 8px" }),
+                  indicatorsContainer: (base) => ({ ...base, height: 30 }),
                 }}
-              >
-                <option value="">{__("Status", "wicket-memberships")}</option>
-                {membershipFilters !== null &&
-                  membershipFilters.membership_status.map((status, index) => (
-                    <option key={index} value={status.name}>
-                      {status.value}
-                    </option>
-                  ))}
-              </select>
-
-              <select
-                name="filter_tier"
-                id="filter_tier"
-                onChange={(e) => {
-                  setTempSearchParams({
-                    ...tempSearchParams,
-                    filter: {
-                      ...tempSearchParams.filter,
-                      membership_tier: e.target.value,
-                    },
-                  });
+              />
+              <SelectWpStyled
+                inputId="filter_tier"
+                classNamePrefix="select"
+                isClearable
+                placeholder={__("All Tiers", "wicket-memberships")}
+                value={tempTier}
+                onChange={(option) => setTempTier(option)}
+                options={
+                  membershipFilters !== null
+                    ? membershipFilters.tiers
+                        .filter((tier) => getTierInfo(tier.value) !== null)
+                        .map((tier) => ({
+                          value: tier.value,
+                          label: getTierInfo(tier.value).name,
+                        }))
+                    : []
+                }
+                styles={{
+                  container: (base) => ({ ...base, minWidth: 180 }),
+                  control: (base) => ({ ...base, minHeight: 30, height: 30 }),
+                  valueContainer: (base) => ({ ...base, height: 30, padding: "0 8px" }),
+                  indicatorsContainer: (base) => ({ ...base, height: 30 }),
                 }}
-              >
-                <option value="">
-                  {__("All Tiers", "wicket-memberships")}
-                </option>
-                {membershipFilters !== null &&
-                  membershipFilters.tiers.map(
-                    (tier, index) =>
-                      getTierInfo(tier.value) !== null && (
-                        <option key={index} value={tier.value}>
-                          {getTierInfo(tier.value).name}
-                        </option>
-                      ),
-                  )}
-              </select>
-
+              />
+              {memberType === "individual" && (
+                <SelectWpStyled
+                  inputId="filter_group"
+                  classNamePrefix="select"
+                  isClearable
+                  placeholder={__("All Bundles", "wicket-memberships")}
+                  value={tempGroup}
+                  onChange={(option) => setTempGroup(option)}
+                  options={
+                    membershipFilters !== null && membershipFilters.bundles
+                      ? membershipFilters.bundles.map((bundle) => ({
+                          value: bundle.value,
+                          label: bundle.label,
+                        }))
+                      : []
+                  }
+                  styles={{
+                    container: (base) => ({ ...base, minWidth: 180 }),
+                    control: (base) => ({ ...base, minHeight: 30, height: 30 }),
+                    valueContainer: (base) => ({ ...base, height: 30, padding: "0 8px" }),
+                    indicatorsContainer: (base) => ({ ...base, height: 30 }),
+                  }}
+                />
+              )}
               <input
                 type="submit"
                 id="post-query-submit"
@@ -390,6 +449,9 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                 onSort={handleSort}
               />
               <th scope="col" className="manage-column">{ __( 'Tier(s)', 'wicket-memberships' ) }</th>
+              { showBundlesColumn && (
+                <th scope="col" className="manage-column">{ __( 'Bundle(s)', 'wicket-memberships' ) }</th>
+              )}
               <th scope="col" className="manage-column">{ __( 'Link to MDP', 'wicket-memberships' ) }</th>
             </tr>
           </thead>
@@ -398,7 +460,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
               <tr className="alternate">
                 <td
                   className="column-columnname"
-                  colSpan={memberType === 'organization' ? 7 : 6}
+                  colSpan={memberType === 'organization' ? 7 : (showBundlesColumn ? 7 : 6)}
                 >
                   <Spinner />
                 </td>
@@ -406,7 +468,7 @@ const MemberList = ({ memberType, editMemberUrl }) => {
             )}
             {!isLoading && members.length === 0 && (
               <tr className="alternate">
-                <td className="column-columnname" colSpan={memberType === 'organization' ? 7 : 5}>
+                <td className="column-columnname" colSpan={memberType === 'organization' ? 7 : (showBundlesColumn ? 6 : 5)}>
                   { __( 'No members found.', 'wicket-memberships' ) }
                 </td>
               </tr>
@@ -502,12 +564,6 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                     {tiersInfo === null && <Spinner />}
                     {tiersInfo !== null && (() => {
                       const ACTIVE_STATUSES = ['active', 'delayed', 'grace_period', 'pending'];
-                      const STATUS_LABELS = {
-                        active:       __('Active', 'wicket-memberships'),
-                        delayed:      __('Delayed', 'wicket-memberships'),
-                        grace_period: __('Grace Period', 'wicket-memberships'),
-                        pending:      __('Pending', 'wicket-memberships'),
-                      };
                       const allTiers = member.user.all_membership_tiers || [{ uuid: member.meta.membership_tier_uuid, status: member.meta.membership_status }];
                       const activeTiers = allTiers.filter((t) => ACTIVE_STATUSES.includes(t.status));
                       if (activeTiers.length === 0) {
@@ -516,16 +572,35 @@ const MemberList = ({ memberType, editMemberUrl }) => {
                       return activeTiers.map((t, i) => {
                         const info = getTierInfo(t.uuid);
                         const name = info ? info.name : t.uuid;
-                        const statusLabel = STATUS_LABELS[t.status] || t.status;
                         return (
                           <span key={i}>
                             {i > 0 && ', '}
-                            {name} ({statusLabel})
+                            {name}
                           </span>
                         );
                       });
                     })()}
                   </td>
+                  { showBundlesColumn && (
+                    <td>
+                      {(() => {
+                        const BUNDLE_STATUS_LABELS = {
+                          active:  __('Active', 'wicket-memberships'),
+                          pending: __('Pending Approval', 'wicket-memberships'),
+                          delayed: __('Delayed', 'wicket-memberships'),
+                        };
+                        const visibleBundles = (member.user.all_membership_bundles || [])
+                          .filter((b) => Object.hasOwn(BUNDLE_STATUS_LABELS, b.status));
+                        if (visibleBundles.length === 0) return <span>—</span>;
+                        return visibleBundles.map((bundle, i) => (
+                          <span key={i}>
+                            {i > 0 && ', '}
+                            {bundle.name || '—'} ({BUNDLE_STATUS_LABELS[bundle.status]})
+                          </span>
+                        ));
+                      })()}
+                    </td>
+                  )}
                   <td>
                     <a target="_blank" href={member.user.mdp_link}>
                       {__("View", "wicket-memberships")}
@@ -543,53 +618,16 @@ const MemberList = ({ memberType, editMemberUrl }) => {
             <span className="displaying-num">
               {totalMembers} {__("items", "wicket-memberships")}
             </span>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <span className="pagination-links">
-                <button
-                  className="prev-page button"
-                  disabled={searchParams.page === 1}
-                  onClick={() => {
-                    const newSearchParams = {
-                      ...searchParams,
-                      page: searchParams.page - 1,
-                    };
-                    setSearchParams(newSearchParams);
-                    getMembers(newSearchParams);
-                  }}
-                >
-                  ‹
-                </button>
-
-                <span className="screen-reader-text">
-                  {__("Current Page", "wicket-memberships")}
-                </span>
-                <span id="table-paging" className="paging-input">
-                  &nbsp;
-                  <span className="tablenav-paging-text">
-                    {searchParams.page} {__("of", "wicket-memberships")}{" "}
-                    <span className="total-pages">{totalPages}</span>
-                  </span>
-                  &nbsp;
-                </span>
-
-                <button
-                  className="next-page button"
-                  disabled={searchParams.page === totalPages}
-                  onClick={() => {
-                    const newSearchParams = {
-                      ...searchParams,
-                      page: searchParams.page + 1,
-                    };
-                    setSearchParams(newSearchParams);
-                    getMembers(newSearchParams);
-                  }}
-                >
-                  ›
-                </button>
-              </span>
-            )}
+            <Pagination
+              currentPage={searchParams.page}
+              totalPages={totalPages}
+              onPageChange={(page) => {
+                const newSearchParams = { ...searchParams, page };
+                setSearchParams(newSearchParams);
+                updatePageInUrl(page);
+                getMembers(newSearchParams);
+              }}
+            />
           </div>
           <br className="clear" />
         </div>

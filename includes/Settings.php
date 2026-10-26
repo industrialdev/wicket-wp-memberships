@@ -135,6 +135,34 @@ class Settings {
     Settings_Fields::bypass_wicket();
   }
 
+  /** @see Settings_Fields::wicket_mship_enable_bundles() */
+  public static function wicket_mship_enable_bundles() {
+    Settings_Fields::wicket_mship_enable_bundles();
+  }
+
+  /** @see Settings_Fields::wicket_mship_consolidate_renewal_line_items() */
+  public static function wicket_mship_consolidate_renewal_line_items() {
+    Settings_Fields::wicket_mship_consolidate_renewal_line_items();
+  }
+
+  /**
+   * Whether bundle renewal orders combine identical per-member charge lines. Defaults to on.
+   */
+  public static function is_renewal_line_item_consolidation_enabled(): bool {
+    $options = get_option( 'wicket_membership_plugin_options' );
+
+    if ( ! is_array( $options ) || ! array_key_exists( 'wicket_mship_consolidate_renewal_line_items', $options ) ) {
+      return true;
+    }
+
+    return ! empty( $options['wicket_mship_consolidate_renewal_line_items'] );
+  }
+
+  /** @see Settings_Page::section_membership_bundles_text() */
+  public static function wicket_plugin_section_membership_bundles_text() {
+    Settings_Page::section_membership_bundles_text();
+  }
+
   /** @see Settings_Fields::wicket_mship_autorenew_toggle() */
   public static function wicket_mship_autorenew_toggle() {
     Settings_Fields::wicket_mship_autorenew_toggle();
@@ -286,6 +314,9 @@ class Settings {
     $newinput['wicket_mship_hide_subscription_cancel'] = trim( $input['wicket_mship_hide_subscription_cancel'] ?? '' );
     $newinput['wicket_mship_hide_subscription_reactivate'] = trim( $input['wicket_mship_hide_subscription_reactivate'] ?? '' );
     $newinput['wicket_mship_hide_subscription_resubscribe'] = trim( $input['wicket_mship_hide_subscription_resubscribe'] ?? '' );
+    $newinput['wicket_mship_enable_bundles'] = trim( $input['wicket_mship_enable_bundles'] ?? '' );
+    // Always written ('' when unticked) so an explicit "off" is distinguishable from never saved.
+    $newinput['wicket_mship_consolidate_renewal_line_items'] = ! empty( $input['wicket_mship_consolidate_renewal_line_items'] ) ? '1' : '';
 
     // Programmatic writes (Portus import, backup restore) also run through this callback and may
     // only carry the legacy key; fall back to it so those categories are not wiped. The new key wins if both exist.

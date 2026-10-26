@@ -2,15 +2,23 @@ import { __, sprintf } from '@wordpress/i18n';
 import { createRoot } from 'react-dom/client';
 import { useState, useEffect } from 'react';
 import apiFetch from '@wordpress/api-fetch';
-import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS } from '../constants';
-import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../styled_elements';
+import { addQueryArgs } from '@wordpress/url';
+import { DEFAULT_DATE_FORMAT, API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS, formatDateWithTooltip, formatCurrency } from '../shared/constants';
+import { ErrorsRow, BorderedBox, ActionRow, CustomDisabled, AppWrap, LabelWpStyled, ReactDatePickerStyledWrap, AsyncSelectWpStyled, SelectWpStyled } from '../shared/styled_elements';
 import { TextControl, Tooltip, Spinner, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, __experimentalHeading as Heading, Icon, Modal } from '@wordpress/components';
+import { warning } from '@wordpress/icons';
+import ManageStatusModal from './ManageStatusModal';
 import DatePicker from 'react-datepicker';
 import styled from 'styled-components';
-import { fetchTiers, fetchMemberships, updateMembership, fetchMembershipStatuses, updateMembershipStatus, fetchMemberInfo, fetchMdpPersons } from '../services/api';
+import { fetchTiers, fetchMemberships, updateMembership, fetchMemberInfo, fetchMdpPersons } from '../shared/services/api';
 import he from 'he';
 import moment from 'moment-timezone';
-import CreateRenewalOrder from './create_renewal_order';
+import { CreateRenewalOrderModal, getRenewalOrderAction } from './create_renewal_order';
+import MembershipActionsDropdown from '../shared/components/MembershipActionsDropdown';
+import MembershipBundleDetails from './MembershipBundleDetails';
+import MembershipBundleBadge from './MembershipBundleBadge';
+import AddToMembershipBundleModal from './AddToMembershipBundleModal';
+import AdminNoticeStack from '../shared/components/AdminNoticeStack';
 import ManageMembership from './manage_membership.js';
 
 export const EditWrap = styled.div`
@@ -125,7 +133,7 @@ const SkeletonText = styled.span`
   }
 `;
 
-const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
+const MemberEdit = ({ memberType, recordId, membershipUuid, individualMemberEditUrl }) => {
 
 	const renewalTypeOptions = [
 		{ label: __('Inherited from Tier', 'wicket-memberships'), value: 'inherited' },
@@ -134,16 +142,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 		{ label: __('Subscription Renewal', 'wicket-memberships'), value: 'subscription' },
 		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' }
 	];
-
-	// Helper: Format date as Y-m-d with ISO 8601 tooltip (in MDP timezone)
-	const formatDateWithTooltip = (isoString) => {
-		if (!isoString) return '';
-		const mdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
-		const m = moment.tz(isoString, mdpTimezone);
-		const dateDisplay = m.format('YYYY-MM-DD'); // Y-m-d format in MDP timezone
-		const isoFull = m.format(); // ISO 8601 with MDP timezone: 2025-12-31T00:00:00-05:00
-		return <span title={isoFull}>{dateDisplay}</span>;
-	};
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -154,14 +152,11 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
   const [memberships, setMemberships] = useState([]);
   const [membershipOwnerOptions, setMembershipOwnerOptions] = useState([]);
   const [isManageStatusModalOpen, setIsManageStatusModalOpen] = useState(false);
-  const [manageStatusErrors, setManageStatusErrors] = useState([]);
-  const [statusChangeConfirmed, setStatusChangeConfirmed] = useState(false);
-  const [manageStatusFormData, setManageStatusFormData] = useState({
-    postId: null,
-    currentStatus: '',
-    newStatus: '',
-    availableStatuses: []
-  });
+  const [manageStatusTarget, setManageStatusTarget] = useState({ postId: null, currentStatus: '' });
+  const [pageNotices, setPageNotices] = useState([]);
+
+  const addPageNotice = (notice) => setPageNotices((prev) => [...prev, notice]);
+  const dismissPageNotice = (id) => setPageNotices((prev) => prev.filter((n) => n.id !== id));
 
   const loadMembershipOwnerOptions = (inputValue, callback) => {
     if (  inputValue.length < 3 ) { return; }
@@ -170,7 +165,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       .then((response) => {
         const options = response.map((person) => {
           return {
-            label: person.full_name,
+            label: `${person.full_name} (${person.id}) — ${person.primary_email_address}`,
             value: person.id
           };
         });
@@ -182,83 +177,32 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
       });
   };
 
-  const openManageStatusModalOpen = (membershipIndex) => {
-    setManageStatusFormData({
+  const openManageStatusModal = (membershipIndex) => {
+    setManageStatusTarget({
       postId: memberships[membershipIndex].data.membership_post_id,
       currentStatus: memberships[membershipIndex].data.membership_status,
-      newStatus: '',
-      availableStatuses: []
     });
-    setStatusChangeConfirmed(false);
-    getMembershipStatuses(membershipIndex);
     setIsManageStatusModalOpen(true);
   }
 
-
-  /**
-   * Close the Manage Status Modal
-   */
-  const closeManageStatusModalOpen = () => {
-    setStatusChangeConfirmed(false);
+  const closeManageStatusModal = () => {
     setIsManageStatusModalOpen(false);
   }
 
-  const getMembershipStatusOptions = () => {
-    let statuses = Object.keys(manageStatusFormData.availableStatuses).map((status) => {
-      return {
-        label: manageStatusFormData.availableStatuses[status].name,
-        value: manageStatusFormData.availableStatuses[status].slug
-      };
-    });
-
-    // prepend the empty option
-    statuses.unshift({
-      label: __('Select Status', 'wicket-memberships'),
-      value: ''
-    });
-
-    return statuses;
-  }
-
-  const statusRequiresConfirmation = (status) => {
-    return ['cancelled', 'expired'].includes(status);
-  };
-
-  const handleManageStatusModalSubmit = (event) => {
-    event.preventDefault();
-
-    if (statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed) {
-      return;
-    }
-
-    updateMembershipStatus(manageStatusFormData.postId, manageStatusFormData.newStatus)
-      .then((response) => {
-        if (response.success) {
-          closeManageStatusModalOpen();
-
-          // update status for this membership
-          setMemberships(
-            memberships.map((m) => {
-              if (m.ID == manageStatusFormData.postId) {
-                m.data.membership_status = manageStatusFormData.newStatus;
-                // The response dates are MDP calendar days; end them at MDP end of day, as the server does.
-                const statusMdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
-                m.data.membership_ends_at = moment.tz(response.response.membership_ends_at, statusMdpTimezone).endOf('day').toISOString();
-                m.data.membership_expires_at = moment.tz(response.response.membership_expires_at, statusMdpTimezone).endOf('day').toISOString();
-                m.updatedNow = true;
-              }
-              return m;
-            })
-          );
-
-        } else {
-          console.log(response);
-          setManageStatusErrors([response.error]);
+  const handleStatusUpdated = (postId, newStatus, responseData) => {
+    setMemberships(
+      memberships.map((m) => {
+        if (m.ID == postId) {
+          m.data.membership_status = newStatus;
+          // The response dates are MDP calendar days; end them at MDP end of day, as the server does.
+          const statusMdpTimezone = PLUGIN_SETTINGS.WICKET_MSHIP_MDP_TIMEZONE || 'UTC';
+          m.data.membership_ends_at = moment.tz(responseData.membership_ends_at, statusMdpTimezone).endOf('day').toISOString();
+          m.data.membership_expires_at = moment.tz(responseData.membership_expires_at, statusMdpTimezone).endOf('day').toISOString();
+          m.updatedNow = true;
         }
+        return m;
       })
-      .catch((error) => {
-        console.error(error);
-      });
+    );
   }
 
   const getMemberships = () => {
@@ -325,24 +269,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
         setMemberships(response);
         setIsLoading(false);
       }).catch((error) => {
-        console.error(error);
-      });
-  }
-
-  const getMembershipStatuses = (membershipIndex) => {
-
-    const membership = memberships[membershipIndex];
-
-    fetchMembershipStatuses(membership.data.membership_post_id)
-      .then((response) => {
-        setManageStatusFormData({
-          postId: membership.data.membership_post_id,
-          currentStatus: membership.data.membership_status,
-          newStatus: '',
-          availableStatuses: response
-        });
-      })
-      .catch((error) => {
         console.error(error);
       });
   }
@@ -561,8 +487,6 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
     }
   }
 
-  console.log('manageStatusFormData', manageStatusFormData);
-
   console.log('MEMBERSHIPS', memberships);
 
 	return (
@@ -572,6 +496,8 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 					{memberType === 'individual' ? __('Individual Members', 'wicket-memberships') : __('Organization Members', 'wicket-memberships')}
 				</h1>
 				<hr className="wp-header-end"></hr>
+
+        <AdminNoticeStack notices={pageNotices} />
 
         <EditWrap>
           <WhiteBorderedBox>
@@ -716,6 +642,9 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                         >
                           <td className="column-columnname">
                             {membership.data.membership_tier_name}
+                            {membership.is_membership_bundle && (
+                              <MembershipBundleBadge bundleName={membership.bundle_name} />
+                            )}
                             {membership.subscription?.is_autorenewing && (
                               <>
                                 {' '}
@@ -729,6 +658,18 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                           </td>
                           <td className="column-columnname">
                             {membership.ID}
+                            {membership.mdp_link_collision && (
+                              <Tooltip
+                                text={__(
+                                  'This membership was created but could not be linked to its MDP record — the WordPress ID was already claimed by a different MDP record. Contact an administrator.',
+                                  'wicket-memberships'
+                                )}
+                              >
+                                <span style={{ display: 'inline-block', marginLeft: '4px', verticalAlign: 'middle' }}>
+                                  <Icon icon={warning} style={{ fill: '#cc1818' }} size={18} />
+                                </span>
+                              </Tooltip>
+                            )}
                           </td>
                           <td className="column-columnname">
                             {membership.data.membership_status}
@@ -760,6 +701,27 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                           style={{ display: membership.showRow ? 'table-row' : 'none' }}
                         >
                           <td colSpan={7} >
+                            {membership.is_membership_bundle ? (
+                              <MembershipBundleDetails
+                                membership={membership}
+                                onSuccess={(result) => {
+                                  const noticeId = `member-removed-${Date.now()}`;
+                                  const memberUrl = individualMemberEditUrl && result.personUuid
+                                    ? addQueryArgs(individualMemberEditUrl, { id: result.personUuid })
+                                    : null;
+                                  addPageNotice({
+                                    id: noticeId,
+                                    status: result.status || "success",
+                                    message: result.message ?? result,
+                                    action: memberUrl
+                                      ? { label: __("View membership", "wicket-memberships"), onClick: () => window.location.assign(memberUrl) }
+                                      : undefined,
+                                    onDismiss: () => dismissPageNotice(noticeId),
+                                  });
+                                  getMemberships();
+                                }}
+                              />
+                            ) : (<>
                             {membership.subscription.id !== undefined &&
                             <Flex
                               align='end'
@@ -826,7 +788,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                     { formatDateWithTooltip(membership.order.date_created) }
                                   </td>
                                   <td className="column-columnname">
-                                    {membership.order.total}
+                                    {formatCurrency(membership.order.total)}
                                   </td>
                                   <td className="column-columnname">
                                     {membership.order.status}
@@ -867,7 +829,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                     <Button
                                       variant='secondary'
                                       onClick={() => {
-                                        openManageStatusModalOpen(index);
+                                        openManageStatusModal(index);
                                       }}
                                     >
                                       {__('Manage Status', 'wicket-memberships')}
@@ -875,8 +837,48 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                   </FlexItem>
                                 </Flex>
                               </BorderedBox>
+
+                              <MembershipActionsDropdown
+                                actions={[
+                                  getRenewalOrderAction(membership, () => {
+                                    membership.isRenewalModalOpen = true;
+                                    setMemberships([...memberships]);
+                                  }),
+                                  {
+                                    label: __('Add to Membership Bundle', 'wicket-memberships'),
+                                    onClick: () => {
+                                      membership.isAddToBundleOpen = true;
+                                      setMemberships([...memberships]);
+                                    },
+                                  },
+                                ]}
+                              />
+
+                              <CreateRenewalOrderModal
+                                membership={membership}
+                                isOpen={!!membership.isRenewalModalOpen}
+                                onClose={() => {
+                                  membership.isRenewalModalOpen = false;
+                                  setMemberships([...memberships]);
+                                }}
+                              />
+
+                              <AddToMembershipBundleModal
+                                isOpen={!!membership.isAddToBundleOpen}
+                                membershipPostId={membership.data.membership_post_id}
+                                tierPostId={membership.data.membership_tier_post_id}
+                                tierName={membership.data.membership_tier_name}
+                                onRequestClose={() => {
+                                  membership.isAddToBundleOpen = false;
+                                  setMemberships([...memberships]);
+                                }}
+                                onSuccess={() => {
+                                  membership.isAddToBundleOpen = false;
+                                  getMemberships();
+                                }}
+                              />
+
                               <ManageMembership membership={membership} />
-                              <CreateRenewalOrder membership={membership} />
                             </Flex>
 
                             <BorderedBox>
@@ -1164,6 +1166,7 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
                                 </MarginedFlex>
                               </form>
                             </BorderedBox>
+                            </>)}
                           </td>
                         </tr>
                       </React.Fragment>
@@ -1177,121 +1180,13 @@ const MemberEdit = ({ memberType, recordId, membershipUuid }) => {
 			</div>
 
 			{/* "Manage Status" Modal */}
-			{isManageStatusModalOpen && (
-				<Modal
-					title={__('Change Status', 'wicket-memberships')}
-					onRequestClose={closeManageStatusModalOpen}
-					style={
-						{
-							maxWidth: '840px',
-							width: '100%'
-						}
-					}
-				>
-					<form onSubmit={handleManageStatusModalSubmit}>
-
-						{manageStatusErrors.length > 0 && (
-							<ErrorsRow>
-								{manageStatusErrors.map((errorMessage, index) => (
-									<Notice isDismissible={false} key={index} status="warning">{errorMessage}</Notice>
-								))}
-							</ErrorsRow>
-						)}
-
-              <MarginedFlex
-                align='end'
-                justify='start'
-                gap={5}
-                direction={[
-                  'column',
-                  'row'
-                ]}
-              >
-							<FlexBlock>
-								<TextControl
-									label={__('Current Status', 'wicket-memberships')}
-                  disabled={true}
-                  style={{
-                    backgroundColor: '#F6F7F7'
-                  }}
-									value={manageStatusFormData.currentStatus}
-                  __nextHasNoMarginBottom={true}
-								/>
-							</FlexBlock>
-              <FlexItem>
-                <div
-                  style={{
-                    fontWeight: 500,
-                    marginBottom: '5px'
-                  }}
-                >
-                  {__('To', 'wicket-memberships')}
-                </div>
-              </FlexItem>
-              <FlexBlock>
-                <SelectControl
-                  label={__('New Status', 'wicket-memberships')}
-                  value={manageStatusFormData.newStatus}
-                  onChange={(value) => {
-                    setManageStatusFormData({
-                      ...manageStatusFormData,
-                      newStatus: value
-                    });
-                    setStatusChangeConfirmed(false);
-                  }}
-                  options={
-                    getMembershipStatusOptions()
-                  }
-                  __nextHasNoMarginBottom={true}
-                />
-              </FlexBlock>
-						</MarginedFlex>
-
-						{statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed && (
-							<MarginedFlex direction='column' gap={3}>
-								<Notice isDismissible={false} status="warning">
-									{sprintf(
-										/* translators: %s: status name (cancelled or expired) */
-										__("Once a membership status is changed to '%s' it cannot be undone. Are you certain you would like to proceed?", 'wicket-memberships'),
-										manageStatusFormData.newStatus
-									)}
-								</Notice>
-								<FlexItem>
-									<Button
-										variant="secondary"
-										isDestructive
-										onClick={() => setStatusChangeConfirmed(true)}
-									>
-										{__('Confirm Action', 'wicket-memberships')}
-									</Button>
-								</FlexItem>
-							</MarginedFlex>
-						)}
-
-						<ActionRow>
-							<Flex
-								align='end'
-								gap={5}
-								direction={[
-									'column',
-									'row'
-								]}
-							>
-								<FlexItem>
-									<Button
-                    variant="primary"
-                    type='submit'
-                    disabled={manageStatusFormData.newStatus === '' || (statusRequiresConfirmation(manageStatusFormData.newStatus) && !statusChangeConfirmed)}
-                  >
-										{__('Update Status', 'wicket-memberships')}
-									</Button>
-								</FlexItem>
-							</Flex>
-
-						</ActionRow>
-					</form>
-				</Modal>
-			)}
+			<ManageStatusModal
+				isOpen={ isManageStatusModalOpen }
+				onClose={ closeManageStatusModal }
+				membershipPostId={ manageStatusTarget.postId }
+				currentStatus={ manageStatusTarget.currentStatus }
+				onStatusUpdated={ handleStatusUpdated }
+			/>
 
 		</AppWrap>
 	);
