@@ -85,11 +85,7 @@ See `./qa/README.md` for full setup and usage instructions.
 
 ## Documentation
 
-For complete documentation, see **[docs/index.md](docs/index.md)**.
+End-user guides are listed in **[docs/INDEX.md](docs/INDEX.md)**.
 
-| Audience | Directory |
-|---|---|
-| Operators & Support | [docs/product/](docs/product/) |
-| Developers & Agents | [docs/engineering/](docs/engineering/) |
-| End Users | [docs/guides/](docs/guides/) |
+Developer and agent documentation lives in Atlas: `atlas://packages/wicket-wp-memberships.md`.
 
