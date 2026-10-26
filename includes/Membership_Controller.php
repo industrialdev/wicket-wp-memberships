@@ -11,7 +11,15 @@ use Wicket_Memberships\Autorenew;
 use Wicket_Memberships\Autorenew_Sync;
 
 /**
- * Main controller methods
+ * Main controller methods.
+ *
+ * @see atlas://packages/wicket-wp-memberships.md#scheduled-lifecycle-transitions
+ *
+ * ARCHITECTURAL GUARDRAIL:
+ * Manages order-to-membership creation, lifecycle transitions, and Action Scheduler tasks.
+ * Keep the direct procedural controller flow intact. AI agents MUST NOT refactor
+ * this controller into separate OOP service classes or coordinator layers.
+ *
  * @package Wicket_Memberships
  */
 class Membership_Controller {

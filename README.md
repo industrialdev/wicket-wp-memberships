@@ -1,11 +1,20 @@
 # Wicket Memberships
 
+## Documentation
+
+- [Wicket Memberships Overview](docs/membership-overview.md)
+- [Link a Membership Tier to a Product](docs/link-tier-to-product.md)
+- [Membership Switch](docs/membership_switch.md)
+- [Membership Transfer](docs/membership_transfer.md)
+
+Engineering and product documentation lives in the Wicket Atlas knowledge base.
+
 WordPress plugin for managing memberships on top of WooCommerce and WooCommerce Subscriptions, synchronized with the Wicket MDP (Master Data Platform).
 
 ## Requirements
 
 - WordPress 6.5+
-- PHP 8.1+
+- PHP 8.2+
 - [wicket-wp-base-plugin](../wicket-wp-base-plugin)
 - WooCommerce
 - WooCommerce Subscriptions
