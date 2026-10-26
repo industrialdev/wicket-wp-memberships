@@ -138,8 +138,7 @@ class Membership_Bundle_Renewal_Order_Controller {
    * Clear a completed renewal-order claim so the bundle can be claimed again.
    *
    * claim_renewal_order_creation() blocks indefinitely once a claim completes
-   * (order_id set) — correct for confirm_bundle_renewal(), where a second member
-   * confirm in the same cycle should stay blocked, but wrong for the admin's manual
+   * (order_id set) — wrong for the admin's manual
    * create_bundle_renewal_order action, which may legitimately be triggered again on
    * the same bundle post. Only call this from a caller that intentionally allows a
    * repeat manual renewal-order creation; it does nothing to an in-flight claim (no
@@ -313,13 +312,11 @@ class Membership_Bundle_Renewal_Order_Controller {
 
   /**
    * Create a bundle's renewal order in the background — dispatched by the REST
-   * endpoints instead of calling wcs_create_renewal_order() inline in the request.
+   * endpoints instead of creating the order inline in the request.
    * Writes the result (order_id or failure) back onto the claim's own meta; that's
    * the terminal state the UI polls for and a later claim attempt checks against.
    */
   public static function create_renewal_order_job( int $bundle_post_id, int $subscription_id ): void {
-    self::reset_caches();
-
     $subscription = function_exists( 'wcs_get_subscription' ) ? wcs_get_subscription( $subscription_id ) : false;
 
     if ( ! $subscription ) {
@@ -331,49 +328,7 @@ class Membership_Bundle_Renewal_Order_Controller {
       return;
     }
 
-    // Prime post-meta + user caches in one query each for every member on the
-    // subscription — wcs_create_renewal_order() copies these same line items to the
-    // renewal order, and the hooks below read tier/product/user_id per member. For a
-    // bundle with hundreds of members this collapses thousands of queries into two.
-    $membership_post_ids = [];
-    foreach ( $subscription->get_items() as $item ) {
-      $membership_post_id = (int) $item->get_meta( '_membership_post_id' );
-      if ( $membership_post_id > 0 ) {
-        $membership_post_ids[] = $membership_post_id;
-      }
-    }
-    if ( ! empty( $membership_post_ids ) ) {
-      update_meta_cache( 'post', $membership_post_ids );
-
-      $user_ids = [];
-      foreach ( $membership_post_ids as $membership_post_id ) {
-        $user_id = self::get_cached_membership_user_id( $membership_post_id );
-        if ( $user_id > 0 ) {
-          $user_ids[] = $user_id;
-        }
-      }
-      if ( ! empty( $user_ids ) && function_exists( 'cache_users' ) ) {
-        cache_users( array_unique( $user_ids ) );
-      }
-    }
-
-    // WooCommerce Subscriptions' own pay-for-order page only accepts payment for a
-    // subscription whose status is 'on-hold' or 'pending' (WCS_Cart_Renewal::maybe_setup_cart()) —
-    // an 'active' subscription is refused outright regardless of the order's own status.
-    // Mirrors the existing individual-membership subscription-renewal path in
-    // Membership_Controller.php, which puts the subscription on hold before creating its
-    // renewal order for the same reason.
-    $subscription->update_status( 'on-hold', __( 'Membership plugin set subscription on-hold generating a pending bundle renewal order.', 'wicket-memberships' ) );
-
-    // Action Scheduler never interrupts a running job — the only real ceiling is PHP's
-    // own max_execution_time. wc_set_time_limit() gives this job headroom for a large
-    // bundle's per-member repricing loop below; a host that blocks set_time_limit()
-    // leaves this as a silent no-op.
-    if ( function_exists( 'wc_set_time_limit' ) ) {
-      wc_set_time_limit( 300 );
-    }
-
-    $renewal_order = Order_Touchpoint_Hold::create_renewal_order( $subscription );
+    $renewal_order = self::get_payable_renewal_order( $subscription );
 
     if ( is_wp_error( $renewal_order ) ) {
       Utilities::wc_log_mship_error( [ 'create_renewal_order_job: wcs_create_renewal_order failed', [
@@ -400,6 +355,75 @@ class Membership_Bundle_Renewal_Order_Controller {
       'failed_at'  => current_time( 'c' ),
       'error_code' => $error_code,
     ] ) );
+  }
+
+  /**
+   * Return a bundle renewal order its customer can pay, creating one unless $existing is given.
+   *
+   * Single path for every bundle renewal order: the admin job and the member portal's
+   * Generate Order both call this. Callers keep their own gating (claim lock, renewal
+   * window, order reuse); this only guarantees the order is payable.
+   *
+   * @param \WC_Subscription $subscription The bundle's subscription.
+   * @param \WC_Order|null   $existing     An unpaid renewal order the caller chose to reuse.
+   * @return \WC_Order|\WP_Error
+   */
+  public static function get_payable_renewal_order( \WC_Subscription $subscription, ?\WC_Order $existing = null ): \WC_Order|\WP_Error {
+    // WCS's pay-for-order page refuses payment while the subscription is active
+    // (WCS_Cart_Renewal::maybe_setup_cart()); the individual-membership path holds it for the same reason.
+    if ( ! $subscription->has_status( [ 'on-hold', 'pending' ] ) ) {
+      $subscription->update_status( 'on-hold', __( 'Membership plugin set subscription on-hold generating a pending bundle renewal order.', 'wicket-memberships' ) );
+    }
+
+    if ( $existing ) {
+      return $existing;
+    }
+
+    self::reset_caches();
+    self::prime_member_caches( $subscription );
+
+    // Headroom for a large bundle's per-member repricing; a silent no-op where the host blocks set_time_limit().
+    if ( function_exists( 'wc_set_time_limit' ) ) {
+      wc_set_time_limit( 300 );
+    }
+
+    return Order_Touchpoint_Hold::create_renewal_order( $subscription );
+  }
+
+  /**
+   * Prime post-meta and user caches for every member on the subscription in one query each.
+   *
+   * wcs_create_renewal_order() copies these line items to the renewal order and the
+   * repricing hooks read tier/product/user per member, so a large bundle would otherwise
+   * run thousands of queries.
+   *
+   * @param \WC_Subscription $subscription
+   * @return void
+   */
+  private static function prime_member_caches( \WC_Subscription $subscription ): void {
+    $membership_post_ids = [];
+    foreach ( $subscription->get_items() as $item ) {
+      $membership_post_id = (int) $item->get_meta( '_membership_post_id' );
+      if ( $membership_post_id > 0 ) {
+        $membership_post_ids[] = $membership_post_id;
+      }
+    }
+    if ( empty( $membership_post_ids ) ) {
+      return;
+    }
+
+    update_meta_cache( 'post', $membership_post_ids );
+
+    $user_ids = [];
+    foreach ( $membership_post_ids as $membership_post_id ) {
+      $user_id = self::get_cached_membership_user_id( $membership_post_id );
+      if ( $user_id > 0 ) {
+        $user_ids[] = $user_id;
+      }
+    }
+    if ( ! empty( $user_ids ) && function_exists( 'cache_users' ) ) {
+      cache_users( array_unique( $user_ids ) );
+    }
   }
 
   // ---------------------------------------------------------------------------
