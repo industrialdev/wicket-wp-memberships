@@ -65,6 +65,6 @@ This is a WordPress plugin rooted at `wicket.php`. It manages memberships on top
 
 ## Release & Branch Workflow
 
-All work happens on branches. `main` is locked; changes land via peer-reviewed Pull Request (devs cross-review each other). Never commit to `main` directly, and never push or open a PR without explicit human approval.
+All work happens on branches. `main` is locked; changes land via peer-reviewed Pull Request (devs cross-review each other). Never commit to `main` directly, and never push or open a PR without explicit human approval. PR descriptions use the repo `.github/PULL_REQUEST_TEMPLATE.md`; full rules, including the title format: `@see atlas://conventions/pr-template.md`.
 
 Merging a PR to `main` **auto-releases** via the `wicket-release-bot` GitHub App: version bump, `CHANGELOG.md` update, git tag. Never bump versions or create tags by hand. The bump level comes from a marker in the PR title (squash-merge makes it the commit message): `_(none)_` / `#patch` = patch, `#minor`, `#major`, or `#norelease`. Conventional commit prefixes (`feat:`, `fix:`, `docs:`, ...) drive changelog grouping; a `!` (e.g. `feat!:`) flags a BREAKING change.
