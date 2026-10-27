@@ -161,8 +161,8 @@ class Membership_Bundle_Renewal_Order_Controller {
    * non-bundle subscription.
    */
   public static function intercept_wcs_create_pending_renewal_for_bundle( \WC_Subscription $subscription ): void {
-    $bundle_post_id = (int) get_post_meta( $subscription->get_id(), 'membership_bundle_id', true );
-    if ( $bundle_post_id <= 0 || get_post_type( $bundle_post_id ) !== Helper::get_membership_bundle_cpt_slug() ) {
+    $bundle_post_id = Membership_Bundle::get_bundle_post_id_for_subscription( $subscription );
+    if ( $bundle_post_id <= 0 ) {
       return;
     }
 
@@ -234,13 +234,13 @@ class Membership_Bundle_Renewal_Order_Controller {
       return;
     }
 
-    $bundle_post_id = (int) get_post_meta( $subscription_id, 'membership_bundle_id', true );
-    if ( $bundle_post_id <= 0 || get_post_type( $bundle_post_id ) !== Helper::get_membership_bundle_cpt_slug() ) {
+    $subscription = wcs_get_subscription( $subscription_id );
+    if ( ! $subscription ) {
       return;
     }
 
-    $subscription = wcs_get_subscription( $subscription_id );
-    if ( ! $subscription ) {
+    $bundle_post_id = Membership_Bundle::get_bundle_post_id_for_subscription( $subscription );
+    if ( $bundle_post_id <= 0 ) {
       return;
     }
 
