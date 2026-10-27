@@ -83,7 +83,8 @@ class Membership_Bundle_Config {
    * @return string
    */
   public function get_title() {
-    return get_the_title( $this->post_id );
+    // get_the_title( 0 ) falls back to the global $post.
+    return $this->post_id ? get_the_title( $this->post_id ) : '';
   }
 
   /**
