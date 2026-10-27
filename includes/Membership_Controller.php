@@ -3025,11 +3025,17 @@ function get_item_data ( $other_data, $cart_item ) {
     remove_filter( 'posts_orderby', [ $this, 'get_members_list_last_name_orderby' ] );
 
     $key_map     = $this->get_meta_map_for_posts( $all_ids, $group_key );
+    // get_members_list() drops individual rows whose WP user is gone, so they must
+    // not count toward the total or take a page slot either.
+    $existing_users = ( $group_key === 'user_id' ) ? $this->get_existing_user_ids( $key_map ) : null;
     $seen_keys   = [];
     $ordered_ids = [];
     foreach ( $all_ids as $id ) {
       $key = $key_map[ $id ] ?? '';
       if ( $key === '' || isset( $seen_keys[ $key ] ) ) {
+        continue;
+      }
+      if ( $existing_users !== null && ! isset( $existing_users[ (int) $key ] ) ) {
         continue;
       }
       $seen_keys[ $key ] = true;
@@ -3078,6 +3084,30 @@ function get_item_data ( $other_data, $cart_item ) {
       }
     }
     return $map;
+  }
+
+  /**
+   * Find which of the given user IDs still exist as WP users.
+   *
+   * @param  array<int, string> $key_map  Map of post ID to user_id meta value.
+   *
+   * @return array<int, true>  Existing user IDs as keys.
+   *
+   * @see    get_deduplicated_member_ids()
+   * @global \wpdb $wpdb
+   */
+  private function get_existing_user_ids( array $key_map ) {
+    global $wpdb;
+    $user_ids = array_values( array_unique( array_filter( array_map( 'intval', $key_map ) ) ) );
+    $existing = [];
+    // Chunked so the generated IN() list stays well within max_allowed_packet.
+    foreach ( array_chunk( $user_ids, 5000 ) as $chunk ) {
+      $ids = implode( ',', $chunk );
+      foreach ( $wpdb->get_col( "SELECT ID FROM {$wpdb->users} WHERE ID IN ({$ids})" ) as $user_id ) {
+        $existing[ (int) $user_id ] = true;
+      }
+    }
+    return $existing;
   }
 
   /**
