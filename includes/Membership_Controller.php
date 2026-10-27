@@ -581,14 +581,12 @@ function get_item_data ( $other_data, $cart_item ) {
     // We do NOT check wcs_order_contains_subscription( $order, 'renewal' ) here because
     // bundle subscriptions are created without an initial order — the first order WCS
     // generates at renewal time is classified as a parent order, not a renewal order.
-    // The bundle post existing on the subscription is the authoritative signal.
+    // The bundle post owning the subscription is the authoritative signal.
     // handle_bundle_renewal() has its own idempotency guard that aborts on duplicate runs.
     if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
       foreach ( $subscriptions as $subscription ) {
-        $bundle_post_id = (int) get_post_meta( $subscription->get_id(), 'membership_bundle_id', true );
-        if ( $bundle_post_id > 0
-          && get_post_type( $bundle_post_id ) === Helper::get_membership_bundle_cpt_slug()
-        ) {
+        $bundle_post_id = Membership_Bundle::get_bundle_post_id_for_subscription( $subscription );
+        if ( $bundle_post_id > 0 ) {
           self::handle_bundle_renewal( $bundle_post_id, $subscription, $order );
           return;
         }
