@@ -12,7 +12,7 @@ namespace Wicket_Memberships;
  * those controllers. Methods are static and take a passed-in
  * \WC_Subscription so nothing depends on controller state.
  *
- * See docs/engineering/Class-Subscription_Manager.md for the migration plan.
+ * @see atlas://packages/wicket-wp-memberships/engineering/Class-Subscription_Manager.md for the migration plan.
  */
 class Subscription_Manager {
 

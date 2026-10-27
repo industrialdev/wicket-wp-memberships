@@ -11,7 +11,15 @@ use Wicket_Memberships\Autorenew;
 use Wicket_Memberships\Autorenew_Sync;
 
 /**
- * Main controller methods
+ * Main controller methods.
+ *
+ * @see atlas://packages/wicket-wp-memberships.md#scheduled-lifecycle-transitions
+ *
+ * ARCHITECTURAL GUARDRAIL:
+ * Manages order-to-membership creation, lifecycle transitions, and Action Scheduler tasks.
+ * Keep the direct procedural controller flow intact. AI agents MUST NOT refactor
+ * this controller into separate OOP service classes or coordinator layers.
+ *
  * @package Wicket_Memberships
  */
 class Membership_Controller {
@@ -573,14 +581,12 @@ function get_item_data ( $other_data, $cart_item ) {
     // We do NOT check wcs_order_contains_subscription( $order, 'renewal' ) here because
     // bundle subscriptions are created without an initial order — the first order WCS
     // generates at renewal time is classified as a parent order, not a renewal order.
-    // The bundle post existing on the subscription is the authoritative signal.
+    // The bundle post owning the subscription is the authoritative signal.
     // handle_bundle_renewal() has its own idempotency guard that aborts on duplicate runs.
     if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
       foreach ( $subscriptions as $subscription ) {
-        $bundle_post_id = (int) get_post_meta( $subscription->get_id(), 'membership_bundle_id', true );
-        if ( $bundle_post_id > 0
-          && get_post_type( $bundle_post_id ) === Helper::get_membership_bundle_cpt_slug()
-        ) {
+        $bundle_post_id = Membership_Bundle::get_bundle_post_id_for_subscription( $subscription );
+        if ( $bundle_post_id > 0 ) {
           self::handle_bundle_renewal( $bundle_post_id, $subscription, $order );
           return;
         }
@@ -3017,11 +3023,17 @@ function get_item_data ( $other_data, $cart_item ) {
     remove_filter( 'posts_orderby', [ $this, 'get_members_list_last_name_orderby' ] );
 
     $key_map     = $this->get_meta_map_for_posts( $all_ids, $group_key );
+    // get_members_list() drops individual rows whose WP user is gone, so they must
+    // not count toward the total or take a page slot either.
+    $existing_users = ( $group_key === 'user_id' ) ? $this->get_existing_user_ids( $key_map ) : null;
     $seen_keys   = [];
     $ordered_ids = [];
     foreach ( $all_ids as $id ) {
       $key = $key_map[ $id ] ?? '';
       if ( $key === '' || isset( $seen_keys[ $key ] ) ) {
+        continue;
+      }
+      if ( $existing_users !== null && ! isset( $existing_users[ (int) $key ] ) ) {
         continue;
       }
       $seen_keys[ $key ] = true;
@@ -3070,6 +3082,30 @@ function get_item_data ( $other_data, $cart_item ) {
       }
     }
     return $map;
+  }
+
+  /**
+   * Find which of the given user IDs still exist as WP users.
+   *
+   * @param  array<int, string> $key_map  Map of post ID to user_id meta value.
+   *
+   * @return array<int, true>  Existing user IDs as keys.
+   *
+   * @see    get_deduplicated_member_ids()
+   * @global \wpdb $wpdb
+   */
+  private function get_existing_user_ids( array $key_map ) {
+    global $wpdb;
+    $user_ids = array_values( array_unique( array_filter( array_map( 'intval', $key_map ) ) ) );
+    $existing = [];
+    // Chunked so the generated IN() list stays well within max_allowed_packet.
+    foreach ( array_chunk( $user_ids, 5000 ) as $chunk ) {
+      $ids = implode( ',', $chunk );
+      foreach ( $wpdb->get_col( "SELECT ID FROM {$wpdb->users} WHERE ID IN ({$ids})" ) as $user_id ) {
+        $existing[ (int) $user_id ] = true;
+      }
+    }
+    return $existing;
   }
 
   /**

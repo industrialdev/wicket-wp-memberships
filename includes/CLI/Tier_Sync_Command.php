@@ -19,7 +19,7 @@ use WP_CLI\Utils;
  * from the MDP (via the base plugin's `get_individual_memberships()` helper) and reconciles
  * it against local tier posts, creating any that are missing and linking them by
  * `mdp_tier_uuid`. Product/renewal configuration is intentionally left to the admin UI —
- * see docs/engineering/wp-cli-tier-sync-plan.md.
+ * see atlas://packages/wicket-wp-memberships/engineering/wp-cli-tier-sync-plan.md.
  *
  * @since 1.0.121
  */
@@ -61,7 +61,7 @@ class Tier_Sync_Command {
    * [--create-products]
    * : For each tier created this run, also create a simple WooCommerce subscription product
    * named after the tier and link it into the tier's product_data. Requires WooCommerce
-   * Subscriptions. See docs/engineering/wp-cli-tier-sync-plan.md §13.
+   * Subscriptions. See atlas://packages/wicket-wp-memberships/engineering/wp-cli-tier-sync-plan.md §13.
    *
    * [--backfill-products]
    * : Also create + link a product for existing local tiers that currently have no products,
@@ -565,7 +565,7 @@ class Tier_Sync_Command {
    *
    * Individual tiers require `max_seats = -1`; organization tiers start at a nominal seat
    * count of 1 that the admin can raise for per-seat tiers (see the seat-type notes in
-   * docs/engineering/wp-cli-tier-sync-plan.md §13.5). `variation_id` is 0 because a simple
+   * atlas://packages/wicket-wp-memberships/engineering/wp-cli-tier-sync-plan.md §13.5). `variation_id` is 0 because a simple
    * subscription has no variation — order→tier matching then falls back to the product id.
    *
    * @param int    $product_id  WooCommerce product ID to link.

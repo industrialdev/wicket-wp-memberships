@@ -2161,6 +2161,39 @@ class Membership_Bundle {
     return $subscription_id > 0 ? $subscription_id : false;
   }
 
+  /**
+   * Resolve the bundle that owns a WC subscription, or 0 when it is not a bundle subscription.
+   *
+   * Reads the subscription's membership_bundle_id backlink first. Subscriptions created before
+   * that backlink was reliably saved have none, so falls back to the bundle whose
+   * membership_subscription_id points at the subscription. A renewal reuses the subscription
+   * across terms, so the newest bundle post wins, matching where renew_bundle() points the backlink.
+   *
+   * @param \WC_Subscription $subscription
+   * @return int Bundle post ID, or 0.
+   */
+  public static function get_bundle_post_id_for_subscription( \WC_Subscription $subscription ): int {
+    $bundle_cpt     = Helper::get_membership_bundle_cpt_slug();
+    $bundle_post_id = (int) $subscription->get_meta( 'membership_bundle_id' );
+    if ( $bundle_post_id > 0 && get_post_type( $bundle_post_id ) === $bundle_cpt ) {
+      return $bundle_post_id;
+    }
+
+    $bundle_posts = get_posts( [
+      'post_type'      => $bundle_cpt,
+      'post_status'    => 'any',
+      'posts_per_page' => 1,
+      'fields'         => 'ids',
+      'orderby'        => 'ID',
+      'order'          => 'DESC',
+      'meta_query'     => [
+        [ 'key' => 'membership_subscription_id', 'value' => $subscription->get_id() ],
+      ],
+    ] );
+
+    return (int) ( $bundle_posts[0] ?? 0 );
+  }
+
   // Status and dates.
 
   /**
