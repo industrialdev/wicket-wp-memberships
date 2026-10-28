@@ -368,8 +368,9 @@ class Membership_Bundle_Renewal_Order_Controller {
     // Action Scheduler never interrupts a running job — the only real ceiling is PHP's
     // own max_execution_time. wc_set_time_limit() gives this job headroom for a large
     // bundle's per-member repricing loop below; a host that blocks set_time_limit()
-    // leaves this as a silent no-op.
-    if ( function_exists( 'wc_set_time_limit' ) ) {
+    // leaves this as a silent no-op. Skipped under the test harness: the warden suite
+    // runs many tests in one process, and a 300s in-process cap kills the whole run.
+    if ( function_exists( 'wc_set_time_limit' ) && ! defined( 'WICKET_WARDEN_TESTING' ) ) {
       wc_set_time_limit( 300 );
     }
 
