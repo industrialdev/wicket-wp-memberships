@@ -372,6 +372,13 @@ class Membership_Bundle_Renewal_Order_Controller {
     // WCS's pay-for-order page refuses payment while the subscription is active
     // (WCS_Cart_Renewal::maybe_setup_cart()); the individual-membership path holds it for the same reason.
     if ( ! $subscription->has_status( [ 'on-hold', 'pending' ] ) ) {
+      // WCS throws on a transition it refuses (e.g. from cancelled or expired); a renewal order there could never be paid.
+      if ( ! $subscription->can_be_updated_to( 'on-hold' ) ) {
+        return new \WP_Error(
+          'subscription_not_payable',
+          sprintf( 'Subscription #%d cannot be put on-hold from status "%s".', $subscription->get_id(), $subscription->get_status() )
+        );
+      }
       $subscription->update_status( 'on-hold', __( 'Membership plugin set subscription on-hold generating a pending bundle renewal order.', 'wicket-memberships' ) );
     }
 

@@ -125,6 +125,8 @@ class Membership_Bundle_Block_Controller {
         return __( 'This membership bundle is not currently open for renewal. It may already have been renewed.', 'wicket-memberships' );
       case 'no_members':
         return __( 'There are no memberships in this bundle to renew.', 'wicket-memberships' );
+      case 'subscription_not_payable':
+        return __( 'This membership bundle cannot be renewed online because its subscription is no longer active. Please contact us to renew.', 'wicket-memberships' );
       case 'forbidden':
       case 'not_found':
         return __( 'You do not have permission to renew this membership bundle.', 'wicket-memberships' );
