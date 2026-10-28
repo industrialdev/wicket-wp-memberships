@@ -370,7 +370,7 @@ class Membership_Bundle_Renewal_Order_Controller {
     // bundle's per-member repricing loop below; a host that blocks set_time_limit()
     // leaves this as a silent no-op. Skipped under the test harness: the warden suite
     // runs many tests in one process, and a 300s in-process cap kills the whole run.
-    if ( function_exists( 'wc_set_time_limit' ) && ! defined( 'WICKET_WP_TESTING' ) ) {
+    if ( function_exists( 'wc_set_time_limit' ) && ! defined( 'WICKET_WARDEN_TESTING' ) ) {
       wc_set_time_limit( 300 );
     }
 
