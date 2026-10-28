@@ -1516,6 +1516,22 @@ function wicket_sub_org_select_callback( $subscription ) {
   }
 
   /**
+   * Get the grace period in days between an end date and an expiry date.
+   *
+   * @param string $ends_at    Membership end date.
+   * @param string $expires_at Membership expiry date (end of the grace window).
+   * @return int Whole days between the two dates; 0 when either date is missing or unparseable.
+   */
+  public static function get_grace_period_days( string $ends_at, string $expires_at ): int {
+    $ends_ts    = $ends_at !== '' ? strtotime( $ends_at ) : false;
+    $expires_ts = $expires_at !== '' ? strtotime( $expires_at ) : false;
+    if ( ! $ends_ts || ! $expires_ts ) {
+      return 0;
+    }
+    return abs( (int) round( ( $expires_ts - $ends_ts ) / DAY_IN_SECONDS ) );
+  }
+
+  /**
    * Format a Unix timestamp in the MDP timezone, translated to the site locale.
    *
    * For dates shown to members and admins (notices, order notes), so an MDP end of day

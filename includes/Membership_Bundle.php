@@ -1094,7 +1094,9 @@ class Membership_Bundle {
       'membership_parent_order_id'                => $link_to_bundle_id,
       'membership_bundle_id'                      => $link_to_bundle_id,
       'membership_subscription_id'                => 0,
-      'membership_grace_period_days'              => 0,
+      // Derived from the bundle's dates, not the config's late fee window, so admin edits to
+      // the bundle's expiry carry through; MDP computes the member's expiry from this value.
+      'membership_grace_period_days'              => $this->get_grace_period_days(),
       'membership_wp_user_display_name'           => $user->display_name,
       'membership_wp_user_last_name'              => get_user_meta( $user_id, 'last_name', true ) ?: '',
       'membership_wp_user_email'                  => $user->user_email,
@@ -2844,6 +2846,15 @@ class Membership_Bundle {
         update_post_meta( $member_id, 'membership_expires_at', $new_expires_at );
       }
 
+      // Keep grace in step with the member's resulting dates; sync_member_mdp_dates() sends it
+      // to MDP, which otherwise rebuilds expiry from the stale value.
+      if ( $write_ends || $write_expires ) {
+        update_post_meta( $member_id, 'membership_grace_period_days', Utilities::get_grace_period_days(
+          (string) get_post_meta( $member_id, 'membership_ends_at', true ),
+          (string) get_post_meta( $member_id, 'membership_expires_at', true )
+        ) );
+      }
+
       if ( $write_starts || $write_ends || $write_expires ) {
         $this->sync_member_mdp_dates( $member_id );
       }
@@ -3295,6 +3306,20 @@ class Membership_Bundle {
   }
 
   /**
+   * Get the grace period this bundle actually has, calculated from its ends_at → expires_at.
+   *
+   * Differs from the config's get_late_fee_window_days(), which is only the default used to
+   * seed expires_at at creation. Admin edits and cancellation change the bundle's dates, so
+   * the dates are the source of truth for what MDP and members should receive.
+   *
+   * @return int Grace period in days; 0 when the bundle has no expiry date.
+   */
+  public function get_grace_period_days(): int {
+    $dates = $this->get_dates();
+    return Utilities::get_grace_period_days( $dates['ends_at'], $dates['expires_at'] );
+  }
+
+  /**
    * Reassign the linked WC order customer after an ownership change.
    *
    * @param int $user_id
@@ -3526,8 +3551,7 @@ class Membership_Bundle {
       return;
     }
 
-    $config            = $this->get_config();
-    $grace_period_days = $config ? (int) $config->get_late_fee_window_days() : 0;
+    $grace_period_days = $this->get_grace_period_days();
 
     $response = wicket_create_bundle_membership(
       $owner_uuid,
@@ -3578,9 +3602,10 @@ class Membership_Bundle {
       return;
     }
 
-    $dates  = $this->get_dates();
-    $config = $this->get_config();
-    $grace  = $config ? (int) $config->get_late_fee_window_days() : false;
+    $dates = $this->get_dates();
+    // From the bundle's dates, not config: cancellation collapses expires_at to ends_at and
+    // admin edits move it, and sending the config default would undo either in MDP.
+    $grace = $this->get_grace_period_days();
 
     $response = wicket_update_bundle_membership(
       $bundle_mdp_uuid,
