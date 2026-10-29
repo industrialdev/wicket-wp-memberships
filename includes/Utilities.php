@@ -1520,7 +1520,8 @@ function wicket_sub_org_select_callback( $subscription ) {
    *
    * @param string $ends_at    Membership end date.
    * @param string $expires_at Membership expiry date (end of the grace window).
-   * @return int Whole days between the two dates; 0 when either date is missing or unparseable.
+   * @return int Whole days between the two dates; 0 when either date is missing or unparseable,
+   *             or when the expiry is before the end date.
    */
   public static function get_grace_period_days( string $ends_at, string $expires_at ): int {
     $ends_ts    = $ends_at !== '' ? strtotime( $ends_at ) : false;
@@ -1528,7 +1529,8 @@ function wicket_sub_org_select_callback( $subscription ) {
     if ( ! $ends_ts || ! $expires_ts ) {
       return 0;
     }
-    return abs( (int) round( ( $expires_ts - $ends_ts ) / DAY_IN_SECONDS ) );
+    // An expiry before the end date is bad data, not a grace window: report none rather than flip its sign.
+    return max( 0, (int) round( ( $expires_ts - $ends_ts ) / DAY_IN_SECONDS ) );
   }
 
   /**

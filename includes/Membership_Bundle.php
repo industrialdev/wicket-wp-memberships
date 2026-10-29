@@ -2715,43 +2715,54 @@ class Membership_Bundle {
    * @return void
    */
   private function cascade_status_to_members( string $new_status ): void {
-    $mc      = new Membership_Controller();
     $members = $this->get_individual_memberships( false );
 
     foreach ( $members as $membership_post ) {
-      $membership_post_id = $membership_post->ID;
-      $current            = get_post_meta( $membership_post_id, 'membership_status', true );
-
       // Cancelled is a final state — never overwrite it.
-      if ( $current === Wicket_Memberships::STATUS_CANCELLED ) {
+      if ( get_post_meta( $membership_post->ID, 'membership_status', true ) === Wicket_Memberships::STATUS_CANCELLED ) {
         continue;
       }
 
-      if ( $new_status === Wicket_Memberships::STATUS_CANCELLED ) {
-        // Route through cancel_individual_membership() for correct date collapse and local
-        // write sequence. Pass sync_mdp = false — MDP propagates from the bundle org record.
-        $this->cancel_individual_membership( $membership_post_id, false );
-        continue;
-      }
-
-      // expired: collapse dates so the record is unambiguously past. All other statuses
-      // (active, delayed, grace-period): no date mutation — keep provision-time dates.
-      if ( $new_status === Wicket_Memberships::STATUS_EXPIRED ) {
-        $tomorrow  = Utilities::get_mdp_day_end( '+1 day' )->format( 'c' );
-        $meta_data = [
-          'membership_ends_at'           => $tomorrow,
-          'membership_expires_at'        => $tomorrow,
-          'membership_grace_period_days' => 0,
-        ];
-      } else {
-        $meta_data = [];
-      }
-
-      // Local writes only — MDP handles bundle members at the org/bundle level.
-      $mc->update_local_membership_record( $membership_post_id, array_merge( $meta_data, [ 'membership_status' => $new_status ] ) );
-      $mc->update_membership_status( $membership_post_id, $new_status );
-      $mc->amend_membership_json( $membership_post_id, array_merge( $meta_data, [ 'membership_status' => $new_status ] ) );
+      $this->apply_bundle_status_to_member( $membership_post->ID, $new_status );
     }
+  }
+
+  /**
+   * Apply a bundle status to one member, with the same date rules as a bundle status change.
+   *
+   * Shared by cascade_status_to_members() and resync_members() so a resync realigns a
+   * member exactly as the live cascade would have.
+   *
+   * @param int    $membership_post_id Member's individual membership post ID.
+   * @param string $new_status         Status to apply.
+   * @return void
+   */
+  private function apply_bundle_status_to_member( int $membership_post_id, string $new_status ): void {
+    if ( $new_status === Wicket_Memberships::STATUS_CANCELLED ) {
+      // Route through cancel_individual_membership() for correct date collapse and local
+      // write sequence. Pass sync_mdp = false — MDP propagates from the bundle org record.
+      $this->cancel_individual_membership( $membership_post_id, false );
+      return;
+    }
+
+    // expired: collapse dates so the record is unambiguously past. All other statuses
+    // (active, delayed, grace-period): no date mutation — keep provision-time dates.
+    if ( $new_status === Wicket_Memberships::STATUS_EXPIRED ) {
+      $tomorrow  = Utilities::get_mdp_day_end( '+1 day' )->format( 'c' );
+      $meta_data = [
+        'membership_ends_at'           => $tomorrow,
+        'membership_expires_at'        => $tomorrow,
+        'membership_grace_period_days' => 0,
+      ];
+    } else {
+      $meta_data = [];
+    }
+
+    // Local writes only — MDP handles bundle members at the org/bundle level.
+    $mc = new Membership_Controller();
+    $mc->update_local_membership_record( $membership_post_id, array_merge( $meta_data, [ 'membership_status' => $new_status ] ) );
+    $mc->update_membership_status( $membership_post_id, $new_status );
+    $mc->amend_membership_json( $membership_post_id, array_merge( $meta_data, [ 'membership_status' => $new_status ] ) );
   }
 
   /**
@@ -2846,30 +2857,42 @@ class Membership_Bundle {
         update_post_meta( $member_id, 'membership_expires_at', $new_expires_at );
       }
 
-      // Keep grace in step with the member's resulting dates; sync_member_mdp_dates() sends it
-      // to MDP, which otherwise rebuilds expiry from the stale value.
-      if ( $write_ends || $write_expires ) {
-        update_post_meta( $member_id, 'membership_grace_period_days', Utilities::get_grace_period_days(
-          (string) get_post_meta( $member_id, 'membership_ends_at', true ),
-          (string) get_post_meta( $member_id, 'membership_expires_at', true )
-        ) );
-      }
-
       if ( $write_starts || $write_ends || $write_expires ) {
-        $this->sync_member_mdp_dates( $member_id );
+        $this->finalize_member_dates( $member_id );
       }
     }
+  }
+
+  /**
+   * Recalculate a member's grace period from its stored dates, then push its dates to MDP.
+   *
+   * Shared final step of cascade_dates_to_members() and resync_members(). MDP rebuilds the
+   * member's expiry from the grace period, so it must match the dates before the push.
+   *
+   * @param int $member_id Member's individual membership post ID.
+   * @return bool False when the MDP push failed.
+   */
+  private function finalize_member_dates( int $member_id ): bool {
+    update_post_meta( $member_id, 'membership_grace_period_days', Utilities::get_grace_period_days(
+      (string) get_post_meta( $member_id, 'membership_ends_at', true ),
+      (string) get_post_meta( $member_id, 'membership_expires_at', true )
+    ) );
+
+    return $this->sync_member_mdp_dates( $member_id );
   }
 
   /**
    * Push a cascaded date change to the member's own MDP person_membership record.
    * Local post meta is already the source of truth by the time this runs — read it
    * back rather than threading values through the cascade loop.
+   *
+   * @param int $member_id Member's individual membership post ID.
+   * @return bool False when the MDP push failed; true when it succeeded or the member has no MDP record.
    */
-  private function sync_member_mdp_dates( int $member_id ): void {
+  private function sync_member_mdp_dates( int $member_id ): bool {
     $membership_wicket_uuid = get_post_meta( $member_id, 'membership_wicket_uuid', true );
     if ( empty( $membership_wicket_uuid ) ) {
-      return;
+      return true;
     }
 
     $membership = [
@@ -2886,14 +2909,18 @@ class Membership_Bundle {
 
     $result = ( new Membership_Controller() )->update_mdp_record( $membership, $meta_data );
 
-    if ( ! empty( $result['error'] ) ) {
+    $error = is_wp_error( $result ) ? $result->get_error_message() : ( $result['error'] ?? '' );
+    if ( ! empty( $error ) ) {
       Wicket()->log()->error( 'Membership_Bundle::sync_member_mdp_dates: MDP date sync failed', [
         'source'    => 'wicket-memberships',
         'bundle_id' => $this->post_id,
         'member_id' => $member_id,
-        'error'     => $result['error'],
+        'error'     => $error,
       ] );
+      return false;
     }
+
+    return true;
   }
 
   /**
@@ -3670,5 +3697,154 @@ class Membership_Bundle {
         'error'           => $response->get_error_message(),
       ] );
     }
+  }
+
+  /**
+   * Realign this bundle's members with the bundle: status, end, expiry and early renewal
+   * dates, and grace period. Only fields that differ are written.
+   *
+   * Used by the Tools tab's Bundle Member Resync to repair drift. Members are processed in
+   * post ID order and a batch resumes after the last ID it saw, so members added or removed
+   * mid-run never shift the cursor. Cancelled and expired members are never changed. Start
+   * dates are not synced: members keep the date they joined.
+   *
+   * @see Bundle_Member_Resync::process_batch()
+   *
+   * @param bool $dry_run True to compare only (Check Only); nothing is written locally or to MDP.
+   * @param int  $after_id Process members with a post ID above this; 0 starts at the first member.
+   * @param int  $limit    Most members to process in this call.
+   * @return array{processed: int, changed: int, unchanged: int, skipped: int, failed: int, broken_link: int, has_more: bool, last_id: int, error: string, changes: array<int, array{member_id: int, fields: array<string, array{0: string, 1: string}>, error: string, mdp_link: string}>}
+   */
+  public function resync_members( bool $dry_run, int $after_id = 0, int $limit = 50 ): array {
+    $result = [ 'processed' => 0, 'changed' => 0, 'unchanged' => 0, 'skipped' => 0, 'failed' => 0, 'broken_link' => 0, 'has_more' => false, 'last_id' => $after_id, 'error' => '', 'changes' => [] ];
+    if ( ! $this->post_id ) {
+      return $result;
+    }
+
+    $final_statuses = [ Wicket_Memberships::STATUS_CANCELLED, Wicket_Memberships::STATUS_EXPIRED ];
+    $bundle_status  = $this->get_membership_status();
+    $bundle_final   = in_array( $bundle_status, $final_statuses, true );
+
+    // Without a known status there is nothing to align to; copying it would blank every member's status.
+    $known_statuses = array_merge( $final_statuses, [
+      Wicket_Memberships::STATUS_PENDING,
+      Wicket_Memberships::STATUS_DELAYED,
+      Wicket_Memberships::STATUS_ACTIVE,
+      Wicket_Memberships::STATUS_GRACE,
+    ] );
+    if ( ! in_array( $bundle_status, $known_statuses, true ) ) {
+      $result['error'] = 'Bundle has no valid status; its members were not checked.';
+      return $result;
+    }
+
+    // Once per run; past dates on expired/cancelled bundles break MDP updates.
+    if ( ! $dry_run && $after_id === 0 && ! $bundle_final ) {
+      $this->sync_mdp_update();
+    }
+
+    $member_ids = array_map( fn( $post ) => (int) $post->ID, $this->get_individual_memberships( false ) );
+    $member_ids = array_values( array_filter( $member_ids, fn( $id ) => $id > $after_id ) );
+    sort( $member_ids );
+    $batch              = array_slice( $member_ids, 0, $limit );
+    $result['has_more'] = count( $member_ids ) > count( $batch );
+    $result['last_id']  = $batch ? (int) end( $batch ) : $after_id;
+
+    $dates          = $this->get_dates();
+    $expected_dates = [
+      'membership_ends_at'        => $dates['ends_at'],
+      'membership_expires_at'     => $dates['expires_at'],
+      'membership_early_renew_at' => $dates['early_renew_at'],
+    ];
+    $expected_grace = $this->get_grace_period_days();
+
+    foreach ( $batch as $member_id ) {
+      $result['processed']++;
+      $status = (string) get_post_meta( $member_id, 'membership_status', true );
+
+      if ( in_array( $status, $final_statuses, true ) ) {
+        $result['skipped']++;
+        continue;
+      }
+
+      $diff = [];
+      if ( $bundle_final ) {
+        // Members of a finished bundle only follow its status, as the status cascade does.
+        if ( $status !== $bundle_status ) {
+          $diff['membership_status'] = [ $status, $bundle_status ];
+        }
+      } else {
+        foreach ( $expected_dates as $key => $expected ) {
+          $current = (string) get_post_meta( $member_id, $key, true );
+          // Compared as instants: the same moment can be stored as Z or +00:00.
+          if ( $expected !== '' && strtotime( $current ) !== strtotime( $expected ) ) {
+            $diff[ $key ] = [ $current, $expected ];
+          }
+        }
+
+        // An empty grace meta means 0: members added without a grace period store nothing.
+        $current_grace = (string) get_post_meta( $member_id, 'membership_grace_period_days', true );
+        if ( ( $current_grace === '' ? 0 : (int) $current_grace ) !== $expected_grace ) {
+          $diff['membership_grace_period_days'] = [ $current_grace, (string) $expected_grace ];
+        }
+
+        // Start dates are not synced, so a member who starts later legitimately stays delayed.
+        $starts_ts       = strtotime( (string) get_post_meta( $member_id, 'membership_starts_at', true ) );
+        $expected_status = ( $bundle_status !== Wicket_Memberships::STATUS_PENDING && $starts_ts && $starts_ts > time() )
+          ? Wicket_Memberships::STATUS_DELAYED
+          : $bundle_status;
+        if ( $status !== $expected_status ) {
+          $diff['membership_status'] = [ $status, $expected_status ];
+        }
+      }
+
+      // A broken external_id link only stops MDP linking back to WordPress; updates still go by
+      // MDP UUID, so these members are realigned as normal and only flagged for repair.
+      $mdp_link = '';
+      if ( get_post_meta( $member_id, '_wicket_membership_external_id_collision', true ) ) {
+        $mdp_link = 'external_id collision';
+      } elseif ( get_post_meta( $member_id, '_wicket_membership_external_id_failed', true ) ) {
+        $mdp_link = 'external_id update failed';
+      }
+      if ( $mdp_link !== '' ) {
+        $result['broken_link']++;
+      }
+
+      if ( empty( $diff ) ) {
+        $result['unchanged']++;
+        if ( $mdp_link !== '' ) {
+          $result['changes'][] = [ 'member_id' => $member_id, 'fields' => [], 'error' => '', 'mdp_link' => $mdp_link ];
+        }
+        continue;
+      }
+
+      $change = [ 'member_id' => $member_id, 'fields' => $diff, 'error' => '', 'mdp_link' => $mdp_link ];
+
+      if ( ! $dry_run ) {
+        // Dates before status: update_local_membership_record() derives status from the stored dates.
+        foreach ( $expected_dates as $key => $expected ) {
+          if ( isset( $diff[ $key ] ) ) {
+            update_post_meta( $member_id, $key, $expected );
+          }
+        }
+
+        if ( isset( $diff['membership_status'] ) ) {
+          $this->apply_bundle_status_to_member( $member_id, $diff['membership_status'][1] );
+        }
+
+        if ( ! $bundle_final && array_diff_key( $diff, [ 'membership_status' => true ] ) ) {
+          // The bundle's grace, not one recalculated from the member's dates: with no bundle
+          // expiry those dates are left as-is and would never converge on it.
+          update_post_meta( $member_id, 'membership_grace_period_days', $expected_grace );
+          if ( ! $this->sync_member_mdp_dates( $member_id ) ) {
+            $change['error'] = 'MDP update failed';
+          }
+        }
+      }
+
+      $change['error'] === '' ? $result['changed']++ : $result['failed']++;
+      $result['changes'][] = $change;
+    }
+
+    return $result;
   }
 }

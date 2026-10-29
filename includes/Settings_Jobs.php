@@ -88,6 +88,235 @@ class Settings_Jobs {
   }
 
   /**
+   * Render the Tools tab's Bundle Member Resync section: target IDs, Check Only / Resync buttons, and the help panel.
+   *
+   * Tabs render inside the settings page's options.php form, so the controls bind via the
+   * form attribute to a separate form printed in the footer; nesting would also submit its action=update.
+   *
+   * @see Settings_Jobs::handle_bundle_resync_request()  Handles both buttons.
+   *
+   * @return void
+   */
+  public static function render_bundle_resync_section() {
+    if ( empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
+      echo '<p class="description">Available when Membership Bundles are enabled.</p>';
+      return;
+    }
+
+    $user_id = get_current_user_id();
+    $notice  = get_transient( 'wicket_mship_bundle_resync_notice_' . $user_id );
+    if ( $notice ) {
+      delete_transient( 'wicket_mship_bundle_resync_notice_' . $user_id );
+    }
+    add_action( 'admin_footer', function () {
+      ?>
+      <form id="wicket-mship-bundle-resync-form" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
+        <input type="hidden" name="action" value="wicket_mship_bundle_resync">
+        <?php wp_nonce_field( 'wicket_mship_bundle_resync', 'wicket_mship_bundle_resync_nonce', false ); ?>
+      </form>
+      <?php
+    } );
+    ?>
+    <p style="max-width:990px">Realigns bundle members with their bundle: status, end, expiry and early renewal dates, and grace period, in WordPress and MDP. On healthy data a run changes nothing. Check Only reports what would change without writing anything.</p>
+    <p style="max-width:990px"><strong>Use only to repair drift:</strong> members normally stay in step with their bundle automatically. Run this when a bug has caused members to drift from their bundle and they need to be realigned.</p>
+    <?php if ( $notice ) : ?>
+      <div class="notice notice-<?php echo esc_attr( $notice['type'] ); ?> inline"><p><?php echo esc_html( $notice['message'] ); ?></p></div>
+    <?php endif; ?>
+    <?php // A form panel, not a jobs-table row: one input, a status and two actions read better as label → control rows. ?>
+    <div class="widefat" style="max-width:990px;box-sizing:border-box;padding:16px 20px">
+      <div style="display:grid;grid-template-columns:140px minmax(0,1fr);gap:16px 20px;align-items:start">
+        <label for="wicket-mship-bundle-resync-ids" style="padding-top:5px"><strong>Bundles</strong></label>
+        <div>
+          <input type="text" id="wicket-mship-bundle-resync-ids" form="wicket-mship-bundle-resync-form" name="wicket_mship_bundle_resync_ids" style="width:100%;max-width:420px;min-width:0;box-sizing:border-box" placeholder="All bundles" autocomplete="off" aria-describedby="wicket-mship-bundle-resync-ids-help">
+          <p class="description" id="wicket-mship-bundle-resync-ids-help">Bundle post IDs, separated by commas, up to <?php echo (int) Bundle_Member_Resync::MAX_IDS; ?>. Leave empty to check every bundle.</p>
+        </div>
+
+        <strong>Status</strong>
+        <div>
+          <?php $last_runs = get_option( Bundle_Member_Resync::LAST_RUNS_OPTION, [] ); ?>
+          <?php foreach ( [ 'check' => 'Last check', 'resync' => 'Last resync' ] as $mode => $label ) : ?>
+            <?php $run = is_array( $last_runs ) ? ( $last_runs[ $mode ] ?? null ) : null; ?>
+            <?php echo esc_html( $label ); ?>:
+            <?php if ( empty( $run['started'] ) ) : ?>
+              Never run
+            <?php else : ?>
+              <?php
+              $parts = [ Utilities::format_mdp_date( 'Y-m-d H:i', (int) $run['started'] ) ];
+              $parts[] = empty( $run['bundle_ids'] ) ? 'all bundles' : count( $run['bundle_ids'] ) . ' bundle(s)';
+              if ( empty( $run['finished'] ) ) {
+                // Unfinished with nothing queued means a batch died (timeout, out of memory) and the chain stopped.
+                $queued  = as_has_scheduled_action( Bundle_Member_Resync::HOOK, [ 'mode' => $mode ], 'wicket-memberships' );
+                $parts[] = ( $queued ? 'in progress: ' : 'stopped before finishing: ' ) . (int) ( $run['processed'] ?? 0 ) . ' of ' . (int) ( $run['total'] ?? 0 ) . ' members';
+              } else {
+                $verb    = 'check' === $mode ? 'would change' : 'changed';
+                $parts[] = (int) ( $run['changed'] ?? 0 ) . ' ' . $verb . ', ' . (int) ( $run['failed'] ?? 0 ) . ' failed';
+              }
+              if ( ! empty( $run['broken_link'] ) ) {
+                $parts[] = (int) $run['broken_link'] . ' with a broken MDP link';
+              }
+              echo esc_html( implode( ' · ', $parts ) );
+              ?>
+              · <a href="<?php echo esc_url( Bundle_Member_Resync::get_log_url( (string) ( $run['source'] ?? '' ) ) ); ?>">View log</a>
+            <?php endif; ?>
+            <br>
+          <?php endforeach; ?>
+          <a href="<?php echo esc_url( add_query_arg( [ 'page' => 'action-scheduler', 's' => 'wicket_bundle_resync_members_batch' ], admin_url( 'tools.php' ) ) ); ?>">View runs in Scheduled Actions</a>
+          · <code title="Action Scheduler hook">wicket_bundle_resync_members_batch</code>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid #c3c4c7">
+        <button type="submit" class="button button-primary" form="wicket-mship-bundle-resync-form" name="wicket_mship_bundle_resync_mode" value="check">Check Only</button>
+        <button type="submit" class="button button-secondary" form="wicket-mship-bundle-resync-form" name="wicket_mship_bundle_resync_mode" value="resync" onclick="return confirm(<?php echo esc_attr( wp_json_encode( 'Updates status, dates and grace period on bundle members, and pushes them to MDP. Continue?' ) ); ?>);">Resync</button>
+        <span class="description" style="align-self:center">Check Only writes nothing. Resync changes WordPress and MDP.</span>
+      </div>
+    </div>
+    <?php
+    Settings_Page::render_accordion( 'wicket-mship-bundle-resync', 'What Bundle Member Resync checks', [ __CLASS__, 'render_bundle_resync_details' ] );
+  }
+
+  /**
+   * Echoes the help panel for Bundle Member Resync: what is synced, and which records are included.
+   *
+   * @return void
+   */
+  public static function render_bundle_resync_details() {
+    // Each field: [ written to the WordPress member, sent to MDP, note ].
+    $synced = [
+      'Status'             => [ true, false, 'Matches the bundle. A member whose own start date is in the future stays delayed.' ],
+      'End date'           => [ true, true, '' ],
+      'Expiry date'        => [ true, true, '' ],
+      'Grace period'       => [ true, true, 'Days from the bundle\'s end date to its expiry date, not the config default.' ],
+      'Early renewal date' => [ true, false, '' ],
+      'Start date'         => [ false, false, 'Not synced. Members keep the date they joined.' ],
+      'Tier, product, seat' => [ false, false, 'Not synced.' ],
+    ];
+    // Each record: [ included, updated in WordPress, sent to MDP, note ].
+    // Ordered included then skipped; within each, WordPress and MDP, WordPress only, MDP only, neither.
+    $included = [
+      'Pending member'                                   => [ true, true, true, 'Realigned with its bundle.' ],
+      'Delayed member'                                   => [ true, true, true, 'Realigned with its bundle. Stays delayed while its own start date is in the future.' ],
+      'Active member'                                    => [ true, true, true, 'Realigned with its bundle.' ],
+      'Grace-period member'                              => [ true, true, true, 'Realigned with its bundle.' ],
+      'Member with a broken MDP link'                    => [ true, true, true, 'Updated by MDP ID. Flagged in the log; repair the link with wp wicket-mship external-id repair.' ],
+      'Member of an expired or cancelled bundle'         => [ true, true, false, 'Moved to the bundle\'s status, as when the bundle changed status.' ],
+      'Member not yet in MDP'                            => [ true, true, false, 'MDP is skipped until the member has an MDP record.' ],
+      'Bundle: pending, delayed, active or grace period' => [ true, false, true, 'The bundle\'s own MDP record is updated from its dates.' ],
+      'Cancelled member'                                 => [ false, false, false, 'Final state, never revived.' ],
+      'Expired member'                                   => [ false, false, false, 'Final state, never revived.' ],
+      'Membership not in a bundle'                       => [ false, false, false, 'Never touched.' ],
+      'Bundle: expired or cancelled'                     => [ false, false, false, 'Past dates break MDP updates.' ],
+    ];
+    $mark = function ( $yes ) {
+      return $yes
+        ? '<span class="dashicons dashicons-yes" aria-hidden="true"></span><span class="screen-reader-text">Yes</span>'
+        : '<span class="dashicons dashicons-no-alt" aria-hidden="true"></span><span class="screen-reader-text">No</span>';
+    };
+    ?>
+      <p><strong>What is synced</strong> from the bundle to each member</p>
+      <table class="widefat striped" style="max-width:990px">
+        <?php // td, not th: the settings page's .form-table th styles would leak into this nested table. ?>
+        <colgroup>
+          <col style="width:22%">
+          <col style="width:13%">
+          <col style="width:13%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr><td><strong>Field</strong></td><td style="text-align:center"><strong>WordPress</strong></td><td style="text-align:center"><strong>MDP</strong></td><td><strong>Notes</strong></td></tr>
+        </thead>
+        <tbody>
+          <?php foreach ( $synced as $field => [ $wordpress, $mdp, $note ] ) : ?>
+            <tr>
+              <td><strong><?php echo esc_html( $field ); ?></strong></td>
+              <td style="text-align:center"><?php echo $mark( $wordpress ); ?></td>
+              <td style="text-align:center"><?php echo $mark( $mdp ); ?></td>
+              <td><?php echo esc_html( $note ); ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+
+      <p><strong>Who is included</strong></p>
+      <table class="widefat striped" style="max-width:990px">
+        <colgroup>
+          <col style="width:28%">
+          <col style="width:12%">
+          <col style="width:12%">
+          <col style="width:12%">
+          <col>
+        </colgroup>
+        <thead>
+          <tr><td><strong>Record</strong></td><td><strong>Status</strong></td><td style="text-align:center"><strong>WordPress</strong></td><td style="text-align:center"><strong>MDP</strong></td><td><strong>Notes</strong></td></tr>
+        </thead>
+        <tbody>
+          <?php foreach ( $included as $record => [ $is_included, $wordpress, $mdp, $note ] ) : ?>
+            <tr>
+              <td><strong><?php echo esc_html( $record ); ?></strong></td>
+              <td><?php echo $is_included ? 'Included' : 'Skipped'; ?></td>
+              <td style="text-align:center"><?php echo $mark( $wordpress ); ?></td>
+              <td style="text-align:center"><?php echo $mark( $mdp ); ?></td>
+              <td><?php echo esc_html( $note ); ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+      <p>Runs in the background through Action Scheduler, at most <?php echo (int) Bundle_Member_Resync::BATCH_SIZE; ?> members per batch. Each run writes its own log to WooCommerce &gt; Status &gt; Logs, by post ID: <code>wicket-membership-bundle-check-…</code> for Check Only and <code>wicket-membership-bundle-resync-…</code> for Resync. The Status row links to the latest of each.</p>
+    <?php
+  }
+
+  /**
+   * Handle the Check Only / Resync buttons: verify the request, validate target IDs, and report back.
+   *
+   * @return void  Redirects back to the Tools tab.
+   */
+  public static function handle_bundle_resync_request() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+      wp_die( esc_html__( 'Sorry, you are not allowed to do that.', 'wicket-memberships' ), 403 );
+    }
+    check_admin_referer( 'wicket_mship_bundle_resync', 'wicket_mship_bundle_resync_nonce' );
+
+    $redirect = admin_url( 'options-general.php?page=wicket-membership-settings&tab=tools' );
+    $user_id  = get_current_user_id();
+
+    if ( empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
+      wp_safe_redirect( $redirect );
+      exit;
+    }
+
+    $dry_run = ( sanitize_key( wp_unslash( $_POST['wicket_mship_bundle_resync_mode'] ?? '' ) ) !== 'resync' );
+    $raw_ids = sanitize_text_field( wp_unslash( $_POST['wicket_mship_bundle_resync_ids'] ?? '' ) );
+
+    $requested = array_values( array_unique( array_filter( array_map( 'absint', preg_split( '/[\s,]+/', $raw_ids, -1, PREG_SPLIT_NO_EMPTY ) ) ) ) );
+    $valid     = array_values( array_filter( $requested, fn( $id ) => get_post_type( $id ) === Helper::get_membership_bundle_cpt_slug()
+      // Trashed bundles have had their MDP record deleted; "all bundles" excludes them too.
+      && get_post_status( $id ) !== 'trash' ) );
+    $rejected  = array_diff( $requested, $valid );
+
+    if ( count( $requested ) > Bundle_Member_Resync::MAX_IDS ) {
+      $notice = [ 'type' => 'error', 'message' => sprintf( 'Too many IDs: %d given, the limit is %d. Nothing was queued.', count( $requested ), Bundle_Member_Resync::MAX_IDS ) ];
+    } elseif ( $raw_ids !== '' && empty( $valid ) ) {
+      $notice = [ 'type' => 'error', 'message' => 'None of the IDs are membership bundles that are not in the trash. Nothing was queued.' ];
+    } else {
+      $queued = Bundle_Member_Resync::enqueue( $valid, $dry_run );
+      if ( is_wp_error( $queued ) ) {
+        $notice = [ 'type' => 'error', 'message' => $queued->get_error_message() ];
+      } else {
+        $target  = empty( $valid ) ? 'all bundles' : count( $valid ) . ' bundle(s): ' . implode( ', ', $valid );
+        $message = sprintf( '%s started for %s. It runs in the background; progress shows under Status.', $dry_run ? 'Check Only' : 'Resync', $target );
+        if ( $rejected ) {
+          $message .= ' Ignored, not membership bundles or in the trash: ' . implode( ', ', $rejected ) . '.';
+        }
+        $notice = [ 'type' => 'success', 'message' => $message ];
+      }
+    }
+
+    set_transient( 'wicket_mship_bundle_resync_notice_' . $user_id, $notice, MINUTE_IN_SECONDS );
+    wp_safe_redirect( $redirect );
+    exit;
+  }
+
+  /**
    * Render one Scheduled Jobs table.
    *
    * @param  array  $rows  Rows of [ job, description (string, or [ short text, details shown on hover ]), status,

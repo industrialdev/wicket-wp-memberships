@@ -22,6 +22,7 @@ class Settings_Page {
     'renewals'  => 'Renewals',
     'membership_bundles' => 'Bundles',
     'import'    => 'Import',
+    'tools'     => 'Tools',
     'developer' => 'Developer',
   ];
 
@@ -92,7 +93,10 @@ class Settings_Page {
             <?php do_settings_sections( self::settings_page_id( $tab ) ); ?>
           </div>
         <?php endforeach; ?>
-        <?php submit_button(); ?>
+        <?php // Tools has no saved settings; its buttons submit their own form. ?>
+        <?php if ( 'tools' !== $active_tab ) : ?>
+          <?php submit_button(); ?>
+        <?php endif; ?>
       </form>
     </div>
     <?php
