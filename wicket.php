@@ -66,6 +66,7 @@ use Wicket_Memberships\Membership_Bundle_WP_REST_Controller;
 use Wicket_Memberships\Membership_Bundle_Block_Controller;
 use Wicket_Memberships\Membership_Subscription_Controller;
 use Wicket_Memberships\Membership_Bundle_Cron_Controller;
+use Wicket_Memberships\Bundle_Member_Resync;
 use Wicket_Memberships\Membership_Bundle_Renewal_Order_Controller;
 use Wicket_Memberships\Import_Controller;
 use Wicket_Memberships\Settings;
@@ -218,6 +219,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       new Helper;
       new Autorenew_Sync;
       new Autorenew_Audit;
+      new Bundle_Member_Resync;
       new Settings;
       new Utilities;
 
@@ -261,6 +263,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'admin_menu', array ( __NAMESPACE__.'\\Settings' , 'wicket_membership_add_settings_page' ));
       add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'wicket_membership_register_settings' ));
       add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'handle_manual_action_links' ));
+      add_action( 'admin_post_wicket_mship_bundle_resync', array( __NAMESPACE__.'\\Settings' , 'handle_bundle_resync_request' ));
       add_action( 'admin_enqueue_scripts', array( __NAMESPACE__.'\\Settings' , 'enqueue_settings_assets' ));
       add_filter( 'admin_body_class', array( __NAMESPACE__.'\\Settings' , 'settings_admin_body_class' ));
 

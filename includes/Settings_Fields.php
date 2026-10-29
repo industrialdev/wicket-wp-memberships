@@ -66,6 +66,10 @@ class Settings_Fields {
           'wicket_mship_import_create_subscriptions'           => 'All Memberships',
         ] ],
       ],
+      // Support tooling that acts on data, kept apart from configuration tabs.
+      'tools' => [
+        'bundle_member_resync' => [ 'Bundle Member Resync', [ Settings_Jobs::class, 'render_bundle_resync_section' ], [] ],
+      ],
       'developer' => [
         'debug_settings' => [ 'Debug Settings', [ Settings_Page::class, 'section_debug_text' ], [] ],
         'debug_admin' => [ 'Admin Debug Output', [ Settings_Page::class, 'section_debug_admin_text' ], [

@@ -390,7 +390,8 @@ class Membership_Bundle_Renewal_Order_Controller {
     self::prime_member_caches( $subscription );
 
     // Headroom for a large bundle's per-member repricing; a silent no-op where the host blocks set_time_limit().
-    if ( function_exists( 'wc_set_time_limit' ) ) {
+    // Skipped under the test harness, where one process runs the whole suite and the cap would kill it.
+    if ( function_exists( 'wc_set_time_limit' ) && ! defined( 'WICKET_WARDEN_TESTING' ) ) {
       wc_set_time_limit( 300 );
     }
 
