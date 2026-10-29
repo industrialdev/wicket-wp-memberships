@@ -258,6 +258,11 @@ class Settings {
     Settings_Jobs::render();
   }
 
+  /** @see Settings_Jobs::handle_bundle_resync_request() */
+  public static function handle_bundle_resync_request() {
+    Settings_Jobs::handle_bundle_resync_request();
+  }
+
   /** @see Settings_Jobs::handle_manual_action_links() */
   public static function handle_manual_action_links() {
     Settings_Jobs::handle_manual_action_links();

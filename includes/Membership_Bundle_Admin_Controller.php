@@ -570,7 +570,7 @@ class Membership_Bundle_Admin_Controller {
         ->modify( '-' . absint( $renewal_window_days ) . ' days' )->format( 'Y-m-d' );
     }
 
-    $grace_period_days = abs( (int) round( ( $expires_at - $ends_at ) / DAY_IN_SECONDS ) );
+    $grace_period_days = Utilities::get_grace_period_days( '@' . $ends_at, '@' . $expires_at );
 
     $resolved = [
       'membership_starts_at'         => Utilities::get_mdp_day_start( $data['membership_starts_at'] )->format( 'c' ),
