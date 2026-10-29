@@ -24,7 +24,14 @@ class Membership_Bundle {
   public const RENEWAL_FLOW_FORM_PAGE    = 'form_page';
 
   /**
-   * Per-request cache for check_current_user_access(): the org-connection
+   * MDP role that grants member-portal management of a bundle. Must be scoped to the
+   * bundle's organisation (role -> resource = that org). Filterable via
+   * wicket_mship_bundle_manager_role.
+   */
+  public const BUNDLE_MANAGER_ROLE = 'bundle_manager';
+
+  /**
+   * Per-request cache for check_current_user_access(): the bundle_manager role
    * lookup is a live MDP call, and the detail template + admin-post handler
    * may both ask for the same bundle in one request.
    *
@@ -4357,9 +4364,10 @@ class Membership_Bundle {
   /**
    * Check whether the current user may manage a bundle from the member portal.
    *
-   * Allows any logged-in member with an active MDP connection to the bundle's organisation
-   * (e.g. an org delegate who did not personally purchase the bundle). MDP is queried live
-   * rather than trusting locally cached relationship data. Shared by the member-scoped REST
+   * Allows any logged-in member who holds the bundle_manager role (BUNDLE_MANAGER_ROLE)
+   * scoped to the bundle's organisation in MDP — e.g. an org delegate who did not personally
+   * purchase the bundle. Person-to-org connections play no part: a bundle manager needs no
+   * relationship to the org. MDP is queried live rather than trusting locally cached data. Shared by the member-scoped REST
    * routes (Membership_Bundle_WP_REST_Controller::permissions_check_bundle_org_member()), the
    * detail template, and the renewal order handler, so every entry point applies the same rule.
    *
@@ -4410,15 +4418,74 @@ class Membership_Bundle {
       return new \WP_Error( 'no_person', 'Unable to resolve current member.', [ 'status' => 403 ] );
     }
 
-    $connections = function_exists( 'wicket_get_active_person_org_connections' )
-      ? wicket_get_active_person_org_connections( $person_uuid, $org_uuid )
-      : [];
-
-    if ( is_wp_error( $connections ) || empty( $connections ) ) {
+    if ( ! self::person_has_org_role( $person_uuid, $org_uuid, self::get_bundle_manager_role() ) ) {
       return new \WP_Error( 'forbidden', 'You do not have access to this membership bundle.', [ 'status' => 403 ] );
     }
 
     return true;
+  }
+
+  /**
+   * Name of the MDP role that grants member-portal bundle management.
+   *
+   * @return string
+   */
+  public static function get_bundle_manager_role(): string {
+    /**
+     * Filter the MDP role name that grants member-portal management of a bundle.
+     *
+     * @param string $role_name Default 'bundle_manager'.
+     */
+    return (string) apply_filters( 'wicket_mship_bundle_manager_role', self::BUNDLE_MANAGER_ROLE );
+  }
+
+  /**
+   * Whether a person holds a role scoped to a given organisation in MDP.
+   *
+   * Requests the person with ?include=roles explicitly: the SDK's people->fetch() sends a
+   * bare GET people/{uuid}, whose included set does not reliably contain roles. A role is
+   * org-scoped through its `resource` relationship (the shape wicket_assign_role() writes),
+   * with `organization` as a fallback. Role names are matched case-sensitively, as MDP stores
+   * them. Any API failure denies access.
+   *
+   * @param string $person_uuid
+   * @param string $org_uuid
+   * @param string $role_name
+   * @return bool
+   */
+  public static function person_has_org_role( string $person_uuid, string $org_uuid, string $role_name ): bool {
+    if ( $person_uuid === '' || $org_uuid === '' || $role_name === '' || ! function_exists( 'wicket_api_client' ) ) {
+      return false;
+    }
+
+    try {
+      $response = wicket_api_client()->get( 'people/' . rawurlencode( $person_uuid ) . '?include=roles' );
+    } catch ( \Throwable $e ) {
+      Wicket()->log()->error( 'Membership_Bundle: person role lookup failed', [
+        'source'      => 'wicket-memberships',
+        'person_uuid' => $person_uuid,
+        'error'       => $e->getMessage(),
+      ] );
+      return false;
+    }
+
+    foreach ( (array) ( $response['included'] ?? [] ) as $item ) {
+      if ( ( $item['type'] ?? '' ) !== 'roles' || ( $item['attributes']['name'] ?? '' ) !== $role_name ) {
+        continue;
+      }
+
+      $resource_id = (string) (
+        $item['relationships']['resource']['data']['id']
+        ?? $item['relationships']['organization']['data']['id']
+        ?? ''
+      );
+
+      if ( $resource_id === $org_uuid ) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**

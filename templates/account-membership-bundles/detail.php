@@ -114,7 +114,7 @@ if ( ! empty( $extra_columns ) ) {
 // server-rendered: they depend only on bundle/config/subscription data that is
 // already available here, so there is no reason to wait on a REST round trip.
 // Owner-only — the renewal order belongs to the subscription customer, and
-// WooCommerce only lets that customer pay it. The org-connection check is the
+// WooCommerce only lets that customer pay it. The bundle_manager role check is the
 // same one the member REST routes apply (cached per request).
 $renewal_callout = null;
 $renewal_summary = null;

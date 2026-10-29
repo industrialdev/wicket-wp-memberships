@@ -78,7 +78,7 @@ class Membership_Bundle_Block_Controller {
     }
 
     // Owner first (cheap, local): the order is the subscription customer's to pay.
-    // Then the same org-connection check the member REST routes use.
+    // Then the same bundle_manager role check the member REST routes use.
     if ( ! $bundle->is_current_user_owner() || is_wp_error( Membership_Bundle::check_current_user_access( $bundle_post_id ) ) ) {
       $this->redirect_with_renewal_error( $return_url, 'forbidden' );
     }

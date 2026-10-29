@@ -1546,15 +1546,15 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   }
 
   /**
-   * Check permissions for member-scoped routes restricted to bundles the
-   * requesting member's MDP organisation owns.
+   * Check permissions for member-scoped routes restricted to members who
+   * manage the bundle's organisation.
    *
    * Unlike permissions_check_member_read (owner-only, matched against the WP
-   * user_id meta), this allows any member belonging to the bundle's linked
-   * org_uuid to read — e.g. an org delegate who did not personally purchase
-   * the bundle but administers it on the org's behalf. Ownership is resolved
-   * via MDP (the source of truth for org membership), not cached locally, so
-   * this always reflects the member's current connections.
+   * user_id meta), this allows any member holding the bundle_manager role
+   * scoped to the bundle's linked org_uuid — e.g. an org delegate who did not
+   * personally purchase the bundle but administers it on the org's behalf.
+   * No person-to-org connection is required. Roles are resolved via MDP, not
+   * cached locally, so this always reflects the member's current roles.
    *
    * Deliberately does not honor ALLOW_LOCAL_IMPORTS: that flag exists for CSV
    * import automation, not member-facing browsing.
