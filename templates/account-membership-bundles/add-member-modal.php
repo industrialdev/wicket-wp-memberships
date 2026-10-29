@@ -656,7 +656,7 @@ if ( ! defined( 'ABSPATH' ) ) {
         if ( this.isPersonAllInBundle( person ) ) {
           return <?php echo wp_json_encode( __( "Can't be selected — their memberships are already in a bundle.", 'wicket-memberships' ) ); ?>;
         }
-        return <?php echo wp_json_encode( __( "Can't be selected — no memberships eligible for this bundle.", 'wicket-memberships' ) ); ?>;
+        return <?php echo wp_json_encode( __( "Can't be selected — not eligible for this bundle.", 'wicket-memberships' ) ); ?>;
       },
 
       backToSearch() {
