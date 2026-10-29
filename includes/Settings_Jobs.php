@@ -186,7 +186,7 @@ class Settings_Jobs {
       'Status'             => [ true, false, 'Matches the bundle. A member whose own start date is in the future stays delayed.' ],
       'End date'           => [ true, true, '' ],
       'Expiry date'        => [ true, true, '' ],
-      'Grace period'       => [ true, true, 'Days from the bundle\'s end date to its expiry date, not the config default.' ],
+      'Grace period'       => [ true, true, 'Days from the bundle\'s end date to its expiry date, not the config default. Skipped when the bundle has no expiry date.' ],
       'Early renewal date' => [ true, false, '' ],
       'Start date'         => [ false, false, 'Not synced. Members keep the date they joined.' ],
       'Tier, product, seat' => [ false, false, 'Not synced.' ],

@@ -3632,7 +3632,8 @@ class Membership_Bundle {
     $dates = $this->get_dates();
     // From the bundle's dates, not config: cancellation collapses expires_at to ends_at and
     // admin edits move it, and sending the config default would undo either in MDP.
-    $grace = $this->get_grace_period_days();
+    // Legacy bundles with no expires_at have no grace to derive, so MDP keeps its own value.
+    $grace = $dates['expires_at'] === '' ? false : $this->get_grace_period_days();
 
     $response = wicket_update_bundle_membership(
       $bundle_mdp_uuid,
@@ -3756,6 +3757,8 @@ class Membership_Bundle {
       'membership_early_renew_at' => $dates['early_renew_at'],
     ];
     $expected_grace = $this->get_grace_period_days();
+    // Mirrors sync_mdp_update(): with no bundle expiry, members keep their own grace.
+    $sync_grace = $dates['expires_at'] !== '';
 
     foreach ( $batch as $member_id ) {
       $result['processed']++;
@@ -3783,7 +3786,7 @@ class Membership_Bundle {
 
         // An empty grace meta means 0: members added without a grace period store nothing.
         $current_grace = (string) get_post_meta( $member_id, 'membership_grace_period_days', true );
-        if ( ( $current_grace === '' ? 0 : (int) $current_grace ) !== $expected_grace ) {
+        if ( $sync_grace && ( $current_grace === '' ? 0 : (int) $current_grace ) !== $expected_grace ) {
           $diff['membership_grace_period_days'] = [ $current_grace, (string) $expected_grace ];
         }
 
@@ -3832,9 +3835,10 @@ class Membership_Bundle {
         }
 
         if ( ! $bundle_final && array_diff_key( $diff, [ 'membership_status' => true ] ) ) {
-          // The bundle's grace, not one recalculated from the member's dates: with no bundle
-          // expiry those dates are left as-is and would never converge on it.
-          update_post_meta( $member_id, 'membership_grace_period_days', $expected_grace );
+          // The bundle's grace, not one recalculated from the member's dates, which may be stale.
+          if ( $sync_grace ) {
+            update_post_meta( $member_id, 'membership_grace_period_days', $expected_grace );
+          }
           if ( ! $this->sync_member_mdp_dates( $member_id ) ) {
             $change['error'] = 'MDP update failed';
           }
