@@ -37,18 +37,36 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
 
   // Distinct ids per state: Notice renders its children (incl. the action
   // button's hooks) inline, so reusing one instance across states crashes React.
-  const handleRenewalOrderResolved = (claim, data) => {
-    if (!claim) {
+  const handleRenewalOrderStatus = (status, claim, data) => {
+    if (status === "delayed") {
       setRenewalOrderNotice({
-        id: "renewal-order-unknown",
+        id: "renewal-order-delayed",
         status: "warning",
-        message: __("The renewal order status could not be confirmed. Reload the page to see the latest orders.", "wicket-memberships"),
+        message: __("Renewal order creation is taking longer than expected. It is still queued, and this page will keep checking.", "wicket-memberships"),
         onDismiss: dismissRenewalOrderNotice,
       });
       return;
     }
 
-    if (claim.failed_at) {
+    if (status === "unknown") {
+      setRenewalOrderNotice({
+        id: "renewal-order-unknown",
+        status: "warning",
+        message: __("The renewal order status could not be confirmed.", "wicket-memberships"),
+        // retryLoad is declared below; it's only read when the button is clicked.
+        action: {
+          label: __("Retry loading", "wicket-memberships"),
+          onClick: () => {
+            dismissRenewalOrderNotice();
+            retryLoad();
+          },
+        },
+        onDismiss: dismissRenewalOrderNotice,
+      });
+      return;
+    }
+
+    if (status === "failed") {
       console.error("[MembershipBundlePage] renewal order creation failed", claim);
       setRenewalOrderNotice({
         id: "renewal-order-failed",
@@ -81,7 +99,7 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
 
   const { pageData, setPageData, requestState, retryLoad, watchRenewalOrderCreation, renewalProcessingMeta, renewalOrderCreationMeta } = useMembershipBundleBootstrap({
     bundleGroupUuid,
-    onRenewalOrderResolved: handleRenewalOrderResolved,
+    onRenewalOrderStatus: handleRenewalOrderStatus,
   });
   const [memberAddedNotice, setMemberAddedNotice]       = useState(null);
   const [groupCancelledNotice, setGroupCancelledNotice] = useState(null);

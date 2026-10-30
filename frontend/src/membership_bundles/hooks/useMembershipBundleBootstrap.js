@@ -8,6 +8,11 @@ const REQUEST_SUCCESS = { status: "success", error: null };
 const RENEWAL_POLL_INTERVAL_MS = 10000;
 // A small bundle's renewal order job finishes within seconds, so check back sooner first.
 const RENEWAL_FIRST_POLL_MS = 2000;
+// Consecutive failed fetches (with doubling backoff) before a watched order is reported unknown.
+const RENEWAL_MAX_FAILED_POLLS = 3;
+// An order claim still in progress after this long is reported once and polled less often.
+const RENEWAL_ORDER_DELAYED_MS = 5 * 60 * 1000;
+const RENEWAL_DELAYED_POLL_INTERVAL_MS = 60000;
 
 /**
  * useMembershipBundleBootstrap
@@ -19,12 +24,12 @@ const RENEWAL_FIRST_POLL_MS = 2000;
  *
  * @param {object}   params
  * @param {string}   params.bundleGroupUuid          - membership_bundle_group_uuid for the series.
- * @param {Function} [params.onRenewalOrderResolved] - Called with (claim, data) once a watched renewal
- *                                                     order claim completes or fails, or with (null, data)
- *                                                     when its outcome can't be read.
+ * @param {Function} [params.onRenewalOrderStatus]   - Called with (status, claim, data) for a watched renewal
+ *                                                     order: "completed" | "failed" | "unknown" (outcome can't
+ *                                                     be read) | "delayed" (still in progress, reported once).
  * @returns {{ pageData: object|null, setPageData: Function, requestState: object, retryLoad: function, watchRenewalOrderCreation: function, renewalProcessingMeta: object|null, renewalOrderCreationMeta: object|null }}
  */
-export const useMembershipBundleBootstrap = ({ bundleGroupUuid, onRenewalOrderResolved }) => {
+export const useMembershipBundleBootstrap = ({ bundleGroupUuid, onRenewalOrderStatus }) => {
   const [pageData, setPageData] = useState(null);
   const [requestState, setRequestState] = useState(REQUEST_LOADING);
   const pollTimerRef = useRef(null);
@@ -33,8 +38,14 @@ export const useMembershipBundleBootstrap = ({ bundleGroupUuid, onRenewalOrderRe
   const pollGenerationRef = useRef(0);
   const awaitingOrderRef = useRef(false);
   const orderInProgressRef = useRef(false);
-  const onResolvedRef = useRef(onRenewalOrderResolved);
-  onResolvedRef.current = onRenewalOrderResolved;
+  const orderDelayedRef = useRef(false);
+  const failedPollsRef = useRef(0);
+  const onStatusRef = useRef(onRenewalOrderStatus);
+  onStatusRef.current = onRenewalOrderStatus;
+
+  const reportOrderStatus = (status, claim = null, data = null) => {
+    if (onStatusRef.current) onStatusRef.current(status, claim, data);
+  };
 
   const stopPolling = useCallback(() => {
     pollGenerationRef.current += 1;
@@ -56,22 +67,36 @@ export const useMembershipBundleBootstrap = ({ bundleGroupUuid, onRenewalOrderRe
   }, [bundleGroupUuid]);
 
   // Reports a watched claim (queued from this page, or seen in progress, e.g.
-  // after a reload) once it leaves the in-progress state or can't be fetched.
+  // after a reload) once it resolves, or once if it stays in progress too long.
   const checkRenewalOrderClaim = useCallback((data) => {
-    const inProgress = Boolean(getRenewalOrderCreationMeta(data));
+    const inProgressClaim = getRenewalOrderCreationMeta(data);
     const watching = awaitingOrderRef.current || orderInProgressRef.current;
-    orderInProgressRef.current = inProgress;
-    if (!watching || inProgress) return;
+    orderInProgressRef.current = Boolean(inProgressClaim);
+
+    if (inProgressClaim) {
+      const queuedAt = Date.parse(inProgressClaim.queued_at);
+      if (!orderDelayedRef.current && queuedAt && Date.now() - queuedAt > RENEWAL_ORDER_DELAYED_MS) {
+        orderDelayedRef.current = true;
+        reportOrderStatus("delayed", inProgressClaim, data);
+      }
+      return;
+    }
+    if (!watching) return;
 
     awaitingOrderRef.current = false;
+    orderDelayedRef.current = false;
     const claim = parseMetaJson(data?.meta?.membership_renewal_order_creation);
-    if (onResolvedRef.current) onResolvedRef.current(claim, data);
+    if (!claim) {
+      reportOrderStatus("unknown", null, data);
+    } else {
+      reportOrderStatus(claim.failed_at ? "failed" : "completed", claim, data);
+    }
   }, []);
 
   // Schedule next poll while a renewal order is awaited or either phase (order
   // creation, then member processing) is still in progress.
   const scheduleNextPoll = useCallback(
-    (data, delay = RENEWAL_POLL_INTERVAL_MS) => {
+    (data, delay = orderDelayedRef.current ? RENEWAL_DELAYED_POLL_INTERVAL_MS : RENEWAL_POLL_INTERVAL_MS) => {
       stopPolling();
       if (!awaitingOrderRef.current && !getRenewalOrderCreationMeta(data) && !getRenewalProcessingMeta(data)) {
         return;
@@ -81,9 +106,24 @@ export const useMembershipBundleBootstrap = ({ bundleGroupUuid, onRenewalOrderRe
         pollTimerRef.current = null;
         const refreshed = await silentRefresh();
         if (generation !== pollGenerationRef.current) return;
-        if (refreshed) setPageData(refreshed);
+
+        if (!refreshed) {
+          // Keep polling from the last known data; one transient error shouldn't end the watch.
+          failedPollsRef.current += 1;
+          if (failedPollsRef.current < RENEWAL_MAX_FAILED_POLLS) {
+            scheduleNextPoll(data, RENEWAL_POLL_INTERVAL_MS * 2 ** failedPollsRef.current);
+            return;
+          }
+          failedPollsRef.current = 0;
+          // Watch flags stay set so a retryLoad() picks the claim back up.
+          if (awaitingOrderRef.current || orderInProgressRef.current) reportOrderStatus("unknown");
+          return;
+        }
+
+        failedPollsRef.current = 0;
+        setPageData(refreshed);
         checkRenewalOrderClaim(refreshed);
-        if (refreshed) scheduleNextPoll(refreshed);
+        scheduleNextPoll(refreshed);
       }, delay);
     },
     [silentRefresh, stopPolling, checkRenewalOrderClaim],
@@ -93,6 +133,8 @@ export const useMembershipBundleBootstrap = ({ bundleGroupUuid, onRenewalOrderRe
   // already be resolved by the first poll, so it can't rely on seeing it in progress.
   const watchRenewalOrderCreation = useCallback(() => {
     awaitingOrderRef.current = true;
+    orderDelayedRef.current = false;
+    failedPollsRef.current = 0;
     scheduleNextPoll(null, RENEWAL_FIRST_POLL_MS);
   }, [scheduleNextPoll]);
 
@@ -106,7 +148,8 @@ export const useMembershipBundleBootstrap = ({ bundleGroupUuid, onRenewalOrderRe
       if (generation !== pollGenerationRef.current) return null;
       setPageData(data);
       setRequestState(REQUEST_SUCCESS);
-      orderInProgressRef.current = Boolean(getRenewalOrderCreationMeta(data));
+      failedPollsRef.current = 0;
+      checkRenewalOrderClaim(data);
       // Resume polling if a renewal is already in progress, e.g. the page was reloaded mid-job.
       scheduleNextPoll(data);
       return data;
@@ -115,7 +158,7 @@ export const useMembershipBundleBootstrap = ({ bundleGroupUuid, onRenewalOrderRe
       setRequestState({ status: "error", error });
       return null;
     }
-  }, [bundleGroupUuid, stopPolling, scheduleNextPoll]);
+  }, [bundleGroupUuid, stopPolling, scheduleNextPoll, checkRenewalOrderClaim]);
 
   useEffect(() => {
     if (bundleGroupUuid) {
@@ -125,6 +168,7 @@ export const useMembershipBundleBootstrap = ({ bundleGroupUuid, onRenewalOrderRe
       stopPolling();
       awaitingOrderRef.current = false;
       orderInProgressRef.current = false;
+      orderDelayedRef.current = false;
     };
   }, [bundleGroupUuid, loadPageData, stopPolling]);
 
