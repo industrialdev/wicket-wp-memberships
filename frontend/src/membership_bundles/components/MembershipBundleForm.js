@@ -19,7 +19,7 @@ import MembershipRecordsSection from "./MembershipRecordsSection";
  * @param {string}       props.individualMembersUrl  - URL of the individual members list page.
  * @param {Function}     [props.onMemberAdded]       - Called after a member is successfully added to the bundle.
  * @param {Function}     [props.onBundleCancelled]    - Called with a success message after the bundle is cancelled.
- * @param {Function}     [props.onRenewalOrderQueued] - Called after a renewal order is successfully queued from this page, so it can show a queued notice and watch for the result.
+ * @param {Function}     [props.onRenewalOrderQueued] - Called after a renewal order is successfully queued (manual create or WCS-native action), so the page can refresh and pick up the in-progress overlay immediately.
  */
 const MembershipBundleForm = ({ pageData, isLoading, onOwnerUpdated, individualMembersUrl, onMemberAdded, onBundleCancelled, onRenewalOrderQueued }) => {
   return (

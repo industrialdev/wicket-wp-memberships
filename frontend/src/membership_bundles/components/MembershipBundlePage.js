@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { __, sprintf } from "@wordpress/i18n";
+import { __ } from "@wordpress/i18n";
 import { addQueryArgs } from "@wordpress/url";
 import styled from "styled-components";
 import AdminNoticeStack from "../../shared/components/AdminNoticeStack";
@@ -17,12 +17,6 @@ const ContentArea = styled.div`
   overflow: hidden;
 `;
 
-// Error codes written by the renewal order job (membership_renewal_order_creation.error_code).
-const RENEWAL_ORDER_ERROR_MESSAGES = {
-  subscription_not_found: __("The bundle's subscription could not be found.", "wicket-memberships"),
-  "renewal-order-error": __("WooCommerce Subscriptions could not create the order.", "wicket-memberships"),
-};
-
 const isNewlyCreated = () => {
   try {
     return new URLSearchParams(window.location.search).get("new") === "1";
@@ -32,57 +26,7 @@ const isNewlyCreated = () => {
 };
 
 const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembersUrl, individualMemberEditUrl }) => {
-  const [renewalOrderNotice, setRenewalOrderNotice] = useState(null);
-  const dismissRenewalOrderNotice = () => setRenewalOrderNotice(null);
-
-  // Distinct ids per state: Notice renders its children (incl. the action
-  // button's hooks) inline, so reusing one instance across states crashes React.
-  const handleRenewalOrderResolved = (claim, data) => {
-    if (!claim) {
-      setRenewalOrderNotice({
-        id: "renewal-order-unknown",
-        status: "warning",
-        message: __("The renewal order status could not be confirmed. Reload the page to see the latest orders.", "wicket-memberships"),
-        onDismiss: dismissRenewalOrderNotice,
-      });
-      return;
-    }
-
-    if (claim.failed_at) {
-      console.error("[MembershipBundlePage] renewal order creation failed", claim);
-      setRenewalOrderNotice({
-        id: "renewal-order-failed",
-        status: "error",
-        message: sprintf(
-          /* translators: %s: reason the renewal order job failed. */
-          __("The renewal order could not be created: %s Check the WooCommerce logs for details.", "wicket-memberships"),
-          RENEWAL_ORDER_ERROR_MESSAGES[claim.error_code] ?? __("An unexpected error occurred.", "wicket-memberships"),
-        ),
-        onDismiss: dismissRenewalOrderNotice,
-      });
-      return;
-    }
-
-    const orderLink = data?.orders?.find((o) => o.id === claim.order_id)?.link;
-    setRenewalOrderNotice({
-      id: "renewal-order-created",
-      status: "success",
-      message: sprintf(
-        /* translators: %d: renewal order ID. */
-        __("Renewal order #%d has been created.", "wicket-memberships"),
-        claim.order_id,
-      ),
-      action: orderLink
-        ? { label: __("View order", "wicket-memberships"), onClick: () => window.location.assign(orderLink) }
-        : undefined,
-      onDismiss: dismissRenewalOrderNotice,
-    });
-  };
-
-  const { pageData, setPageData, requestState, retryLoad, watchRenewalOrderCreation, renewalProcessingMeta, renewalOrderCreationMeta } = useMembershipBundleBootstrap({
-    bundleGroupUuid,
-    onRenewalOrderResolved: handleRenewalOrderResolved,
-  });
+  const { pageData, setPageData, requestState, retryLoad, renewalProcessingMeta, renewalOrderCreationMeta } = useMembershipBundleBootstrap({ bundleGroupUuid });
   const [memberAddedNotice, setMemberAddedNotice]       = useState(null);
   const [groupCancelledNotice, setGroupCancelledNotice] = useState(null);
   const [newGroupNotice, setNewGroupNotice] = useState(
@@ -140,16 +84,6 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
     });
   };
 
-  const handleRenewalOrderQueued = () => {
-    setRenewalOrderNotice({
-      id: "renewal-order-queued",
-      status: "info",
-      message: __("Renewal order creation has been queued. This page will update when the order is ready.", "wicket-memberships"),
-      onDismiss: dismissRenewalOrderNotice,
-    });
-    watchRenewalOrderCreation();
-  };
-
   const notices = [
     ...(requestState.status === "error"
       ? [
@@ -170,7 +104,6 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
     ...(newGroupNotice ? [newGroupNotice] : []),
     ...(memberAddedNotice ? [memberAddedNotice] : []),
     ...(groupCancelledNotice ? [groupCancelledNotice] : []),
-    ...(renewalOrderNotice ? [renewalOrderNotice] : []),
   ];
 
   return (
@@ -185,7 +118,7 @@ const MembershipBundlePageContent = ({ bundleGroupUuid, listUrl, individualMembe
           individualMembersUrl={individualMembersUrl}
           onMemberAdded={handleMemberAdded}
           onBundleCancelled={handleGroupCancelled}
-          onRenewalOrderQueued={handleRenewalOrderQueued}
+          onRenewalOrderQueued={retryLoad}
         />
       </ContentArea>
     </>
