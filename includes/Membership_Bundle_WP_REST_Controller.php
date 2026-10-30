@@ -330,6 +330,32 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     ] );
 
     /**
+     * Return the renewal summary (memberships on the subscription, by tier) for a
+     * bundle the current user owns.
+     *
+     * GET /wicket_member/v1/bundle/{id}/renewal_summary/mine
+     *
+     * Backs the frontend renew modal (templates/account-membership-bundles/renew-modal.php),
+     * which renders this summary server-side on page load and refetches it after a
+     * member is added or removed, so "Generate Order" never shows a stale count.
+     * Owner-only, matching the gate detail.php applies before rendering the modal.
+     */
+    register_rest_route( $this->namespace, '/bundle/(?P<bundle_post_id>\d+)/renewal_summary/mine', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_bundle_renewal_summary' ],
+        'permission_callback' => [ $this, 'permissions_check_bundle_owner' ],
+        'args'                => [
+          'bundle_post_id' => [
+            'required'    => true,
+            'type'        => 'integer',
+            'description' => 'The WP post ID of the membership bundle.',
+          ],
+        ],
+      ],
+    ] );
+
+    /**
      * List individual member seats within a bundle, for the bundle-detail
      * members table (member-scoped).
      *
@@ -906,6 +932,17 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     $params = $request->get_params();
     $response = Membership_Bundle_Admin_Controller::get_bundle_members_by_tier( (int) $params['bundle_post_id'] );
     return rest_ensure_response( $response );
+  }
+
+  /**
+   * GET /bundle/{bundle_post_id}/renewal_summary/mine
+   *
+   * Same data the renew modal is rendered with — see Membership_Bundle::get_renewal_summary().
+   * Shape: { total: int, tiers: [ { name: string, count: int }, ... ] }
+   */
+  public function get_bundle_renewal_summary( \WP_REST_Request $request ) {
+    $bundle = new Membership_Bundle( (int) $request->get_param( 'bundle_post_id' ) );
+    return rest_ensure_response( $bundle->get_renewal_summary() );
   }
 
   /**
@@ -1570,6 +1607,25 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
     if ( is_wp_error( $access ) ) {
       $data = $access->get_error_data();
       return new WP_REST_Response( [ 'error' => $access->get_error_message() ], (int) ( $data['status'] ?? 403 ) );
+    }
+
+    return true;
+  }
+
+  /**
+   * Bundle org-member access (see permissions_check_bundle_org_member) AND the
+   * current user owns the bundle's subscription. Mirrors the gate detail.php and
+   * Membership_Bundle_Block_Controller apply to the renewal callout/order flow.
+   */
+  public function permissions_check_bundle_owner( \WP_REST_Request $request ) {
+    $access = $this->permissions_check_bundle_org_member( $request );
+    if ( $access !== true ) {
+      return $access;
+    }
+
+    $bundle = new Membership_Bundle( (int) $request->get_param( 'bundle_post_id' ) );
+    if ( ! $bundle->post_id || ! $bundle->is_current_user_owner() ) {
+      return new WP_REST_Response( [ 'error' => 'Only the bundle owner can view its renewal summary.' ], 403 );
     }
 
     return true;
