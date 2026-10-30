@@ -50,8 +50,8 @@ const CreateBundleRenewalOrderModal = ({
     setSubmitting(true);
     setError(null);
     try {
-      // 202: creation is queued, not done — no order_url yet. RenewalProcessingOverlay
-      // picks up progress from here once membership_renewal_order_creation meta exists.
+      // 202: creation is queued, not done — no order_url yet. The page polls the
+      // claim meta from here and reports the created order or failure.
       await createBundleRenewalOrder(bundlePostId);
       resetState();
       onRequestClose();
