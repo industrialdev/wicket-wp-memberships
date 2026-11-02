@@ -659,6 +659,10 @@ class Membership_Bundle_Renewal_Order_Controller {
     }
 
     $item->set_product( $product );
+    // WooCommerce before 11.1 leaves the old variation_id when the new product is not a variation.
+    if ( ! $product->is_type( 'variation' ) ) {
+      $item->set_variation_id( 0 );
+    }
 
     // Line totals are stored tax-exclusive (as add_product() does); calculate_totals() adds tax on top.
     $price = (float) wc_get_price_excluding_tax( $product, [ 'order' => $item->get_order() ] );

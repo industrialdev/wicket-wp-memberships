@@ -318,6 +318,10 @@ class Membership_Bundle_Cron_Controller {
       // Tax-exclusive, as add_product() stores it; calculate_totals() adds tax on top.
       $base_price = (string) (float) wc_get_price_excluding_tax( $paid_product, [ 'order' => $sub ] );
       $sub_item->set_product( $paid_product );
+      // WooCommerce before 11.1 leaves the old variation_id when the new product is not a variation.
+      if ( ! $paid_product->is_type( 'variation' ) ) {
+        $sub_item->set_variation_id( 0 );
+      }
       $sub_item->set_subtotal( $base_price );
       $sub_item->set_total( $base_price );
     }
@@ -505,7 +509,17 @@ class Membership_Bundle_Cron_Controller {
       }
     } finally {
       if ( $sub_items_updated ) {
-        $sub->calculate_totals();
+        // Must not throw: that would replace a member's error and skip scheduling the next batch.
+        try {
+          $sub->calculate_totals();
+        } catch ( \Throwable $e ) {
+          Utilities::wc_log_mship_error( [ 'process_bundle_renewal_members: subscription calculate_totals failed', [
+            'subscription_id'    => $sub->get_id(),
+            'new_bundle_post_id' => $new_bundle_post_id,
+            'offset'             => $offset,
+            'error'              => $e->getMessage(),
+          ] ] );
+        }
       }
     }
 
