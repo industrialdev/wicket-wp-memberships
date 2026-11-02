@@ -132,6 +132,13 @@ if (
   }
 }
 
+// Grace period hides Add Member / Remove and shows the "contact admin" notice.
+// Resolved server-side from dates as well as status (see
+// Membership_Bundle::is_in_grace_period()) so it matches the grace-period renewal
+// callout, including the wicket_wp_membership_debug_days QA override, and the
+// stretch before the daily cron moves the bundle's status to grace_period.
+$is_grace_period = $renewal_bundle->post_id && $renewal_bundle->is_in_grace_period();
+
 // Set by Membership_Bundle_Block_Controller::handle_renewal_order_request() when
 // "Generate Order" fails; shown whether or not the callout is still showing
 // (e.g. the bundle was renewed elsewhere between page load and submit).
@@ -149,6 +156,7 @@ $block_config = [
   'bundlePostId' => $bundle_post_id,
   'backUrl'      => $back_url,
   'extraColumns' => $extra_columns,
+  'gracePeriod'  => $is_grace_period,
 ];
 ?>
 <div
@@ -206,7 +214,7 @@ $block_config = [
           'label'   => __( 'Add Member', 'wicket-memberships' ),
           'type'    => 'button',
           'atts'    => [
-            'x-show="[\'pending\', \'active\', \'delayed\'].includes(bundle.data.membership_status_slug)"',
+            'x-show="!isGracePeriod() && [\'pending\', \'active\', \'delayed\'].includes(bundle.data.membership_status_slug)"',
             'x-on:click="window.dispatchEvent(new CustomEvent(\'wicket-mship-open-add-member-modal\'))"',
           ],
         ] );
@@ -319,6 +327,35 @@ $block_config = [
           </div>
         </div>
       </template>
+
+      <!-- Grace period notice: Add Member / Remove are hidden in this state, so tell the member who to contact instead. -->
+      <div
+        class="wicket-mship-bundle-detail__management-locked"
+        role="status"
+        x-show="isGracePeriod()"
+      >
+        <?php
+        /**
+         * Filter the grace-period notice shown above the bundle members table.
+         *
+         * Defaults to naming the WordPress site title (Settings > General), the same
+         * fallback the coverage callout uses for {site_name}.
+         *
+         * @param string $message        Plain-text message (escaped on output).
+         * @param array  $args           Context: bundle_post_id.
+         */
+        $management_locked_message = apply_filters(
+          'wicket_mship_bundle_management_locked_message',
+          sprintf(
+            /* translators: %s: site name (WordPress site title), e.g. "OBA" */
+            __( 'If you would like to add or remove members from this bundle, please contact %s admin.', 'wicket-memberships' ),
+            wp_specialchars_decode( get_bloginfo( 'name' ), ENT_QUOTES )
+          ),
+          [ 'bundle_post_id' => $bundle_post_id ]
+        );
+        echo esc_html( $management_locked_message );
+        ?>
+      </div>
 
       <!-- Members table -->
       <div class="wicket-mship-bundle-detail__members-filters">
@@ -442,6 +479,11 @@ $block_config = [
                         'prefix_icon' => 'fa-solid fa-trash',
                         'classes'     => [ 'wicket-mship-bundle-detail__remove-btn' ],
                         'atts'        => [
+                          // Hidden during grace period, same as "Add Member" above:
+                          // remove_member() rejects grace-period bundles server-side
+                          // (assert_bundle_is_manageable()), so the button could only
+                          // ever lead to an error there.
+                          'x-show'     => '!isGracePeriod()',
                           'x-on:click' => "window.dispatchEvent(new CustomEvent('wicket-mship-open-remove-member-modal', { detail: { membershipPostId: member.ID, firstName: member.first_name, lastName: member.last_name, email: member.email, tierName: tierName(member.tier_uuid), bundleEndsAt: bundle.data.membership_ends_at, extraFields: buildExtraFields(member) } }))",
                         ],
                       ] );
@@ -563,6 +605,11 @@ if ( $renewal_summary !== null ) {
       // since they don't change after page load.
       extraColumns: config.extraColumns || [],
 
+      // Server-side grace-period flag (Membership_Bundle::is_in_grace_period()):
+      // date-based, so it also covers the debug-days override and the window
+      // before the cron updates the status. See isGracePeriod().
+      gracePeriod: !!config.gracePeriod,
+
       // Bundle entity (status/dates)
       loading: true,
       error: '',
@@ -593,6 +640,13 @@ if ( $renewal_summary !== null ) {
       // loading/error state, so a slow or failing one (e.g. the members
       // table on a very large bundle) doesn't block the status/dates or
       // tier summary from rendering.
+      // Grace period locks member management (Add Member / Remove hidden,
+      // "contact admin" notice shown). Server flag first; the live status is
+      // a fallback in case it changes after page load.
+      isGracePeriod() {
+        return this.gracePeriod || ( !!this.bundle && this.bundle.data.membership_status_slug === 'grace_period' );
+      },
+
       init() {
         this.fetchBundle();
         this.fetchTiers();

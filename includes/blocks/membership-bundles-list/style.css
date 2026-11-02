@@ -1206,6 +1206,15 @@
   margin-bottom: var(--space-200, 1rem);
 }
 
+.wicket-mship-bundle-detail__management-locked {
+  color: var(--text-content, #232a31);
+  background: var(--state-warning-light, #FFECB5);
+  border: 1px solid var(--state-warning, #FFC107);
+  border-radius: var(--border-radius-100, 0.5rem);
+  padding: var(--space-150, 0.75rem) var(--space-200, 1rem);
+  margin-bottom: var(--space-200, 1rem);
+}
+
 /* Renew modal
    ------------------------------------------------------------------------
    Confirmation modal opened from the renewal callout — see

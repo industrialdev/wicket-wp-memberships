@@ -3971,6 +3971,30 @@ class Membership_Bundle {
   }
 
   /**
+   * Whether the bundle is in its grace period right now.
+   *
+   * True when the stored status is grace_period, or when the dates say so
+   * (get_renewal_state() — ends_at <= now <= expires_at). The date check covers the
+   * gap before the daily cron flips the status, and honors the
+   * wicket_wp_membership_debug_days QA override via get_renewal_reference_time(),
+   * so this always agrees with the grace-period renewal callout.
+   *
+   * @param int|null $now UTC timestamp; defaults to get_renewal_reference_time().
+   * @return bool
+   */
+  public function is_in_grace_period( ?int $now = null ): bool {
+    if ( ! $this->post_id ) {
+      return false;
+    }
+
+    if ( $this->get_membership_status() === Wicket_Memberships::STATUS_GRACE ) {
+      return true;
+    }
+
+    return $this->get_renewal_state( $now ) === self::CALLOUT_GRACE_PERIOD;
+  }
+
+  /**
    * Build the renewal callout for this bundle, or null when none should be shown.
    *
    * Single source of truth for both the Membership Bundles List block's detail view
