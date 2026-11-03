@@ -105,19 +105,9 @@ class Settings {
     Settings_Fields::wicket_mship_disable_renewal();
   }
 
-  /** @see Settings_Fields::wicket_mship_hide_subscription_cancel() */
-  public static function wicket_mship_hide_subscription_cancel() {
-    Settings_Fields::wicket_mship_hide_subscription_cancel();
-  }
-
-  /** @see Settings_Fields::wicket_mship_hide_subscription_reactivate() */
-  public static function wicket_mship_hide_subscription_reactivate() {
-    Settings_Fields::wicket_mship_hide_subscription_reactivate();
-  }
-
-  /** @see Settings_Fields::wicket_mship_hide_subscription_resubscribe() */
-  public static function wicket_mship_hide_subscription_resubscribe() {
-    Settings_Fields::wicket_mship_hide_subscription_resubscribe();
+  /** @see Settings_Fields::wicket_mship_hide_subscription_actions() */
+  public static function wicket_mship_hide_subscription_actions() {
+    Settings_Fields::wicket_mship_hide_subscription_actions();
   }
 
   /** @see Settings_Fields::wicket_mship_assign_subscription() */
@@ -319,6 +309,7 @@ class Settings {
     $newinput['wicket_mship_hide_subscription_cancel'] = trim( $input['wicket_mship_hide_subscription_cancel'] ?? '' );
     $newinput['wicket_mship_hide_subscription_reactivate'] = trim( $input['wicket_mship_hide_subscription_reactivate'] ?? '' );
     $newinput['wicket_mship_hide_subscription_resubscribe'] = trim( $input['wicket_mship_hide_subscription_resubscribe'] ?? '' );
+    $newinput['wicket_mship_hide_subscription_renew_now'] = trim( $input['wicket_mship_hide_subscription_renew_now'] ?? '' );
     $newinput['wicket_mship_enable_bundles'] = trim( $input['wicket_mship_enable_bundles'] ?? '' );
     // Always written ('' when unticked) so an explicit "off" is distinguishable from never saved.
     $newinput['wicket_mship_consolidate_renewal_line_items'] = ! empty( $input['wicket_mship_consolidate_renewal_line_items'] ) ? '1' : '';
