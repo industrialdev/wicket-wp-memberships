@@ -3438,6 +3438,19 @@ class Membership_Bundle {
    * @return int[] Unique bundle post IDs, oldest membership first.
    */
   public static function get_covering_bundle_ids_for_user( int $user_id ): array {
+    return array_keys( self::get_covering_memberships_for_user( $user_id ) );
+  }
+
+  /**
+   * The member's covered membership records, keyed by the bundle paying for them.
+   *
+   * Same coverage rules as get_covering_bundle_ids_for_user(); the coverage callout also
+   * needs the records themselves so it can name the tiers each organization pays for.
+   *
+   * @param int $user_id WP user ID of the member.
+   * @return array<int, int[]> Bundle post ID => membership post IDs, oldest membership first.
+   */
+  public static function get_covering_memberships_for_user( int $user_id ): array {
     if ( $user_id <= 0 ) {
       return [];
     }
@@ -3475,17 +3488,17 @@ class Membership_Bundle {
       ],
     ] );
 
-    // A member can hold several tiers in the same bundle — one callout per bundle.
-    $bundle_ids = [];
+    // A member can hold several tiers in the same bundle.
+    $bundle_memberships = [];
     foreach ( $membership_ids as $membership_id ) {
       $bundle_id = (int) get_post_meta( $membership_id, 'membership_bundle_id', true );
       if ( $bundle_id > 0 ) {
-        $bundle_ids[ $bundle_id ] = $bundle_id;
+        $bundle_memberships[ $bundle_id ][] = (int) $membership_id;
       }
     }
 
     $covering = [];
-    foreach ( $bundle_ids as $bundle_id ) {
+    foreach ( $bundle_memberships as $bundle_id => $bundle_membership_ids ) {
       $bundle = new self( $bundle_id );
       if ( ! $bundle->post_id ) {
         continue;
@@ -3497,10 +3510,77 @@ class Membership_Bundle {
       if ( $bundle->get_owner_id() === $user_id ) {
         continue;
       }
-      $covering[] = $bundle_id;
+      $covering[ $bundle_id ] = $bundle_membership_ids;
     }
 
     return $covering;
+  }
+
+  /**
+   * Build the member's coverage callouts: one per organization paying for them.
+   *
+   * An organization often covers a member through several bundles (one per tier), and
+   * those used to render as identical, repeated callouts. Bundles are grouped by org
+   * UUID so the member sees one callout naming every tier that organization pays for
+   * ({membership_names}) and every distinct bundle owner they can contact
+   * ({bundle_owner_name}). Bundles without an org UUID stay on their own.
+   *
+   * @param int   $user_id  WP user ID of the member.
+   * @param array $settings Block settings, see get_coverage_callout().
+   * @return array[] Callouts in get_coverage_callout() shape, oldest membership first.
+   */
+  public static function get_coverage_callouts_for_user( int $user_id, array $settings = [] ): array {
+    $groups = [];
+    foreach ( self::get_covering_memberships_for_user( $user_id ) as $bundle_id => $membership_ids ) {
+      $bundle    = new self( $bundle_id );
+      $group_key = $bundle->get_org_uuid() ?: 'bundle-' . $bundle_id;
+
+      $groups[ $group_key ]['bundles'][] = $bundle;
+      foreach ( $membership_ids as $membership_id ) {
+        $groups[ $group_key ]['membership_ids'][] = $membership_id;
+      }
+    }
+
+    $callouts = [];
+    foreach ( $groups as $group ) {
+      $tier_names = [];
+      foreach ( $group['membership_ids'] as $membership_id ) {
+        $tier_name = trim( (string) get_post_meta( $membership_id, 'membership_tier_name', true ) );
+        if ( $tier_name !== '' ) {
+          $tier_names[ $tier_name ] = $tier_name;
+        }
+      }
+
+      $owner_names = [];
+      foreach ( $group['bundles'] as $bundle ) {
+        $owner = $bundle->get_owner();
+        if ( ! empty( $owner['name'] ) ) {
+          $owner_names[ $owner['name'] ] = $owner['name'];
+        }
+      }
+
+      $extra_placeholders = [
+        '{membership_names}' => $tier_names ? wp_sprintf( '%l', array_values( $tier_names ) ) : '',
+      ];
+      // Only override when there is more than one owner: a single owner keeps the bundle's
+      // own fallback wording from get_coverage_callout_placeholders().
+      if ( count( $owner_names ) > 1 ) {
+        $last_owner = array_pop( $owner_names );
+        /* translators: 1: comma-separated bundle owner names, 2: last bundle owner name. */
+        $extra_placeholders['{bundle_owner_name}'] = sprintf( __( '%1$s or %2$s', 'wicket-memberships' ), implode( ', ', $owner_names ), $last_owner );
+      }
+
+      $callout = $group['bundles'][0]->get_coverage_callout( $settings + [
+        'membership_count' => max( 1, count( $tier_names ) ),
+      ], $extra_placeholders );
+
+      if ( $callout ) {
+        $callout['bundle_post_ids'] = array_map( static fn( $bundle ) => $bundle->post_id, $group['bundles'] );
+        $callouts[] = $callout;
+      }
+    }
+
+    return $callouts;
   }
 
   /**
@@ -3550,11 +3630,17 @@ class Membership_Bundle {
   /**
    * Default coverage callout wording — the block's heading/message attribute defaults.
    *
+   * @param int $membership_count Number of tiers named by {membership_names}, for the plural.
    * @return array{heading: string, message: string}
    */
-  public static function get_default_coverage_callout_copy(): array {
+  public static function get_default_coverage_callout_copy( int $membership_count = 1 ): array {
     return [
-      'heading' => __( '{organization_name} is currently paying for your membership.', 'wicket-memberships' ),
+      'heading' => _n(
+        '{organization_name} is currently paying for your {membership_names} membership.',
+        '{organization_name} is currently paying for your {membership_names} memberships.',
+        $membership_count,
+        'wicket-memberships'
+      ),
       'message' => __( 'If you no longer work here, please contact {site_name_contact_link} or {bundle_owner_name} to update this.', 'wicket-memberships' ),
     ];
   }
@@ -3564,8 +3650,9 @@ class Membership_Bundle {
    *
    * Wording comes from the Membership Bundle Coverage Callout block's settings; empty
    * heading/message fall back to get_default_coverage_callout_copy(). Placeholders:
-   * {organization_name}, {bundle_owner_name}, {site_name}, {site_name_contact_link}
-   * (the site name linked to site_contact_link; plain site name when no link is set).
+   * {organization_name}, {bundle_owner_name}, {membership_names}, {site_name},
+   * {site_name_contact_link} (the site name linked to site_contact_link; plain site name
+   * when no link is set).
    *
    * Does not check who is viewing — callers decide that (see
    * get_covering_bundle_ids_for_user()).
@@ -3575,30 +3662,40 @@ class Membership_Bundle {
    *   @type string $message           Message text with placeholders (basic HTML allowed).
    *   @type string $site_name         Value for {site_name}; empty = site title.
    *   @type string $site_contact_link URL or mailto: for {site_name_contact_link}.
+   *   @type int    $membership_count  Tier count, for the plural of the default heading.
    * }
+   * @param array<string, string> $extra_placeholders Plain-text placeholder values that
+   *   override this bundle's own, e.g. the per-organization values built by
+   *   get_coverage_callouts_for_user().
    * @return array{bundle_post_id: int, header: string, content: string}|null
    *   header is plain text (escape with esc_html); content is sanitized HTML
    *   (wp_kses_post, paragraphs added). Null when the filter hides it.
    */
-  public function get_coverage_callout( array $settings = [] ): ?array {
+  public function get_coverage_callout( array $settings = [], array $extra_placeholders = [] ): ?array {
     if ( ! $this->post_id ) {
       return null;
     }
 
-    $defaults = self::get_default_coverage_callout_copy();
+    $defaults = self::get_default_coverage_callout_copy( (int) ( $settings['membership_count'] ?? 1 ) );
     $heading  = trim( (string) ( $settings['heading'] ?? '' ) );
     $message  = trim( (string) ( $settings['message'] ?? '' ) );
     $heading  = $heading !== '' ? $heading : $defaults['heading'];
     $message  = $message !== '' ? $message : $defaults['message'];
 
-    $placeholders = $this->get_coverage_callout_placeholders( (string) ( $settings['site_name'] ?? '' ) );
+    // {membership_names} defaults to empty: it depends on the member, which this bundle
+    // alone doesn't know. The squeeze below tidies the gap it leaves in the default heading.
+    $placeholders = array_merge(
+      [ '{membership_names}' => '' ],
+      $this->get_coverage_callout_placeholders( (string) ( $settings['site_name'] ?? '' ) ),
+      $extra_placeholders
+    );
     $contact_url  = esc_url( trim( (string) ( $settings['site_contact_link'] ?? '' ) ) );
 
     // Heading is plain text: a link can't render there, so the link placeholder becomes
     // the plain site name. Escaped later by the template.
-    $heading = wp_strip_all_tags( strtr( $heading, $placeholders + [
+    $heading = trim( preg_replace( '/\s{2,}/', ' ', wp_strip_all_tags( strtr( $heading, $placeholders + [
       '{site_name_contact_link}' => $placeholders['{site_name}'],
-    ] ) );
+    ] ) ) ) );
 
     // Message may contain editor HTML: escape the data values first so e.g. an org name
     // from MDP can never inject markup, then sanitize the whole string.

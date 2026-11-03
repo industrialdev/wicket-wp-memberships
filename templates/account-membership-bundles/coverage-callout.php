@@ -3,7 +3,7 @@
  * Membership Bundle - Coverage Callout
  *
  * One member-facing notice saying which organization is paying for the
- * member's membership through a membership bundle. No buttons; the message may
+ * member's membership(s) through one or more membership bundles. No buttons; the message may
  * contain the {site_name_contact_link} link. Copy and placeholder replacement
  * come from Membership_Bundle::get_coverage_callout().
  *
@@ -12,8 +12,9 @@
  * renewal callout (renewal-callout.php).
  *
  * Included by includes/blocks/membership-bundle-coverage-callout/render.php,
- * once per covering bundle, after it has verified the requester is logged in
- * and covered by that bundle.
+ * once per covering organization (see
+ * Membership_Bundle::get_coverage_callouts_for_user()), after it has verified
+ * the requester is logged in.
  *
  * @package Wicket_Memberships
  */

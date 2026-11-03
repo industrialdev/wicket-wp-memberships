@@ -12,8 +12,10 @@
  * - siteName: value for {site_name}; empty = the WordPress site title.
  * - siteContactLink: URL or mailto: for {site_name_contact_link}, which renders
  *   the site name as a link.
- * {organization_name} and {bundle_owner_name} differ per member, so they are
- * always filled from the member's bundle and are not editable here.
+ * {organization_name}, {bundle_owner_name} and {membership_names} differ per
+ * member, so they are always filled from the member's bundles and are not
+ * editable here. The real default heading switches to "memberships" when an
+ * organization pays for more than one tier.
  *
  * The preview uses ServerSideRender, which renders as the editing user. Most
  * editors are not covered by a membership bundle, so render.php returns
@@ -23,10 +25,10 @@
   var el = element.createElement;
   var __ = i18n.__;
 
-  var DEFAULT_HEADING = __( '{organization_name} is currently paying for your membership.', 'wicket-memberships' );
+  var DEFAULT_HEADING = __( '{organization_name} is currently paying for your {membership_names} membership.', 'wicket-memberships' );
   var DEFAULT_MESSAGE = __( 'If you no longer work here, please contact {site_name_contact_link} or {bundle_owner_name} to update this.', 'wicket-memberships' );
   var PLACEHOLDER_HELP = __(
-    'Variables: {organization_name}, {bundle_owner_name} (filled from the member\'s bundle), {site_name}, {site_name_contact_link} (site name as a link). Leave empty to use the default wording.',
+    'Variables: {organization_name}, {bundle_owner_name}, {membership_names} (filled from the member\'s bundles), {site_name}, {site_name_contact_link} (site name as a link). Leave empty to use the default wording.',
     'wicket-memberships'
   );
 

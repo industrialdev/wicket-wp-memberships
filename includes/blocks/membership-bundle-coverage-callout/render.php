@@ -6,13 +6,13 @@
  * "render" key in block.json, with $attributes, $content, and $block in scope.
  *
  * Wording, site name and site contact link are block attributes edited in the
- * block sidebar; {organization_name} and {bundle_owner_name} come from each
- * covering bundle.
+ * block sidebar; {organization_name}, {bundle_owner_name} and {membership_names}
+ * come from the covering bundles.
  *
- * Renders one callout per membership bundle currently paying for the logged-in
- * member's membership (see Membership_Bundle::get_covering_bundle_ids_for_user()),
- * and nothing at all otherwise — so it is safe to place on a page every member
- * sees, such as the account centre dashboard. Server-rendered only: no Alpine,
+ * Renders one callout per organization currently paying for the logged-in
+ * member's membership through one or more bundles (see
+ * Membership_Bundle::get_coverage_callouts_for_user()), and nothing at all
+ * otherwise — so it is safe to place on a page every member sees, such as the account centre dashboard. Server-rendered only: no Alpine,
  * no REST call.
  *
  * @package Wicket_Memberships
@@ -37,14 +37,7 @@ $coverage_settings = [
   'site_contact_link' => (string) ( $attributes['siteContactLink'] ?? '' ),
 ];
 
-$coverage_callouts = [];
-
-foreach ( Membership_Bundle::get_covering_bundle_ids_for_user( get_current_user_id() ) as $covering_bundle_id ) {
-  $coverage_callout = ( new Membership_Bundle( $covering_bundle_id ) )->get_coverage_callout( $coverage_settings );
-  if ( $coverage_callout ) {
-    $coverage_callouts[] = $coverage_callout;
-  }
-}
+$coverage_callouts = Membership_Bundle::get_coverage_callouts_for_user( get_current_user_id(), $coverage_settings );
 
 if ( empty( $coverage_callouts ) ) {
   return;
