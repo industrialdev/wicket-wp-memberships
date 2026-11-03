@@ -29,11 +29,9 @@ class Settings_Fields {
     $sections = [
       'general' => [
         'woocommerce' => [ 'WooCommerce', [ Settings_Page::class, 'section_membership_products_text' ], [
-          'wicket_mship_membership_categories' => 'Membership Categories',
+          'wicket_mship_membership_categories' => 'Membership Product Categories',
           'wicket_mship_assign_subscription'   => 'Membership Subscription Assignment',
-          'wicket_mship_hide_subscription_cancel' => 'Hide Subscription Self-Serve Cancellation',
-          'wicket_mship_hide_subscription_reactivate' => 'Hide Subscription Self-Serve Reactivation',
-          'wicket_mship_hide_subscription_resubscribe' => 'Hide Subscription Self-Serve Resubscribe',
+          'wicket_mship_hide_subscription_actions' => 'Hide Subscription Action Buttons',
         ] ],
         'mdp_connection' => [ 'Wicket MDP', null, [
           'wicket_mship_mdp_timezone'         => 'MDP Timezone',
@@ -98,8 +96,9 @@ class Settings_Fields {
       foreach ( $tab_sections as $section_id => [ $title, $description_callback, $fields ] ) {
         add_settings_section( $section_id, $title, $description_callback, $page );
         foreach ( $fields as $field => $label ) {
-          // label_for ties the row label to the input with the same id.
-          add_settings_field( $field, $label, [ __CLASS__, $field ], $page, $section_id, [ 'label_for' => $field ] );
+          // label_for ties the row label to the input with the same id; the checkbox group has none, so its fieldset legend names it.
+          $args = 'wicket_mship_hide_subscription_actions' === $field ? [] : [ 'label_for' => $field ];
+          add_settings_field( $field, $label, [ __CLASS__, $field ], $page, $section_id, $args );
         }
       }
     }
@@ -204,7 +203,7 @@ class Settings_Fields {
   }
 
   /**
-   * Render the hide subscription self-serve cancellation checkbox.
+   * Render the "Hide Subscription Buttons" checkboxes, one per hideable action.
    *
    * @since 1.0.123
    *
@@ -212,34 +211,21 @@ class Settings_Fields {
    *
    * @return void
    */
-  public static function wicket_mship_hide_subscription_cancel() {
-    self::render_checkbox( 'wicket_mship_hide_subscription_cancel', 'Hide the Cancel button on the member\'s View Subscription page', 'Members will not be able to cancel on their own. Admins can still cancel subscriptions in WooCommerce.' );
-  }
+  public static function wicket_mship_hide_subscription_actions() {
+    $options = get_option( 'wicket_membership_plugin_options' );
 
-  /**
-   * Render the hide subscription self-serve reactivation checkbox.
-   *
-   * @since 1.0.123
-   *
-   * @see Utilities::maybe_hide_subscription_actions()
-   *
-   * @return void
-   */
-  public static function wicket_mship_hide_subscription_reactivate() {
-    self::render_checkbox( 'wicket_mship_hide_subscription_reactivate', 'Hide the Reactivate button on the member\'s View Subscription page', 'Members will not be able to reactivate an on-hold subscription on their own. Admins can still reactivate subscriptions in WooCommerce.' );
-  }
-
-  /**
-   * Render the hide subscription self-serve resubscribe checkbox.
-   *
-   * @since 1.0.123
-   *
-   * @see Utilities::maybe_hide_subscription_actions()
-   *
-   * @return void
-   */
-  public static function wicket_mship_hide_subscription_resubscribe() {
-    self::render_checkbox( 'wicket_mship_hide_subscription_resubscribe', 'Hide the Resubscribe button on the member\'s View Subscription page', 'Members will not be able to restart an ended subscription from that page.' );
+    echo '<fieldset><legend class="screen-reader-text">Hide Subscription Action Buttons</legend>';
+    foreach ( Utilities::HIDEABLE_SUBSCRIPTION_ACTIONS as $key => [ , $label ] ) {
+      printf(
+        '<label for="%1$s"><input id="%1$s" name="wicket_membership_plugin_options[%1$s]" type="checkbox" value="1" %2$s /> %3$s</label><br />',
+        esc_attr( $key ),
+        checked( 1, $options[ $key ] ?? '', false ),
+        esc_html( $label )
+      );
+    }
+    echo '</fieldset>';
+    echo '<p class="description"><strong>Ticked buttons are hidden from members</strong> on their View Subscription page (My Account &rarr; Subscriptions &rarr; View, for example <code>/my-account/view-subscription/123/</code>).</p>';
+    echo '<p class="description">Hiding a button does not change the subscription, and admins can still use these actions in WooCommerce. It only removes the button: for Renew now, a member who opens the early-renewal link directly can still renew.</p>';
   }
 
   /**
@@ -304,7 +290,7 @@ class Settings_Fields {
       }
     }
     ?></select>
-    <p class="description">Products in these categories are membership products across the Wicket platform.</p>
+    <p class="description">Products in these WooCommerce product categories are membership products across the Wicket platform.</p>
     <?php
   }
 
