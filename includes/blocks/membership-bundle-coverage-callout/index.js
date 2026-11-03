@@ -26,7 +26,7 @@
   var __ = i18n.__;
 
   var DEFAULT_HEADING = __( '{organization_name} is currently paying for your {membership_names} membership.', 'wicket-memberships' );
-  var DEFAULT_MESSAGE = __( 'If you no longer work here, please contact {site_name_contact_link} or {bundle_owner_name} to update this.', 'wicket-memberships' );
+  var DEFAULT_MESSAGE = __( 'If you no longer work here, please contact {bundle_owner_name} or {site_name_contact_link} to update this.', 'wicket-memberships' );
   var PLACEHOLDER_HELP = __(
     'Variables: {organization_name}, {bundle_owner_name}, {membership_names} (filled from the member\'s bundles), {site_name}, {site_name_contact_link} (site name as a link). Leave empty to use the default wording.',
     'wicket-memberships'

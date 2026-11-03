@@ -3522,8 +3522,8 @@ class Membership_Bundle {
    * An organization often covers a member through several bundles (one per tier), and
    * those used to render as identical, repeated callouts. Bundles are grouped by org
    * UUID so the member sees one callout naming every tier that organization pays for
-   * ({membership_names}) and every distinct bundle owner they can contact
-   * ({bundle_owner_name}). Bundles without an org UUID stay on their own.
+   * ({membership_names}, quoted: “A”, “B” and “C”) and every distinct bundle owner they
+   * can contact ({bundle_owner_name}, comma-separated). Bundles without an org UUID stay on their own.
    *
    * @param int   $user_id  WP user ID of the member.
    * @param array $settings Block settings, see get_coverage_callout().
@@ -3559,15 +3559,25 @@ class Membership_Bundle {
         }
       }
 
+      // Tier names are quoted because some contain "and" themselves (e.g. "Government and
+      // Administrative Law Practice"), which makes an unquoted list hard to read.
+      $quoted_tier_names = array_map(
+        /* translators: %s: membership tier name, quoted in the coverage callout heading. */
+        static fn( $tier_name ) => sprintf( __( '“%s”', 'wicket-memberships' ), $tier_name ),
+        array_values( $tier_names )
+      );
+      $last_tier_name = array_pop( $quoted_tier_names );
+
       $extra_placeholders = [
-        '{membership_names}' => $tier_names ? wp_sprintf( '%l', array_values( $tier_names ) ) : '',
+        '{membership_names}' => $quoted_tier_names
+          /* translators: 1: comma-separated quoted membership names, 2: last quoted membership name. */
+          ? sprintf( __( '%1$s and %2$s', 'wicket-memberships' ), implode( ', ', $quoted_tier_names ), $last_tier_name )
+          : (string) $last_tier_name,
       ];
-      // Only override when there is more than one owner: a single owner keeps the bundle's
-      // own fallback wording from get_coverage_callout_placeholders().
+      // Commas only: the message supplies the "or" before {site_name_contact_link}. A single
+      // owner keeps the bundle's own fallback wording from get_coverage_callout_placeholders().
       if ( count( $owner_names ) > 1 ) {
-        $last_owner = array_pop( $owner_names );
-        /* translators: 1: comma-separated bundle owner names, 2: last bundle owner name. */
-        $extra_placeholders['{bundle_owner_name}'] = sprintf( __( '%1$s or %2$s', 'wicket-memberships' ), implode( ', ', $owner_names ), $last_owner );
+        $extra_placeholders['{bundle_owner_name}'] = implode( ', ', $owner_names );
       }
 
       $callout = $group['bundles'][0]->get_coverage_callout( $settings + [
@@ -3641,7 +3651,7 @@ class Membership_Bundle {
         $membership_count,
         'wicket-memberships'
       ),
-      'message' => __( 'If you no longer work here, please contact {site_name_contact_link} or {bundle_owner_name} to update this.', 'wicket-memberships' ),
+      'message' => __( 'If you no longer work here, please contact {bundle_owner_name} or {site_name_contact_link} to update this.', 'wicket-memberships' ),
     ];
   }
 
