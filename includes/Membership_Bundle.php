@@ -3519,15 +3519,17 @@ class Membership_Bundle {
   /**
    * Build the member's coverage callouts: one per organization paying for them.
    *
-   * An organization often covers a member through several bundles (one per tier), and
-   * those used to render as identical, repeated callouts. Bundles are grouped by org
-   * UUID so the member sees one callout naming every tier that organization pays for
-   * ({membership_names}, quoted: “A”, “B” and “C”) and every distinct bundle owner they
-   * can contact ({bundle_owner_name}, comma-separated). Bundles without an org UUID stay on their own.
+   * An organization often covers a member through several bundles (e.g. one for the
+   * association membership, one for sections), and those used to render as identical,
+   * repeated callouts. Bundles are grouped by org UUID so the member sees one callout per
+   * organization, listing every tier it pays for. Bundles without an org UUID stay on
+   * their own. The member doesn't need to know how the bundles are split, so the default
+   * wording names no bundle owner.
    *
    * @param int   $user_id  WP user ID of the member.
    * @param array $settings Block settings, see get_coverage_callout().
-   * @return array[] Callouts in get_coverage_callout() shape, oldest membership first.
+   * @return array[] Callouts in get_coverage_callout() shape plus `memberships` (covered
+   *   tier names, plain text) and `bundle_post_ids`, oldest membership first.
    */
   public static function get_coverage_callouts_for_user( int $user_id, array $settings = [] ): array {
     $groups = [];
@@ -3543,6 +3545,12 @@ class Membership_Bundle {
 
     $callouts = [];
     foreach ( $groups as $group ) {
+      // Wording is the same for every bundle of an organization, so the first one builds it.
+      $callout = $group['bundles'][0]->get_coverage_callout( $settings );
+      if ( ! $callout ) {
+        continue;
+      }
+
       $tier_names = [];
       foreach ( $group['membership_ids'] as $membership_id ) {
         $tier_name = trim( (string) get_post_meta( $membership_id, 'membership_tier_name', true ) );
@@ -3551,43 +3559,9 @@ class Membership_Bundle {
         }
       }
 
-      $owner_names = [];
-      foreach ( $group['bundles'] as $bundle ) {
-        $owner = $bundle->get_owner();
-        if ( ! empty( $owner['name'] ) ) {
-          $owner_names[ $owner['name'] ] = $owner['name'];
-        }
-      }
-
-      // Tier names are quoted because some contain "and" themselves (e.g. "Government and
-      // Administrative Law Practice"), which makes an unquoted list hard to read.
-      $quoted_tier_names = array_map(
-        /* translators: %s: membership tier name, quoted in the coverage callout heading. */
-        static fn( $tier_name ) => sprintf( __( '“%s”', 'wicket-memberships' ), $tier_name ),
-        array_values( $tier_names )
-      );
-      $last_tier_name = array_pop( $quoted_tier_names );
-
-      $extra_placeholders = [
-        '{membership_names}' => $quoted_tier_names
-          /* translators: 1: comma-separated quoted membership names, 2: last quoted membership name. */
-          ? sprintf( __( '%1$s and %2$s', 'wicket-memberships' ), implode( ', ', $quoted_tier_names ), $last_tier_name )
-          : (string) $last_tier_name,
-      ];
-      // Commas only: the message supplies the "or" before {site_name_contact_link}. A single
-      // owner keeps the bundle's own fallback wording from get_coverage_callout_placeholders().
-      if ( count( $owner_names ) > 1 ) {
-        $extra_placeholders['{bundle_owner_name}'] = implode( ', ', $owner_names );
-      }
-
-      $callout = $group['bundles'][0]->get_coverage_callout( $settings + [
-        'membership_count' => max( 1, count( $tier_names ) ),
-      ], $extra_placeholders );
-
-      if ( $callout ) {
-        $callout['bundle_post_ids'] = array_map( static fn( $bundle ) => $bundle->post_id, $group['bundles'] );
-        $callouts[] = $callout;
-      }
+      $callout['memberships']     = array_values( $tier_names );
+      $callout['bundle_post_ids'] = array_map( static fn( $bundle ) => $bundle->post_id, $group['bundles'] );
+      $callouts[]                 = $callout;
     }
 
     return $callouts;
@@ -3640,18 +3614,12 @@ class Membership_Bundle {
   /**
    * Default coverage callout wording — the block's heading/message attribute defaults.
    *
-   * @param int $membership_count Number of tiers named by {membership_names}, for the plural.
    * @return array{heading: string, message: string}
    */
-  public static function get_default_coverage_callout_copy( int $membership_count = 1 ): array {
+  public static function get_default_coverage_callout_copy(): array {
     return [
-      'heading' => _n(
-        '{organization_name} is currently paying for your {membership_names} membership.',
-        '{organization_name} is currently paying for your {membership_names} memberships.',
-        $membership_count,
-        'wicket-memberships'
-      ),
-      'message' => __( 'If you no longer work here, please contact {bundle_owner_name} or {site_name_contact_link} to update this.', 'wicket-memberships' ),
+      'heading' => __( '{organization_name} is currently paying for the following:', 'wicket-memberships' ),
+      'message' => __( 'If you no longer work here, please contact your office administrator or the {site_name_contact_link} to update this information.', 'wicket-memberships' ),
     ];
   }
 
@@ -3660,9 +3628,8 @@ class Membership_Bundle {
    *
    * Wording comes from the Membership Bundle Coverage Callout block's settings; empty
    * heading/message fall back to get_default_coverage_callout_copy(). Placeholders:
-   * {organization_name}, {bundle_owner_name}, {membership_names}, {site_name},
-   * {site_name_contact_link} (the site name linked to site_contact_link; plain site name
-   * when no link is set).
+   * {organization_name}, {bundle_owner_name}, {site_name}, {site_name_contact_link}
+   * (the site name linked to site_contact_link; plain site name when no link is set).
    *
    * Does not check who is viewing — callers decide that (see
    * get_covering_bundle_ids_for_user()).
@@ -3672,40 +3639,30 @@ class Membership_Bundle {
    *   @type string $message           Message text with placeholders (basic HTML allowed).
    *   @type string $site_name         Value for {site_name}; empty = site title.
    *   @type string $site_contact_link URL or mailto: for {site_name_contact_link}.
-   *   @type int    $membership_count  Tier count, for the plural of the default heading.
    * }
-   * @param array<string, string> $extra_placeholders Plain-text placeholder values that
-   *   override this bundle's own, e.g. the per-organization values built by
-   *   get_coverage_callouts_for_user().
    * @return array{bundle_post_id: int, header: string, content: string}|null
    *   header is plain text (escape with esc_html); content is sanitized HTML
    *   (wp_kses_post, paragraphs added). Null when the filter hides it.
    */
-  public function get_coverage_callout( array $settings = [], array $extra_placeholders = [] ): ?array {
+  public function get_coverage_callout( array $settings = [] ): ?array {
     if ( ! $this->post_id ) {
       return null;
     }
 
-    $defaults = self::get_default_coverage_callout_copy( (int) ( $settings['membership_count'] ?? 1 ) );
+    $defaults = self::get_default_coverage_callout_copy();
     $heading  = trim( (string) ( $settings['heading'] ?? '' ) );
     $message  = trim( (string) ( $settings['message'] ?? '' ) );
     $heading  = $heading !== '' ? $heading : $defaults['heading'];
     $message  = $message !== '' ? $message : $defaults['message'];
 
-    // {membership_names} defaults to empty: it depends on the member, which this bundle
-    // alone doesn't know. The squeeze below tidies the gap it leaves in the default heading.
-    $placeholders = array_merge(
-      [ '{membership_names}' => '' ],
-      $this->get_coverage_callout_placeholders( (string) ( $settings['site_name'] ?? '' ) ),
-      $extra_placeholders
-    );
+    $placeholders = $this->get_coverage_callout_placeholders( (string) ( $settings['site_name'] ?? '' ) );
     $contact_url  = esc_url( trim( (string) ( $settings['site_contact_link'] ?? '' ) ) );
 
     // Heading is plain text: a link can't render there, so the link placeholder becomes
     // the plain site name. Escaped later by the template.
-    $heading = trim( preg_replace( '/\s{2,}/', ' ', wp_strip_all_tags( strtr( $heading, $placeholders + [
+    $heading = wp_strip_all_tags( strtr( $heading, $placeholders + [
       '{site_name_contact_link}' => $placeholders['{site_name}'],
-    ] ) ) ) );
+    ] ) );
 
     // Message may contain editor HTML: escape the data values first so e.g. an org name
     // from MDP can never inject markup, then sanitize the whole string.

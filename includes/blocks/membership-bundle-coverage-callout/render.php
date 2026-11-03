@@ -6,8 +6,8 @@
  * "render" key in block.json, with $attributes, $content, and $block in scope.
  *
  * Wording, site name and site contact link are block attributes edited in the
- * block sidebar; {organization_name}, {bundle_owner_name} and {membership_names}
- * come from the covering bundles.
+ * block sidebar; {organization_name} and {bundle_owner_name} come from the
+ * covering bundle, and the list of covered memberships is always shown.
  *
  * Renders one callout per organization currently paying for the logged-in
  * member's membership through one or more bundles (see

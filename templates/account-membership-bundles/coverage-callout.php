@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
   exit; // Exit if accessed directly.
 }
 
-/** @var array $coverage_callout Set by render.php — see Membership_Bundle::get_coverage_callout(). */
+/** @var array $coverage_callout Set by render.php — see Membership_Bundle::get_coverage_callouts_for_user(). */
 ?>
 <div
   class="wicket-mship-bundle-coverage-callout"
@@ -36,6 +36,12 @@ if ( ! defined( 'ABSPATH' ) ) {
     <div class="text-heading-sm wicket-mship-bundle-coverage-callout__title">
       <?php echo esc_html( $coverage_callout['header'] ); ?>
     </div>
+
+    <?php if ( ! empty( $coverage_callout['memberships'] ) ) : ?>
+      <p class="wicket-mship-bundle-coverage-callout__memberships">
+        <?php echo esc_html( implode( ', ', $coverage_callout['memberships'] ) ); ?>
+      </p>
+    <?php endif; ?>
 
     <?php if ( trim( wp_strip_all_tags( $coverage_callout['content'] ) ) !== '' ) : ?>
       <div class="wicket-mship-bundle-coverage-callout__content">

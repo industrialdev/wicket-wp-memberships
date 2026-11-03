@@ -25,6 +25,14 @@
   margin-bottom: var(--space-150, 0.75rem);
 }
 
+.wicket-mship-bundle-coverage-callout__memberships {
+  margin: 0 0 var(--space-150, 0.75rem);
+}
+
+.wicket-mship-bundle-coverage-callout__content {
+  font-weight: var(--font-weight-bold, 700);
+}
+
 .wicket-mship-bundle-coverage-callout__content > :last-child {
   margin-bottom: 0;
 }
