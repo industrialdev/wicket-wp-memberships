@@ -20,7 +20,9 @@ class Settings_Page {
   const SETTINGS_TABS = [
     'general'   => 'General',
     'renewals'  => 'Renewals',
+    'membership_bundles' => 'Bundles',
     'import'    => 'Import',
+    'tools'     => 'Tools',
     'developer' => 'Developer',
   ];
 
@@ -91,7 +93,10 @@ class Settings_Page {
             <?php do_settings_sections( self::settings_page_id( $tab ) ); ?>
           </div>
         <?php endforeach; ?>
-        <?php submit_button(); ?>
+        <?php // Tools has no saved settings; its buttons submit their own form. ?>
+        <?php if ( 'tools' !== $active_tab ) : ?>
+          <?php submit_button(); ?>
+        <?php endif; ?>
       </form>
     </div>
     <?php
@@ -288,6 +293,15 @@ class Settings_Page {
    */
   public static function section_membership_products_text() {
     echo '<p>Selecting any category also enables organization search on subscription orders.</p>';
+  }
+
+  /**
+   * Intro text for the Command-Line Import section.
+   *
+   * @return void
+   */
+  public static function section_membership_bundles_text() {
+    echo '<p>Settings for the Membership Bundles system.</p>';
   }
 
   /**

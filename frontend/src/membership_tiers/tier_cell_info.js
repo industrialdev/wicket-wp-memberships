@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { useState, useEffect } from "react";
 import { Spinner } from "@wordpress/components";
-import { fetchMembershipTiers } from "../services/api";
+import { fetchMembershipTiers } from "../shared/services/api";
 import { __ } from "@wordpress/i18n";
 
 const MembershipTierCellInfo = ({ tierUuid, tierField }) => {

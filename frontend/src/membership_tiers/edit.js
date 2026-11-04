@@ -4,12 +4,13 @@ import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
 import { TextControl, TextareaControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalText as Text } from '@wordpress/components';
+import ApprovalCalloutModal, { collectApprovalCalloutIssues } from './ApprovalCalloutModal';
 import styled from 'styled-components';
-import { API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS } from '../constants';
+import { API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS } from '../shared/constants';
 import he from 'he';
-import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, CustomDisabled } from '../styled_elements';
-import { fetchMembershipTiers, fetchProductVariations } from '../services/api';
-import { fetchSwitchTargetProducts } from '../services/switch_products';
+import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, CustomDisabled } from '../shared/styled_elements';
+import { fetchMembershipTiers, fetchProductVariations } from '../shared/services/api';
+import { fetchSwitchTargetProducts } from '../shared/services/switch_products';
 import ManageTierProducts from './manage_products';
 
 const MarginedFlex = styled(Flex)`
@@ -20,8 +21,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 
 	const languageCodesArray = languageCodes.split(',');
 	const productVariationsInUseArray = productVariationsInUse.split(',');
-
-	const [currentApprovalCalloutLocale, setCurrentApprovalCalloutLocale] = useState(languageCodesArray[0]);
 
 	const renewalTypeOptions = [
 		{ label: __('Current Tier', 'wicket-memberships'), value: 'current_tier' },
@@ -53,8 +52,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	const [switchProductVariations, setSwitchProductVariations] = useState({}); // { product_id: [] }
 
 	const [tierInfo, setTierInfo] = useState(null);
-
-	const [approvalCalloutErrors, setApprovalCalloutErrors] = useState([]);
 
 	const [switchCalloutErrors, setSwitchCalloutErrors] = useState([]);
 
@@ -107,6 +104,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		}
 	});
 
+	// Working copy for the switch callout modal; the approval modal keeps its own copy.
 	const [tempForm, setTempForm] = useState(form);
 
 	const getSelectedTierData = () => {
@@ -131,7 +129,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		// tier when it is short. Checking here names the missing fields without spending a round
 		// trip, and without the save looking like it worked.
 		if (form.approval_required || form.renew_approval_required) {
-			const approvalCalloutIssues = collectApprovalCalloutIssues(form);
+			const approvalCalloutIssues = collectApprovalCalloutIssues(form.approval_callout_data, languageCodesArray);
 
 			if (approvalCalloutIssues.length > 0) {
 				setErrors(approvalCalloutIssues);
@@ -294,75 +292,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		});
 	}
 
-	/**
-	 * Read one locale's approval callout copy, tolerating a tier that has none.
-	 *
-	 * Mirrors getSwitchCalloutLocale(). A tier saved before a WPML language was added carries no
-	 * entry for it, and indexing straight into locales[code] throws while rendering the modal.
-	 */
-	const getApprovalCalloutLocale = (source, locale) => {
-		if (!source || !source.approval_callout_data || !source.approval_callout_data.locales) { return {}; }
-
-		return source.approval_callout_data.locales[locale] || {};
-	}
-
-	/**
-	 * Mirror of the REST rule in Membership_Post_Types::register_membership_tier_cpt_fields():
-	 * when approval is required, every active language needs a header, content and a button label.
-	 *
-	 * @param {object} source form or tempForm.
-	 * @return {string[]} Empty when the callout is complete.
-	 */
-	const collectApprovalCalloutIssues = (source) => {
-		const fields = [
-			{ key: 'callout_header', label: __('Callout Header', 'wicket-memberships') },
-			{ key: 'callout_content', label: __('Callout Content', 'wicket-memberships') },
-			{ key: 'callout_button_label', label: __('Button Label', 'wicket-memberships') }
-		];
-
-		const missing = [];
-
-		languageCodesArray.forEach((locale) => {
-			const localeData = getApprovalCalloutLocale(source, locale);
-
-			fields.forEach((field) => {
-				if (String(localeData[field.key] || '').trim() === '') {
-					missing.push(`${field.label} [${locale.toUpperCase()}]`);
-				}
-			});
-		});
-
-		if (missing.length === 0) { return []; }
-
-		return [
-			__('The Approval callout configuration is incomplete, missing:', 'wicket-memberships')
-			+ ' ' + missing.join(', ')
-		];
-	}
-
-	const validateApprovalCallout = (source) => {
-		const newErrors = collectApprovalCalloutIssues(source);
-
-		setApprovalCalloutErrors(newErrors);
-
-		return newErrors.length === 0;
-	}
-
-	const handleApprovalCalloutSubmit = (e) => {
-		e.preventDefault();
-
-		setForm({
-			...form,
-			approval_callout_data: tempForm.approval_callout_data
-		});
-
-		// Committed above either way so a partially filled modal never loses the admin's typing;
-		// the modal simply stays open, with the missing fields named, until the copy is complete.
-		if (!validateApprovalCallout(tempForm)) { return }
-
-		closeApprovalCalloutModal();
-	}
-
 	const getMemberListUrl = () => {
 		if (form.type === 'individual') {
 			return individualListUrl;
@@ -383,11 +312,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	}
 
 	/**
-	 * Reinitialize the approval callout form with the current form data
+	 * Open the approval callout modal; it reloads its working copy from the form on each open.
 	 */
 	const reInitApprovalCallout = () => {
-		setApprovalCalloutErrors([]);
-		setTempForm(form)
 		openApprovalCalloutModal();
 	}
 
@@ -1216,109 +1143,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 				</Wrap>
 			</div>
 
-			{/* Approval - Callout Modal */}
-			{isApprovalCalloutModalOpen && (
-				<Modal
-					title={__('Approval - Callout Configuration', 'wicket-memberships')}
-					onRequestClose={closeApprovalCalloutModal}
-					style={
-						{
-							maxWidth: '840px',
-							width: '100%'
-						}
-					}
-	>
-
-					{approvalCalloutErrors.length > 0 && (
-						<ErrorsRow>
-							{approvalCalloutErrors.map((error) => (
-								<Notice isDismissible={false} key={error} status="warning">{error}</Notice>
-							))}
-						</ErrorsRow>
-					)}
-
-					<form onSubmit={handleApprovalCalloutSubmit}>
-						<SelectControl
-							label={__('Language', 'wicket-memberships')}
-							options={
-								languageCodesArray.map((code) => {
-									return {
-										label: code,
-										value: code
-									}
-								})
-							}
-							value={currentApprovalCalloutLocale}
-							onChange={value => setCurrentApprovalCalloutLocale(value)}
-						/>
-
-						<TextControl
-							label={__('Callout Header', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									approval_callout_data: {
-										...tempForm.approval_callout_data,
-										locales: {
-											...tempForm.approval_callout_data.locales,
-											[currentApprovalCalloutLocale]: {
-												...tempForm.approval_callout_data.locales[currentApprovalCalloutLocale],
-												callout_header: value
-											}
-										}
-									}
-								});
-							}}
-							value={getApprovalCalloutLocale(tempForm, currentApprovalCalloutLocale).callout_header || ''}
-						/>
-
-						<TextareaControl
-							label={__('Callout Content', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									approval_callout_data: {
-										...tempForm.approval_callout_data,
-										locales: {
-											...tempForm.approval_callout_data.locales,
-											[currentApprovalCalloutLocale]: {
-												...tempForm.approval_callout_data.locales[currentApprovalCalloutLocale],
-												callout_content: value
-											}
-										}
-									}
-								});
-							}}
-							value={getApprovalCalloutLocale(tempForm, currentApprovalCalloutLocale).callout_content || ''}
-						/>
-
-						<TextControl
-							label={__('Button Label', 'wicket-memberships')}
-							onChange={value => {
-								setTempForm({
-									...tempForm,
-									approval_callout_data: {
-										...tempForm.approval_callout_data,
-										locales: {
-											...tempForm.approval_callout_data.locales,
-											[currentApprovalCalloutLocale]: {
-												...tempForm.approval_callout_data.locales[currentApprovalCalloutLocale],
-												callout_button_label: value
-											}
-										}
-									}
-								});
-							}}
-							value={getApprovalCalloutLocale(tempForm, currentApprovalCalloutLocale).callout_button_label || ''}
-						/>
-
-						<Button variant="primary" type='submit'>
-							{__('Save', 'wicket-memberships')}
-						</Button>
-					</form>
-				</Modal>
-			)}
-
 			{/* Self-Serve Switch - Callout Modal */}
 			{isSwitchCalloutModalOpen && (
 				<Modal
@@ -1378,7 +1202,13 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 					</form>
 				</Modal>
 			)}
-
+			<ApprovalCalloutModal
+				isOpen={ isApprovalCalloutModalOpen }
+				onClose={ closeApprovalCalloutModal }
+				languageCodes={ languageCodesArray }
+				calloutData={ form.approval_callout_data }
+				onSave={ (calloutData) => setForm({ ...form, approval_callout_data: calloutData }) }
+			/>
 		</>
 	);
 };

@@ -11,9 +11,17 @@ namespace Wicket_Memberships;
  * Text Domain: wicket-memberships
  * Domain Path: /languages
  * Requires at least: 6.5
- * Requires PHP: 8.1
+ * Requires PHP: 8.2
  * Requires Plugins: wicket-wp-base-plugin, woocommerce, woocommerce-subscriptions
  * @package Wicket
+ *
+ * @see atlas://packages/wicket-wp-memberships.md
+ *
+ * ARCHITECTURAL GUARDRAIL:
+ * This plugin powers live subscriptions and recurring billing. Preserve the
+ * procedural WordPress architecture and hook flow. AI agents MUST NOT refactor
+ * this plugin into full OOP service layers, coordinator classes, or speculative
+ * abstractions. Architectural modernization is human-led, not agent-pushed.
  */
 
 // If this file is called directly, abort.
@@ -53,7 +61,12 @@ use Wicket_Memberships\Membership_Config_CPT_Hooks;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Tier_CPT_Hooks;
 use Wicket_Memberships\Membership_WP_REST_Controller;
+use Wicket_Memberships\Membership_Bundle_Config_WP_REST_Controller;
+use Wicket_Memberships\Membership_Bundle_WP_REST_Controller;
 use Wicket_Memberships\Membership_Subscription_Controller;
+use Wicket_Memberships\Membership_Bundle_Cron_Controller;
+use Wicket_Memberships\Bundle_Member_Resync;
+use Wicket_Memberships\Membership_Bundle_Renewal_Order_Controller;
 use Wicket_Memberships\Import_Controller;
 use Wicket_Memberships\Settings;
 use Wicket_Memberships\Utilities;
@@ -173,6 +186,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
               $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] = $options['wicket_mship_mdp_timezone'];
             }
           }
+          if ( isset( $options['wicket_mship_enable_bundles'] ) && $options['wicket_mship_enable_bundles'] ) {
+            $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] = true;
+          }
 
           require_once( WP_PLUGIN_DIR . '/wicket-wp-memberships/custom/membership-code-hooks.php' );
         }
@@ -180,7 +196,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 	/**
 	 * The main Wicket Memberships class
 	 */
-	class Wicket_Memberships {
+		class Wicket_Memberships {
 
     const STATUS_PENDING    = 'pending';
     const STATUS_GRACE      = 'grace_period';
@@ -197,12 +213,16 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 			new Membership_CPT_Hooks;
 			new Membership_Controller;
 			new Membership_Config_CPT_Hooks;
+			new Membership_Bundle_Config_CPT_Hooks;
 			new Membership_Tier_CPT_Hooks;
       new Membership_WP_REST_Controller;
+      new Membership_Bundle_Config_WP_REST_Controller;
+      new Membership_Bundle_WP_REST_Controller;
       new Membership_Subscription_Controller;
       new Helper;
       new Autorenew_Sync;
       new Autorenew_Audit;
+      new Bundle_Member_Resync;
       new Settings;
       new Utilities;
 
@@ -219,7 +239,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       //catch the order status change to processing
       add_action( 'woocommerce_order_status_processing', array ( __NAMESPACE__.'\\Membership_Controller' , 'catch_order_completed' ), 10, 1);
       //create the membership record
-      add_action( 'wicket_member_create_record', array( __NAMESPACE__.'\\Membership_Controller', 'create_membership_record'), 10, 3 );
+      add_action( 'wicket_member_create_record', array( __NAMESPACE__.'\\Membership_Controller', 'create_membership_record'), 10, 4 );
 
       //Advanced Scheduler action hooks to run our `do_action(..)` triggers on the renewal transition dates
       add_action( 'add_membership_early_renew_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_early_renew_at' ), 10, 2 );
@@ -230,6 +250,10 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
       //expire current membership when new one starts
       add_action( 'expire_old_membership_on_new_starts_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_expire_current_membership' ), 10, 2 );
+
+      // Cancel old bundle after all renewal members are provisioned.
+      // Deferred from handle_bundle_renewal() to avoid cancelling children before batch reads their meta.
+      add_action( 'wicket_memberships_bundle_renewal_complete', array( __NAMESPACE__.'\\Membership_Bundle_Cron_Controller', 'cancel_old_bundle_after_renewal' ), 10, 3 );
 
       //check items in cart for valid renewal dates or return error
       //TODO: currently disabled need validate and remove, replaced with 'memberships_verify_cart' on checkout hooks
@@ -242,6 +266,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'admin_menu', array ( __NAMESPACE__.'\\Settings' , 'wicket_membership_add_settings_page' ));
       add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'wicket_membership_register_settings' ));
       add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'handle_manual_action_links' ));
+      add_action( 'admin_post_wicket_mship_bundle_resync', array( __NAMESPACE__.'\\Settings' , 'handle_bundle_resync_request' ));
       add_action( 'admin_enqueue_scripts', array( __NAMESPACE__.'\\Settings' , 'enqueue_settings_assets' ));
       add_filter( 'admin_body_class', array( __NAMESPACE__.'\\Settings' , 'settings_admin_body_class' ));
 
@@ -263,6 +288,12 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action('wp', array($this, 'schedule_daily_membership_activation'), 10, 2);
       add_action('schedule_daily_membership_activation_hook', array( __NAMESPACE__.'\\Membership_Controller', 'daily_membership_activation_hook'), 10, 2);
 
+      // bundle cron: mirrors individual handlers above for wicket_mship_bundle posts
+      new Membership_Bundle_Cron_Controller;
+
+      // bundle renewal-order creation: claim/queue, WCS admin-action intercept, per-member repricing
+      new Membership_Bundle_Renewal_Order_Controller;
+
       //opt-in nightly autorenew drift audit; only scheduled while the setting is on, since
       //the batch handler itself is only registered by Autorenew_Audit's constructor in that case
       //deferred to the 'wp' hook like every other Action Scheduler call in this file — calling
@@ -278,44 +309,120 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 
       //checkbox toggle - can be used for view subscriptions
       add_action('init', [__NAMESPACE__.'\\Utilities', 'autorenew_checkbox_toggle_switch']);
+
+      // Fired by Action Scheduler when a cancel_all+at_end_date bundle cancellation reaches its end date.
+      add_action( 'wicket_bundle_cancel_subscription', array( $this, 'handle_bundle_cancel_subscription' ), 10, 1 );
     }
 
+    /**
+     * Action Scheduler handler for wicket_bundle_cancel_subscription.
+     *
+     * Called at the bundle ends_at date when cancel_all + at_end_date was chosen.
+     * Cancels the WC subscription linked to the bundle.
+     *
+     * @param int $bundle_post_id Post ID of the membership bundle.
+     */
+    public function handle_bundle_cancel_subscription( int $bundle_post_id ): void {
+      if ( ! function_exists( 'wcs_get_subscription' ) ) {
+        return;
+      }
+
+      $sub_id = (int) get_post_meta( $bundle_post_id, 'membership_subscription_id', true );
+      if ( ! $sub_id ) {
+        return;
+      }
+
+      $sub = wcs_get_subscription( $sub_id );
+      if ( ! $sub ) {
+        return;
+      }
+
+      $sub->add_order_note(
+        sprintf(
+          /* translators: 1: membership bundle post ID */
+          __( 'Subscription cancelled automatically at membership bundle end date (bundle ID: %d).', 'wicket-memberships' ),
+          $bundle_post_id
+        )
+      );
+      $sub->update_status( 'cancelled' );
+      $sub->save();
+    }
+
+    /**
+     * Unix time of the next occurrence of a wall-clock time tomorrow in the MDP timezone.
+     *
+     * Used as the first run of the nightly jobs. Only applies when a job is first scheduled;
+     * existing recurring actions keep their time.
+     *
+     * @param  string $time  Wall-clock time, e.g. '3:00'.
+     *
+     * @return int  Unix timestamp.
+     */
+    private static function next_nightly_run_timestamp( $time ) {
+      $mdp_timezone = Utilities::get_mdp_timezone();
+      return ( new \DateTime( 'tomorrow ' . $time, $mdp_timezone ) )->getTimestamp();
+    }
+
+    /**
+     * Schedule the nightly expiry job at 3:00 MDP time, if it is not already scheduled.
+     *
+     * @return void
+     *
+     * @see Membership_Controller::daily_membership_expiry_hook()
+     */
     public static function schedule_daily_membership_expiry() {
       if (!as_next_scheduled_action('schedule_daily_membership_expiry_hook')) {
-        $timezone = wp_timezone();
-        $next_run_time = new \DateTime('tomorrow 3:00', $timezone);
-        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
-        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_expiry_hook');
+        as_schedule_recurring_action(self::next_nightly_run_timestamp('3:00'), DAY_IN_SECONDS, 'schedule_daily_membership_expiry_hook');
       }
     }
 
+    /**
+     * Schedule the nightly grace-period job at 3:30 MDP time, if it is not already scheduled.
+     *
+     * @return void
+     *
+     * @see Membership_Controller::daily_membership_grace_period_hook()
+     */
     public static function schedule_daily_membership_grace_period() {
       if (!as_next_scheduled_action('schedule_daily_membership_grace_period_hook')) {
-        $timezone = wp_timezone();
-        $next_run_time = new \DateTime('tomorrow 3:30', $timezone);
-        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
-        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_grace_period_hook');
+        as_schedule_recurring_action(self::next_nightly_run_timestamp('3:30'), DAY_IN_SECONDS, 'schedule_daily_membership_grace_period_hook');
       }
     }
 
+    /**
+     * Schedule the nightly activation job at 4:00 MDP time, if it is not already scheduled.
+     *
+     * @return void
+     *
+     * @see Membership_Controller::daily_membership_activation_hook()
+     */
     public static function schedule_daily_membership_activation() {
       if (!as_next_scheduled_action('schedule_daily_membership_activation_hook')) {
-        $timezone = wp_timezone();
-        $next_run_time = new \DateTime('tomorrow 4:00', $timezone);
-        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
-        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'schedule_daily_membership_activation_hook');
+        as_schedule_recurring_action(self::next_nightly_run_timestamp('4:00'), DAY_IN_SECONDS, 'schedule_daily_membership_activation_hook');
       }
     }
 
+    /**
+     * Schedule the nightly autorenew audit at 4:30 MDP time, if it is not already scheduled.
+     *
+     * @return void
+     */
     public static function schedule_daily_membership_autorenew_audit() {
       if (!as_next_scheduled_action('wicket_mship_autorenew_audit_hook', [], 'wicket-memberships')) {
-        $timezone = wp_timezone();
-        $next_run_time = new \DateTime('tomorrow 4:30', $timezone);
-        $next_run_time->setTimezone(new \DateTimeZone('UTC'));
-        as_schedule_recurring_action($next_run_time->getTimestamp(), DAY_IN_SECONDS, 'wicket_mship_autorenew_audit_hook', [], 'wicket-memberships');
+        as_schedule_recurring_action(self::next_nightly_run_timestamp('4:30'), DAY_IN_SECONDS, 'wicket_mship_autorenew_audit_hook', [], 'wicket-memberships');
       }
     }
 
+    /**
+     * Validate the cart's membership items, adding WooCommerce notices for any that cannot be bought.
+     *
+     * Hooked on cart, add-to-cart and checkout. Blocks pending renewal orders, org tiers without an
+     * org, and renewals before the early-renewal window opens.
+     *
+     * @param  mixed $checkout_order  Hook argument (cart contents or checkout data); unused.
+     *
+     * @return void
+     */
     public function memberships_verify_cart( $checkout_order ) {
       $cannot_process = [];
       if( !empty( $_ENV['check_renewals_orders_in_cart'] )) {
@@ -385,7 +492,7 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
             $early_renewal_date = $config->is_valid_renewal_date( $membership_current );
             //if we are trying to renew a membership check that we are in the renewal period
             if( !empty( $early_renewal_date ) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] )) {
-              wc_add_notice(sprintf(__("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date))), 'error');
+              wc_add_notice(sprintf(__("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), Utilities::format_mdp_date("l jS \of F Y", strtotime($early_renewal_date))), 'error');
               return;
             }
           }
@@ -468,4 +575,3 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
 		\WP_CLI::add_command( 'wicket-mship external-id', \Wicket_Memberships\CLI\External_Id_Repair_Command::class );
 	}
 }
-

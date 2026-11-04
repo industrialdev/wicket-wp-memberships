@@ -6,11 +6,20 @@ use Wicket_Memberships\Helper;
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Membership_Tier;
 use Wicket_Memberships\Membership_Config;
+use Wicket_Memberships\Membership_Bundle;
 use Wicket_Memberships\Autorenew;
 use Wicket_Memberships\Autorenew_Sync;
 
 /**
- * Main controller methods
+ * Main controller methods.
+ *
+ * @see atlas://packages/wicket-wp-memberships.md#scheduled-lifecycle-transitions
+ *
+ * ARCHITECTURAL GUARDRAIL:
+ * Manages order-to-membership creation, lifecycle transitions, and Action Scheduler tasks.
+ * Keep the direct procedural controller flow intact. AI agents MUST NOT refactor
+ * this controller into separate OOP service classes or coordinator layers.
+ *
  * @package Wicket_Memberships
  */
 class Membership_Controller {
@@ -43,6 +52,10 @@ class Membership_Controller {
    * repeat the full scan on every click.
    */
   const MEMBERS_IDS_TRANSIENT_TTL = 5 * MINUTE_IN_SECONDS;
+
+  /** MDP membership category names. Clients can rename these in the MDP; the sync copies whatever the tier declares. */
+  const MEMBERSHIP_CATEGORY_PRIMARY = 'primary';
+  const MEMBERSHIP_CATEGORY_SECTION = 'section';
 
   /** True once a membership write has queued the member list cache flush for this request. */
   private static $member_list_cache_stale = false;
@@ -348,7 +361,19 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Check if the renewal order date for this item is within the renewal period
+   * Block a renewal order line item when the membership's early-renewal window has not opened.
+   *
+   * The renewed membership comes from the item's `_membership_post_id_renew` meta, or the
+   * customer's active membership on the same tier. Skipped when WICKET_MEMBERSHIPS_DEBUG_RENEW is set.
+   *
+   * @param  \WC_Order_Item_Product $item           The order line item being created.
+   * @param  string                 $cart_item_key  Cart item key (unused).
+   * @param  array                  $values         Cart item values (unused).
+   * @param  \WC_Order              $order          The order being created.
+   *
+   * @throws \Exception  With the "can renew starting" notice when the window has not opened.
+   *
+   * @return void
    */
   public static function validate_renewal_order_items( $item, $cart_item_key, $values, $order ) {
     $self = new self();
@@ -375,7 +400,7 @@ function get_item_data ( $other_data, $cart_item ) {
       $early_renewal_date = $config->is_valid_renewal_date( $membership_current );
     }
     if( !empty( $early_renewal_date ) && empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] )) {
-      $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), date("l jS \of F Y", strtotime($early_renewal_date)));
+      $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), Utilities::format_mdp_date("l jS \of F Y", strtotime($early_renewal_date)));
       throw new \Exception( $error_text );
     }
   }
@@ -732,8 +757,12 @@ function get_item_data ( $other_data, $cart_item ) {
     if( ! empty( $membership_array ) ) {
       $updated_membership_array = array_merge($membership_array, $meta_array);
       update_user_meta( $membership_array['user_id'], '_wicket_membership_'.$membership_post_id, json_encode( $updated_membership_array) );
-      update_post_meta( $membership_array['membership_parent_order_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
-      update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+      if ( ! empty( $membership_array['membership_parent_order_id'] ) && ! empty( $membership_array['membership_product_id'] ) ) {
+        update_post_meta( $membership_array['membership_parent_order_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+      }
+      if ( ! empty( $membership_array['membership_subscription_id'] ) && ! empty( $membership_array['membership_product_id'] ) ) {
+        update_post_meta( $membership_array['membership_subscription_id'], '_wicket_membership_'.$membership_array['membership_product_id'], json_encode( $updated_membership_array) );
+      }
       return true;
     }
     return false;
@@ -744,8 +773,17 @@ function get_item_data ( $other_data, $cart_item ) {
    */
 
   /**
-   * Catch the Order Status Changed hook
-   * Process the order product(s) memberships
+   * Create memberships for the products on an order once it reaches processing.
+   *
+   * A 1-month subscription only creates its membership when its parent order is
+   * processed on the day the subscription was created, both days read in the MDP
+   * timezone. Otherwise the whole order is skipped.
+   *
+   * @param  int|\WC_Abstract_Order $order_id  Order ID from the status hook, or the order itself.
+   *
+   * @return void
+   *
+   * @see Membership_Controller::get_memberships_data_from_subscription_products()
    */
   public static function catch_order_completed( $order_id ) {
     $order = $order_id instanceof \WC_Abstract_Order ? $order_id : wc_get_order( $order_id );
@@ -777,7 +815,27 @@ function get_item_data ( $other_data, $cart_item ) {
     $user = get_user_by( 'id', $user_id );
     $person_uuid = $user->data->user_login;
 
-    $subscriptions = self::get_order_subscriptions( $order_id, ['order_type' => 'parent'] );
+    $subscriptions = self::get_order_subscriptions( $order_id, ['order_type' => 'any'] );
+
+    // Bundle renewal pre-check — must run before the monthly subscription guard loop
+    // below (lines ~512–519). Bundle configs support month period type, so a monthly
+    // bundle renewal would be killed by that guard before we could detect it here.
+    //
+    // We do NOT check wcs_order_contains_subscription( $order, 'renewal' ) here because
+    // bundle subscriptions are created without an initial order — the first order WCS
+    // generates at renewal time is classified as a parent order, not a renewal order.
+    // The bundle post owning the subscription is the authoritative signal.
+    // handle_bundle_renewal() has its own idempotency guard that aborts on duplicate runs.
+    if ( ! empty( $_ENV['WICKET_MSHIP_ENABLE_BUNDLES'] ) ) {
+      foreach ( $subscriptions as $subscription ) {
+        $bundle_post_id = Membership_Bundle::get_bundle_post_id_for_subscription( $subscription );
+        if ( $bundle_post_id > 0 ) {
+          self::handle_bundle_renewal( $bundle_post_id, $subscription, $order );
+          return;
+        }
+      }
+    }
+
     if( 0 && empty( $subscriptions ) ) {
       //create subscriptions for non-subscription products tied to tiers
       $MSC = new Membership_Subscription_Controller();
@@ -786,10 +844,13 @@ function get_item_data ( $other_data, $cart_item ) {
 
     Utilities::wc_log_mship_error( ['Creating a membership', ['order_id'=>$order_id]]);
 
+    // Both days in the MDP timezone; WCS returns date_created as a UTC string.
+    $mdp_timezone = Utilities::get_mdp_timezone();
     foreach($subscriptions as $subscription) {
-      $today = current_time( 'Y-m-d' );
-      $created_date = $subscription->get_date( 'date_created' );
-      $created_date = date( 'Y-m-d', strtotime($created_date));
+      $today = ( new \DateTime( 'now', $mdp_timezone ) )->format( 'Y-m-d' );
+      // WCS returns 0 when no date is set; an empty day never matches, so the gate skips.
+      $created_ts = strtotime( (string) $subscription->get_date( 'date_created' ) );
+      $created_date = $created_ts ? ( new \DateTime( '@' . $created_ts ) )->setTimezone( $mdp_timezone )->format( 'Y-m-d' ) : '';
       Utilities::wicket_logger( 'MSHIP CREATED sub date compare monthly', ['today'=>$today, 'created_date'=>$created_date]);
       if($subscription->get_billing_period() == 'month' && $subscription->get_billing_interval() == 1) {
         if( $created_date !== $today) {
@@ -820,6 +881,178 @@ function get_item_data ( $other_data, $cart_item ) {
       $membership['person_uuid'] = $self->get_person_uuid( $user_id );
       do_action( 'wicket_member_create_record' , $membership, $self->processing_renewal, $self->status_cycled );
     }
+  }
+
+  /**
+   * Handle a bundle subscription renewal order.
+   *
+   * Called from catch_order_completed() when the completing order belongs to a bundle
+   * subscription. Owns the full renewal sequence: date calculation, new bundle creation,
+   * old bundle cancellation, and batch job dispatch for individual member provisioning.
+   *
+   * @param int                  $old_bundle_post_id Bundle post ID linked to the renewing subscription.
+   * @param \WC_Subscription     $subscription       The renewing WC subscription.
+   * @param \WC_Abstract_Order   $order              The renewal order that triggered processing status.
+   */
+  private static function handle_bundle_renewal(
+    int $old_bundle_post_id,
+    \WC_Subscription $subscription,
+    \WC_Abstract_Order $order
+  ): void {
+    $old_bundle = new Membership_Bundle( $old_bundle_post_id );
+    $config     = $old_bundle->get_config();
+
+    if ( ! $config ) {
+      Utilities::wc_log_mship_error( [ 'handle_bundle_renewal: old bundle has no config, aborting', [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'order_id'           => $order->get_id(),
+      ] ] );
+      return;
+    }
+
+    // Step 1: Calculate new term dates anchored to old ends_at.
+    $old_dates = $old_bundle->get_dates();
+    $new_dates = $config->get_membership_dates( [
+      'membership_ends_at'   => $old_dates['ends_at'],
+      'membership_starts_at' => $old_dates['starts_at'],
+    ] );
+
+    // Idempotency guard: abort if a bundle in the same series with the same start date
+    // already exists — order status was cycled, not a genuine renewal.
+    $existing = get_posts( [
+      'post_type'      => Helper::get_membership_bundle_cpt_slug(),
+      'post_status'    => 'any',
+      'numberposts'    => 1,
+      'fields'         => 'ids',
+      'meta_query'     => [
+        [ 'key' => 'membership_bundle_group_uuid', 'value' => $old_bundle->get_bundle_group_uuid() ],
+        [ 'key' => 'membership_starts_at',         'value' => $new_dates['start_date'] ],
+      ],
+    ] );
+
+    if ( ! empty( $existing ) ) {
+      Utilities::wc_log_mship_error( [ 'handle_bundle_renewal: new-term bundle already exists, skipping', [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'existing_post_id'   => $existing[0],
+        'order_id'           => $order->get_id(),
+      ] ] );
+      return;
+    }
+
+    // Step 2: Create new bundle post via renew_bundle() — reuses the existing WC subscription
+    // rather than creating a new one. renew_bundle() updates the subscription dates to the new
+    // term and carries the group_uuid forward so the renewal series stays linked.
+    $new_bundle = $old_bundle->renew_bundle( $subscription, $new_dates );
+
+    if ( ! $new_bundle ) {
+      Utilities::wc_log_mship_error( [ 'handle_bundle_renewal: renew_bundle() failed, aborting', [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'order_id'           => $order->get_id(),
+      ] ] );
+      return;
+    }
+
+    // Step 3: Subscription is reused — no new subscription created. renew_bundle() updated
+    // its dates to the new term.
+
+    // Step 4: Old bundle cancellation is deferred to after the batch job completes.
+    // Cancelling here would mark all child memberships as cancelled before the batch
+    // handler reads their meta — causing check_local_membership_record_exists() to miss
+    // them and overwrite records instead of creating new ones.
+    //
+    // cancel_old_bundle_after_renewal() is called from the wicket_memberships_bundle_renewal_complete
+    // action which fires at the end of the final batch. For early renewals (new term in the
+    // future) the AS job wicket_bundle_cancel_old_on_new_starts_at fires at the new start
+    // date instead — giving members their full remaining term on the old bundle.
+
+    // Step 5: Count eligible members from renewal order line items and dispatch batch job.
+    // Eligible members = line items with _membership_post_id set (written by add_subscription_line_item()).
+    // This is the authoritative list — not the full old bundle member list.
+    $total_members = 0;
+    foreach ( $order->get_items() as $item ) {
+      if ( (int) wc_get_order_item_meta( $item->get_id(), '_membership_post_id', true ) > 0 ) {
+        $total_members++;
+      }
+    }
+
+    // Step 6: Determine early vs same-day renewal BEFORE writing processing meta or dispatching
+    // any batches. The is_early_renewal flag must be persisted before the first batch runs —
+    // if it were written after dispatch, a fast AS worker could complete the batch and fire
+    // cancel_old_bundle_after_renewal() before the flag is stamped, cancelling the active
+    // old bundle prematurely on an early renewal.
+    $new_starts_at_ts = strtotime( $new_dates['start_date'] ?? '' );
+    $is_early_renewal = $new_starts_at_ts && $new_starts_at_ts > time();
+
+    $processing_meta = [
+      'started_at'         => current_time( 'c' ),
+      'renewal_order_id'   => $order->get_id(),
+      'old_bundle_post_id' => $old_bundle_post_id,
+      'new_bundle_post_id' => $new_bundle->post_id,
+      'total_members'      => $total_members,
+      'batch_size'         => 25,
+      'offset'             => 0,
+      'is_early_renewal'   => $is_early_renewal,
+    ];
+    update_post_meta( $old_bundle_post_id,   'membership_renewal_processing', wp_json_encode( $processing_meta ) );
+    update_post_meta( $new_bundle->post_id,  'membership_renewal_processing', wp_json_encode( $processing_meta ) );
+
+    // Early renewal: schedule deferred old-bundle cancellation at new term start date.
+    // Same-day/grace renewal: cancel_old_bundle_after_renewal() (hooked to batch complete) handles it.
+    if ( $is_early_renewal ) {
+      as_schedule_single_action(
+        $new_starts_at_ts,
+        'wicket_bundle_cancel_old_on_new_starts_at',
+        [
+          'old_bundle_post_id' => $old_bundle_post_id,
+          'new_bundle_post_id' => $new_bundle->post_id,
+        ],
+        'wicket-memberships',
+        false
+      );
+    }
+
+    as_schedule_single_action(
+      time(),
+      'wicket_bundle_renewal_process_members',
+      [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'new_bundle_post_id' => $new_bundle->post_id,
+        'renewal_order_id'   => $order->get_id(),
+        'offset'             => 0,
+        'batch_size'         => 25,
+      ],
+      'wicket-memberships',
+      false
+    );
+
+    // Step 7: Add note to both order and subscription — mirrors individual membership pattern
+    // in scheduler_dates_for_expiry() which writes the same note to both locations.
+    $renewal_note = sprintf(
+      'Membership bundle renewal process has begun. Creating %d new individual memberships. Old bundle: #%d → New bundle: #%d.',
+      $total_members,
+      $old_bundle_post_id,
+      $new_bundle->post_id
+    );
+
+    $wc_order = wc_get_order( $order->get_id() );
+    if ( $wc_order ) {
+      $wc_order->add_order_note( $renewal_note );
+    }
+
+    $sub = wcs_get_subscription( $subscription->get_id() );
+    if ( $sub ) {
+      $sub->add_order_note( $renewal_note );
+    }
+
+    Utilities::wc_log_mship_error( [
+      'handle_bundle_renewal: renewal started',
+      [
+        'old_bundle_post_id' => $old_bundle_post_id,
+        'new_bundle_post_id' => $new_bundle->post_id,
+        'order_id'           => $order->get_id(),
+        'total_members'      => $total_members,
+      ],
+    ] );
   }
 
   public function schedule_force_set_next_payment_date( $subscription_id, $next_payment_date ) {
@@ -881,16 +1114,24 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Add renewal transition dates to Advanced Scheduler - fallback with wp_cron
+   * Schedule a membership's lifecycle events and hand over from the previous membership.
+   *
+   * Schedules early-renew, end and expiry actions via Action Scheduler (wp_cron fallback).
+   * When this is a renewal, the previous membership is expired now if the new one has
+   * already started, otherwise at the new start. Adds an order note describing the result.
+   *
+   * @param  array $membership  Membership data with ISO dates, post IDs and parent order/product IDs.
+   *
+   * @return void
    */
   public function scheduler_dates_for_expiry( $membership ) {
     $membership_starts_at = strtotime( $membership['membership_starts_at'] );
     $membership_early_renew_at = strtotime( $membership['membership_early_renew_at'] );
     $membership_ends_at = strtotime( $membership['membership_ends_at'] );
     $membership_expires_at = strtotime( $membership['membership_expires_at'] );
-    $order_note = 'New membership ID #'.$membership['membership_post_id'].' created from '.date('Y-m-d', $membership_starts_at).' to '.date('Y-m-d', $membership_ends_at);
+    $order_note = 'New membership ID #'.$membership['membership_post_id'].' created from '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at).' to '.Utilities::format_mdp_date('Y-m-d', $membership_ends_at);
 
-    if( !empty( $membership['membership_parent_order_id'] ) && !empty( $membership['membership_product_id'] ) ) {
+    if( self::should_schedule_expiry_notification_jobs( $membership ) ) {
       $args = [
         'membership_parent_order_id' => $membership['membership_parent_order_id'],
         'membership_product_id' => $membership['membership_product_id'],
@@ -898,22 +1139,23 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     if ( function_exists('as_schedule_single_action') ) {
-      //as_schedule_single_action( $timestamp, $hook, $args, $group, $unique, $priority );
+      //as_schedule_single_action( $timestamp, $hook, $args, $bundle, $unique, $priority );
       if(!empty($args)) {
         as_schedule_single_action( $membership_early_renew_at, 'add_membership_early_renew_at', $args, 'wicket-membership-plugin', false );
         as_schedule_single_action( $membership_ends_at, 'add_membership_ends_at', $args, 'wicket-membership-plugin', false );
         as_schedule_single_action( $membership_expires_at, 'add_membership_expires_at', $args, 'wicket-membership-plugin', false );
       }
       //to expire old membership when new one starts
+      // (the old one's last day is one second before the new start, so DST can't shift it)
       if( !empty( $membership['previous_membership_post_id'] ) ) {
-        if( current_time( 'timestamp' ) >= $membership_starts_at ) {
+        if( time() >= $membership_starts_at ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
-          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.date('Y-m-d', $membership_starts_at);
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         } else {
           as_schedule_single_action( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ], 'wicket-membership-plugin', false );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
-          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.date('Y-m-d', $membership_starts_at);
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         }
       }
     } else {
@@ -924,14 +1166,14 @@ function get_item_data ( $other_data, $cart_item ) {
       }
       //to expire old membership when new one starts
       if( !empty( $membership['previous_membership_post_id'] ) ) {
-        if( current_time( 'timestamp' ) >= $membership_starts_at ) {
+        if( time() >= $membership_starts_at ) {
           $this->catch_expire_current_membership( $membership['previous_membership_post_id'] );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
-          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.date('Y-m-d', $membership_starts_at);
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' set expired at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' set active on '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         } else {
           wp_schedule_single_event( $membership_starts_at, 'expire_old_membership_on_new_starts_at', [ 'previous_membership_post_id' => $membership['previous_membership_post_id'], 'new_membership_post_id' => $membership['membership_post_id'] ] );
-          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . date('Y-m-d', strtotime("-1 day", $membership_starts_at));
-          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.date('Y-m-d', $membership_starts_at);
+          $order_note = 'Previous membership ID #'.$membership['previous_membership_post_id'].' scheduled for expiry at ' . Utilities::format_mdp_date('Y-m-d', $membership_starts_at - 1);
+          $order_note .= ' and new membership ID #'.$membership['membership_post_id'].' scheduled to be activated '.Utilities::format_mdp_date('Y-m-d', $membership_starts_at);
         }
       }
     }
@@ -959,6 +1201,28 @@ function get_item_data ( $other_data, $cart_item ) {
           }
       */
       }
+  }
+
+  /**
+   * Determines whether a membership should have its individual early-renew/ends/expires
+   * Action Scheduler jobs scheduled. Under certain conditions we do not want to send these
+   * per-membership notifications at all.
+   *
+   * @param  array  $membership  Membership data array.
+   * @return bool  True if the individual notification jobs should be scheduled.
+   */
+  public static function should_schedule_expiry_notification_jobs( $membership ): bool {
+    // Notifications require an order and product to key the scheduled job on.
+    if ( empty( $membership['membership_parent_order_id'] ) || empty( $membership['membership_product_id'] ) ) {
+      return false;
+    }
+
+    // Bundle members should not get their own notifications - the owner gets them instead.
+    if ( ! empty( $membership['membership_bundle_id'] ) ) {
+      return false;
+    }
+
+    return true;
   }
 
   /**
@@ -1015,19 +1279,41 @@ function get_item_data ( $other_data, $cart_item ) {
   public static function catch_membership_early_renew_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_early_renew_at_date_reached( $membership );
   }
 
   public static function catch_membership_ends_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_ends_at_date_reached( $membership );
   }
 
   public static function catch_membership_expires_at( $membership_parent_order_id, $membership_product_id ) {
     $self = new self();
     $membership = $self->get_membership_array_from_order_and_product_id( $membership_parent_order_id, $membership_product_id );
+    if ( self::is_bundle_member( $membership ) ) {
+      return;
+    }
     $self->membership_expires_at_date_reached( $membership );
+  }
+
+  /**
+   * Catches jobs scheduled before should_schedule_expiry_notification_jobs() existed.
+   * membership_bundle_id is not in the order/product JSON blob $membership is built
+   * from, so it is looked up on the membership post directly.
+   */
+  private static function is_bundle_member( $membership ): bool {
+    if ( empty( $membership['membership_post_id'] ) ) {
+      return false;
+    }
+
+    return ! empty( get_post_meta( $membership['membership_post_id'], 'membership_bundle_id', true ) );
   }
 
   public function membership_early_renew_at_date_reached( $membership ) {
@@ -1045,7 +1331,7 @@ function get_item_data ( $other_data, $cart_item ) {
   /**
    * Create the membership records
    */
-  public static function create_membership_record( $membership, $processing_renewal = false, $status_cycled = false ) {
+  public static function create_membership_record( $membership, $processing_renewal = false, $status_cycled = false, $skip_approval = false ) {
     $membership_wicket_uuid = '';
     $self = new self();
 
@@ -1059,7 +1345,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
     if($self->bypass_wicket) {
       //Don't create the wicket connection when testing
-      $self->create_local_membership_record(  $membership, $self->guidv4().'-fake' );
+      $membership['membership_post_id'] = $self->create_local_membership_record( $membership, $self->guidv4().'-fake', $skip_approval );
       return $membership;
     }
 
@@ -1071,13 +1357,20 @@ function get_item_data ( $other_data, $cart_item ) {
     $membership['membership_is_autorenew_reason'] = $autorenew_status['reason'];
 
     $tier = new Membership_Tier( $membership['membership_tier_post_id'] );
-    //we only create the mdp record if tier not pending approval | tier pending approval and is renewal
-    if( ! $tier->is_approval_required() || ( ! $tier->is_renew_approval_required() && $tier->is_approval_required() && $self->processing_renewal )) {
+    //we only create the mdp record if tier not pending approval | tier pending approval and is renewal | approval is being skipped
+    $mdp_attempted = false;
+    if( $skip_approval || ! $tier->is_approval_required() || ( ! $tier->is_renew_approval_required() && $tier->is_approval_required() && $self->processing_renewal )) {
+      $mdp_attempted = true;
       $membership_wicket_uuid = $self->create_mdp_record( $membership );
     }
 
+    // Surface MDP failure so bundle member flows can return a UI error.
+    if ( $mdp_attempted && empty( $membership_wicket_uuid ) ) {
+      $membership['mdp_error'] = ! empty( $self->error_message ) ? $self->error_message : 'MDP record creation failed.';
+    }
+
     //always create the local membership record to get post_id
-    $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $membership_wicket_uuid );
+    $membership['membership_post_id'] = $self->create_local_membership_record(  $membership, $membership_wicket_uuid, $skip_approval );
     add_post_meta( $membership['membership_post_id'], 'membership_post_id', $membership['membership_post_id'], true );
     Utilities::wicket_logger( 'create local membership - postID', $membership['membership_post_id']);
 
@@ -1099,9 +1392,10 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     //we are pending approval so change some statuses and send email
-    if( ($tier->is_approval_required() && ! $self->processing_renewal) 
-      || ($tier->is_renew_approval_required()  && $self->processing_renewal) 
-    ) {
+    if( ! $skip_approval && (
+      ($tier->is_approval_required() && ! $self->processing_renewal)
+      || ($tier->is_renew_approval_required()  && $self->processing_renewal)
+    ) ) {
       $self->update_subscription_status( $membership['membership_subscription_id'], 'on-hold', 'Subscription pending approval.');
       //update membership status to pending approval
       $self->update_membership_status( $membership['membership_post_id'], Wicket_Memberships::STATUS_PENDING);
@@ -1209,6 +1503,12 @@ function get_item_data ( $other_data, $cart_item ) {
    * NOTE: Woo Subscriptions will ALWAYS set the [next_payment_date] when the subscription STATUS CHANGES to 'active' while the end_date IS SET.
    * - Set the dates on the 'woocommerce_subscription_status_updated' hook (after the subscription is created) to avoid this behavior
    * - Necessary because subscription status is changed after this code is run for new subscriptions
+   *
+   * @param  array    $membership           Membership data with ISO dates and membership_subscription_id.
+   * @param  string[] $fields               Which dates to write: start_date, end_date, next_payment_date.
+   * @param  bool     $subcription_created  True when the subscription was just created in this request.
+   *
+   * @return string|void  An error message when WCS rejects the dates, otherwise nothing.
    */
   public function update_membership_subscription( $membership, $fields = [ 'start_date', 'end_date', 'next_payment_date' ], $subcription_created = false ) {
     if( function_exists( 'wcs_get_subscription' )) {
@@ -1285,18 +1585,18 @@ function get_item_data ( $other_data, $cart_item ) {
           $order_note = 'Membership ' .$membership['membership_post_id'].' changed these subscription dates. ';
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
           if(!empty($dates_to_update['next_payment'])) {
-            $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date)).'('.$dates_to_update['next_payment'].')';
+            $order_note .= '<br> Next Payment Date: '.Utilities::format_mdp_date('Y-m-d', strtotime($end_date)).'('.$dates_to_update['next_payment'].')';
             $this->schedule_force_set_next_payment_date( $subscription_id, $dates_to_update['next_payment']);
           }
-          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_or_end_date)).'('.$dates_to_update['end'].')';
+          $order_note .= '<br> End Date: '.Utilities::format_mdp_date('Y-m-d', strtotime($expire_or_end_date)).'('.$dates_to_update['end'].')';
           $sub->add_order_note($order_note);
         } catch (\Exception $e) {
           $order_note = 'Membership ' .$membership['membership_post_id'].' attempted to change these subscription dates. '.$e->getMessage();
           //$order_note .= '<br> Start Date: '.date('Y-m-d', strtotime($start_date));
           if(!empty($dates_to_update['next_payment'])) {
-            $order_note .= '<br> Next Payment Date: '.date('Y-m-d', strtotime($end_date));
+            $order_note .= '<br> Next Payment Date: '.Utilities::format_mdp_date('Y-m-d', strtotime($end_date));
           }
-          $order_note .= '<br> End Date: '.date('Y-m-d', strtotime($expire_date));
+          $order_note .= '<br> End Date: '.Utilities::format_mdp_date('Y-m-d', strtotime($expire_date));
           $sub->add_order_note($order_note);
           return 'ERROR on Subscription Update: '. $e->getMessage();
         }
@@ -1410,6 +1710,14 @@ function get_item_data ( $other_data, $cart_item ) {
     }
     if( is_wp_error( $response ) ) {
       $error_msg = $response->get_error_message( 'wicket_api_error' );
+      // Bundle members have no individual subscription (membership_subscription_id = 0),
+      // so the order note below never fires for them - log unconditionally so a failed
+      // MDP write is never silent.
+      Utilities::wc_log_mship_error( [
+        'update_mdp_record failed',
+        'membership_wicket_uuid' => $membership['membership_wicket_uuid'] ?? '',
+        'error'                  => $error_msg,
+      ] );
       if(! empty($sub)) {
         $sub->add_order_note( "ERROR: Admin changing membership dates in MDP. ($starts_at - $ends_at)" . $error_msg );
       }
@@ -1447,6 +1755,52 @@ function get_item_data ( $other_data, $cart_item ) {
     $base_version_supports_org_autorenew = function_exists( 'wicket_supports' )
       && wicket_supports( 'base-plugin.organization_membership.is_auto_renew' );
     $org_is_autorenew = $base_version_supports_org_autorenew ? $is_autorenew : null;
+
+    // Bundle-member path: assign person_membership linked to the MDP bundle record.
+    // Fires only when the bundle has already been synced (membership_bundle_mdp_uuid present).
+    // Falls through to the individual path when the UUID is absent — safe degradation.
+    if ( ! empty( $membership['membership_bundle_mdp_uuid'] ) && function_exists( 'wicket_assign_person_to_bundle_membership' ) ) {
+      // Reuse an existing MDP assignment under this bundle when one already exists
+      // (e.g. re-importing a person already linked in MDP) instead of creating a
+      // duplicate — matches the existence check the individual path already does.
+      $existing_bundle_membership_uuid = '';
+      if ( function_exists( 'wicket_get_person_bundle_membership_exists' ) ) {
+        $existing_bundle_membership_uuid = wicket_get_person_bundle_membership_exists(
+          $membership['membership_bundle_mdp_uuid'],
+          $membership['person_uuid'],
+          $membership['membership_tier_uuid']
+        );
+      }
+
+      if ( is_wp_error( $existing_bundle_membership_uuid ) ) {
+        $this->error_message = $existing_bundle_membership_uuid->get_error_message( 'wicket_api_error' );
+        return '';
+      }
+
+      if ( ! empty( $existing_bundle_membership_uuid ) ) {
+        Utilities::wc_log_mship_error( ['create_mdp_record: bundle path, reusing existing MDP assignment', 'bundle_mdp_uuid' => $membership['membership_bundle_mdp_uuid'], 'person_uuid' => $membership['person_uuid'], 'tier_uuid' => $membership['membership_tier_uuid'], 'existing_uuid' => $existing_bundle_membership_uuid] );
+        return $existing_bundle_membership_uuid;
+      }
+
+      Utilities::wc_log_mship_error( ['create_mdp_record: bundle path', 'bundle_mdp_uuid' => $membership['membership_bundle_mdp_uuid'], 'person_uuid' => $membership['person_uuid'], 'tier_uuid' => $membership['membership_tier_uuid']] );
+      $response = wicket_assign_person_to_bundle_membership(
+        $membership['person_uuid'],
+        $membership['membership_tier_uuid'],
+        $membership['membership_bundle_mdp_uuid'],
+        $membership['membership_starts_at'] ?? '',
+        $membership['membership_ends_at'] ?? '',
+        (int) ( $membership['membership_grace_period_days'] ?? 0 )
+      );
+
+      Utilities::wc_log_mship_error( ['create_mdp_record: bundle path response', $response] );
+
+      if ( is_wp_error( $response ) ) {
+        $this->error_message = $response->get_error_message( 'wicket_api_error' );
+        return '';
+      }
+
+      return $response['data']['id'] ?? '';
+    }
 
     $previous_membership_wicket_uuid = '';
     if(!empty($membership['previous_membership_post_id'])) {
@@ -1815,6 +2169,18 @@ function get_item_data ( $other_data, $cart_item ) {
     return $membership_wicket_uuid;
   }
 
+  /**
+   * Save membership meta to the local post, recalculating status from its dates.
+   *
+   * Status (delayed / active / grace_period / expired) is derived from now against the
+   * start, end and expiry dates, unless the incoming status is cancelled. Missing dates
+   * fall back to the stored meta. Also refreshes the stored autorenew status.
+   *
+   * @param  int   $membership_post_id  The wicket_membership post ID.
+   * @param  array $meta_data           Meta fields to write; only the fields being changed.
+   *
+   * @return int|\WP_Error  Post ID on success, WP_Error on failure (from wp_update_post()).
+   */
   public function update_local_membership_record( $membership_post_id, $meta_data ) {
 
     // If the incoming status is already cancelled, do not recalculate the status
@@ -1823,8 +2189,8 @@ function get_item_data ( $other_data, $cart_item ) {
       && $meta_data['membership_status'] === Wicket_Memberships::STATUS_CANCELLED;
 
     if ( ! $is_cancelled ) {
-      // Determine membership status based on today's date vs. start/end/expiry dates.
-      $today             = current_time( 'timestamp' );
+      // Determine membership status from now vs. start/end/expiry dates.
+      $now               = time();
       $starts_at         = ! empty( $meta_data['membership_starts_at'] )
         ? strtotime( $meta_data['membership_starts_at'] )
         : strtotime( (string) get_post_meta( $membership_post_id, 'membership_starts_at', true ) );
@@ -1848,11 +2214,11 @@ function get_item_data ( $other_data, $cart_item ) {
       $grace_period_days = isset( $grace_period_days ) ? $grace_period_days : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
 
       if ( $starts_at && $ends_at ) {
-        if ( $today < $starts_at ) {
+        if ( $now < $starts_at ) {
           $meta_data['membership_status'] = Wicket_Memberships::STATUS_DELAYED;
-        } elseif ( $today <= $ends_at ) {
+        } elseif ( $now <= $ends_at ) {
           $meta_data['membership_status'] = Wicket_Memberships::STATUS_ACTIVE;
-        } elseif ( $grace_period_days > 0 && $today <= $expiry_at ) {
+        } elseif ( $grace_period_days > 0 && $now <= $expiry_at ) {
           $meta_data['membership_status'] = Wicket_Memberships::STATUS_GRACE;
         } else {
           $meta_data['membership_status'] = Wicket_Memberships::STATUS_EXPIRED;
@@ -2011,7 +2377,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
     if( !empty( $membership['membership_parent_order_id'] )) {
       $order_meta = get_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'] );
-      $order_meta_array = json_decode( $order_meta[0], true);
+      $order_meta_array = json_decode( $order_meta[0] ?? '', true) ?? [];
       $order_meta_array['membership_post_id'] = $membership_post;
       $order_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
       update_post_meta( $membership['membership_parent_order_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $order_meta_array) );
@@ -2020,7 +2386,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
     if( !empty( $membership['membership_subscription_id'] )) {
       $subscription_meta = get_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] );
-      $subscription_meta_array = json_decode( $subscription_meta[0], true);
+      $subscription_meta_array = json_decode( $subscription_meta[0] ?? '', true) ?? [];
       $subscription_meta_array['membership_post_id'] = $membership_post;
       $subscription_meta_array['membership_wicket_uuid'] = $membership_wicket_uuid;
       update_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'], json_encode( $subscription_meta_array) );
@@ -2206,7 +2572,12 @@ function get_item_data ( $other_data, $cart_item ) {
           'key'     => 'membership_tier_uuid',
           'value'   => $membership['membership_tier_uuid'],
           'compare' => '='
-        )
+        ),
+        array(
+          'key'     => 'membership_status',
+          'value'   => [ Wicket_Memberships::STATUS_CANCELLED, Wicket_Memberships::STATUS_EXPIRED ],
+          'compare' => 'NOT IN',
+        ),
       )
     );
 
@@ -2312,6 +2683,10 @@ function get_item_data ( $other_data, $cart_item ) {
    * the returned shape is a cross-plugin contract — every bucket key is always present, including on
    * the `WICKET_MSHIP_DISABLE_RENEWALS` early return, so the consumer can read them unconditionally.
    *
+   * `group_owner` is always empty (reserved). With `WICKET_MSHIP_SECTION_CALLOUT_SUPPRESSION`, section
+   * early-renewal and grace callouts drop when an active primary covers a later term (WWID-2837).
+   * Emits HTML debug comments when WICKET_MEMBERSHIPS_DEBUG_ACC is set.
+   *
    * Side effects: the subscription-renewal branch can put a subscription on hold and generate a
    * renewal order via WooCommerce Subscriptions.
    *
@@ -2319,7 +2694,7 @@ function get_item_data ( $other_data, $cart_item ) {
    * @param  string   $status   Optional membership_status filter; empty means the default set
    *                            (active, delayed, grace_period, pending).
    *
-   * @return array{early_renewal: array, grace_period: array, pending_approval: array, switch: array, debug: array, membership_exists: array}
+   * @return array{early_renewal: array, grace_period: array, pending_approval: array, switch: array, group_owner: array, debug: array, membership_exists: array}
    */
   public function get_membership_callouts( $user_id = null, $status = "" ) {
     $membership_exists = [];
@@ -2329,8 +2704,11 @@ function get_item_data ( $other_data, $cart_item ) {
     $grace_period = [];
     $pending_approval = [];
     $switch = [];
+    $group_owner_callouts = [];
     $debug = [];
     $multi_tier_renewals = [];
+    $tier_category_by_post_id = [];
+    $active_primary_terms = [];
 
     $iso_code = apply_filters( 'wpml_current_language', null );
     if( empty( $iso_code )) {
@@ -2415,6 +2793,12 @@ function get_item_data ( $other_data, $cart_item ) {
         $membership_exists[] = str_replace( [' ','-',','], '', strToLower($membership->membership_tier_name));
       }
 
+      // Group-linked individual memberships are handled via bundle owner callouts below.
+      $bundle_id = (int) get_post_meta( $membership->ID, 'membership_bundle_id', true );
+      if ( $bundle_id > 0 ) {
+        continue;
+      }
+
       $membership_json_data = $this->get_membership_array_from_user_meta_by_post_id( $membership->ID, $user_id );
       $Membership_Tier = new Membership_Tier( $membership_json_data['membership_tier_post_id'] );
       if( empty($Membership_Tier->get_mdp_tier_name()) ) {
@@ -2427,6 +2811,21 @@ function get_item_data ( $other_data, $cart_item ) {
 
       if( !empty( $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] )) {
         $membership_data['multi_tier_renewal'] = $Membership_Config->is_multitier_renewal();
+      }
+
+      // Category evidence for renewed-primary section suppression (WWID-2837).
+      // Collected for every resolvable record, before the status-specific branches:
+      // an expired-but-renewed primary never reaches the emit branches, yet its
+      // replacement term is exactly the evidence the suppression needs.
+      $tier_category = (string) ( $Membership_Tier->tier_data['mdp_category'] ?? '' );
+      $tier_category_by_post_id[ $membership->ID ] = $tier_category;
+      if ( self::MEMBERSHIP_CATEGORY_PRIMARY === $tier_category
+        && in_array( $membership->membership_status, [ Wicket_Memberships::STATUS_ACTIVE, Wicket_Memberships::STATUS_DELAYED ], true )
+      ) {
+        $active_primary_terms[] = [
+          'ends_at' => strtotime( $membership->membership_ends_at ),
+          'type'    => (string) ( $membership->membership_type ?? '' ),
+        ];
       }
 
       $membership_data['next_tier'] = false;
@@ -2491,24 +2890,20 @@ function get_item_data ( $other_data, $cart_item ) {
 
       //We are calculating the early renew date globally from the config assigned to the tier
       //$membership_early_renew_at = strtotime( $membership->membership_early_renew_at ); //this was old way was set per membership
-      $membership_early_renew_days = $Membership_Config->get_renewal_window_days();
-      
-      // Calculate early renewal date using same pattern as membership_config
-      $early_renew_utc = new \DateTime($membership->membership_ends_at, new \DateTimeZone('UTC'));
-      $early_renew_date_string = $early_renew_utc->modify('-'.$membership_early_renew_days.' days')->format('Y-m-d');
-      $early_renew_at = Utilities::get_mdp_day_start($early_renew_date_string);
+      // Same opening checkout enforces (is_valid_renewal_date()). No window configured: no early window.
+      $early_renew_at = Utilities::get_utc_datetime( $Membership_Config->get_early_renew_at_for_end( $membership->membership_ends_at ) ?? $membership->membership_ends_at );
       
       // For backwards compatibility with timestamp-based comparisons below
       $membership_early_renew_at = $early_renew_at->getTimestamp();
       
       // Get MDP timezone for display formatting
-      $mdp_timezone = new \DateTimeZone($_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC');
+      $mdp_timezone = Utilities::get_mdp_timezone();
       //set the meta for debug only / below we determine mship is in early_renewal/grace_period and add to response sent to ACC plugin
       $membership_data['meta']['membership_early_renew_at'] = $early_renew_at->setTimezone($mdp_timezone)->format('Y-m-d\TH:i:sP');
 
       $membership_ends_at = strtotime( $membership->membership_ends_at );
       $membership_expires_at = strtotime( $membership->membership_expires_at );
-      $current_time =  current_time( 'timestamp' );
+      $current_time =  time();
       $membership_data['ends_in_days'] = ceil( ( $membership_ends_at - $current_time ) / 86400 );
       if( !empty( $_ENV['WICKET_MEMBERSHIPS_DEBUG_RENEW'] ) && !empty( $_REQUEST['wicket_wp_membership_debug_days'] ) ) {
         $current_time =  strtotime ( date( "Y-m-d") . '+' . $_REQUEST['wicket_wp_membership_debug_days'] . ' days');
@@ -2571,10 +2966,10 @@ function get_item_data ( $other_data, $cart_item ) {
           // the raw flag and a status blocklist here.
           $is_autopay_enabled = Autorenew::is_autorenewing( $membership_data['meta'] );
           $next_payment_date = $sub->get_time( 'next_payment' );
-          if( $is_autopay_enabled && !empty($next_payment_date) && (current_time( 'timestamp' ) < $next_payment_date) && ! $allow_form_flow_early_callout) {
+          if( $is_autopay_enabled && !empty($next_payment_date) && (time() < $next_payment_date) && ! $allow_form_flow_early_callout) {
             echo "<$debug_comment_hide--";
             echo 'SKIPPING for Auto-Renew: membership_id:' .$membership->ID;
-            echo '|'.( strtotime($next_payment_date) - current_time( 'timestamp' ) );
+            echo '|'.( strtotime($next_payment_date) - time() );
             echo "//-->$debug_comment_eol";
             continue;
           }
@@ -2694,7 +3089,7 @@ function get_item_data ( $other_data, $cart_item ) {
             // the raw flag and a status blocklist here.
             $is_autopay_enabled = Autorenew::is_autorenewing( $membership_data['meta'] );
             $next_payment_date = $sub->get_time( 'next_payment' );
-            if(empty($next_payment_date) || (current_time( 'timestamp' ) > $next_payment_date)) {
+            if(empty($next_payment_date) || (time() > $next_payment_date)) {
               $is_autopay_enabled = false;
             }
             // Form Flow: autopay cannot complete a form, so it must not stand in for the renewal
@@ -2736,6 +3131,14 @@ function get_item_data ( $other_data, $cart_item ) {
       #echo "Renewal start" . $timing_debug . (int) ( ( strtotime($membership_data['meta']['membership_ends_at']) - $current_time ) / 86400 ) . ' days';
       #echo "//-->$debug_comment_eol";
     }
+    unset( $membership );
+
+    // Group owner callouts are independent of individual membership posts — a bundle
+    // owner may own a bundle without having a linked individual membership post.
+    $owner_callouts = Membership_Bundle::get_owner_callouts( $user_id );
+    $early_renewal    = array_merge( $early_renewal,    $owner_callouts['early_renewal']    ?? [] );
+    $grace_period     = array_merge( $grace_period,     $owner_callouts['grace_period']     ?? [] );
+    $pending_approval = array_merge( $pending_approval, $owner_callouts['pending_approval'] ?? [] );
 
     // Independent kill switch for the switch callout: an Account Centre build that predates the
     // switch consumer renders the bucket's copy but cannot build its button, so this lets a site
@@ -2747,9 +3150,93 @@ function get_item_data ( $other_data, $cart_item ) {
     if(!empty($_ENV['WICKET_MSHIP_DISABLE_RENEWALS'])) {
       // Switching is not a renewal, but the key is still emitted (empty) so the ACC can read the
       // bucket unconditionally on both return paths.
-      return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'switch' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
+      return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'switch' => [], 'group_owner' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
     }
-    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'switch' => $switch, 'debug' => $debug, 'membership_exists' => $membership_exists ];
+
+    if( !empty( $_ENV['WICKET_MSHIP_SECTION_CALLOUT_SUPPRESSION'] ) ) {
+      [ $early_renewal, $grace_period ] = $this->suppress_section_callouts_covered_by_primary(
+        $early_renewal,
+        $grace_period,
+        $tier_category_by_post_id,
+        $active_primary_terms,
+        $debug_comment_hide,
+        $debug_comment_eol
+      );
+    }
+
+    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'switch' => $switch, 'group_owner' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
+  }
+
+  /**
+   * Drop early-renewal and grace callouts for section memberships when an
+   * active or delayed primary covers a term beyond theirs (WWID-2837:
+   * product rule — a member is renewed once the primary is; outstanding
+   * sections expire quietly instead of nagging).
+   *
+   * The primary is identified by term, not by renewal linkage: its
+   * membership_ends_at must exceed the section's by more than a day, so an
+   * equally-ended unrenewed season keeps every callout in the next window.
+   * Deliberately person-scoped, not config-scoped: OBA sections live in
+   * different multi-tier configs than their primary.
+   *
+   * @param array $early_renewal
+   * @param array $grace_period
+   * @param array $tier_category_by_post_id membership post ID => tier mdp_category
+   * @param array $active_primary_terms [['ends_at' => ts, 'type' => string], ...]
+   * @param string $debug_comment_hide
+   * @param string $debug_comment_eol
+   * @return array [$early_renewal, $grace_period]
+   */
+  private function suppress_section_callouts_covered_by_primary( $early_renewal, $grace_period, $tier_category_by_post_id, $active_primary_terms, $debug_comment_hide, $debug_comment_eol ) {
+    $keep = function( array $entries ) use ( $tier_category_by_post_id, $active_primary_terms, $debug_comment_hide, $debug_comment_eol ) {
+      $kept = [];
+      foreach ( $entries as $entry ) {
+        $post_id  = $entry['membership']['ID'] ?? 0;
+        $category = $tier_category_by_post_id[ $post_id ] ?? '';
+        if ( self::MEMBERSHIP_CATEGORY_SECTION !== $category ) {
+          $kept[] = $entry;
+          continue;
+        }
+
+        // A renewal-invoice link means the member is actively mid-renewal (or a
+        // payment failed) — that link is their route back in, never hide it.
+        if ( ! empty( $entry['membership']['subscription_renewal'] ) ) {
+          $kept[] = $entry;
+          continue;
+        }
+
+        $section_ends_at = strtotime( $entry['membership']['meta']['membership_ends_at'] ?? '' );
+        // strtotime('') is false and false + DAY_IN_SECONDS reads as covered, so fail open.
+        if ( false === $section_ends_at ) {
+          $kept[] = $entry;
+          continue;
+        }
+        $section_type    = (string) ( $entry['membership']['meta']['membership_type'] ?? '' );
+        $covered = false;
+        foreach ( $active_primary_terms as $term ) {
+          // An unknown type on either side cannot contradict the other, so it never disqualifies.
+          if ( '' !== $term['type'] && '' !== $section_type && $term['type'] !== $section_type ) {
+            continue;
+          }
+          if ( $term['ends_at'] > $section_ends_at + DAY_IN_SECONDS ) {
+            $covered = true;
+            break;
+          }
+        }
+
+        if ( $covered ) {
+          echo "<$debug_comment_hide--";
+          echo 'Suppressing ' . self::MEMBERSHIP_CATEGORY_SECTION . " renewal callout for membership $post_id: active primary covers a later term";
+          echo "//-->$debug_comment_eol";
+          continue;
+        }
+
+        $kept[] = $entry;
+      }
+      return $kept;
+    };
+
+    return [ $keep( $early_renewal ), $keep( $grace_period ) ];
   }
 
   public function add_late_fee_product_to_subscription_renewal_order($subscription_id) {
@@ -2775,7 +3262,7 @@ function get_item_data ( $other_data, $cart_item ) {
     }
   }
 
-  public function get_members_list_group_by_filter($groupby){
+  public function get_members_list_bundle_by_filter($groupby){
     global $wpdb;
     return $wpdb->postmeta . '.meta_value ';
   }
@@ -2841,11 +3328,17 @@ function get_item_data ( $other_data, $cart_item ) {
     remove_filter( 'posts_orderby', [ $this, 'get_members_list_last_name_orderby' ] );
 
     $key_map     = $this->get_meta_map_for_posts( $all_ids, $group_key );
+    // get_members_list() drops individual rows whose WP user is gone, so they must
+    // not count toward the total or take a page slot either.
+    $existing_users = ( $group_key === 'user_id' ) ? $this->get_existing_user_ids( $key_map ) : null;
     $seen_keys   = [];
     $ordered_ids = [];
     foreach ( $all_ids as $id ) {
       $key = $key_map[ $id ] ?? '';
       if ( $key === '' || isset( $seen_keys[ $key ] ) ) {
+        continue;
+      }
+      if ( $existing_users !== null && ! isset( $existing_users[ (int) $key ] ) ) {
         continue;
       }
       $seen_keys[ $key ] = true;
@@ -2897,6 +3390,30 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
+   * Find which of the given user IDs still exist as WP users.
+   *
+   * @param  array<int, string> $key_map  Map of post ID to user_id meta value.
+   *
+   * @return array<int, true>  Existing user IDs as keys.
+   *
+   * @see    get_deduplicated_member_ids()
+   * @global \wpdb $wpdb
+   */
+  private function get_existing_user_ids( array $key_map ) {
+    global $wpdb;
+    $user_ids = array_values( array_unique( array_filter( array_map( 'intval', $key_map ) ) ) );
+    $existing = [];
+    // Chunked so the generated IN() list stays well within max_allowed_packet.
+    foreach ( array_chunk( $user_ids, 5000 ) as $chunk ) {
+      $ids = implode( ',', $chunk );
+      foreach ( $wpdb->get_col( "SELECT ID FROM {$wpdb->users} WHERE ID IN ({$ids})" ) as $user_id ) {
+        $existing[ (int) $user_id ] = true;
+      }
+    }
+    return $existing;
+  }
+
+  /**
    * Fetch every membership's tier UUID and status, grouped by user or org key.
    *
    * Replaces a per-result-row WP_Query that ran with posts_per_page => -1. The
@@ -2944,6 +3461,54 @@ function get_item_data ( $other_data, $cart_item ) {
       $grouped[ $row->group_key ][] = [
         'uuid'   => $row->tier_uuid,
         'status' => $row->membership_status,
+      ];
+    }
+    return $grouped;
+  }
+
+  /**
+   * Published bundles each user's memberships belong to, as name/status pairs.
+   *
+   * One query for the whole page; newest membership first, one entry per bundle.
+   *
+   * @param  array  $user_ids  User IDs keyed by membership post ID.
+   * @return array<string, array<int, array{name: string, status: string}>>  Keyed by user ID.
+   */
+  private function get_membership_bundles_by_user_ids( array $user_ids ) {
+    global $wpdb;
+    $user_ids = array_values( array_unique( array_filter( $user_ids, function ( $id ) {
+      return $id !== '' && $id !== null;
+    } ) ) );
+    if ( empty( $user_ids ) ) {
+      return [];
+    }
+    $placeholders = implode( ',', array_fill( 0, count( $user_ids ), '%s' ) );
+    $sql = $wpdb->prepare(
+      "SELECT uid.meta_value AS user_id,
+              b.ID AS bundle_id,
+              b.post_title AS bundle_name,
+              bstat.meta_value AS bundle_status
+         FROM {$wpdb->posts} p
+         INNER JOIN {$wpdb->postmeta} uid ON uid.post_id = p.ID AND uid.meta_key = 'user_id'
+         INNER JOIN {$wpdb->postmeta} bid ON bid.post_id = p.ID AND bid.meta_key = 'membership_bundle_id'
+         INNER JOIN {$wpdb->posts} b      ON b.ID = bid.meta_value AND b.post_type = %s AND b.post_status = 'publish'
+         LEFT JOIN  {$wpdb->postmeta} bstat ON bstat.post_id = b.ID AND bstat.meta_key = 'membership_status'
+        WHERE p.post_type = %s
+          AND p.post_status = 'publish'
+          AND uid.meta_value IN ({$placeholders})
+        ORDER BY p.post_date DESC, p.ID ASC",
+      array_merge( [ Helper::get_membership_bundle_cpt_slug(), $this->membership_cpt_slug ], $user_ids )
+    );
+    $grouped = [];
+    $seen    = [];
+    foreach ( $wpdb->get_results( $sql ) as $row ) {
+      if ( isset( $seen[ $row->user_id ][ $row->bundle_id ] ) ) {
+        continue;
+      }
+      $seen[ $row->user_id ][ $row->bundle_id ] = true;
+      $grouped[ $row->user_id ][] = [
+        'name'   => $row->bundle_name,
+        'status' => (string) $row->bundle_status,
       ];
     }
     return $grouped;
@@ -3063,7 +3628,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
     if( ! empty( $filter ) ) {
       foreach($filter as $key => $val) {
-        if( in_array( $key,  ['membership_status', 'membership_tier'] )) {
+        if( in_array( $key, ['membership_status', 'membership_tier', 'membership_bundle_id', 'membership_tier_name'] )) {
           if( $key == 'membership_tier' ) {
             $key = 'membership_tier_uuid';
           }
@@ -3111,6 +3676,9 @@ function get_item_data ( $other_data, $cart_item ) {
     // Tier/status pairs for every row on this page, fetched in one query rather
     // than one unbounded WP_Query per row.
     $tiers_by_key = $this->get_membership_tiers_by_group_key( $group_key, $page_keys );
+
+    // Bundles each individual row's user belongs to, also in one query.
+    $bundles_by_key = ( $type === 'organization' ) ? [] : $this->get_membership_bundles_by_user_ids( $page_keys );
 
     foreach ( $page_posts as $tier ) {
       $tier_meta = get_post_meta( $tier->ID );
@@ -3166,6 +3734,9 @@ function get_item_data ( $other_data, $cart_item ) {
       $row_key = $page_keys[ $tier->ID ] ?? '';
       if ( ! empty( $tiers_by_key[ $row_key ] ) ) {
         $tier->user->all_membership_tiers = $tiers_by_key[ $row_key ];
+      }
+      if ( $type != 'organization' ) {
+        $tier->user->all_membership_bundles = $bundles_by_key[ $row_key ] ?? [];
       }
       $members_list[] = $tier;
     }
@@ -3234,6 +3805,24 @@ function get_item_data ( $other_data, $cart_item ) {
     return ['tier_data' => $mship_tier_array];
   }
 
+
+  public static function get_bundle_info( $bundle_ids ) {
+    $bundle_data = [];
+    $bundle_ids  = array_filter( array_map( 'intval', (array) $bundle_ids ) );
+    if ( empty( $bundle_ids ) ) {
+      return [ 'bundle_data' => $bundle_data ];
+    }
+    $posts = get_posts( [
+      'post_type'      => Helper::get_membership_bundle_cpt_slug(),
+      'post_status'    => 'publish',
+      'posts_per_page' => -1,
+      'post__in'       => $bundle_ids,
+    ] );
+    foreach ( $posts as $post ) {
+      $bundle_data[ $post->ID ] = [ 'name' => $post->post_title ];
+    }
+    return [ 'bundle_data' => $bundle_data ];
+  }
 
   public static function get_org_info( $org_uuids, $properties = [] ) {
     $self = new self();
@@ -3334,6 +3923,7 @@ function get_item_data ( $other_data, $cart_item ) {
     if ( false !== $cached ) {
       return $cached;
     }
+    $filters = [];
     $args = array(
       'post_type' => $this->membership_cpt_slug,
       'post_status' => 'publish',
@@ -3350,10 +3940,10 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     //tiers assigned to membership records as filters
-    add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    add_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
     $args['meta_key'] = 'membership_tier_uuid';
     $tiers = new \WP_Query( $args );
-    remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    remove_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
     foreach ($tiers->posts as $tier) {
       $filters['tiers'][] = [
         'value' => $tier->membership_tier_uuid
@@ -3361,10 +3951,10 @@ function get_item_data ( $other_data, $cart_item ) {
     }
 
     //status assigned to membership records as filters
-    add_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    add_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
     $args['meta_key'] = 'membership_status';
     $tiers = new \WP_Query( $args );
-    remove_filter('posts_groupby', [ $this, 'get_members_list_group_by_filter' ]);
+    remove_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
     foreach ($tiers->posts as $tier) {
       $filters['membership_status'][] = [
         'name' => $tier->membership_status,
@@ -3374,6 +3964,29 @@ function get_item_data ( $other_data, $cart_item ) {
     if( $type == 'organization' ) {
       // get locations assigned to membership records as filters???
     }
+
+    // bundles assigned to membership records as filters (individual only)
+    if ( $type === 'individual' ) {
+      add_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
+      $args['meta_key'] = 'membership_bundle_id';
+      $group_query = new \WP_Query( $args );
+      remove_filter('posts_groupby', [ $this, 'get_members_list_bundle_by_filter' ]);
+      foreach ( $group_query->posts as $post ) {
+        $bundle_id = $post->membership_bundle_id;
+        if ( ! empty( $bundle_id ) ) {
+          $bundle_name = (string) get_post_meta( (int) $bundle_id, 'membership_bundle_name', true );
+          if ( $bundle_name === '' ) {
+            $bundle_post = get_post( (int) $bundle_id );
+            $bundle_name = $bundle_post ? $bundle_post->post_title : "Bundle #{$bundle_id}";
+          }
+          $filters['bundles'][] = [
+            'value' => (string) $bundle_id,
+            'label' => $bundle_name,
+          ];
+        }
+      }
+    }
+
     set_transient( $cache_key, $filters, self::MEMBERS_FILTERS_TRANSIENT_TTL );
     return $filters;
   }
@@ -3454,15 +4067,28 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Change status of Membership to Expires
-   * @return int
+   * Cutoff the nightly status jobs compare stored dates against: 24 hours before now.
+   *
+   * Formatted as UTC ISO 8601 so it string-compares (meta_query CHAR) against the stored
+   * UTC date meta. Lags real time by 24 hours, so a date is acted on the night after it passes.
+   *
+   * @return string  UTC ISO 8601 timestamp, e.g. 2026-10-20T08:00:00+00:00.
+   */
+  private static function get_daily_job_cutoff_iso() {
+    return ( new \DateTime( '@' . ( time() - DAY_IN_SECONDS ) ) )->format( 'Y-m-d\TH:i:sP' );
+  }
+
+  /**
+   * Nightly job: expire active or grace-period memberships whose expiry has passed the cutoff.
+   *
+   * @return int  Number of memberships set to expired.
+   *
+   * @see Membership_Controller::get_daily_job_cutoff_iso()
    */
   public static function daily_membership_expiry_hook() {
     $self = new self();
     $memberships_updated = [];
-    $yesterday_timestamp = current_time('timestamp') - 86400;
-    //$membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
-    $membership_expires_at = (new \DateTime( '@'. $yesterday_timestamp, new \DateTimeZone('UTC') ))->format('Y-m-d\TH:i:sP');
+    $membership_expires_at = self::get_daily_job_cutoff_iso();
     //lookup all memberships expired yesterday
     $args = array(
       'post_type' => $self->membership_cpt_slug,
@@ -3470,6 +4096,11 @@ function get_item_data ( $other_data, $cart_item ) {
       'posts_per_page' => -1,
       'meta_query'     => array(
         'relation' => 'AND',
+        // Exclude bundle members — their lifecycle is managed by Membership_Bundle_Cron_Controller.
+        array(
+          'key'     => 'membership_bundle_id',
+          'compare' => 'NOT EXISTS',
+        ),
         array(
           'relation' => 'OR',
           array(
@@ -3513,19 +4144,26 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Change status of Membership to Active (from Delayed)
-   * @return int
+   * Nightly job: activate delayed memberships whose start has passed the cutoff.
+   *
+   * @return int  Number of memberships set to active.
+   *
+   * @see Membership_Controller::get_daily_job_cutoff_iso()
    */
   public static function daily_membership_activation_hook() {
     $self = new self();
     $memberships_updated = [];
-    $yesterday_timestamp = current_time('timestamp') - 86400;
-    $membership_starts_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d\TH:i:sP');
+    $membership_starts_at = self::get_daily_job_cutoff_iso();
     $args = array(
       'post_type' => $self->membership_cpt_slug,
       'post_status' => 'publish',
       'posts_per_page' => -1,
       'meta_query'     => array(
+        // Exclude bundle members — their lifecycle is managed by Membership_Bundle_Cron_Controller.
+        array(
+          'key'     => 'membership_bundle_id',
+          'compare' => 'NOT EXISTS',
+        ),
         array(
           'key'     => 'membership_status',
           'value'   => Wicket_Memberships::STATUS_DELAYED,
@@ -3551,22 +4189,27 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Change status of Membership to Grace Period
-   * @return int
+   * Nightly job: move active memberships whose end has passed the cutoff into grace period.
+   *
+   * @return int  Number of memberships set to grace period.
+   *
+   * @see Membership_Controller::get_daily_job_cutoff_iso()
    */
-
   public static function daily_membership_grace_period_hook() {
     $self = new self();
     $memberships_updated = [];
-    $yesterday_timestamp = current_time('timestamp') - 86400;
-    //$membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, wp_timezone() ))->format('Y-m-d');
-    $membership_ends_at = (new \DateTime( '@'. $yesterday_timestamp, new \DateTimeZone('UTC') ))->format('Y-m-d\TH:i:sP');
+    $membership_ends_at = self::get_daily_job_cutoff_iso();
     //lookup all memberships expired yesterday
     $args = array(
       'post_type' => $self->membership_cpt_slug,
       'post_status' => 'publish',
       'posts_per_page' => -1,
       'meta_query'     => array(
+        // Exclude bundle members — their lifecycle is managed by Membership_Bundle_Cron_Controller.
+        array(
+          'key'     => 'membership_bundle_id',
+          'compare' => 'NOT EXISTS',
+        ),
         array(
           'key'     => 'membership_status',
           'value'   => Wicket_Memberships::STATUS_ACTIVE,
@@ -3590,5 +4233,30 @@ function get_item_data ( $other_data, $cart_item ) {
     }
     Utilities::wc_log_mship_error( [ 'daily_membership_grace_period_hook', $membership_ends_at, $memberships_updated ] );
     return count($memberships);
+  }
+
+  /**
+   * Check if a membership belongs to a membership bundle.
+   *
+   * @param int $membership_post_id
+   * @return bool
+   */
+  public function is_membership_bundle( $membership_post_id ) {
+    $bundle_id = get_post_meta( $membership_post_id, 'membership_bundle_id', true );
+    return !empty( $bundle_id );
+  }
+
+  /**
+   * Get the Membership_Bundle object for a membership, or false if not part of a bundle.
+   *
+   * @param int $membership_post_id
+   * @return Membership_Bundle|false
+   */
+  public function get_membership_bundle( $membership_post_id ) {
+    $bundle_id = get_post_meta( $membership_post_id, 'membership_bundle_id', true );
+    if ( empty( $bundle_id ) ) {
+      return false;
+    }
+    return new Membership_Bundle( $bundle_id );
   }
 }

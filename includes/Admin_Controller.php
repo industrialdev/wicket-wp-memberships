@@ -51,7 +51,8 @@ class Admin_Controller {
       var wicketMembershipsSettings = <?php echo wp_json_encode( [
         'WICKET_MSHIP_MERGE_TOOLS'          => $_ENV['WICKET_MSHIP_MERGE_TOOLS'] ?? '',
         'WICKET_MSHIP_MULTI_TIER_RENEWALS'  => $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] ?? '',
-        'WICKET_MSHIP_MDP_TIMEZONE'         => $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC',
+        'adminUrl'                          => esc_url( admin_url() ),
+        'WICKET_MSHIP_MDP_TIMEZONE'         => Utilities::get_mdp_timezone()->getName(),
       ] ); ?>;
     </script>
     <?php
@@ -110,7 +111,7 @@ class Admin_Controller {
    * @param string $new_post_status
    * @return \WP_REST_Response
    */
-  public static function admin_manage_status( $membership_post_id, $new_post_status ) {
+  public static function bundle_admin_manage_status( $membership_post_id, $new_post_status ) {
 
     $tomorrow_iso_date = Utilities::get_mdp_day_end("+1 day")->format('c');
     $yesterday_iso_date = Utilities::get_mdp_day_start("-1 day")->format('c');
@@ -247,7 +248,8 @@ class Admin_Controller {
       
       // If the membership is in grace period, set the expiry to now
       else if( $current_post_status == Wicket_Memberships::STATUS_GRACE) {
-        $current_end_date = $membership_post_meta['membership_ends_at'] ?? get_post_meta( $membership_post_id, 'membership_ends_at', true );
+        // The stored value, not Helper::get_post_meta()'s Y-m-d day, so the end keeps its MDP 23:59:59.
+        $current_end_date = get_post_meta( $membership_post_id, 'membership_ends_at', true );
         $meta_data = [
           'membership_status' => $new_post_status,
           'membership_ends_at' => $current_end_date,
@@ -272,8 +274,8 @@ class Admin_Controller {
         if(! empty( $sub )) {
           $sub->update_status( 'cancelled' );
           if( ! empty( $meta_data['membership_ends_at'] ) && $current_post_status != Wicket_Memberships::STATUS_GRACE ) {
-            $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
-            $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+            // End of the membership's MDP end day, as UTC (what WCS expects).
+            $subscription_end = Utilities::get_mdp_day_end( $meta_data['membership_ends_at'] );
             $sub->update_dates([
               'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
             ]);
@@ -302,8 +304,8 @@ class Admin_Controller {
         if(! empty( $sub )) {
           $sub->update_status( 'cancelled' );
           if( ! empty( $meta_data['membership_ends_at'] ) ) {
-            $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
-            $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+            // End of the membership's MDP end day, as UTC (what WCS expects).
+            $subscription_end = Utilities::get_mdp_day_end( $meta_data['membership_ends_at'] );
             $sub->update_dates([
               'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
             ]);
@@ -496,12 +498,22 @@ class Admin_Controller {
     foreach( $memberships as $membership) {
       update_post_meta( $membership->ID, 'org_name', $org_name);
       $customer_meta = get_user_meta( $membership->user_id, '_wicket_membership_'.$membership->ID );
-      $customer_meta_array = json_decode( $customer_meta[0], true);
+      $customer_meta_array = json_decode( $customer_meta[0] ?? '', true) ?? [];
       $customer_meta_array['org_name'] = $org_name;
       update_user_meta( $membership->user_id, '_wicket_membership_'.$membership->ID, json_encode( $customer_meta_array) );
     }
   }
 
+  /**
+   * Build the membership rows for the admin edit page of a person or organization.
+   *
+   * Rows are sorted newest start date first, then by MDP tier weight; each includes order and
+   * subscription details (next payment shown as its MDP calendar day).
+   *
+   * @param  int|string $id  WP user ID (numeric) for a person, or an organization UUID.
+   *
+   * @return array  Membership rows for the React edit page.
+   */
   public static function get_membership_entity_records( $id ) {
     $self = new self();
     $statuses = Helper::get_all_status_names();
@@ -570,6 +582,7 @@ class Admin_Controller {
         }
       );
       $membership_item['ID'] = $membership->ID;
+      $membership_item['mdp_link_collision'] = ! empty( $meta_data['_wicket_membership_external_id_collision'] );
       if( !empty( $mdp_link )) {
         $membership_item['mdp_membership_link'] = $mdp_link . '/memberships/' . $meta['membership_wicket_uuid'];
         $membership_item['max_assignments'] = $org_memberships[ $meta['membership_wicket_uuid'] ]['membership']['attributes']['max_assignments'] ?? 0;
@@ -587,6 +600,9 @@ class Admin_Controller {
       }
       if(empty($membership_data['membership_next_tier_subscription_renewal'])) {
         $membership_data['membership_next_tier_subscription_renewal'] = get_post_meta( $membership->ID, 'membership_next_tier_subscription_renewal', true);
+      }
+      if(empty($membership_data['membership_next_tier_form_page_id'])) {
+        $membership_data['membership_next_tier_form_page_id'] = get_post_meta( $membership->ID, 'membership_next_tier_form_page_id', true);
       }
       $membership_data['membership_next_tier_id'] = (int) $membership_data['membership_next_tier_id'];
       $membership_data['membership_next_tier_form_page_id'] = (int) $membership_data['membership_next_tier_form_page_id'];
@@ -646,7 +662,7 @@ class Admin_Controller {
           $membership_item['subscription']['status'] = $sub->get_status();
           $sub_next_payment_date = $sub->get_time('next_payment');
           if( empty($sub_next_payment_date_set ) && !empty($sub_next_payment_date ) && ($meta['membership_status'] == 'delayed' || $meta['membership_status'] == 'active')) {
-            $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub_next_payment_date), wp_timezone() ))->format('Y-m-d');
+            $membership_item['subscription']['next_payment_date'] = Utilities::format_mdp_date( 'Y-m-d', $sub_next_payment_date );
             $sub_next_payment_date_set = true;
           } else {
             $membership_item['subscription']['next_payment_date'] = 'N/A';
@@ -662,6 +678,28 @@ class Admin_Controller {
       $membership_item['switch_to_url'] = Helper::get_user_switch_to_url( $meta['user_id'] );
       $membership_item['_sort_start_ts'] = strtotime($meta['membership_starts_at'] ?? '');
       $membership_item['_sort_tier_weight'] = $tier_sort_weights[$meta['membership_tier_uuid'] ?? ''] ?? 0;
+
+      $bundle_id = get_post_meta( $membership->ID, 'membership_bundle_id', true );
+      if ( !empty( $bundle_id ) ) {
+        $bundle_obj        = new Membership_Bundle( (int) $bundle_id );
+        $bundle_owner      = $bundle_obj->get_owner();
+        $bundle_dates      = $bundle_obj->get_dates();
+        $bundle_mdp_uuid = (string) get_post_meta( (int) $bundle_id, 'membership_bundle_mdp_uuid', true );
+        $membership_item['is_membership_bundle'] = true;
+        $membership_item['bundle_id']            = (int) $bundle_id;
+        $membership_item['bundle_name']          = $bundle_obj->get_name();
+        $membership_item['bundle_admin_name']    = $bundle_owner ? $bundle_owner['name'] : '';
+        $membership_item['bundle_starts_at']     = $bundle_dates['starts_at'] ?? '';
+        $membership_item['bundle_ends_at']       = $bundle_dates['ends_at'] ?? '';
+        $membership_item['bundle_edit_url']      = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_BUNDLE_MEMBER_PAGE_SLUG . '&id=' . $bundle_obj->get_bundle_group_uuid() );
+        $person_uuid = $membership_data['membership_user_uuid'] ?? '';
+        $membership_item['bundle_mdp_link']      = ( $person_uuid && ! empty( $wicket_settings['wicket_admin'] ) )
+          ? rtrim( $wicket_settings['wicket_admin'], '/' ) . '/people/' . $person_uuid . '/memberships'
+          : '';
+      } else {
+        $membership_item['is_membership_bundle'] = false;
+      }
+
       $membership_items[] = $membership_item;
     }
 
@@ -685,6 +723,17 @@ class Admin_Controller {
     return $membership_items;
   }
 
+  /**
+   * Save an admin edit of a membership's dates, owner and next-tier settings.
+   *
+   * Dates are snapped to MDP day boundaries; the early-renew date is recalculated from the new
+   * end with the tier config's renewal window, and the changes are pushed to the MDP.
+   *
+   * @param  array $data  Edit payload: membership_post_id, membership_starts_at / ends_at / expires_at,
+   *                      optional new_owner_uuid, renewal_type and next-tier fields.
+   *
+   * @return \WP_REST_Response  Always 200; failures are reported in the body's `error` key.
+   */
   public static function update_membership_entity_record( $data ) {
     $date_update_response = '';
     $ownership_change_response = '';
@@ -762,17 +811,14 @@ class Admin_Controller {
       if(empty($membership_tier_id)) {
         $response_array['error'] = 'Error: '.$ownership_change_response.'Membership tier not found. ';
         $response_array['response'] = Helper::get_post_meta( $membership_post_id );
-        $response_code = 200;  
-        return new \WP_REST_Response($response_array, $response_code);  
+        $response_code = 200;
+        return new \WP_REST_Response($response_array, $response_code);
       }
       $membership_tier = new Membership_Tier( $membership_tier_id );
       $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
-      $renewal_window_days = $config->get_renewal_window_days();
-      
-      // Calculate early renew date by subtracting renewal window days from end date
-      $membership_early_renew_at = clone $membership_ends_at;
-      $membership_early_renew_at->modify("-$renewal_window_days days");
-      $membership_early_renew_at = Utilities::get_mdp_day_start($membership_early_renew_at->format('Y-m-d'));
+      // Same early-renew rule as purchase and checkout; no window configured falls back to the end.
+      $early_renew_iso = $config->get_early_renew_at_for_end( $membership_ends_at->format('c') );
+      $membership_early_renew_at = Utilities::get_utc_datetime( $early_renew_iso ?? $membership_ends_at->format('c') );
 
       // Calculate grace period days using DateTime diff
       $grace_period_days = abs($membership_ends_at->diff($membership_expires_at)->days);
@@ -919,7 +965,7 @@ class Admin_Controller {
         $order = wc_get_order( $order_id );
         if(!empty($order)) {
           $order_meta = get_post_meta( $order_id, '_wicket_membership_'.$membership['membership_product_id'] );
-          $order_meta_array = json_decode( $order_meta[0], true);
+          $order_meta_array = json_decode( $order_meta[0] ?? '', true) ?? [];
           $order_meta_array['membership_wp_user_id'] = $user->ID;
           $order_meta_array['membership_wp_user_display_name'] = $user->display_name;
           $order_meta_array['membership_wp_user_email'] = $user->user_email;
@@ -938,7 +984,7 @@ class Admin_Controller {
         $sub = wcs_get_subscription( $subscription_id );
         if( !empty( $sub )) {
           $subscription_meta = get_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] );
-          $subscription_meta_array = json_decode( $subscription_meta[0], true);
+          $subscription_meta_array = json_decode( $subscription_meta[0] ?? '', true) ?? [];
           $subscription_meta_array['user_id'] = $user->ID;
           $subscription_meta_array['user_name'] = $user->display_name;
           $subscription_meta_array['user_email'] = $user->user_email;
@@ -964,6 +1010,17 @@ class Admin_Controller {
     return new \WP_REST_Response($response_array, $response_code);
   }
 
+  /**
+   * Create a draft renewal order and yearly subscription for a membership from the admin.
+   *
+   * Tags the order and subscription line items with `_membership_post_id_renew` so payment
+   * renews the existing membership rather than creating a new one.
+   *
+   * @param  \WP_REST_Request|array $request  Needs membership_post_id, product_id and optional variation_id.
+   *
+   * @return \WP_REST_Response  200 with the order_url on success; 400 when the membership is missing,
+   *                            not active / grace_period / delayed, or the product is not found.
+   */
   public static function create_renewal_order( $request ) {
     $response_array = [];
 
@@ -1030,7 +1087,7 @@ class Admin_Controller {
       'customer_id' => $customer_wp_id,
       'billing_period' => 'year',
       'billing_interval' => 1,
-      'start_date' => current_time( 'mysql' ),
+      'start_date' => current_time( 'mysql', true ), // WCS expects GMT.
     ) );
     $subscription->add_product( $wc_product );
     $subscription->calculate_totals();
@@ -1137,7 +1194,7 @@ class Admin_Controller {
       update_post_meta( $membership_post_id, 'user_email', $merged_user->user_email);
 
       $customer_meta = get_user_meta( $orig_user_id, '_wicket_membership_'.$membership_post_id );
-      $customer_meta_array = json_decode( $customer_meta[0], true);
+      $customer_meta_array = json_decode( $customer_meta[0] ?? '', true) ?? [];
 
       if(empty($customer_meta)) {
         $customer_meta = get_post_meta( $membership_post_id );
@@ -1284,7 +1341,7 @@ class Admin_Controller {
       'customer_id'      => $customer_wp_id,
       'billing_period'   => $billing['billing_period'],
       'billing_interval' => $billing['billing_interval'],
-      'start_date'       => current_time( 'mysql' ),
+      'start_date'       => current_time( 'mysql', true ), // WCS expects GMT.
     ) );
     $subscription->add_product( $wc_product );
     $subscription->calculate_totals();
@@ -1382,7 +1439,8 @@ class Admin_Controller {
       // and the cancelled membership ends now (not midnight).
       $switch_iso_date = Utilities::get_mdp_now()->format('c');
     } else {
-      $switch_iso_date = (new \DateTime( date("Y-m-d", strtotime($switch_date)), wp_timezone() ))->format('c');
+      // A dated switch starts at midnight in the MDP timezone, like every other membership start.
+      $switch_iso_date = Utilities::get_mdp_day_start( $switch_date )->format('c');
     }
 
     $user_id = get_post_meta( $membership_post_id, 'user_id', true );
@@ -1414,8 +1472,8 @@ class Admin_Controller {
     }
 
     $membership_starts_at = $switch_iso_date;
+    // Already MDP end-of-day as UTC ISO, so the MDP record keeps the same end as the post.
     $membership_ends_at = get_post_meta( $membership_post_id, 'membership_ends_at', true);
-    $membership_ends_at = (new \DateTime( date("Y-m-d", strtotime($membership_ends_at)), wp_timezone() ))->format('c');
     $membership_grace_period_days = $config->get_late_fee_window_days();
 
     // Capture the OLD membership's MDP identity/start before mutating its meta.
@@ -1974,6 +2032,7 @@ class Admin_Controller {
    * end and expiry events are scheduled under the new key from its own dates. A date already passed is
    * scheduled only when its event was still pending under the old key (due but not yet run), so a
    * trigger that already fired never fires again and one that had not yet fired is not lost.
+   * A bundle member gets no new events, per Membership_Controller::should_schedule_expiry_notification_jobs().
    *
    * @since 1.0.123
    *
@@ -2017,6 +2076,15 @@ class Admin_Controller {
     }
 
     if ( empty( $new_order_id ) || empty( $new_product_id ) ) {
+      return;
+    }
+    // Bundle members never get these events (the bundle owner does), so a switch must not create them;
+    // same rule as Membership_Controller::scheduler_dates_for_expiry(). Old-key events are still cleared above.
+    if ( ! Membership_Controller::should_schedule_expiry_notification_jobs( [
+      'membership_parent_order_id' => $new_order_id,
+      'membership_product_id'      => $new_product_id,
+      'membership_bundle_id'       => get_post_meta( $new_membership_post_id, 'membership_bundle_id', true ),
+    ] ) ) {
       return;
     }
     // New events use integers, like the order pipeline.
@@ -2551,9 +2619,11 @@ class Admin_Controller {
       return $end_date_iso;
     }
 
-    // Add the grace days to the end date, then snap to end-of-day in the MDP timezone. Take the
-    // calendar date (Y-m-d) so the offset carried on $end_date_iso cannot shift the day.
-    $expires_date = ( new \DateTime( $end_date_iso, new \DateTimeZone( 'UTC' ) ) )
+    // Add the grace days to the end's calendar day in the MDP timezone, then snap to MDP end-of-day.
+    // The stored end is UTC, so its UTC day can be the day after the MDP day.
+    $mdp_timezone = Utilities::get_mdp_timezone();
+    $expires_date = ( new \DateTime( $end_date_iso ) )
+      ->setTimezone( $mdp_timezone )
       ->modify( '+' . $grace_days . ' days' )
       ->format( 'Y-m-d' );
 
