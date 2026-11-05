@@ -645,7 +645,9 @@ class Membership_Config {
   /**
    * The share of the full price owed for a new purchase on $date.
    *
-   * Daily pays for the days left in the season, counting the purchase day. Annually pays in full.
+   * Daily pays for the days left in the season, counting the purchase day. Weekly, monthly,
+   * quarterly and semi-annually cut the season into 7-day or 1/3/6-month buckets from its start
+   * and pay for the buckets left, counting the one the purchase falls in. Annually pays in full.
    * Returns 1.0 when proration is off, the cycle is not calendar, or no season contains $date.
    *
    * @see atlas://plans/feature-configurable-proration.md
@@ -687,18 +689,62 @@ class Membership_Config {
       return 1.0;
     }
 
-    switch ( $proration['rate'] ?? '' ) {
-      case 'daily':
-        // Count MDP calendar days on UTC midnights: a DST change makes one MDP day 23 or 25
-        // hours long, which would otherwise drop or add a day.
-        $start_day    = new \DateTime( $season['start']->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
-        $end_day      = new \DateTime( $season['end']->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
-        $purchase_day = new \DateTime( $purchase_dt->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
+    // Count MDP calendar days on UTC midnights: a DST change makes one MDP day 23 or 25 hours
+    // long, which would otherwise drop or add a day.
+    $start_day    = new \DateTime( $season['start']->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
+    $end_day      = new \DateTime( $season['end']->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
+    $purchase_day = new \DateTime( $purchase_dt->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
 
+    $rate = $proration['rate'] ?? '';
+    switch ( $rate ) {
+      case 'daily':
         $total_days     = $start_day->diff( $end_day )->days + 1;
         $remaining_days = $purchase_day->diff( $end_day )->days + 1;
 
         return (float) ( $remaining_days / $total_days );
+
+      case 'weekly':
+      case 'monthly':
+      case 'quarterly':
+      case 'semi_annually':
+        $months_per_bucket = [ 'monthly' => 1, 'quarterly' => 3, 'semi_annually' => 6 ];
+        $start_year        = (int) $start_day->format( 'Y' );
+        $start_month       = (int) $start_day->format( 'n' );
+        $start_dom         = (int) $start_day->format( 'j' );
+
+        // Walk bucket start dates until one passes the season end; the last bucket is clipped to
+        // the season end. The member pays for the whole bucket they join in.
+        $total_buckets  = 0;
+        $current_bucket = 0;
+        for ( $k = 0; ; $k++ ) {
+          if ( $rate === 'weekly' ) {
+            $bucket_start = ( clone $start_day )->modify( '+' . ( 7 * $k ) . ' days' );
+          } else {
+            // Count each boundary from the season start and clamp to the month's last day, so a
+            // Jan 31 season steps to Feb 28 and then Mar 31, not Mar 3 (PHP's +1 month overflow).
+            $month_index  = ( $start_month - 1 ) + $k * $months_per_bucket[ $rate ];
+            $bucket_start = new \DateTime(
+              sprintf( '%04d-%02d-01', $start_year + intdiv( $month_index, 12 ), $month_index % 12 + 1 ),
+              new \DateTimeZone( 'UTC' )
+            );
+            $bucket_start->setDate(
+              (int) $bucket_start->format( 'Y' ),
+              (int) $bucket_start->format( 'n' ),
+              min( $start_dom, (int) $bucket_start->format( 't' ) )
+            );
+          }
+
+          if ( $bucket_start > $end_day ) {
+            break;
+          }
+
+          $total_buckets++;
+          if ( $bucket_start <= $purchase_day ) {
+            $current_bucket = $total_buckets;
+          }
+        }
+
+        return (float) ( ( $total_buckets - $current_bucket + 1 ) / $total_buckets );
 
       default:
         return 1.0;
