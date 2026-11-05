@@ -642,6 +642,69 @@ class Membership_Config {
     return null;
   }
 
+  /**
+   * The share of the full price owed for a new purchase on $date.
+   *
+   * Daily pays for the days left in the season, counting the purchase day. Annually pays in full.
+   * Returns 1.0 when proration is off, the cycle is not calendar, or no season contains $date.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   *
+   * @since 1.1.0
+   *
+   * @param  string $date  Purchase date (any DateTime format; a bare Y-m-d is an MDP calendar day).
+   *
+   * @return float  Ratio in (0, 1].
+   */
+  public function get_proration_ratio( string $date = 'now' ): float {
+    $proration = $this->cycle_data['proration'] ?? [];
+    if ( $this->get_cycle_type() !== 'calendar'
+      || ! is_array( $proration )
+      || ! filter_var( $proration['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN ) ) {
+      return 1.0;
+    }
+
+    $seasons = $this->get_calendar_seasons();
+    if ( empty( $seasons ) ) {
+      return 1.0;
+    }
+
+    $mdp_timezone = Utilities::get_mdp_timezone();
+    $purchase_dt  = Utilities::get_mdp_day_start( $date )->setTimezone( $mdp_timezone );
+
+    // Same rule as get_seasonal_end_date(): ignore the active flag, last match wins. The price
+    // must cover the same season the membership term is cut to.
+    $season = null;
+    foreach ( $seasons as $candidate ) {
+      $season_start_mdp = ( new \DateTime( $candidate['start_date'] ) )->setTimezone( $mdp_timezone );
+      $season_end_mdp   = ( new \DateTime( $candidate['end_date'] ) )->setTimezone( $mdp_timezone );
+      if ( $purchase_dt >= $season_start_mdp && $purchase_dt <= $season_end_mdp ) {
+        $season = [ 'start' => $season_start_mdp, 'end' => $season_end_mdp ];
+      }
+    }
+
+    if ( $season === null ) {
+      return 1.0;
+    }
+
+    switch ( $proration['rate'] ?? '' ) {
+      case 'daily':
+        // Count MDP calendar days on UTC midnights: a DST change makes one MDP day 23 or 25
+        // hours long, which would otherwise drop or add a day.
+        $start_day    = new \DateTime( $season['start']->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
+        $end_day      = new \DateTime( $season['end']->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
+        $purchase_day = new \DateTime( $purchase_dt->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
+
+        $total_days     = $start_day->diff( $end_day )->days + 1;
+        $remaining_days = $purchase_day->diff( $end_day )->days + 1;
+
+        return (float) ( $remaining_days / $total_days );
+
+      default:
+        return 1.0;
+    }
+  }
+
   public function is_multitier_renewal() {
     return  get_post_meta( $this->post_id, 'multi_tier_renewal', true );
   }
