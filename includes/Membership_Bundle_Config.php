@@ -434,7 +434,7 @@ class Membership_Bundle_Config {
         switch ( $cycle_data['anniversary_data']['align_end_dates_type'] ) {
           // These snap from the anniversary itself; the day before would pull a start on the 1st or 15th back a month.
           case 'first-day-of-month':
-            $the_end_date = date( 'Y-m-1', strtotime( $the_end_date . ' +1 day' ) );
+            $the_end_date = date( 'Y-m-01', strtotime( $the_end_date . ' +1 day' ) );
             break;
           case '15th-of-month':
             $the_end_date = date( 'Y-m-15', strtotime( $the_end_date . ' +1 day' ) );
