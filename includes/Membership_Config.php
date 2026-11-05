@@ -643,6 +643,22 @@ class Membership_Config {
   }
 
   /**
+   * Whether new purchases on this config are prorated: a calendar cycle with proration enabled.
+   *
+   * A missing proration key reads as off, so configs saved before proration keep full price.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   *
+   * @since 1.1.0
+   *
+   * @return bool
+   */
+  public function is_proration_enabled(): bool {
+    return $this->get_cycle_type() === 'calendar'
+      && ( $this->cycle_data['proration']['enabled'] ?? false ) === true;
+  }
+
+  /**
    * The share of the full price owed for a new purchase on $date.
    *
    * Daily pays for the days left in the season, counting the purchase day. Weekly, monthly,
@@ -659,10 +675,7 @@ class Membership_Config {
    * @return float  Ratio in (0, 1].
    */
   public function get_proration_ratio( string $date = 'now' ): float {
-    $proration = $this->cycle_data['proration'] ?? [];
-    if ( $this->get_cycle_type() !== 'calendar'
-      || ! is_array( $proration )
-      || ! filter_var( $proration['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN ) ) {
+    if ( ! $this->is_proration_enabled() ) {
       return 1.0;
     }
 
@@ -695,7 +708,7 @@ class Membership_Config {
     $end_day      = new \DateTime( $season['end']->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
     $purchase_day = new \DateTime( $purchase_dt->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
 
-    $rate = $proration['rate'] ?? '';
+    $rate = $this->cycle_data['proration']['rate'] ?? '';
     switch ( $rate ) {
       case 'daily':
         $total_days     = $start_day->diff( $end_day )->days + 1;

@@ -415,6 +415,30 @@ class Membership_Post_Types {
 
               }
 
+              // Proration prices a join against the season, so it only exists on calendar cycles.
+              // A missing key means off, which keeps configs saved before proration at full price.
+              if ( isset( $value['proration'] ) ) {
+                if ( ! is_array( $value['proration'] ) ) {
+                  $errors->add( 'rest_invalid_param_proration', __( 'The proration data must be an object.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                } else {
+                  $proration_enabled = $value['proration']['enabled'] ?? false;
+
+                  if ( ! is_bool( $proration_enabled ) ) {
+                    $errors->add( 'rest_invalid_param_proration_enabled', __( 'Proration enabled must be true or false.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+
+                  if ( $proration_enabled === true ) {
+                    if ( $value['cycle_type'] !== 'calendar' ) {
+                      $errors->add( 'rest_invalid_param_proration_cycle_type', __( 'Proration is only available for calendar cycles.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                    }
+
+                    if ( ! in_array( $value['proration']['rate'] ?? '', [ 'daily', 'weekly', 'monthly', 'quarterly', 'semi_annually', 'annually' ], true ) ) {
+                      $errors->add( 'rest_invalid_param_proration_rate', __( 'The proration rate must be daily, weekly, monthly, quarterly, semi-annually, or annually.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                    }
+                  }
+                }
+              }
+
               if ( $errors->has_errors() ) {
                 return $errors;
               }
@@ -457,6 +481,17 @@ class Membership_Post_Types {
                 ),
                 'end_date' => array(
                   'type' => 'string',
+                ),
+              ),
+            ),
+            'proration' => array(
+              'type' => 'object',
+              'properties' => array(
+                'enabled' => array(
+                  'type' => 'boolean',
+                ),
+                'rate' => array(
+                  'type' => 'string', // daily/weekly/monthly/quarterly/semi_annually/annually
                 ),
               ),
             ),
@@ -638,6 +673,12 @@ class Membership_Post_Types {
                     $errors->add( 'rest_invalid_param_product_data', __( 'Variation ID must be set for variable subscription products.', 'wicket-memberships' ), array( 'status' => 400 ) );
                   }
 
+                  // A missing prorate key reads as false. The flag stays valid while the config has
+                  // proration off; Membership_Tier::is_product_prorated() ignores it then.
+                  if ( array_key_exists( 'prorate', $product ) && ! is_bool( $product['prorate'] ) ) {
+                    $errors->add( 'rest_invalid_param_product_data', __( 'Prorate must be true or false.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+
                 }
 
                 // Validate if all product variations are unique
@@ -749,6 +790,9 @@ class Membership_Post_Types {
                 ),
                 'max_seats' => array(
                   'type' => 'integer',
+                ),
+                'prorate' => array(
+                  'type' => 'boolean',
                 ),
               ),
             ),
