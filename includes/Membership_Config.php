@@ -659,6 +659,42 @@ class Membership_Config {
   }
 
   /**
+   * The calendar season a new purchase on $date is priced against.
+   *
+   * Exposed so checkout can record the season next to the ratio on the order line.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   *
+   * @since 1.1.0
+   *
+   * @param  string $date  Purchase date (any DateTime format; a bare Y-m-d is an MDP calendar day).
+   *
+   * @return array|null  [ 'start' => 'Y-m-d', 'end' => 'Y-m-d' ] in MDP calendar days, or null when no season contains $date.
+   */
+  public function get_proration_season( string $date = 'now' ): ?array {
+    $seasons = $this->get_calendar_seasons();
+    if ( empty( $seasons ) ) {
+      return null;
+    }
+
+    $mdp_timezone = Utilities::get_mdp_timezone();
+    $purchase_dt  = Utilities::get_mdp_day_start( $date )->setTimezone( $mdp_timezone );
+
+    // Same rule as get_seasonal_end_date(): ignore the active flag, last match wins. The price
+    // must cover the same season the membership term is cut to.
+    $season = null;
+    foreach ( $seasons as $candidate ) {
+      $season_start_mdp = ( new \DateTime( $candidate['start_date'] ) )->setTimezone( $mdp_timezone );
+      $season_end_mdp   = ( new \DateTime( $candidate['end_date'] ) )->setTimezone( $mdp_timezone );
+      if ( $purchase_dt >= $season_start_mdp && $purchase_dt <= $season_end_mdp ) {
+        $season = [ 'start' => $season_start_mdp->format( 'Y-m-d' ), 'end' => $season_end_mdp->format( 'Y-m-d' ) ];
+      }
+    }
+
+    return $season;
+  }
+
+  /**
    * The share of the full price owed for a new purchase on $date.
    *
    * Daily pays for the days left in the season, counting the purchase day. Weekly, monthly,
@@ -679,34 +715,19 @@ class Membership_Config {
       return 1.0;
     }
 
-    $seasons = $this->get_calendar_seasons();
-    if ( empty( $seasons ) ) {
-      return 1.0;
-    }
-
-    $mdp_timezone = Utilities::get_mdp_timezone();
-    $purchase_dt  = Utilities::get_mdp_day_start( $date )->setTimezone( $mdp_timezone );
-
-    // Same rule as get_seasonal_end_date(): ignore the active flag, last match wins. The price
-    // must cover the same season the membership term is cut to.
-    $season = null;
-    foreach ( $seasons as $candidate ) {
-      $season_start_mdp = ( new \DateTime( $candidate['start_date'] ) )->setTimezone( $mdp_timezone );
-      $season_end_mdp   = ( new \DateTime( $candidate['end_date'] ) )->setTimezone( $mdp_timezone );
-      if ( $purchase_dt >= $season_start_mdp && $purchase_dt <= $season_end_mdp ) {
-        $season = [ 'start' => $season_start_mdp, 'end' => $season_end_mdp ];
-      }
-    }
-
+    $season = $this->get_proration_season( $date );
     if ( $season === null ) {
       return 1.0;
     }
 
     // Count MDP calendar days on UTC midnights: a DST change makes one MDP day 23 or 25 hours
     // long, which would otherwise drop or add a day.
-    $start_day    = new \DateTime( $season['start']->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
-    $end_day      = new \DateTime( $season['end']->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
-    $purchase_day = new \DateTime( $purchase_dt->format( 'Y-m-d' ), new \DateTimeZone( 'UTC' ) );
+    $start_day    = new \DateTime( $season['start'], new \DateTimeZone( 'UTC' ) );
+    $end_day      = new \DateTime( $season['end'], new \DateTimeZone( 'UTC' ) );
+    $purchase_day = new \DateTime(
+      Utilities::get_mdp_day_start( $date )->setTimezone( Utilities::get_mdp_timezone() )->format( 'Y-m-d' ),
+      new \DateTimeZone( 'UTC' )
+    );
 
     $rate = $this->cycle_data['proration']['rate'] ?? '';
     switch ( $rate ) {

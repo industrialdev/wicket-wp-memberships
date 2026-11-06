@@ -64,6 +64,13 @@ class Membership_Controller {
    */
   const PRORATION_CART_TAG = '_wicket_mship_proration_tag';
 
+  /**
+   * Hidden order line meta recording a prorated first payment, for support and refunds.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   */
+  const PRORATION_LINE_META = '_wicket_mship_proration';
+
   /** True once a membership write has queued the member list cache flush for this request. */
   private static $member_list_cache_stale = false;
 
@@ -335,7 +342,8 @@ function get_item_data ( $other_data, $cart_item ) {
    *
    * @param  array $cart_item  WooCommerce cart item.
    *
-   * @return array|null  [ 'tier_id' => int, 'config_id' => int, 'ratio' => float ], or null for full price.
+   * @return array|null  [ 'tier_id' => int, 'config_id' => int, 'rate' => string, 'ratio' => float,
+   *                      'season_start' => 'Y-m-d', 'season_end' => 'Y-m-d' ], or null for full price.
    */
   private static function get_cart_item_proration( array $cart_item ): ?array {
     foreach ( [ 'membership_post_id_renew', 'subscription_renewal', 'subscription_resubscribe', 'subscription_switch' ] as $not_new_purchase_key ) {
@@ -375,15 +383,22 @@ function get_item_data ( $other_data, $cart_item ) {
       return null;
     }
 
-    $ratio = $tier->get_config()->get_proration_ratio();
+    $config = $tier->get_config();
+    $ratio  = $config->get_proration_ratio();
     if ( $ratio >= 1.0 ) {
       return null;
     }
 
+    // A ratio below 1 means a season matched, so the season is never null here.
+    $season = $config->get_proration_season();
+
     return [
-      'tier_id'   => (int) $tier->get_membership_tier_post_id(),
-      'config_id' => (int) $tier->tier_data['config_id'],
-      'ratio'     => $ratio,
+      'tier_id'      => (int) $tier->get_membership_tier_post_id(),
+      'config_id'    => (int) $tier->tier_data['config_id'],
+      'rate'         => (string) ( $config->get_cycle_data()['proration']['rate'] ?? '' ),
+      'ratio'        => $ratio,
+      'season_start' => $season['start'],
+      'season_end'   => $season['end'],
     ];
   }
 
@@ -392,7 +407,9 @@ function get_item_data ( $other_data, $cart_item ) {
    *
    * Hooked to `woocommerce_subscriptions_cart_get_price`, which WCS applies in both cart passes.
    * Only the initial pass changes, so the recurring total, and every renewal, stays full price.
-   * The sign-up fee is charged in full.
+   * The sign-up fee is charged in full. Clients adjust the prorated part through the
+   * `wicket_mship_prorated_price` filter, for example to set a minimum charge. The full price is
+   * kept on the tag so the order line can record it.
    *
    * @see atlas://plans/feature-configurable-proration.md
    * @since 1.1.0
@@ -416,8 +433,82 @@ function get_item_data ( $other_data, $cart_item ) {
     $sign_up_fee = \WC_Subscriptions_Product::get_sign_up_fee( $product );
     $sign_up_fee = is_numeric( $sign_up_fee ) ? (float) $sign_up_fee : 0.0;
     $full_price  = (float) $price - $sign_up_fee;
+    $ratio       = (float) $proration['ratio'];
 
-    return round( $full_price * (float) $proration['ratio'], wc_get_price_decimals() ) + $sign_up_fee;
+    $proration['full_price'] = $full_price;
+    $product->update_meta_data( self::PRORATION_CART_TAG, $proration );
+
+    /**
+     * Filter the prorated first-payment price of a membership cart line.
+     *
+     * Fires in the initial WCS cart pass only, for a new purchase of a prorated tier product,
+     * each time that pass reads the line's price, so callbacks must return the same value for
+     * the same input. Never fires for the recurring total, renewals, or excluded lines.
+     *
+     * @see atlas://plans/feature-configurable-proration.md
+     * @since 1.1.0
+     *
+     * @param float             $prorated_price  Full price times the ratio, rounded to the store's price decimals. Excludes the sign-up fee.
+     * @param float             $full_price      Recurring price for a full season, excluding the sign-up fee.
+     * @param float             $ratio           Share of the full price owed, in (0, 1).
+     * @param \WC_Product       $product         The cart line's product.
+     * @param Membership_Tier   $tier            Tier that lists the product.
+     * @param Membership_Config $config          The tier's config.
+     */
+    $prorated_price = (float) apply_filters(
+      'wicket_mship_prorated_price',
+      round( $full_price * $ratio, wc_get_price_decimals() ),
+      $full_price,
+      $ratio,
+      $product,
+      new Membership_Tier( (int) $proration['tier_id'] ),
+      new Membership_Config( (int) $proration['config_id'] )
+    );
+
+    return $prorated_price + $sign_up_fee;
+  }
+
+  /**
+   * Record a prorated first payment on its order line.
+   *
+   * Hooked to `woocommerce_checkout_create_order_line_item`. WCS builds the subscription's line
+   * items through the same hook from its recurring carts, which share the tagged product objects;
+   * those lines are skipped, so renewal orders copied from the subscription never carry the meta.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   * @since 1.1.0
+   *
+   * @param  \WC_Order_Item_Product $item           The new order line.
+   * @param  string                 $cart_item_key  Cart item key.
+   * @param  array                  $values         Cart item.
+   * @param  \WC_Order              $order          The order or subscription being built.
+   *
+   * @return void
+   */
+  public static function add_proration_line_item_meta( $item, $cart_item_key, $values, $order ) {
+    if ( function_exists( 'wcs_is_subscription' ) && wcs_is_subscription( $order ) ) {
+      return;
+    }
+
+    $product = $values['data'] ?? null;
+    if ( ! $product instanceof \WC_Product ) {
+      return;
+    }
+
+    // The full price is only set once the price filter prorated the line, so a tag without it
+    // means the line was charged in full.
+    $proration = $product->get_meta( self::PRORATION_CART_TAG );
+    if ( ! is_array( $proration ) || ! isset( $proration['full_price'] ) ) {
+      return;
+    }
+
+    $item->add_meta_data( self::PRORATION_LINE_META, [
+      'rate'         => $proration['rate'],
+      'ratio'        => $proration['ratio'],
+      'full_price'   => $proration['full_price'],
+      'season_start' => $proration['season_start'],
+      'season_end'   => $proration['season_end'],
+    ], true );
   }
 
   /**
