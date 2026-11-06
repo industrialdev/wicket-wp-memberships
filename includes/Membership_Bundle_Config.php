@@ -421,7 +421,9 @@ class Membership_Bundle_Config {
       $period_type = ! in_array( $cycle_data['anniversary_data']['period_type'], [ 'year', 'month', 'day' ] )
         ? 'year' : $cycle_data['anniversary_data']['period_type'];
       // Count the period from the start's MDP calendar day; its UTC day is a day early east of UTC.
-      $the_end_date = $this->mdp_local_ymd( $dates['start_date'], '+' . $period_count . ' ' . $period_type );
+      // Terms start at 00:00:00 and end at 23:59:59, so end the day before the anniversary;
+      // the renewal then starts on the anniversary itself and keeps the start day.
+      $the_end_date = $this->mdp_local_ymd( $dates['start_date'], '+' . $period_count . ' ' . $period_type . ' -1 day' );
 
       // End-date alignment snaps the calculated end to a predictable day within the
       // month so admins can batch-process renewals on a fixed schedule. Only applies
@@ -430,11 +432,12 @@ class Membership_Bundle_Config {
         && ( ! empty( $cycle_data['anniversary_data']['align_end_dates_enabled'] ) && $cycle_data['anniversary_data']['align_end_dates_enabled'] !== false )
       ) {
         switch ( $cycle_data['anniversary_data']['align_end_dates_type'] ) {
+          // These snap from the anniversary itself; the day before would pull a start on the 1st or 15th back a month.
           case 'first-day-of-month':
-            $the_end_date = date( 'Y-m-1', strtotime( $the_end_date ) );
+            $the_end_date = date( 'Y-m-01', strtotime( $the_end_date . ' +1 day' ) );
             break;
           case '15th-of-month':
-            $the_end_date = date( 'Y-m-15', strtotime( $the_end_date ) );
+            $the_end_date = date( 'Y-m-15', strtotime( $the_end_date . ' +1 day' ) );
             break;
           case 'last-day-of-month':
             $the_end_date = date( 'Y-m-t', strtotime( $the_end_date ) );
