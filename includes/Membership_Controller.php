@@ -57,6 +57,13 @@ class Membership_Controller {
   const MEMBERSHIP_CATEGORY_PRIMARY = 'primary';
   const MEMBERSHIP_CATEGORY_SECTION = 'section';
 
+  /**
+   * Unsaved meta key on a cart line's product object marking a prorated first payment.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   */
+  const PRORATION_CART_TAG = '_wicket_mship_proration_tag';
+
   /** True once a membership write has queued the member list cache flush for this request. */
   private static $member_list_cache_stale = false;
 
@@ -279,6 +286,138 @@ function get_item_data ( $other_data, $cart_item ) {
       $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), Utilities::format_mdp_date("l jS \of F Y", strtotime($early_renewal_date)));
       throw new \Exception( $error_text );
     }
+  }
+
+  /**
+   * Tag each cart line that gets a prorated first payment.
+   *
+   * WCS hands its cart price filter only the product, so the decision rides on each line's
+   * product object as unsaved meta. Every calculation re-decides, because the cart or the
+   * signed-in user can change between calculations; an ineligible line loses its old tag.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   * @since 1.1.0
+   *
+   * @param  \WC_Cart $cart  The cart being calculated.
+   *
+   * @return void
+   */
+  public static function tag_prorated_cart_items( $cart ) {
+    // WCS recalculates clones of the cart for recurring totals. They share the main cart's
+    // product objects, which this already tagged, and must never be prorated anyway.
+    if ( ! empty( $cart->recurring_cart_key ) ) {
+      return;
+    }
+
+    foreach ( $cart->get_cart() as $cart_item ) {
+      $product = $cart_item['data'] ?? null;
+      if ( ! $product instanceof \WC_Product ) {
+        continue;
+      }
+
+      $product->delete_meta_data( self::PRORATION_CART_TAG );
+
+      $proration = self::get_cart_item_proration( $cart_item );
+      if ( $proration !== null ) {
+        $product->update_meta_data( self::PRORATION_CART_TAG, $proration );
+      }
+    }
+  }
+
+  /**
+   * Decide whether a cart line gets a prorated first payment.
+   *
+   * Only a new purchase of a prorated tier product qualifies. Bundle members and admin-created
+   * orders never reach the cart, so they need no check here.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   * @since 1.1.0
+   *
+   * @param  array $cart_item  WooCommerce cart item.
+   *
+   * @return array|null  [ 'tier_id' => int, 'config_id' => int, 'ratio' => float ], or null for full price.
+   */
+  private static function get_cart_item_proration( array $cart_item ): ?array {
+    foreach ( [ 'membership_post_id_renew', 'subscription_renewal', 'subscription_resubscribe', 'subscription_switch' ] as $not_new_purchase_key ) {
+      if ( ! empty( $cart_item[ $not_new_purchase_key ] ) ) {
+        return null;
+      }
+    }
+
+    $product = $cart_item['data'];
+    if ( ! class_exists( '\WC_Subscriptions_Product' ) || ! \WC_Subscriptions_Product::is_subscription( $product ) ) {
+      return null;
+    }
+
+    // WCS already sets the first payment for these: a trial charges only the sign-up fee, and a
+    // synchronised product prorates to its sync day. Prorating again would discount twice.
+    if ( \WC_Subscriptions_Product::get_trial_length( $product ) > 0 ) {
+      return null;
+    }
+    if ( class_exists( '\WC_Subscriptions_Synchroniser' ) && \WC_Subscriptions_Synchroniser::is_product_synced( $product ) ) {
+      return null;
+    }
+
+    $product_id = ! empty( $cart_item['variation_id'] ) ? (int) $cart_item['variation_id'] : (int) $cart_item['product_id'];
+    // Tiers list the English product; order processing translates the same way to pick the tier.
+    $product_data = wicket_get_multilang_product_id( $product_id, 'en' );
+    if ( $product_data['was_translated'] ) {
+      $product_id = (int) $product_data['translated'];
+    }
+
+    $tier = Membership_Tier::get_tier_by_product_id( $product_id );
+    if ( ! $tier instanceof Membership_Tier || ! $tier->is_product_prorated( $product_id ) ) {
+      return null;
+    }
+
+    // Buying the tier you already hold is a renewal, the same rule as validate_renewal_order_items().
+    if ( ! empty( ( new self() )->get_my_memberships( Wicket_Memberships::STATUS_ACTIVE, $tier->tier_data['mdp_tier_uuid'] ) ) ) {
+      return null;
+    }
+
+    $ratio = $tier->get_config()->get_proration_ratio();
+    if ( $ratio >= 1.0 ) {
+      return null;
+    }
+
+    return [
+      'tier_id'   => (int) $tier->get_membership_tier_post_id(),
+      'config_id' => (int) $tier->tier_data['config_id'],
+      'ratio'     => $ratio,
+    ];
+  }
+
+  /**
+   * Prorate the first payment of a tagged cart line.
+   *
+   * Hooked to `woocommerce_subscriptions_cart_get_price`, which WCS applies in both cart passes.
+   * Only the initial pass changes, so the recurring total, and every renewal, stays full price.
+   * The sign-up fee is charged in full.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   * @since 1.1.0
+   *
+   * @param  float|string $price    Initial-pass price: recurring price plus sign-up fee.
+   * @param  \WC_Product  $product  The cart line's product.
+   *
+   * @return float|string  The prorated price, or $price unchanged.
+   */
+  public static function apply_proration_to_cart_price( $price, $product ) {
+    if ( \WC_Subscriptions_Cart::get_calculation_type() !== 'none' || ! $product instanceof \WC_Product ) {
+      return $price;
+    }
+
+    $proration = $product->get_meta( self::PRORATION_CART_TAG );
+    if ( ! is_array( $proration ) || empty( $proration['ratio'] ) ) {
+      return $price;
+    }
+
+    // Read the fee the way WCS added it, rather than calling get_price(), which would re-enter this filter.
+    $sign_up_fee = \WC_Subscriptions_Product::get_sign_up_fee( $product );
+    $sign_up_fee = is_numeric( $sign_up_fee ) ? (float) $sign_up_fee : 0.0;
+    $full_price  = (float) $price - $sign_up_fee;
+
+    return round( $full_price * (float) $proration['ratio'], wc_get_price_decimals() ) + $sign_up_fee;
   }
 
   /**
