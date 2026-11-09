@@ -745,9 +745,8 @@ class Membership_Bundle_Config {
     $is_new_membership = empty( $membership ) || ! isset( $membership['membership_ends_at'] );
 
     if ( ! $is_new_membership ) {
-      // Day after the current end in MDP time; the UTC day of an MDP end-of-day is a day late west of UTC.
-      $utc_date = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
-      $utc_date->modify( '+1 day' );
+      // Day after the current end on the MDP calendar: a UTC +1 day is 23 or 25 MDP hours across a DST change.
+      $utc_date = Utilities::get_mdp_day_start( $this->mdp_local_ymd( $membership['membership_ends_at'], '+1 day' ) );
     } elseif ( ! empty( $membership['start_date'] ) ) {
       $utc_date = Utilities::get_mdp_day_start( $membership['start_date'] );
     } else {
@@ -767,9 +766,8 @@ class Membership_Bundle_Config {
     $is_new_membership = empty( $membership ) || ! isset( $membership['membership_ends_at'] );
 
     if ( ! $is_new_membership ) {
-      // Day after the current end in MDP time; the UTC day of an MDP end-of-day is a day late west of UTC.
-      $utc_date = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
-      $utc_date->modify( '+1 day' );
+      // Day after the current end on the MDP calendar: a UTC +1 day is 23 or 25 MDP hours across a DST change.
+      $utc_date = Utilities::get_mdp_day_start( $this->mdp_local_ymd( $membership['membership_ends_at'], '+1 day' ) );
     } elseif ( ! empty( $membership['start_date'] ) ) {
       $utc_date = Utilities::get_mdp_day_start( $membership['start_date'] );
     } else {
@@ -795,9 +793,8 @@ class Membership_Bundle_Config {
     $seasons           = $this->get_calendar_seasons();
 
     if ( ! $is_new_membership ) {
-      // Day after the current end in MDP time; the UTC day of an MDP end-of-day is a day late west of UTC.
-      $membership_start_dt = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
-      $membership_start_dt->modify( '+1 day' );
+      // Day after the current end on the MDP calendar: a UTC +1 day is 23 or 25 MDP hours across a DST change.
+      $membership_start_dt = Utilities::get_mdp_day_start( $this->mdp_local_ymd( $membership['membership_ends_at'], '+1 day' ) );
       $membership_start_dt->setTimezone( $mdp_timezone );
       $membership_default_end_dt = clone $membership_start_dt;
       $membership_default_end_dt->modify( '+1 year' );

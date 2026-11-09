@@ -303,9 +303,8 @@ class Membership_Config {
     $is_new_membership = empty( $membership );
 
     if (!$is_new_membership) {
-      // For renewal: day after current membership ends in MDP timezone
-      $utc_date = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
-      $utc_date->modify( '+1 day' );
+      // Step a day on the MDP calendar: a UTC +1 day is 23 or 25 MDP hours across a DST change.
+      $utc_date = Utilities::get_mdp_day_start( $this->mdp_local_ymd( $membership['membership_ends_at'], '+1 day' ) );
     } else {
       // For new membership: today at midnight in MDP timezone
       $utc_date = Utilities::get_mdp_day_start('now');
@@ -321,9 +320,8 @@ class Membership_Config {
     $is_new_membership = empty($membership);
 
     if (!$is_new_membership) {
-      // For renewal: day after current membership ends in MDP timezone
-      $utc_date = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
-      $utc_date->modify( '+1 day' );
+      // Step a day on the MDP calendar: a UTC +1 day is 23 or 25 MDP hours across a DST change.
+      $utc_date = Utilities::get_mdp_day_start( $this->mdp_local_ymd( $membership['membership_ends_at'], '+1 day' ) );
     } else {
       // For new membership: today at midnight in MDP timezone
       $utc_date = Utilities::get_mdp_day_start('now');
@@ -342,9 +340,8 @@ class Membership_Config {
 
     // Create membership start and default end in MDP timezone
     if ( ! $is_new_membership ) {
-      // For renewal: day after current membership ends in MDP timezone
-      $membership_start_dt = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
-      $membership_start_dt->modify( '+1 day' );
+      // Step a day on the MDP calendar: a UTC +1 day is 23 or 25 MDP hours across a DST change.
+      $membership_start_dt = Utilities::get_mdp_day_start( $this->mdp_local_ymd( $membership['membership_ends_at'], '+1 day' ) );
       $membership_start_dt->setTimezone($mdp_timezone);
       
       $membership_default_end_dt = clone $membership_start_dt;
