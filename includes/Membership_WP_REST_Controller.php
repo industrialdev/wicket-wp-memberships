@@ -92,6 +92,19 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     )
     );
     /**
+    * Get Group Data WP
+    * Filter by bundle post IDs
+    */
+    register_rest_route( $this->namespace, '/membership_bundle_info', array(
+      array(
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => array( $this, 'get_bundle_info' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+    )
+    );
+
+    /**
     * Get all published WP pages, ignoring any visibility restrictions from third-party
     * plugins (e.g. WP Private Content Plus), for use in tier renewal form page selectors.
     */
@@ -99,6 +112,32 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       array(
         'methods'  => \WP_REST_Server::READABLE,
         'callback'  => array( $this, 'get_all_wp_pages' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+    )
+    );
+
+    /**
+    * Get published WooCommerce products for the plugin's admin product pickers, ignoring any
+    * visibility restrictions from third-party plugins (e.g. WP Private Content Plus).
+    */
+    register_rest_route( $this->namespace, '/wc_products_all', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_all_wc_products' ),
+        'permission_callback' => array( $this, 'permissions_check_read' ),
+      ),
+    )
+    );
+
+    /**
+    * Get published variations of a single WooCommerce product, ignoring any visibility
+    * restrictions from third-party plugins (e.g. WP Private Content Plus).
+    */
+    register_rest_route( $this->namespace, '/wc_product_variations/(?P<id>\d+)', array(
+      array(
+        'methods'  => \WP_REST_Server::READABLE,
+        'callback'  => array( $this, 'get_wc_product_variations' ),
         'permission_callback' => array( $this, 'permissions_check_read' ),
       ),
     )
@@ -239,7 +278,7 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     register_rest_route( $this->namespace, '/admin/manage_status', array(
       array(
         'methods'  => \WP_REST_Server::CREATABLE,
-        'callback'  => array( $this, 'admin_manage_status' ),
+        'callback'  => array( $this, 'bundle_admin_manage_status' ),
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
       //'schema' => array( $this, '' ),
@@ -306,6 +345,14 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
       //'schema' => array( $this, '' ),
     )
     );
+    register_rest_route( $this->namespace, '/import/membership_bundle', array(
+      array(
+        'methods'  => \WP_REST_Server::CREATABLE,
+        'callback'  => array( $this, 'import_membership_bundle' ),
+        'permission_callback' => array( $this, 'permissions_check_write' ),
+      ),
+    )
+    );
   }
     //lookahead person name search
     register_rest_route( $this->namespace, '/mdp_person/search', array(
@@ -343,6 +390,31 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     ) );
 
     /**
+     * Resolve WooCommerce product and variation names by ID.
+     *
+     * GET /wicket_member/v1/membership_products?ids[]=123&ids[]=456
+     *
+     * Accepts a mixed list of product IDs and variation IDs. Each ID is resolved
+     * via wc_get_product() which handles both types transparently. Returns a flat
+     * array of objects with id, name, type, product_id, and variation_id fields.
+     */
+    register_rest_route( $this->namespace, '/membership_products', [
+      [
+        'methods'             => \WP_REST_Server::READABLE,
+        'callback'            => [ $this, 'get_membership_products' ],
+        'permission_callback' => [ $this, 'permissions_check_read' ],
+        'args'                => [
+          'ids' => [
+            'required'    => false,
+            'type'        => 'array',
+            'items'       => [ 'type' => 'integer' ],
+            'description' => 'List of WC product or variation IDs to resolve.',
+          ],
+        ],
+      ],
+    ] );
+
+    /**
      * Transfer Membership
      */
     register_rest_route( $this->namespace, '/membership/(?P<membership_post_id>\d+)/transfer_membership', array(
@@ -363,6 +435,46 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         'permission_callback' => array( $this, 'permissions_check_write' ),
       ),
     ) );
+  }
+
+  /**
+   * GET /membership_products
+   *
+   * Accepts a mixed list of WC product IDs and variation IDs via ?ids[]=.
+   * wc_get_product() resolves both transparently — no need for the caller
+   * to distinguish between them.
+   *
+   * Each entry in the response includes:
+   *   id           — the ID that was passed in
+   *   name         — display name (variation name when variation, product name otherwise)
+   *   type         — WC product type slug (e.g. "subscription", "variable-subscription", "variation")
+   *   product_id   — parent product ID (same as id for non-variations)
+   *   variation_id — variation ID, or null for non-variations
+   */
+  public function get_membership_products( \WP_REST_Request $request ) {
+    $ids = array_map( 'intval', (array) $request->get_param( 'ids' ) );
+    $ids = array_filter( $ids );
+
+    $results = [];
+
+    foreach ( $ids as $id ) {
+      $product = wc_get_product( $id );
+      if ( ! $product ) {
+        continue;
+      }
+
+      $is_variation = $product instanceof \WC_Product_Variation;
+
+      $results[] = [
+        'id'           => $id,
+        'name'         => $product->get_name(),
+        'type'         => $product->get_type(),
+        'product_id'   => $is_variation ? $product->get_parent_id() : $id,
+        'variation_id' => $is_variation ? $id : null,
+      ];
+    }
+
+    return rest_ensure_response( $results );
   }
 
   public function memberships_merge_webhook_consumer( \WP_REST_Request $request ) {
@@ -451,6 +563,12 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     return rest_ensure_response( $response );
   }
 
+  public function import_membership_bundle( \WP_REST_Request $request ) {
+    $params = $request->get_params();
+    $response = (new Bundle_Import_Controller() )->create_bundle( $params );
+    return rest_ensure_response( $response );
+  }
+
   public function get_membership_entity( \WP_REST_Request $request ) {
     $params = $request->get_params();
     $response = Admin_Controller::get_membership_entity_records( $params['entity_id'] );
@@ -469,9 +587,9 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     return rest_ensure_response( $response );
   }
 
-  public function admin_manage_status( \WP_REST_Request $request ) {
+  public function bundle_admin_manage_status( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $response = Admin_Controller::admin_manage_status( $params['post_id'], $params['status']);
+    $response = Admin_Controller::bundle_admin_manage_status( $params['post_id'], $params['status']);
     return rest_ensure_response( $response );
   }
 
@@ -539,6 +657,12 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     return rest_ensure_response( $org_info );
   }
 
+  public function get_bundle_info( \WP_REST_Request $request ) {
+    $params    = $request->get_params();
+    $bundle_ids = isset( $params['filter']['bundle_id'] ) ? (array) $params['filter']['bundle_id'] : [];
+    return rest_ensure_response( Membership_Controller::get_bundle_info( $bundle_ids ) );
+  }
+
   public function get_org_data(  \WP_REST_Request $request  ) {
     $params = $request->get_params();
     $org_data = Helper::get_org_data( $params['org_uuid'], true );
@@ -546,16 +670,30 @@ public function get_membership_dates( \WP_REST_Request $request ) {
     return rest_ensure_response( $org_data );
   }
 
+  /**
+   * Return MDP membership tiers for the admin UI.
+   *
+   * @see Helper::get_membership_category_ids()
+   *
+   * @param  \WP_REST_Request  $request  Request with optional `filters` (e.g. `id` list of tier UUIDs).
+   *
+   * @return \WP_REST_Response|\WP_Error  Tier rows from get_memberships_table_data().
+   */
   public function get_tiers_mdp( \WP_REST_Request $request ) {
     $params = $request->get_params();
-    $categories = wicket_get_option( 'wicket_admin_settings_membership_categories' );
+    $categories = Helper::get_membership_category_ids();
     $memberships = $this->get_memberships_table_data($categories, $params['filters']);
     return rest_ensure_response( $memberships );
   }
 
   public function get_tier_info(  \WP_REST_Request $request  ) {
     $params = $request->get_params();
-    $tier_info = Membership_Controller::get_tier_info( $params['filter']['tier_uuid'], $params['properties'] );
+    // Both params are optional: the member list calls this without a filter, and
+    // get_tier_info() resolves the full tier set regardless of what is passed.
+    $tier_info = Membership_Controller::get_tier_info(
+      $params['filter']['tier_uuid'] ?? [],
+      $params['properties'] ?? []
+    );
     return rest_ensure_response( $tier_info );
   }
 
@@ -609,6 +747,204 @@ public function get_membership_dates( \WP_REST_Request $request ) {
         'title' => array( 'rendered' => get_the_title( $page ) ),
       );
     }, $pages );
+
+    return rest_ensure_response( $response );
+  }
+
+  /**
+   * Normalise a REST `exclude` parameter into a list of post IDs.
+   *
+   * The React pickers pass their "already in use" lists either as a comma-separated string
+   * (product IDs) or as an array (variation IDs), so both shapes are accepted here.
+   *
+   * @param  mixed  $raw  Raw parameter value: comma-separated string, array, or empty.
+   *
+   * @return array<int, int>  Positive integer IDs, empty when nothing was supplied.
+   */
+  private function parse_exclude_ids( $raw ) {
+    if ( empty( $raw ) ) {
+      return array();
+    }
+
+    $ids = is_array( $raw ) ? $raw : explode( ',', (string) $raw );
+    $ids = array_map( 'absint', $ids );
+
+    // Drop zeros so a stray empty segment (e.g. a trailing comma) can't become ID 0.
+    return array_values( array_filter( $ids ) );
+  }
+
+  /**
+   * Normalise a REST `per_page` parameter into a wc_get_products() `limit`.
+   *
+   * Mirrors the /wc/v3 contract the product pickers were built against so replacing that route
+   * does not change how many rows they receive. WooCommerce treats -1 as "no limit"; any other
+   * non-positive value is meaningless, so fall back to /wc/v3's default of 10 rather than
+   * returning an empty list and making the picker look broken.
+   *
+   * @param  mixed  $raw  Raw parameter value; null or empty when the caller omitted it.
+   *
+   * @return int  Row limit suitable for wc_get_products()'s `limit` argument.
+   */
+  private function parse_per_page_param( $raw ) {
+    $per_page = (int) $raw;
+
+    return ( -1 === $per_page || $per_page > 0 ) ? $per_page : 10;
+  }
+
+  /**
+   * Normalise a REST `status` parameter for wc_get_products().
+   *
+   * Defaults to `publish` so an omitted or empty parameter can never widen the result set to
+   * drafts or private products — the pickers only ever ask for published rows.
+   *
+   * @param  mixed  $raw  Raw parameter value; null or empty when the caller omitted it.
+   *
+   * @return string  A single post status slug.
+   */
+  private function parse_status_param( $raw ) {
+    return ! empty( $raw ) ? sanitize_text_field( (string) $raw ) : 'publish';
+  }
+
+  /**
+   * Get published WooCommerce products for the plugin's admin product pickers.
+   *
+   * Queried here rather than through WooCommerce's own /wc/v3/products endpoint because
+   * third-party visibility plugins filter that route for every caller. WP Private Content
+   * Plus hooks pre_get_posts and, under REST_REQUEST, excludes any post whose
+   * `_wppcp_post_page_visibility` is member/role/users. Two things go wrong on the pickers
+   * as a result:
+   *
+   *   1. Restricted products disappear from the list entirely.
+   *   2. WPCP calls $query->set( 'post__not_in', ... ), overwriting rather than merging.
+   *      WooCommerce maps its REST `exclude` param onto that same key, so a single restricted
+   *      post of ANY type anywhere on the site discards the picker's "already in use" list and
+   *      products assigned to other tiers reappear as selectable.
+   *
+   * Keeping this on the plugin's own namespace means the WPCP bypass applies only to requests
+   * this plugin's admin screens make — /wc/v3/products keeps its normal filtered behaviour for
+   * WooCommerce itself and every other consumer on the site.
+   *
+   * @see    get_all_wp_pages()  Same workaround applied to the page pickers.
+   *
+   * Deliberately honours `status` and `per_page` rather than hardcoding them. This endpoint
+   * exists only to sidestep WPCP, so it stays a drop-in replacement for /wc/v3/products and
+   * leaves how much data the pickers pull exactly as it was. Changing pagination here would be
+   * an unrelated behaviour change smuggled into a bug fix.
+   *
+   * @see    get_all_wp_pages()  Same workaround applied to the page pickers.
+   *
+   * @param  \WP_REST_Request  $request  Accepts `type` (single product type slug; omit for all),
+   *                                     `exclude` (comma-separated or array of product IDs),
+   *                                     `status` (post status; defaults to publish) and
+   *                                     `per_page` (result cap; -1 for all, defaults to 10 as
+   *                                     /wc/v3 does). Pagination beyond the first page is not
+   *                                     supported — no caller needs it.
+   *
+   * @return \WP_REST_Response  List of products as [{ id, name, type }, ...].
+   */
+  public function get_all_wc_products( \WP_REST_Request $request ) {
+    // Bail cleanly when WooCommerce is unavailable rather than fataling on wc_get_products().
+    if ( ! function_exists( 'wc_get_products' ) ) {
+      return rest_ensure_response( array() );
+    }
+
+    $args = array(
+      'status'  => $this->parse_status_param( $request->get_param( 'status' ) ),
+      'limit'   => $this->parse_per_page_param( $request->get_param( 'per_page' ) ),
+      'orderby' => 'title',
+      'order'   => 'ASC',
+      'return'  => 'objects',
+    );
+
+    $type = $request->get_param( 'type' );
+    if ( ! empty( $type ) ) {
+      $args['type'] = sanitize_text_field( $type );
+    }
+
+    $exclude = $this->parse_exclude_ids( $request->get_param( 'exclude' ) );
+    if ( ! empty( $exclude ) ) {
+      $args['exclude'] = $exclude;
+    }
+
+    // Bypass WP Private Content Plus restriction checks for this query only, via its own
+    // 'disable_restriction_checks' escape hatch. These pickers are staff-only admin screens
+    // and must list every product regardless of front-end visibility restrictions.
+    add_filter( 'disable_restriction_checks', '__return_true' );
+
+    $products = wc_get_products( $args );
+
+    // Re-enable WP Private Content Plus restriction checks now that our query is done.
+    remove_filter( 'disable_restriction_checks', '__return_true' );
+
+    $response = array_map( function( $product ) {
+      return array(
+        'id'   => $product->get_id(),
+        'name' => $product->get_name(),
+        'type' => $product->get_type(),
+      );
+    }, $products );
+
+    return rest_ensure_response( $response );
+  }
+
+  /**
+   * Get the published variations of a single WooCommerce product for the admin pickers.
+   *
+   * Companion to get_all_wc_products() — WooCommerce's own variations route sits under
+   * /wc/v3/products/{id}/variations and is filtered by the same WP Private Content Plus
+   * pre_get_posts handler, which also clobbers the `exclude` list of variations already
+   * assigned to other tiers.
+   *
+   * @see    get_all_wc_products()  Parent-product equivalent, with the full explanation.
+   *
+   * @param  \WP_REST_Request  $request  Requires `id` (parent product ID) from the route;
+   *                                     accepts `exclude` (comma-separated or array of
+   *                                     variation IDs), plus `status` and `per_page`, honoured
+   *                                     for the same drop-in reasons as get_all_wc_products().
+   *
+   * @return \WP_REST_Response  List of variations as [{ id, name }, ...], matching the
+   *                            `id` and `name` fields of the /wc/v3 variations response.
+   */
+  public function get_wc_product_variations( \WP_REST_Request $request ) {
+    if ( ! function_exists( 'wc_get_products' ) ) {
+      return rest_ensure_response( array() );
+    }
+
+    $parent_id = absint( $request->get_param( 'id' ) );
+    if ( ! $parent_id ) {
+      return rest_ensure_response( array() );
+    }
+
+    $args = array(
+      'type'   => 'variation',
+      'parent' => $parent_id,
+      'status' => $this->parse_status_param( $request->get_param( 'status' ) ),
+      'limit'  => $this->parse_per_page_param( $request->get_param( 'per_page' ) ),
+      'return' => 'objects',
+    );
+
+    $exclude = $this->parse_exclude_ids( $request->get_param( 'exclude' ) );
+    if ( ! empty( $exclude ) ) {
+      $args['exclude'] = $exclude;
+    }
+
+    // Same WPCP bypass as get_all_wc_products(), scoped to this single query.
+    add_filter( 'disable_restriction_checks', '__return_true' );
+
+    $variations = wc_get_products( $args );
+
+    remove_filter( 'disable_restriction_checks', '__return_true' );
+
+    // The switch-membership and create-renewal-order pickers label options with the variation
+    // name, so `name` has to be present here. wc_get_formatted_variation() is called with the
+    // same arguments WooCommerce's own /wc/v3 variations controller uses (flat, values only),
+    // so those labels read identically to before this endpoint replaced that route.
+    $response = array_map( function( $variation ) {
+      return array(
+        'id'   => $variation->get_id(),
+        'name' => wc_get_formatted_variation( $variation, true, false, false ),
+      );
+    }, $variations );
 
     return rest_ensure_response( $response );
   }

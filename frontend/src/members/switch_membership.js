@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { __ } from '@wordpress/i18n';
-import { SelectWpStyled, LabelWpStyled } from '../styled_elements';
+import { SelectWpStyled, LabelWpStyled } from '../shared/styled_elements';
 import { Button, Icon } from '@wordpress/components';
-import { WC_PRODUCT_TYPES } from '../constants';
-import { fetchWcProducts, fetchProductVariations, fetchTiers } from '../services/api';
-import { switchMembership as switchMembershipApi } from '../services/api';
+import { WC_PRODUCT_TYPES } from '../shared/constants';
+import { fetchWcProducts, fetchProductVariations, fetchTiers } from '../shared/services/api';
+import { switchMembership as switchMembershipApi } from '../shared/services/api';
 
 const SwitchMembership = ({ membership }) => {
   const [switchOption, setSwitchOption] = useState(null);

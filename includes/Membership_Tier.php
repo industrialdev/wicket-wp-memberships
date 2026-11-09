@@ -1,6 +1,17 @@
 <?php
 namespace Wicket_Memberships;
 
+/**
+ * Membership tier model.
+ *
+ * @see atlas://packages/wicket-wp-memberships.md
+ *
+ * ARCHITECTURAL GUARDRAIL:
+ * Manages tier-to-WooCommerce product linkage, renewal types, and grace periods.
+ * Preserve direct model structure. AI agents MUST NOT refactor into OOP services.
+ *
+ * @package Wicket_Memberships
+ */
 class Membership_Tier {
 
   private $post_id;

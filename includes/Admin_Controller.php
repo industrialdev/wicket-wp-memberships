@@ -4,6 +4,8 @@ namespace Wicket_Memberships;
 
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Autorenew;
+use Wicket_Memberships\Autorenew_Sync;
 
 /**
  * Class Admin_Controller
@@ -32,7 +34,8 @@ class Admin_Controller {
       var wicketMembershipsSettings = <?php echo wp_json_encode( [
         'WICKET_MSHIP_MERGE_TOOLS'          => $_ENV['WICKET_MSHIP_MERGE_TOOLS'] ?? '',
         'WICKET_MSHIP_MULTI_TIER_RENEWALS'  => $_ENV['WICKET_MSHIP_MULTI_TIER_RENEWALS'] ?? '',
-        'WICKET_MSHIP_MDP_TIMEZONE'         => $_ENV['WICKET_MSHIP_MDP_TIMEZONE'] ?? 'UTC',
+        'adminUrl'                          => esc_url( admin_url() ),
+        'WICKET_MSHIP_MDP_TIMEZONE'         => Utilities::get_mdp_timezone()->getName(),
       ] ); ?>;
     </script>
     <?php
@@ -91,7 +94,7 @@ class Admin_Controller {
    * @param string $new_post_status
    * @return \WP_REST_Response
    */
-  public static function admin_manage_status( $membership_post_id, $new_post_status ) {
+  public static function bundle_admin_manage_status( $membership_post_id, $new_post_status ) {
 
     $tomorrow_iso_date = Utilities::get_mdp_day_end("+1 day")->format('c');
     $yesterday_iso_date = Utilities::get_mdp_day_start("-1 day")->format('c');
@@ -141,6 +144,9 @@ class Admin_Controller {
       $membership['membership_wicket_uuid'] = get_post_meta( $membership_post_id, 'membership_wicket_uuid', true );
 
       //create the mdp record we skipped before
+      $autorenew_status = Autorenew_Sync::get_stored_status( $membership_post_id );
+      $membership['membership_is_autorenew'] = $autorenew_status['result'];
+      $membership['membership_is_autorenew_reason'] = $autorenew_status['reason'];
       if( empty( $membership['membership_wicket_uuid'] ) ) {
         $membership_data = $membership;
         $membership_data['membership_grace_period_days'] = $config->get_late_fee_window_days();
@@ -178,13 +184,26 @@ class Admin_Controller {
       $membership_post_data = Helper::get_post_meta( $membership_post_id );
 
       //update wicket wxternal_id
+      // Return value ignored on purpose: the method flags failures via post meta
+      // (_collision/_failed) and wc-logs, and this flow must not abort on a failed link.
       $wicket_membership_type = 'person_memberships';
       if($membership_post_data['membership_type'] == 'organization') {
         $wicket_membership_type = 'organization_memberships';
       }
-      wicket_update_membership_external_id( $membership['membership_wicket_uuid'], $wicket_membership_type, $membership_post_id );
+      $Membership_Controller->assign_membership_external_id( $membership['membership_wicket_uuid'], $wicket_membership_type, $membership_post_id );
 
-      do_action('wicket_membership_created_mdp', $membership_post_data);
+      // WWID-2384: same gate as Membership_Controller. Approval activated the
+      // local record, but create_mdp_record() above returns '' when the MDP API
+      // call fails. Listeners must not act on a membership that has no MDP
+      // record; retry the activation once the API recovers.
+      if ( ! empty( $membership['membership_wicket_uuid'] ) ) {
+        do_action('wicket_membership_created_mdp', $membership_post_data);
+      } else {
+        Utilities::wc_log_mship_error([
+          'SKIPPED wicket_membership_created_mdp: MDP record missing (create_mdp_record returned no uuid)',
+          ['membership_post_id' => $membership_post_id],
+        ]);
+      }
       $response_array['success'] = 'Pending membership activated successfully.';
       $response_array['response'] = $membership_post_data;
       $response_code = 200;
@@ -212,7 +231,8 @@ class Admin_Controller {
       
       // If the membership is in grace period, set the expiry to now
       else if( $current_post_status == Wicket_Memberships::STATUS_GRACE) {
-        $current_end_date = $membership_post_meta['membership_ends_at'] ?? get_post_meta( $membership_post_id, 'membership_ends_at', true );
+        // The stored value, not Helper::get_post_meta()'s Y-m-d day, so the end keeps its MDP 23:59:59.
+        $current_end_date = get_post_meta( $membership_post_id, 'membership_ends_at', true );
         $meta_data = [
           'membership_status' => $new_post_status,
           'membership_ends_at' => $current_end_date,
@@ -237,8 +257,8 @@ class Admin_Controller {
         if(! empty( $sub )) {
           $sub->update_status( 'cancelled' );
           if( ! empty( $meta_data['membership_ends_at'] ) && $current_post_status != Wicket_Memberships::STATUS_GRACE ) {
-            $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
-            $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+            // End of the membership's MDP end day, as UTC (what WCS expects).
+            $subscription_end = Utilities::get_mdp_day_end( $meta_data['membership_ends_at'] );
             $sub->update_dates([
               'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
             ]);
@@ -267,8 +287,8 @@ class Admin_Controller {
         if(! empty( $sub )) {
           $sub->update_status( 'cancelled' );
           if( ! empty( $meta_data['membership_ends_at'] ) ) {
-            $subscription_end = new \DateTime( substr( $meta_data['membership_ends_at'], 0, 10 ) . ' 23:59:59', wp_timezone() );
-            $subscription_end->setTimezone( new \DateTimeZone( 'UTC' ) );
+            // End of the membership's MDP end day, as UTC (what WCS expects).
+            $subscription_end = Utilities::get_mdp_day_end( $meta_data['membership_ends_at'] );
             $sub->update_dates([
               'end' => $subscription_end->format( 'Y-m-d H:i:s' ),
             ]);
@@ -316,6 +336,18 @@ class Admin_Controller {
 
     //update membership dates in MDP
     if( !empty( $updated ) && ! $Membership_Controller->bypass_wicket ) {
+      // A membership transitioning to a terminal status will never auto-renew, regardless of
+      // what the subscription itself reports — Autorenew::resolve_status() only inspects the
+      // subscription, not this CPT's own status, so a terminal transition must be forced here.
+      $is_terminal_status = in_array( $new_post_status, [ Wicket_Memberships::STATUS_CANCELLED, Wicket_Memberships::STATUS_EXPIRED ], true );
+      if ( $is_terminal_status ) {
+        $meta_data['membership_is_autorenew'] = false;
+        $meta_data['membership_is_autorenew_reason'] = __( 'Membership status is terminal.', 'wicket-memberships' );
+      } else {
+        $autorenew_status = Autorenew_Sync::get_stored_status( $membership_post_id );
+        $meta_data['membership_is_autorenew'] = $autorenew_status['result'];
+        $meta_data['membership_is_autorenew_reason'] = $autorenew_status['reason'];
+      }
       $response = $Membership_Controller->update_mdp_record( $membership_new, $meta_data );
       if ( !empty($response['error']) && strstr( $response['error'], '404 Not Found') !== false && ! empty( $_ENV['BYPASS_STATUS_CHANGE_LOCKOUT'] ) ) {
         $Membership_Controller->update_membership_status( $membership_post_id, $new_post_status);
@@ -342,11 +374,12 @@ class Admin_Controller {
 
   /**
    * Summary of get_edit_page_info
-   * This should be streamlined to store and get ID Numbers locally 
+   * This should be streamlined to store and get ID Numbers locally
    * Currently for org it is doing the lookup twice for name and ID
-   * 
-   * @param mixed $id
-   * @return array{data: mixed, identifying_number: mixed, mdp_link: string, org_name: string|array{data: string, identifying_number: mixed, mdp_link: string, org_name: mixed}}
+   *
+   * @param  mixed $id  WP user ID (individual member) or MDP organization UUID (org member).
+   *
+   * @return array{data: mixed, identifying_number: mixed, identifying_number_label: string, mdp_link: string, org_name: string|array{data: string, identifying_number: mixed, identifying_number_label: string, mdp_link: string, org_name: mixed}}
    */
   public static function get_edit_page_info( $id ) {
     $self = new self();
@@ -356,8 +389,12 @@ class Admin_Controller {
       $person_uuid = $user->user_login;
       $response = wicket_get_person_by_id( $person_uuid );
       $switch_to_url = Helper::get_user_switch_to_url( $id );
+
+      $identifying_number = self::resolve_identifying_number( $response->getAttribute('identifying_number'), $id, 'individual' );
+
       return [
-        'identifying_number' => $response->getAttribute('identifying_number'),
+        'identifying_number' => $identifying_number['value'],
+        'identifying_number_label' => $identifying_number['label'],
         'data' => $user->user_email,
         'mdp_link' => $wicket_settings['wicket_admin'] . '/people/' . $person_uuid,
         'org_name' => '',
@@ -371,14 +408,54 @@ class Admin_Controller {
         //the org_name has changed we need to update it in the cache and on org membership records
         $self->update_org_name_on_memberships($id, $org_data['name']);
       }
+
+      $identifying_number = self::resolve_identifying_number( $response['data']['attributes']['identifying_number'], $id, 'organization' );
+
       return [
-        'identifying_number' => $response['data']['attributes']['identifying_number'],
+        'identifying_number' => $identifying_number['value'],
+        'identifying_number_label' => $identifying_number['label'],
         'data' => $org_data['location'],
         'mdp_link' => $wicket_settings['wicket_admin'] . '/organizations/' . $id,
         'org_name' => $response['data']['attributes']['legal_name'],
       ];
     }
 
+  }
+
+  /**
+   * Build the identifying number value/label pair for the membership edit page, filterable
+   * as a single unit so a client override can't change one without the other.
+   *
+   * If a filter callback returns something other than an array with both `value` and `label`
+   * keys, the unfiltered defaults are used instead. The returned label is always sanitized,
+   * since a filter can be supplied by third-party client code.
+   *
+   * @param  mixed  $raw_value  The unfiltered identifying_number attribute from the MDP response.
+   * @param  mixed  $id         WP user ID (individual member) or MDP organization UUID (org member).
+   * @param  string $type       Either 'individual' or 'organization'.
+   *
+   * @see    'wicket_mship_edit_page_identifying_number' filter
+   *
+   * @return array{value: mixed, label: string} Value/label pair, after the filter is applied.
+   */
+  private static function resolve_identifying_number( $raw_value, $id, $type ) {
+    // Default identifying number value/label, overridable by clients that key off a different MDP/meta field (e.g. an external member ID).
+    $defaults = [
+      'value' => $raw_value,
+      'label' => __( 'Identifying Number:', 'wicket-memberships' ),
+    ];
+
+    $identifying_number = apply_filters( 'wicket_mship_edit_page_identifying_number', $defaults, $id, $type );
+
+    // Guard against a misbehaving client filter: fall back to defaults if the shape is wrong. `value` must be
+    // scalar (not an array/object) since it round-trips through the REST response straight into a React child.
+    if ( ! is_array( $identifying_number ) || ! isset( $identifying_number['value'], $identifying_number['label'] ) || ! is_scalar( $identifying_number['value'] ) ) {
+      return $defaults;
+    }
+
+    $identifying_number['label'] = sanitize_text_field( $identifying_number['label'] );
+
+    return $identifying_number;
   }
 
   /**
@@ -404,12 +481,22 @@ class Admin_Controller {
     foreach( $memberships as $membership) {
       update_post_meta( $membership->ID, 'org_name', $org_name);
       $customer_meta = get_user_meta( $membership->user_id, '_wicket_membership_'.$membership->ID );
-      $customer_meta_array = json_decode( $customer_meta[0], true);
+      $customer_meta_array = json_decode( $customer_meta[0] ?? '', true) ?? [];
       $customer_meta_array['org_name'] = $org_name;
       update_user_meta( $membership->user_id, '_wicket_membership_'.$membership->ID, json_encode( $customer_meta_array) );
     }
   }
 
+  /**
+   * Build the membership rows for the admin edit page of a person or organization.
+   *
+   * Rows are sorted newest start date first, then by MDP tier weight; each includes order and
+   * subscription details (next payment shown as its MDP calendar day).
+   *
+   * @param  int|string $id  WP user ID (numeric) for a person, or an organization UUID.
+   *
+   * @return array  Membership rows for the React edit page.
+   */
   public static function get_membership_entity_records( $id ) {
     $self = new self();
     $statuses = Helper::get_all_status_names();
@@ -464,6 +551,7 @@ class Admin_Controller {
       );
     }
     $memberships = get_posts( $args );
+    $membership_items = [];
     foreach( $memberships as &$membership) {
       $meta_data = get_post_meta( $membership->ID );
       $meta = [];
@@ -477,6 +565,7 @@ class Admin_Controller {
         }
       );
       $membership_item['ID'] = $membership->ID;
+      $membership_item['mdp_link_collision'] = ! empty( $meta_data['_wicket_membership_external_id_collision'] );
       if( !empty( $mdp_link )) {
         $membership_item['mdp_membership_link'] = $mdp_link . '/memberships/' . $meta['membership_wicket_uuid'];
         $membership_item['max_assignments'] = $org_memberships[ $meta['membership_wicket_uuid'] ]['membership']['attributes']['max_assignments'] ?? 0;
@@ -494,6 +583,9 @@ class Admin_Controller {
       }
       if(empty($membership_data['membership_next_tier_subscription_renewal'])) {
         $membership_data['membership_next_tier_subscription_renewal'] = get_post_meta( $membership->ID, 'membership_next_tier_subscription_renewal', true);
+      }
+      if(empty($membership_data['membership_next_tier_form_page_id'])) {
+        $membership_data['membership_next_tier_form_page_id'] = get_post_meta( $membership->ID, 'membership_next_tier_form_page_id', true);
       }
       $membership_data['membership_next_tier_id'] = (int) $membership_data['membership_next_tier_id'];
       $membership_data['membership_next_tier_form_page_id'] = (int) $membership_data['membership_next_tier_form_page_id'];
@@ -553,16 +645,44 @@ class Admin_Controller {
           $membership_item['subscription']['status'] = $sub->get_status();
           $sub_next_payment_date = $sub->get_time('next_payment');
           if( empty($sub_next_payment_date_set ) && !empty($sub_next_payment_date ) && ($meta['membership_status'] == 'delayed' || $meta['membership_status'] == 'active')) {
-            $membership_item['subscription']['next_payment_date'] = (new \DateTime( date("Y-m-d", $sub_next_payment_date), wp_timezone() ))->format('Y-m-d');
+            $membership_item['subscription']['next_payment_date'] = Utilities::format_mdp_date( 'Y-m-d', $sub_next_payment_date );
             $sub_next_payment_date_set = true;
           } else {
             $membership_item['subscription']['next_payment_date'] = 'N/A';
           }
         }
       }
+      // get_stored_status() computes and stores this once if never computed (e.g. a membership
+      // created before this cache existed) rather than treating missing meta as a confirmed
+      // false — but never recomputes live on every render once it's stored.
+      $autorenew_status = Autorenew_Sync::get_stored_status( $membership->ID );
+      $membership_item['subscription']['is_autorenewing'] = $autorenew_status['result'];
+      $membership_item['subscription']['autorenew_reason'] = $autorenew_status['reason'];
       $membership_item['switch_to_url'] = Helper::get_user_switch_to_url( $meta['user_id'] );
       $membership_item['_sort_start_ts'] = strtotime($meta['membership_starts_at'] ?? '');
       $membership_item['_sort_tier_weight'] = $tier_sort_weights[$meta['membership_tier_uuid'] ?? ''] ?? 0;
+
+      $bundle_id = get_post_meta( $membership->ID, 'membership_bundle_id', true );
+      if ( !empty( $bundle_id ) ) {
+        $bundle_obj        = new Membership_Bundle( (int) $bundle_id );
+        $bundle_owner      = $bundle_obj->get_owner();
+        $bundle_dates      = $bundle_obj->get_dates();
+        $bundle_mdp_uuid = (string) get_post_meta( (int) $bundle_id, 'membership_bundle_mdp_uuid', true );
+        $membership_item['is_membership_bundle'] = true;
+        $membership_item['bundle_id']            = (int) $bundle_id;
+        $membership_item['bundle_name']          = $bundle_obj->get_name();
+        $membership_item['bundle_admin_name']    = $bundle_owner ? $bundle_owner['name'] : '';
+        $membership_item['bundle_starts_at']     = $bundle_dates['starts_at'] ?? '';
+        $membership_item['bundle_ends_at']       = $bundle_dates['ends_at'] ?? '';
+        $membership_item['bundle_edit_url']      = admin_url( 'admin.php?page=' . Membership_CPT_Hooks::EDIT_BUNDLE_MEMBER_PAGE_SLUG . '&id=' . $bundle_obj->get_bundle_group_uuid() );
+        $person_uuid = $membership_data['membership_user_uuid'] ?? '';
+        $membership_item['bundle_mdp_link']      = ( $person_uuid && ! empty( $wicket_settings['wicket_admin'] ) )
+          ? rtrim( $wicket_settings['wicket_admin'], '/' ) . '/people/' . $person_uuid . '/memberships'
+          : '';
+      } else {
+        $membership_item['is_membership_bundle'] = false;
+      }
+
       $membership_items[] = $membership_item;
     }
 
@@ -586,6 +706,17 @@ class Admin_Controller {
     return $membership_items;
   }
 
+  /**
+   * Save an admin edit of a membership's dates, owner and next-tier settings.
+   *
+   * Dates are snapped to MDP day boundaries; the early-renew date is recalculated from the new
+   * end with the tier config's renewal window, and the changes are pushed to the MDP.
+   *
+   * @param  array $data  Edit payload: membership_post_id, membership_starts_at / ends_at / expires_at,
+   *                      optional new_owner_uuid, renewal_type and next-tier fields.
+   *
+   * @return \WP_REST_Response  Always 200; failures are reported in the body's `error` key.
+   */
   public static function update_membership_entity_record( $data ) {
     $date_update_response = '';
     $ownership_change_response = '';
@@ -663,17 +794,14 @@ class Admin_Controller {
       if(empty($membership_tier_id)) {
         $response_array['error'] = 'Error: '.$ownership_change_response.'Membership tier not found. ';
         $response_array['response'] = Helper::get_post_meta( $membership_post_id );
-        $response_code = 200;  
-        return new \WP_REST_Response($response_array, $response_code);  
+        $response_code = 200;
+        return new \WP_REST_Response($response_array, $response_code);
       }
       $membership_tier = new Membership_Tier( $membership_tier_id );
       $config = new Membership_Config( $membership_tier->tier_data['config_id'] );
-      $renewal_window_days = $config->get_renewal_window_days();
-      
-      // Calculate early renew date by subtracting renewal window days from end date
-      $membership_early_renew_at = clone $membership_ends_at;
-      $membership_early_renew_at->modify("-$renewal_window_days days");
-      $membership_early_renew_at = Utilities::get_mdp_day_start($membership_early_renew_at->format('Y-m-d'));
+      // Same early-renew rule as purchase and checkout; no window configured falls back to the end.
+      $early_renew_iso = $config->get_early_renew_at_for_end( $membership_ends_at->format('c') );
+      $membership_early_renew_at = Utilities::get_utc_datetime( $early_renew_iso ?? $membership_ends_at->format('c') );
 
       // Calculate grace period days using DateTime diff
       $grace_period_days = abs($membership_ends_at->diff($membership_expires_at)->days);
@@ -728,6 +856,11 @@ class Admin_Controller {
     $membership['membership_type'] = $membership_post['membership_type'][0];
     $membership['membership_wicket_uuid'] = $membership_post['membership_wicket_uuid'][0];
     $membership['org_seats'] = $membership_post['org_seats'][0] ?? 0;
+    // The local record was just saved above (update_local_membership_record()), so the stored
+    // status already reflects this edit — no need to recompute live here.
+    $autorenew_status = Autorenew_Sync::get_stored_status( $membership_post_id );
+    $data['membership_is_autorenew'] = $autorenew_status['result'];
+    $data['membership_is_autorenew_reason'] = $autorenew_status['reason'];
     $wicket_response = $Membership_Controller->update_mdp_record( $membership, $data );
 
     $membership['membership_subscription_id'] = $membership_post['membership_subscription_id'][0];
@@ -815,7 +948,7 @@ class Admin_Controller {
         $order = wc_get_order( $order_id );
         if(!empty($order)) {
           $order_meta = get_post_meta( $order_id, '_wicket_membership_'.$membership['membership_product_id'] );
-          $order_meta_array = json_decode( $order_meta[0], true);
+          $order_meta_array = json_decode( $order_meta[0] ?? '', true) ?? [];
           $order_meta_array['membership_wp_user_id'] = $user->ID;
           $order_meta_array['membership_wp_user_display_name'] = $user->display_name;
           $order_meta_array['membership_wp_user_email'] = $user->user_email;
@@ -834,7 +967,7 @@ class Admin_Controller {
         $sub = wcs_get_subscription( $subscription_id );
         if( !empty( $sub )) {
           $subscription_meta = get_post_meta( $membership['membership_subscription_id'], '_wicket_membership_'.$membership['membership_product_id'] );
-          $subscription_meta_array = json_decode( $subscription_meta[0], true);
+          $subscription_meta_array = json_decode( $subscription_meta[0] ?? '', true) ?? [];
           $subscription_meta_array['user_id'] = $user->ID;
           $subscription_meta_array['user_name'] = $user->display_name;
           $subscription_meta_array['user_email'] = $user->user_email;
@@ -860,6 +993,17 @@ class Admin_Controller {
     return new \WP_REST_Response($response_array, $response_code);
   }
 
+  /**
+   * Create a draft renewal order and yearly subscription for a membership from the admin.
+   *
+   * Tags the order and subscription line items with `_membership_post_id_renew` so payment
+   * renews the existing membership rather than creating a new one.
+   *
+   * @param  \WP_REST_Request|array $request  Needs membership_post_id, product_id and optional variation_id.
+   *
+   * @return \WP_REST_Response  200 with the order_url on success; 400 when the membership is missing,
+   *                            not active / grace_period / delayed, or the product is not found.
+   */
   public static function create_renewal_order( $request ) {
     $response_array = [];
 
@@ -926,7 +1070,7 @@ class Admin_Controller {
       'customer_id' => $customer_wp_id,
       'billing_period' => 'year',
       'billing_interval' => 1,
-      'start_date' => current_time( 'mysql' ),
+      'start_date' => current_time( 'mysql', true ), // WCS expects GMT.
     ) );
     $subscription->add_product( $wc_product );
     $subscription->calculate_totals();
@@ -1001,12 +1145,15 @@ class Admin_Controller {
         $date2 = new \DateTime($membership->membership_expires_at);
         $interval = $date1->diff($date2);
         $grace_period_days = !empty($interval->days) ? $interval->days : 0;
+          $is_autorenew = Autorenew_Sync::get_stored_status( $membership_post_id )['result'];
           $response1 = wicket_assign_individual_membership(
             $person_uuid,
             $membership->membership_tier_uuid,
             $membership->membership_start_at,
             $membership->membership_ends_at,
             $grace_period_days,
+            '',
+            $is_autorenew
           );
           Utilities::wc_log_mship_error(["CREATED mship single merge in MDP", $response1]);
 
@@ -1015,7 +1162,9 @@ class Admin_Controller {
 
           $single_merged_wicket_membership_uuid = $response1['data']['id'];
           update_post_meta( $membership_post_id, 'membership_wicket_uuid', $single_merged_wicket_membership_uuid);
-          wicket_update_membership_external_id( $single_merged_wicket_membership_uuid, 'person_memberships', $membership_post_id );
+          // Return value ignored on purpose: failures are flagged via post meta
+          // (_collision/_failed) and wc-logs; the merge itself must complete.
+          (new Membership_Controller)->assign_membership_external_id( $single_merged_wicket_membership_uuid, 'person_memberships', $membership_post_id );
       }
 
       $orig_user_id = is_numeric( $record_id ) ? $record_id : get_post_meta( $membership_post_id, 'user_id', true);
@@ -1028,7 +1177,7 @@ class Admin_Controller {
       update_post_meta( $membership_post_id, 'user_email', $merged_user->user_email);
 
       $customer_meta = get_user_meta( $orig_user_id, '_wicket_membership_'.$membership_post_id );
-      $customer_meta_array = json_decode( $customer_meta[0], true);
+      $customer_meta_array = json_decode( $customer_meta[0] ?? '', true) ?? [];
 
       if(empty($customer_meta)) {
         $customer_meta = get_post_meta( $membership_post_id );
@@ -1083,6 +1232,17 @@ class Admin_Controller {
     }
   }
 
+  /**
+   * Create a draft order and yearly subscription that switches a membership to another product.
+   *
+   * Tags the order and subscription line items with `_membership_post_id_switch` so payment
+   * performs the switch.
+   *
+   * @param  int $membership_post_id  The wicket_membership post being switched.
+   * @param  int $switch_post_id      Product (or variation) ID to switch to.
+   *
+   * @return \WP_REST_Response  200 with the order edit redirect_url on success, 400 on invalid input.
+   */
   public function create_switch_order( $membership_post_id, $switch_post_id ) {
     $product_id = $switch_post_id;
     if ( ! Helper::is_valid_membership_post( $membership_post_id ) ) {
@@ -1131,7 +1291,7 @@ class Admin_Controller {
       'customer_id' => $customer_wp_id,
       'billing_period' => 'year',
       'billing_interval' => 1,
-      'start_date' => current_time( 'mysql' ),
+      'start_date' => current_time( 'mysql', true ), // WCS expects GMT.
     ) );
     $subscription->add_product( $wc_product );
     $subscription->calculate_totals();
@@ -1190,7 +1350,8 @@ class Admin_Controller {
       // and the cancelled membership ends now (not midnight).
       $switch_iso_date = Utilities::get_mdp_now()->format('c');
     } else {
-      $switch_iso_date = (new \DateTime( date("Y-m-d", strtotime($switch_date)), wp_timezone() ))->format('c');
+      // A dated switch starts at midnight in the MDP timezone, like every other membership start.
+      $switch_iso_date = Utilities::get_mdp_day_start( $switch_date )->format('c');
     }
 
     $user_id = get_post_meta( $membership_post_id, 'user_id', true );
@@ -1206,8 +1367,8 @@ class Admin_Controller {
     $membership_type = $membership_tier->tier_data['type'];
 
     $membership_starts_at = $switch_iso_date;
+    // Already MDP end-of-day as UTC ISO, so the MDP record keeps the same end as the post.
     $membership_ends_at = get_post_meta( $membership_post_id, 'membership_ends_at', true);
-    $membership_ends_at = (new \DateTime( date("Y-m-d", strtotime($membership_ends_at)), wp_timezone() ))->format('c');
     $membership_grace_period_days = $config->get_late_fee_window_days();
 
     // Capture the OLD membership's MDP identity/start before mutating its meta.
@@ -1261,6 +1422,10 @@ class Admin_Controller {
       // Link the old person membership as the predecessor for MDP record continuity,
       // mirroring the org path above and Membership_Controller::create_mdp_record().
       $base_version_supports_previous_membership_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.52', '>' );
+      // Fresh, not carried forward: the new membership post doesn't exist yet to read stored
+      // meta from. The switch reuses the same subscription as the old membership today, so this
+      // matches the old membership's value, but computing it here stays correct if that changes.
+      $is_autorenew = Autorenew::resolve_status( [ 'membership_subscription_id' => get_post_meta( $membership_post_id, 'membership_subscription_id', true ) ] )['result'];
       if ( $base_version_supports_previous_membership_assignment ) {
         $response = wicket_assign_individual_membership(
               $owner_uuid,
@@ -1268,7 +1433,8 @@ class Admin_Controller {
               $membership_starts_at,
               $membership_ends_at,
               $membership_grace_period_days,
-              $old_membership_wicket_uuid // previous_membership_uuid: links predecessor record
+              $old_membership_wicket_uuid, // previous_membership_uuid: links predecessor record
+              $is_autorenew
             );
       } else {
         $response = wicket_assign_individual_membership(
@@ -1276,7 +1442,9 @@ class Admin_Controller {
               $membership_tier_uuid,
               $membership_starts_at,
               $membership_ends_at,
-              $membership_grace_period_days
+              $membership_grace_period_days,
+              '',
+              $is_autorenew
             );
       }
     }
@@ -1311,6 +1479,10 @@ class Admin_Controller {
       return new \WP_REST_Response(['success' => false, 'error' => 'Failed to create new membership post.'], 400);
     }
 
+    // A new membership post adds a row to the admin member list; drop the cached
+    // set so it appears immediately rather than when the transient expires.
+    Membership_Controller::mark_member_list_cache_stale();
+
     // Copy all meta from the original post to the new post
     $all_meta = get_post_meta( $membership_post_id );
     foreach ( $all_meta as $meta_key => $meta_values ) {
@@ -1344,7 +1516,13 @@ class Admin_Controller {
     // original, so unscheduling that key and re-adding it simply moves the same event to the new date.
     if ( ! empty( $old_membership_parent_order_id ) && ! empty( $old_membership_product_id )
          && strtotime( $new_membership_expires_at ) !== strtotime( (string) $old_membership_expires_at )
-         && function_exists( 'as_unschedule_action' ) && function_exists( 'as_schedule_single_action' ) ) {
+         && function_exists( 'as_unschedule_action' ) && function_exists( 'as_schedule_single_action' )
+         // Bundle members never had this job scheduled in the first place — see should_schedule_expiry_notification_jobs().
+         && Membership_Controller::should_schedule_expiry_notification_jobs( [
+              'membership_parent_order_id' => $old_membership_parent_order_id,
+              'membership_product_id'      => $old_membership_product_id,
+              'membership_bundle_id'       => get_post_meta( $new_post_id, 'membership_bundle_id', true ),
+            ] ) ) {
       $expiry_event_args = [
         'membership_parent_order_id' => $old_membership_parent_order_id,
         'membership_product_id'      => $old_membership_product_id,
@@ -1361,6 +1539,12 @@ class Admin_Controller {
     update_post_meta( $membership_post_id, 'membership_ends_at', $switch_iso_date );
     update_post_meta( $membership_post_id, 'membership_expires_at', $switch_iso_date );
     update_post_meta( $membership_post_id, 'membership_grace_period_days', 0 );
+    // Cancelling the old membership here doesn't touch its WC subscription (it's shared with the
+    // new membership), so Autorenew_Sync's listeners never fire and never refresh this
+    // membership's own stored status — write it directly, matching
+    // Autorenew_Sync::handle_subscription_deleted()'s pattern for the same class of gap.
+    update_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_RESULT, false );
+    update_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_REASON, __( 'Membership was switched to a new tier.', 'wicket-memberships' ) );
 
     // Sync the cancelled membership to the MDP: end it now (mdp tz), zero the grace period.
     // Organization memberships must be patched via the organization_memberships endpoint.
@@ -1375,11 +1559,15 @@ class Admin_Controller {
           0                          // grace_period_days -> 0
         );
       } else {
+        // Explicit false, not a recompute: the membership is being cancelled in this same
+        // request, and Autorenew::resolve_status() doesn't look at this CPT's own status, only
+        // the (still shared/active) subscription — a recompute here would wrongly report true.
         $mdp_update = wicket_update_individual_membership_dates(
           $old_membership_wicket_uuid,
           $old_membership_starts_at, // preserve original start; helper defaults to "now" if empty
           $switch_iso_date,          // ends_at -> now (mdp timezone)
-          0                          // grace_period_days -> 0
+          0,                         // grace_period_days -> 0
+          false                      // is_autorenew -> false: cancelled, will never renew
         );
       }
       if ( is_wp_error( $mdp_update ) ) {
@@ -1428,9 +1616,11 @@ class Admin_Controller {
       return $end_date_iso;
     }
 
-    // Add the grace days to the end date, then snap to end-of-day in the MDP timezone. Take the
-    // calendar date (Y-m-d) so the offset carried on $end_date_iso cannot shift the day.
-    $expires_date = ( new \DateTime( $end_date_iso, new \DateTimeZone( 'UTC' ) ) )
+    // Add the grace days to the end's calendar day in the MDP timezone, then snap to MDP end-of-day.
+    // The stored end is UTC, so its UTC day can be the day after the MDP day.
+    $mdp_timezone = Utilities::get_mdp_timezone();
+    $expires_date = ( new \DateTime( $end_date_iso ) )
+      ->setTimezone( $mdp_timezone )
       ->modify( '+' . $grace_days . ' days' )
       ->format( 'Y-m-d' );
 
@@ -1472,13 +1662,21 @@ class Admin_Controller {
       $membership_grace_period_days = abs(round( ( $membership_expires_at_seconds - $membership_ends_at_seconds ) / 86400 ) );
     }
 
+    // Fresh, not carried forward: the new membership post doesn't exist yet to read stored meta
+    // from, and while today's transfer keeps the same subscription (so this matches the old
+    // membership's value), computing it directly here stays correct if that ever changes.
+    $membership_subscription_id = get_post_meta( $membership_post_id, 'membership_subscription_id', true );
+    $is_autorenew = Autorenew::resolve_status( [ 'membership_subscription_id' => $membership_subscription_id ] )['result'];
+
     //Create a new membership in the MDP for the new owner using the original membership data
-    $response = wicket_assign_individual_membership( 
+    $response = wicket_assign_individual_membership(
             $new_owner_uuid,
             $membership_tier_uuid,
             $membership_starts_at,
             $membership_ends_at,
-            $membership_grace_period_days
+            $membership_grace_period_days,
+            '',
+            $is_autorenew
           );
 
     if ( is_wp_error( $response ) ) {
@@ -1498,6 +1696,10 @@ class Admin_Controller {
     if ( is_wp_error( $new_post_id ) ) {
       return new \WP_REST_Response(['success' => false, 'error' => 'Failed to create new membership post.'], 400);
     }
+
+    // A new membership post adds a row to the admin member list; drop the cached
+    // set so it appears immediately rather than when the transient expires.
+    Membership_Controller::mark_member_list_cache_stale();
 
     // Copy all meta from the original post to the new post
     $all_meta = get_post_meta( $membership_post_id );
@@ -1531,21 +1733,31 @@ class Admin_Controller {
     update_post_meta( $membership_post_id, 'membership_status', Wicket_Memberships::STATUS_CANCELLED );
     //TODO: we have reassigned the subscription to the new user so unassign the meta data linking to old membership
     //delete_post_meta( $membership_post_id, 'membership_subscription_id');
+    // Cancelling the old membership here doesn't touch its WC subscription, so
+    // Autorenew_Sync's listeners never fire and never refresh this membership's own stored
+    // status — write it directly, matching Autorenew_Sync::handle_subscription_deleted()'s
+    // pattern for the same class of gap.
+    update_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_RESULT, false );
+    update_post_meta( $membership_post_id, Autorenew_Sync::META_KEY_REASON, __( 'Membership was transferred to a new owner.', 'wicket-memberships' ) );
 
     $membership_type = $old_customer_meta_array['membership_type'] == 'individual' ? 'person_memberships' : 'organization_memberships';
     // Update the new wicket membership with the new external ID
-    $response_external_id = wicket_update_membership_external_id( $membership_wicket_uuid, $membership_type, $new_post_id );
-    if ( is_wp_error( $response_external_id ) ) {
-      Utilities::wc_log_mship_error( [ 'Transfer membership - Set external ID failed.', 'wicket_api_error' => $response_external_id->get_error_message( 'wicket_api_error' ), $membership_wicket_uuid, $membership_type, $new_post_id, $old_customer_meta_array['membership_type'] ]);
-    }
+    // Return value ignored on purpose: failures are flagged via post meta
+    // (_collision/_failed) and wc-logs; the owner change must complete regardless.
+    (new Membership_Controller)->assign_membership_external_id( $membership_wicket_uuid, $membership_type, $new_post_id );
 
     $meta_data = [
       'membership_starts_at' =>  $old_customer_meta_array['membership_starts_at'],
       'membership_ends_at' =>  $now_iso_date,
       'membership_expires_at' => $now_iso_date,
-      'membership_grace_period_days' => 0
+      'membership_grace_period_days' => 0,
+      // Explicit false, not a recompute: the membership is being cancelled in this same request,
+      // and Autorenew::resolve_status() doesn't look at this CPT's own status, only the (still
+      // shared/active) subscription — a recompute here would wrongly report true.
+      'membership_is_autorenew' => false,
+      'membership_is_autorenew_reason' => __( 'Membership was transferred to a new owner.', 'wicket-memberships' ),
     ];
-    
+
     (new Membership_Controller)->update_mdp_record( $old_customer_meta_array, $meta_data );
 
     $old_customer_meta_array['membership_ends_at'] = $now_iso_date;

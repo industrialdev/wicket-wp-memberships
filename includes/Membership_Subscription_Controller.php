@@ -5,7 +5,14 @@ namespace Wicket_Memberships;
 use Wicket_Memberships\Helper;
 
 /**
- * Main controller methods
+ * Main subscription controller methods.
+ *
+ * @see atlas://packages/wicket-wp-memberships.md
+ *
+ * ARCHITECTURAL GUARDRAIL:
+ * Manages WooCommerce Subscriptions creation and synchronization for tier-linked products.
+ * Preserve existing procedural methods. AI agents MUST NOT refactor into OOP services.
+ *
  * @package Wicket_Memberships
  */
 class Membership_Subscription_Controller {

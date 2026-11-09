@@ -18,7 +18,7 @@ defined( 'ABSPATH' ) || exit;
  * Every method is static and side-effect free. The filter that will consume these (Step 4) runs
  * 3+ times per request, so nothing here may mutate WooCommerce state.
  *
- * @see docs/local/WOOCOMMERCE_API_KEY_AUTH_FOR_MEMBERSHIP_CPTS.md  Design and rationale.
+ * @see atlas://packages/wicket-wp-memberships/engineering/membership-cpt-rest-access.md  Design and rationale.
  *
  * @since 1.0.0
  */
