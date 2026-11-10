@@ -334,8 +334,8 @@ function get_item_data ( $other_data, $cart_item ) {
   /**
    * Decide whether a cart line gets a prorated first payment.
    *
-   * Only a new purchase of a prorated tier product qualifies. Bundle members and admin-created
-   * orders never reach the cart, so they need no check here.
+   * Only a new purchase of a prorated tier product billed once a year qualifies. Bundle members
+   * and admin-created orders never reach the cart, so they need no check here.
    *
    * @see atlas://plans/feature-configurable-proration.md
    * @since 1.1.0
@@ -363,6 +363,13 @@ function get_item_data ( $other_data, $cart_item ) {
       return null;
     }
     if ( class_exists( '\WC_Subscriptions_Synchroniser' ) && \WC_Subscriptions_Synchroniser::is_product_synced( $product ) ) {
+      return null;
+    }
+
+    // The season ratio scales a price that pays for the whole season. A monthly or multi-year
+    // price pays for a different span, so scaling it by the season left gives a meaningless charge.
+    if ( \WC_Subscriptions_Product::get_period( $product ) !== 'year'
+      || (int) \WC_Subscriptions_Product::get_interval( $product ) !== 1 ) {
       return null;
     }
 

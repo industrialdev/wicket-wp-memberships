@@ -88,6 +88,7 @@ Proration applies only to a new purchase. The member pays the full price in thes
 - The member resubscribes to a cancelled or expired subscription.
 - The member switches a subscription from one product to another.
 - The product has a free trial. WooCommerce Subscriptions charges only the sign-up fee up front, as usual.
+- The product is not billed once a year, for example a monthly product. Proration takes a share of a price that pays for the whole season, so it applies only to products billed every 1 year.
 - The purchase date is not inside any season of the config.
 - The membership comes from a membership bundle, or an admin creates the order in the WordPress admin.
 
