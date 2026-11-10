@@ -389,14 +389,20 @@ class Membership_Tier {
   }
 
   /**
-   * Get the config
+   * Get the tier's linked membership config.
    *
-   * @return Membership_Config
+   * A tier can outlive its config: a permanently deleted config (including one WordPress purges
+   * from the trash) leaves the tier's config_id pointing at no post.
+   *
+   * @return Membership_Config|false  The config, or false when the tier has no config or the
+   *                                  config post no longer exists.
    */
   public function get_config() {
     $config_id = $this->get_config_id();
 
-    if ( ! $config_id ) {
+    // Membership_Config's constructor throws on a missing post; that is uncaught in cart
+    // calculations and fatals the cart, so report the missing config as no config.
+    if ( ! $config_id || ! get_post( $config_id ) ) {
       return false;
     }
 
