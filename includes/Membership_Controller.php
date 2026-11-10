@@ -385,8 +385,26 @@ function get_item_data ( $other_data, $cart_item ) {
       return null;
     }
 
-    // Buying the tier you already hold is a renewal, the same rule as validate_renewal_order_items().
-    if ( ! empty( ( new self() )->get_my_memberships( Wicket_Memberships::STATUS_ACTIVE, $tier->tier_data['mdp_tier_uuid'] ) ) ) {
+    // Buying a tier the member already holds is a renewal, the same rule as validate_renewal_order_items().
+    // An org tier is held by the org, not the buyer: one manager may buy it for a second org, and a
+    // second manager may buy it again for an org that holds it. A line with no org falls back to the buyer.
+    $tier_uuid = $tier->tier_data['mdp_tier_uuid'];
+    if ( $tier->is_organization_tier() && ! empty( $cart_item['org_uuid'] ) ) {
+      $held = get_posts( [
+        'post_type'      => Helper::get_membership_cpt_slug(),
+        'post_status'    => 'publish',
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'meta_query'     => [
+          [ 'key' => 'org_uuid', 'value' => $cart_item['org_uuid'], 'compare' => '=' ],
+          [ 'key' => 'membership_tier_uuid', 'value' => $tier_uuid, 'compare' => '=' ],
+          [ 'key' => 'membership_status', 'value' => Wicket_Memberships::STATUS_ACTIVE, 'compare' => '=' ],
+        ],
+      ] );
+    } else {
+      $held = ( new self() )->get_my_memberships( Wicket_Memberships::STATUS_ACTIVE, $tier_uuid );
+    }
+    if ( ! empty( $held ) ) {
       return null;
     }
 

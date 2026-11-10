@@ -84,7 +84,7 @@ If the product has a sign-up fee, the member pays the full sign-up fee on top of
 Proration applies only to a new purchase. The member pays the full price in these cases:
 
 - The member renews a membership, including an early renewal.
-- The member already has an active membership on the same tier.
+- The member already has an active membership on the same tier. For an organization tier, this means the organization already has the tier, no matter which person bought it. A person who manages two organizations still gets proration when buying the tier for the second one.
 - The member resubscribes to a cancelled or expired subscription.
 - The member switches a subscription from one product to another.
 - The product has a free trial. WooCommerce Subscriptions charges only the sign-up fee up front, as usual.
