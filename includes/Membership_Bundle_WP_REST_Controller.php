@@ -811,7 +811,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       return true;
     }
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
-      return new \WP_Error( 'rest_forbidden', 'Authentication required.', [ 'status' => $this->authorization_status_code() ] );
+      return new \WP_Error( 'rest_forbidden', __( 'You do not have permission to perform this action.', 'wicket-memberships' ), [ 'status' => $this->authorization_status_code() ] );
     }
     return true;
   }
@@ -830,7 +830,7 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
       return true;
     }
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
-      return new \WP_Error( 'rest_forbidden', 'Authentication required.', [ 'status' => $this->authorization_status_code() ] );
+      return new \WP_Error( 'rest_forbidden', __( 'You do not have permission to perform this action.', 'wicket-memberships' ), [ 'status' => $this->authorization_status_code() ] );
     }
     return true;
   }
