@@ -5,6 +5,7 @@ namespace Wicket_Memberships;
 use Wicket_Memberships\Membership_Controller;
 use Wicket_Memberships\Utilities;
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Api_Key_Access;
 use Wicket_Memberships\Autorenew_Sync;
 
 /**
@@ -322,6 +323,12 @@ class Settings {
     $newinput['wicket_mship_enable_bundles'] = trim( $input['wicket_mship_enable_bundles'] ?? '' );
     // Always written ('' when unticked) so an explicit "off" is distinguishable from never saved.
     $newinput['wicket_mship_consolidate_renewal_line_items'] = ! empty( $input['wicket_mship_consolidate_renewal_line_items'] ) ? '1' : '';
+    // Allowlisted WooCommerce API key IDs. absint then drop zeros so an empty submitted value can
+    // never be stored as key_id 0. Absent from $input when every option is deselected, which must
+    // persist as an empty list rather than leaving the previous selection in place.
+    $newinput[ Api_Key_Access::OPTION_KEY ] = isset( $input[ Api_Key_Access::OPTION_KEY ] )
+      ? array_values( array_unique( array_filter( array_map( 'absint', (array) $input[ Api_Key_Access::OPTION_KEY ] ) ) ) )
+      : [];
 
     // Programmatic writes (Portus import, backup restore) also run through this callback and may
     // only carry the legacy key; fall back to it so those categories are not wiped. The new key wins if both exist.

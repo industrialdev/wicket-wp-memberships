@@ -39,6 +39,9 @@ class Settings_Fields {
           'wicket_mship_mdp_timezone'         => 'MDP Timezone',
           'wicket_mship_membership_merge_key' => 'Merge Webhook API Key',
         ] ],
+        'api_access' => [ 'API Access', null, [
+          'wicket_mship_api_allowed_keys' => 'WooCommerce API Key Access',
+        ] ],
       ],
       'renewals' => [
         'renewal_settings' => [ 'Renewals', null, [
@@ -356,6 +359,54 @@ class Settings_Fields {
   public static function wicket_mship_autorenew_audit() {
     // Rendered inside the Scheduled Jobs table; saved with the rest of the form.
     self::render_checkbox( 'wicket_mship_autorenew_audit', 'Run nightly', '', 0 );
+  }
+
+  /**
+   * Render the multi-select of WooCommerce API keys permitted to reach the membership CPT
+   * REST endpoints.
+   *
+   * Selecting nothing leaves the endpoints reachable only by the credentials that work today
+   * (cookie and Application Password), so an empty selection is the safe default.
+   *
+   * Options are keyed by `key_id` rather than the key's name, because the name is free text in
+   * WooCommerce and two keys may share one.
+   *
+   * @see Api_Key_Access::get_available_keys()  Supplies the option list.
+   *
+   * @return void
+   */
+  public static function wicket_mship_api_allowed_keys() {
+    $options  = get_option( 'wicket_membership_plugin_options' );
+    $selected = isset( $options[ Api_Key_Access::OPTION_KEY ] ) ? (array) $options[ Api_Key_Access::OPTION_KEY ] : array();
+    $selected = array_map( 'absint', $selected );
+
+    $keys = Api_Key_Access::get_available_keys();
+
+    echo 'Select which WooCommerce REST API keys may read and write the membership records through the WordPress REST API. Keys not selected here have no access to it. The key holder must also be an administrator.';
+
+    // No control to render when WooCommerce is inactive or no keys have been created yet — an
+    // empty <select> would read as "there is nothing to grant" rather than "there is nothing yet".
+    if ( empty( $keys ) ) {
+      echo '<br /><em>' . esc_html__( 'No WooCommerce REST API keys are available. Create one under WooCommerce → Settings → Advanced → REST API.', 'wicket-memberships' ) . '</em>';
+
+      return;
+    }
+
+    ?><br /><select id="wicket_mship_api_allowed_keys" multiple="multiple" size="6" name="wicket_membership_plugin_options[<?php echo esc_attr( Api_Key_Access::OPTION_KEY ); ?>][]"><?php
+    foreach ( $keys as $key ) {
+      // WooCommerce allows an unnamed key; show a placeholder so the row is still selectable.
+      $description = '' !== trim( $key['description'] ) ? $key['description'] : __( '(unnamed key)', 'wicket-memberships' );
+
+      // Name plus the key's last characters only — the same two details WooCommerce shows on its
+      // own key list, which is how an administrator recognises a key they created there.
+      $label = sprintf( '%s — ending in %s', $description, $key['truncated_key'] );
+      ?>
+        <option value="<?php echo esc_attr( $key['key_id'] ); ?>" <?php selected( in_array( $key['key_id'], $selected, true ) ); ?>>
+          <?php echo esc_html( $label ); ?>
+        </option>
+      <?php
+    }
+    ?></select><br /><em><?php esc_html_e( 'Revoking a key in WooCommerce removes it from this list. A key that is revoked and recreated is a new key, and must be selected again here.', 'wicket-memberships' ); ?></em><?php
   }
 
   /**

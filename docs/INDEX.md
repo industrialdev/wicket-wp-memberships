@@ -9,3 +9,4 @@ End-user documentation for the Wicket Memberships plugin. Engineering and produc
 - [Prorate the First Payment for Mid-Season Joins](configurable-proration.md)
 - [Switch a Membership to a Different Tier](membership_switch.md)
 - [Transfer a Membership to a New Owner](membership_transfer.md)
+- [Connect an Integration to Membership Data](grant-api-access-to-memberships.md)
