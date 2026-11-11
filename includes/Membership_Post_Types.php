@@ -114,22 +114,32 @@ class Membership_Post_Types {
    * WP_REST_Request to ask — notably WooCommerce's `woocommerce_rest_is_request_to_rest_api`
    * filter, which receives no arguments and matches on `$_SERVER['REQUEST_URI']` itself.
    *
-   * Follows the WP::parse_request() order: a `rest_route` argument in the POST body, then in the
-   * query string, then the path under the REST prefix.
+   * Returns a route only for a request that WordPress serves as REST: a query `rest_route` on a
+   * REST request, or a path that starts with the REST prefix under the home path. WooCommerce
+   * authenticates on `determine_current_user` for every request, but the key's read/write limit
+   * and restrict_membership_rest_access() run only on REST dispatch. A route returned for an
+   * admin-ajax or admin-post request would log the key in as its owner with no limit.
    *
    * @return string  Route with a leading slash, e.g. `/wp/v2/wicket_membership`; empty string when
-   *                 the request is not a REST request at all.
+   *                 the request is not a REST request, or carries a POST `rest_route`.
    */
   private function get_requested_rest_route() {
-    // A `rest_route` argument overrides the path, and WP::parse_request() reads the POST body
-    // before the query string. Follow the same order, or a membership URI with another route in
-    // the body would open key auth for the route WordPress actually dispatches. The raw value is
-    // only compared, never output, so it is not sanitized: sanitizing could make it differ from
-    // the route WordPress dispatches.
-    foreach ( array( $_POST, $_GET ) as $params ) {
-      if ( isset( $params['rest_route'] ) ) {
-        return is_string( $params['rest_route'] ) ? '/' . ltrim( wp_unslash( $params['rest_route'] ), '/' ) : '';
+    // WP::parse_request() lets a POST `rest_route` override the URI. A key has no need for it, and
+    // the URI would then name a route other than the one WordPress dispatches.
+    if ( isset( $_POST['rest_route'] ) ) {
+      return '';
+    }
+
+    // A query `rest_route` also overrides the path, but WordPress reads it only on REST requests.
+    // Before parse_request() this is not yet known, so the route stays empty here. WooCommerce
+    // runs authenticate() again from `rest_authentication_errors`, when it is known.
+    if ( isset( $_GET['rest_route'] ) ) {
+      if ( ! wp_is_rest_endpoint() || ! is_string( $_GET['rest_route'] ) ) {
+        return '';
       }
+
+      // Only compared, never output. Sanitizing could make it differ from the dispatched route.
+      return '/' . ltrim( wp_unslash( $_GET['rest_route'] ), '/' );
     }
 
     if ( empty( $_SERVER['REQUEST_URI'] ) ) {
@@ -142,17 +152,26 @@ class Membership_Post_Types {
       return '';
     }
 
-    // Locate the prefix by search rather than assuming position 0, so subdirectory installs
-    // (/subsite/wp-json/...) resolve. rest_get_url_prefix() is used instead of a literal because
-    // the prefix is filterable.
-    $needle = '/' . trailingslashit( rest_get_url_prefix() );
-    $pos    = strpos( $path, $needle );
+    // Remove the home path, so subdirectory installs (/subsite/wp-json/...) resolve. The REST
+    // prefix must then start the path: a prefix anywhere else (admin-ajax.php/wp-json/...) is not
+    // a REST request. rest_get_url_prefix() is filterable, so no literal.
+    $home_path = untrailingslashit( (string) wp_parse_url( home_url(), PHP_URL_PATH ) );
 
-    if ( false === $pos ) {
+    if ( '' !== $home_path ) {
+      if ( 0 !== strpos( $path, $home_path . '/' ) ) {
+        return '';
+      }
+
+      $path = substr( $path, strlen( $home_path ) );
+    }
+
+    $prefix = '/' . trailingslashit( rest_get_url_prefix() );
+
+    if ( 0 !== strpos( $path, $prefix ) ) {
       return '';
     }
 
-    return '/' . ltrim( substr( $path, $pos + strlen( $needle ) ), '/' );
+    return '/' . ltrim( substr( $path, strlen( $prefix ) ), '/' );
   }
 
   /**
