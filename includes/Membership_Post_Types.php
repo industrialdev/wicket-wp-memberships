@@ -98,6 +98,10 @@ class Membership_Post_Types {
       return false;
     }
 
+    // WP_REST_Server matches routes without regard to case, so /wp/v2/WICKET_MEMBERSHIP
+    // dispatches to the same handler. The bases are lower case.
+    $route = strtolower( $route );
+
     foreach ( null === $bases ? $this->get_protected_rest_bases() : $bases as $base ) {
       if ( $route === $base || 0 === strpos( $route, $base . '/' ) ) {
         return true;
@@ -262,8 +266,9 @@ class Membership_Post_Types {
    * single-record sub-routes.
    *
    * Every caller must be logged in and hold 'manage_options'. A request that presents a
-   * WooCommerce API key must also use an allowlisted key on a key-reachable route; this holds
-   * however WooCommerce came to authenticate the key.
+   * WooCommerce API key must also use an allowlisted key on a key-reachable route, and may only
+   * read; this holds however WooCommerce came to authenticate the key. OAuth-signed requests are
+   * refused, because the key in them cannot be checked.
    *
    * @see get_protected_rest_bases()  Shared route list, also used by the URI-based matcher.
    * @see get_api_key_rest_bases()    The subset WooCommerce API keys may reach.
@@ -285,15 +290,27 @@ class Membership_Post_Types {
       return $result;
     }
 
+    // get_key_id_for_request() finds only Basic and query-string keys. WooCommerce also accepts
+    // OAuth-signed keys on a wc/ URI, and a `rest_route` override could bring one here unchecked.
+    if ( Api_Key_Access::request_has_oauth_params() ) {
+      return new WP_Error(
+        'rest_forbidden',
+        __( 'This API key has no access to this endpoint.', 'wicket-memberships' ),
+        array( 'status' => rest_authorization_required_code() )
+      );
+    }
+
     // A WooCommerce key passes only when it is allowlisted and the route is key-reachable. This
     // check sees the dispatched route. allow_woocommerce_key_auth() sees only the request URI, and
     // WooCommerce authenticates any key on a wc/ URI, so a `rest_route` override could otherwise
-    // reach these routes with any admin-owned key.
+    // reach these routes with any admin-owned key. Keys only read: a wp/v2 write skips the
+    // plugin's own membership logic (MDP sync, status changes, subscription links).
     $key_id = Api_Key_Access::get_key_id_for_request();
 
     if ( null !== $key_id && (
       ! in_array( $key_id, Api_Key_Access::get_allowed_key_ids(), true )
       || ! $this->is_protected_rest_route( $route, $this->get_api_key_rest_bases() )
+      || ! in_array( $request->get_method(), array( 'GET', 'HEAD' ), true )
     ) ) {
       return new WP_Error(
         'rest_forbidden',

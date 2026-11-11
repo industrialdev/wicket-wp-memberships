@@ -382,7 +382,7 @@ class Settings_Fields {
 
     $keys = Api_Key_Access::get_available_keys();
 
-    echo 'Select which WooCommerce REST API keys may read and write the membership records through the WordPress REST API. Keys not selected here have no access to it. The key holder must also be an administrator.';
+    echo 'Select which WooCommerce REST API keys may read the membership records through the WordPress REST API. Selected keys can only read, even if they are set to Read/Write. Keys not selected here have no access to it. The key holder must also be an administrator.';
 
     // No control to render when WooCommerce is inactive or no keys have been created yet — an
     // empty <select> would read as "there is nothing to grant" rather than "there is nothing yet".
