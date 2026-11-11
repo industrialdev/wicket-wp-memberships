@@ -798,27 +798,39 @@ class Membership_Bundle_WP_REST_Controller extends \WP_REST_Controller {
   // ---------------------------------------------------------------------------
 
   /**
-   * Check permissions to read.
+   * Allow read access to administrators only.
+   *
+   * Denies with a WP_Error: WordPress blocks only `false`, `null` or a WP_Error, and treats
+   * any other return value, such as a WP_REST_Response, as allowed.
+   *
+   * @param \WP_REST_Request $request Request being authorized.
+   * @return true|\WP_Error True when allowed, else a 401 (anonymous) or 403 (logged in) error.
    */
   public function permissions_check_read( $request ) {
     if ( ! empty( $_ENV['ALLOW_LOCAL_IMPORTS'] ) ) {
       return true;
     }
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
-      return new WP_REST_Response( [ 'error' => 'Authentication required.' ], 401 );
+      return new \WP_Error( 'rest_forbidden', 'Authentication required.', [ 'status' => $this->authorization_status_code() ] );
     }
     return true;
   }
 
   /**
-   * Check permissions to write.
+   * Allow write access to administrators only.
+   *
+   * Denies with a WP_Error: WordPress blocks only `false`, `null` or a WP_Error, and treats
+   * any other return value, such as a WP_REST_Response, as allowed.
+   *
+   * @param \WP_REST_Request $request Request being authorized.
+   * @return true|\WP_Error True when allowed, else a 401 (anonymous) or 403 (logged in) error.
    */
   public function permissions_check_write( $request ) {
     if ( ! empty( $_ENV['ALLOW_LOCAL_IMPORTS'] ) ) {
       return true;
     }
     if ( ! current_user_can( Wicket_Memberships::WICKET_MEMBERSHIPS_CAPABILITY ) ) {
-      return new WP_REST_Response( [ 'error' => 'Authentication required.' ], 401 );
+      return new \WP_Error( 'rest_forbidden', 'Authentication required.', [ 'status' => $this->authorization_status_code() ] );
     }
     return true;
   }
