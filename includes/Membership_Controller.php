@@ -57,6 +57,20 @@ class Membership_Controller {
   const MEMBERSHIP_CATEGORY_PRIMARY = 'primary';
   const MEMBERSHIP_CATEGORY_SECTION = 'section';
 
+  /**
+   * Unsaved meta key on a cart line's product object marking a prorated first payment.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   */
+  const PRORATION_CART_TAG = '_wicket_mship_proration_tag';
+
+  /**
+   * Hidden order line meta recording a prorated first payment, for support and refunds.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   */
+  const PRORATION_LINE_META = '_wicket_mship_proration';
+
   /** True once a membership write has queued the member list cache flush for this request. */
   private static $member_list_cache_stale = false;
 
@@ -279,6 +293,247 @@ function get_item_data ( $other_data, $cart_item ) {
       $error_text = sprintf( __("Your membership is not due for renewal yet. You can renew starting %s.", "wicket-memberships" ), Utilities::format_mdp_date("l jS \of F Y", strtotime($early_renewal_date)));
       throw new \Exception( $error_text );
     }
+  }
+
+  /**
+   * Tag each cart line that gets a prorated first payment.
+   *
+   * WCS hands its cart price filter only the product, so the decision rides on each line's
+   * product object as unsaved meta. Every calculation re-decides, because the cart or the
+   * signed-in user can change between calculations; an ineligible line loses its old tag.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   * @since 1.1.0
+   *
+   * @param  \WC_Cart $cart  The cart being calculated.
+   *
+   * @return void
+   */
+  public static function tag_prorated_cart_items( $cart ) {
+    // WCS recalculates clones of the cart for recurring totals. They share the main cart's
+    // product objects, which this already tagged, and must never be prorated anyway.
+    if ( ! empty( $cart->recurring_cart_key ) ) {
+      return;
+    }
+
+    foreach ( $cart->get_cart() as $cart_item ) {
+      $product = $cart_item['data'] ?? null;
+      if ( ! $product instanceof \WC_Product ) {
+        continue;
+      }
+
+      $product->delete_meta_data( self::PRORATION_CART_TAG );
+
+      $proration = self::get_cart_item_proration( $cart_item );
+      if ( $proration !== null ) {
+        $product->update_meta_data( self::PRORATION_CART_TAG, $proration );
+      }
+    }
+  }
+
+  /**
+   * Decide whether a cart line gets a prorated first payment.
+   *
+   * Only a new purchase of a prorated tier product billed once a year qualifies. Bundle members
+   * and admin-created orders never reach the cart, so they need no check here.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   * @since 1.1.0
+   *
+   * @param  array $cart_item  WooCommerce cart item.
+   *
+   * @return array|null  [ 'tier_id' => int, 'config_id' => int, 'rate' => string, 'ratio' => float,
+   *                      'season_start' => 'Y-m-d', 'season_end' => 'Y-m-d' ], or null for full price.
+   */
+  private static function get_cart_item_proration( array $cart_item ): ?array {
+    foreach ( [ 'membership_post_id_renew', 'subscription_renewal', 'subscription_resubscribe', 'subscription_switch' ] as $not_new_purchase_key ) {
+      if ( ! empty( $cart_item[ $not_new_purchase_key ] ) ) {
+        return null;
+      }
+    }
+
+    $product = $cart_item['data'];
+    if ( ! class_exists( '\WC_Subscriptions_Product' ) || ! \WC_Subscriptions_Product::is_subscription( $product ) ) {
+      return null;
+    }
+
+    // WCS already sets the first payment for these: a trial charges only the sign-up fee, and a
+    // synchronised product prorates to its sync day. Prorating again would discount twice.
+    if ( \WC_Subscriptions_Product::get_trial_length( $product ) > 0 ) {
+      return null;
+    }
+    if ( class_exists( '\WC_Subscriptions_Synchroniser' ) && \WC_Subscriptions_Synchroniser::is_product_synced( $product ) ) {
+      return null;
+    }
+
+    // The season ratio scales a price that pays for the whole season. A monthly or multi-year
+    // price pays for a different span, so scaling it by the season left gives a meaningless charge.
+    if ( \WC_Subscriptions_Product::get_period( $product ) !== 'year'
+      || (int) \WC_Subscriptions_Product::get_interval( $product ) !== 1 ) {
+      return null;
+    }
+
+    $product_id = ! empty( $cart_item['variation_id'] ) ? (int) $cart_item['variation_id'] : (int) $cart_item['product_id'];
+    // Tiers list the English product; order processing translates the same way to pick the tier.
+    $product_data = wicket_get_multilang_product_id( $product_id, 'en' );
+    if ( $product_data['was_translated'] ) {
+      $product_id = (int) $product_data['translated'];
+    }
+
+    $tier = Membership_Tier::get_tier_by_product_id( $product_id );
+    if ( ! $tier instanceof Membership_Tier || ! $tier->is_product_prorated( $product_id ) ) {
+      return null;
+    }
+
+    // Buying a tier the member already holds is a renewal, the same rule as validate_renewal_order_items().
+    // An org tier is held by the org, not the buyer: one manager may buy it for a second org, and a
+    // second manager may buy it again for an org that holds it. A line with no org falls back to the buyer.
+    $tier_uuid = $tier->tier_data['mdp_tier_uuid'];
+    if ( $tier->is_organization_tier() && ! empty( $cart_item['org_uuid'] ) ) {
+      $held = get_posts( [
+        'post_type'      => Helper::get_membership_cpt_slug(),
+        'post_status'    => 'publish',
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'meta_query'     => [
+          [ 'key' => 'org_uuid', 'value' => $cart_item['org_uuid'], 'compare' => '=' ],
+          [ 'key' => 'membership_tier_uuid', 'value' => $tier_uuid, 'compare' => '=' ],
+          [ 'key' => 'membership_status', 'value' => Wicket_Memberships::STATUS_ACTIVE, 'compare' => '=' ],
+        ],
+      ] );
+    } else {
+      $held = ( new self() )->get_my_memberships( Wicket_Memberships::STATUS_ACTIVE, $tier_uuid );
+    }
+    if ( ! empty( $held ) ) {
+      return null;
+    }
+
+    $config = $tier->get_config();
+    $ratio  = $config->get_proration_ratio();
+    if ( $ratio >= 1.0 ) {
+      return null;
+    }
+
+    // A ratio below 1 means a season matched, so the season is never null here.
+    $season = $config->get_proration_season();
+
+    return [
+      'tier_id'      => (int) $tier->get_membership_tier_post_id(),
+      'config_id'    => (int) $tier->tier_data['config_id'],
+      'rate'         => (string) ( $config->get_cycle_data()['proration']['rate'] ?? '' ),
+      'ratio'        => $ratio,
+      'season_start' => $season['start'],
+      'season_end'   => $season['end'],
+    ];
+  }
+
+  /**
+   * Prorate the first payment of a tagged cart line.
+   *
+   * Hooked to `woocommerce_subscriptions_cart_get_price`, which WCS applies in both cart passes.
+   * Only the initial pass changes, so the recurring total, and every renewal, stays full price.
+   * The sign-up fee is charged in full. Clients adjust the prorated part through the
+   * `wicket_mship_prorated_price` filter, for example to set a minimum charge. The full price is
+   * kept on the tag so the order line can record it.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   * @since 1.1.0
+   *
+   * @param  float|string $price    Initial-pass price: recurring price plus sign-up fee.
+   * @param  \WC_Product  $product  The cart line's product.
+   *
+   * @return float|string  The prorated price, or $price unchanged.
+   */
+  public static function apply_proration_to_cart_price( $price, $product ) {
+    if ( \WC_Subscriptions_Cart::get_calculation_type() !== 'none' || ! $product instanceof \WC_Product ) {
+      return $price;
+    }
+
+    $proration = $product->get_meta( self::PRORATION_CART_TAG );
+    if ( ! is_array( $proration ) || empty( $proration['ratio'] ) ) {
+      return $price;
+    }
+
+    // Read the fee the way WCS added it, rather than calling get_price(), which would re-enter this filter.
+    $sign_up_fee = \WC_Subscriptions_Product::get_sign_up_fee( $product );
+    $sign_up_fee = is_numeric( $sign_up_fee ) ? (float) $sign_up_fee : 0.0;
+    $full_price  = (float) $price - $sign_up_fee;
+    $ratio       = (float) $proration['ratio'];
+
+    $proration['full_price'] = $full_price;
+    $product->update_meta_data( self::PRORATION_CART_TAG, $proration );
+
+    /**
+     * Filter the prorated first-payment price of a membership cart line.
+     *
+     * Fires in the initial WCS cart pass only, for a new purchase of a prorated tier product,
+     * each time that pass reads the line's price, so callbacks must return the same value for
+     * the same input. Never fires for the recurring total, renewals, or excluded lines.
+     *
+     * @see atlas://plans/feature-configurable-proration.md
+     * @since 1.1.0
+     *
+     * @param float             $prorated_price  Full price times the ratio, rounded to the store's price decimals. Excludes the sign-up fee.
+     * @param float             $full_price      Recurring price for a full season, excluding the sign-up fee.
+     * @param float             $ratio           Share of the full price owed, in (0, 1).
+     * @param \WC_Product       $product         The cart line's product.
+     * @param Membership_Tier   $tier            Tier that lists the product.
+     * @param Membership_Config $config          The tier's config.
+     */
+    $prorated_price = (float) apply_filters(
+      'wicket_mship_prorated_price',
+      round( $full_price * $ratio, wc_get_price_decimals() ),
+      $full_price,
+      $ratio,
+      $product,
+      new Membership_Tier( (int) $proration['tier_id'] ),
+      new Membership_Config( (int) $proration['config_id'] )
+    );
+
+    return $prorated_price + $sign_up_fee;
+  }
+
+  /**
+   * Record a prorated first payment on its order line.
+   *
+   * Hooked to `woocommerce_checkout_create_order_line_item`. WCS builds the subscription's line
+   * items through the same hook from its recurring carts, which share the tagged product objects;
+   * those lines are skipped, so renewal orders copied from the subscription never carry the meta.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   * @since 1.1.0
+   *
+   * @param  \WC_Order_Item_Product $item           The new order line.
+   * @param  string                 $cart_item_key  Cart item key.
+   * @param  array                  $values         Cart item.
+   * @param  \WC_Order              $order          The order or subscription being built.
+   *
+   * @return void
+   */
+  public static function add_proration_line_item_meta( $item, $cart_item_key, $values, $order ) {
+    if ( function_exists( 'wcs_is_subscription' ) && wcs_is_subscription( $order ) ) {
+      return;
+    }
+
+    $product = $values['data'] ?? null;
+    if ( ! $product instanceof \WC_Product ) {
+      return;
+    }
+
+    // The full price is only set once the price filter prorated the line, so a tag without it
+    // means the line was charged in full.
+    $proration = $product->get_meta( self::PRORATION_CART_TAG );
+    if ( ! is_array( $proration ) || ! isset( $proration['full_price'] ) ) {
+      return;
+    }
+
+    $item->add_meta_data( self::PRORATION_LINE_META, [
+      'rate'         => $proration['rate'],
+      'ratio'        => $proration['ratio'],
+      'full_price'   => $proration['full_price'],
+      'season_start' => $proration['season_start'],
+      'season_end'   => $proration['season_end'],
+    ], true );
   }
 
   /**

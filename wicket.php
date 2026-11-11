@@ -250,6 +250,12 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       // Deferred from handle_bundle_renewal() to avoid cancelling children before batch reads their meta.
       add_action( 'wicket_memberships_bundle_renewal_complete', array( __NAMESPACE__.'\\Membership_Bundle_Cron_Controller', 'cancel_old_bundle_after_renewal' ), 10, 3 );
 
+      // Prorated first payment for late joins on calendar configs, recorded on the order line.
+      // Static callbacks: Membership_Controller is constructed many times per request.
+      add_action( 'woocommerce_before_calculate_totals', array( __NAMESPACE__.'\\Membership_Controller', 'tag_prorated_cart_items' ), 20, 1 );
+      add_filter( 'woocommerce_subscriptions_cart_get_price', array( __NAMESPACE__.'\\Membership_Controller', 'apply_proration_to_cart_price' ), 10, 2 );
+      add_action( 'woocommerce_checkout_create_order_line_item', array( __NAMESPACE__.'\\Membership_Controller', 'add_proration_line_item_meta' ), 10, 4 );
+
       //check items in cart for valid renewal dates or return error
       //TODO: currently disabled need validate and remove, replaced with 'memberships_verify_cart' on checkout hooks
       //add_action( 'woocommerce_checkout_create_order_line_item', [  __NAMESPACE__.'\\Membership_Controller', 'validate_renewal_order_items'], 10, 4 );
