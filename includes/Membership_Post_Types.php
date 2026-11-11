@@ -108,22 +108,28 @@ class Membership_Post_Types {
   }
 
   /**
-   * Recover the REST route from the raw request URI.
+   * Recover the REST route WordPress will dispatch for the current request.
    *
    * Needed because some consumers run before (or outside) route dispatch and have no
    * WP_REST_Request to ask — notably WooCommerce's `woocommerce_rest_is_request_to_rest_api`
    * filter, which receives no arguments and matches on `$_SERVER['REQUEST_URI']` itself.
    *
-   * Handles both permalink shapes: WordPress serves REST either at a path under the REST prefix,
-   * or via a `rest_route` query argument when pretty permalinks are unavailable.
+   * Follows the WP::parse_request() order: a `rest_route` argument in the POST body, then in the
+   * query string, then the path under the REST prefix.
    *
    * @return string  Route with a leading slash, e.g. `/wp/v2/wicket_membership`; empty string when
    *                 the request is not a REST request at all.
    */
   private function get_requested_rest_route() {
-    // Plain-permalink form: the route travels as a query argument.
-    if ( ! empty( $_GET['rest_route'] ) ) {
-      return '/' . ltrim( sanitize_text_field( wp_unslash( $_GET['rest_route'] ) ), '/' );
+    // A `rest_route` argument overrides the path, and WP::parse_request() reads the POST body
+    // before the query string. Follow the same order, or a membership URI with another route in
+    // the body would open key auth for the route WordPress actually dispatches. The raw value is
+    // only compared, never output, so it is not sanitized: sanitizing could make it differ from
+    // the route WordPress dispatches.
+    foreach ( array( $_POST, $_GET ) as $params ) {
+      if ( isset( $params['rest_route'] ) ) {
+        return is_string( $params['rest_route'] ) ? '/' . ltrim( wp_unslash( $params['rest_route'] ), '/' ) : '';
+      }
     }
 
     if ( empty( $_SERVER['REQUEST_URI'] ) ) {
@@ -236,12 +242,12 @@ class Membership_Post_Types {
    * configs, all registered with 'show_in_rest' => true), both their collection routes and
    * single-record sub-routes.
    *
-   * The check is deliberately agnostic about *how* the caller authenticated: it asks only whether
-   * someone is logged in and holds 'manage_options'. Cookie + nonce, Application Password, an
-   * allowlisted WooCommerce API key and any other mechanism that resolves a user all arrive here
-   * identically.
+   * Every caller must be logged in and hold 'manage_options'. A request that presents a
+   * WooCommerce API key must also use an allowlisted key on a key-reachable route; this holds
+   * however WooCommerce came to authenticate the key.
    *
    * @see get_protected_rest_bases()  Shared route list, also used by the URI-based matcher.
+   * @see get_api_key_rest_bases()    The subset WooCommerce API keys may reach.
    *
    * @param mixed            $result  Response to replace the requested version with, or null.
    * @param \WP_REST_Server  $server  Server instance.
@@ -254,8 +260,27 @@ class Membership_Post_Types {
       return $result;
     }
 
-    if ( ! $this->is_protected_rest_route( $request->get_route() ) ) {
+    $route = $request->get_route();
+
+    if ( ! $this->is_protected_rest_route( $route ) ) {
       return $result;
+    }
+
+    // A WooCommerce key passes only when it is allowlisted and the route is key-reachable. This
+    // check sees the dispatched route. allow_woocommerce_key_auth() sees only the request URI, and
+    // WooCommerce authenticates any key on a wc/ URI, so a `rest_route` override could otherwise
+    // reach these routes with any admin-owned key.
+    $key_id = Api_Key_Access::get_key_id_for_request();
+
+    if ( null !== $key_id && (
+      ! in_array( $key_id, Api_Key_Access::get_allowed_key_ids(), true )
+      || ! $this->is_protected_rest_route( $route, $this->get_api_key_rest_bases() )
+    ) ) {
+      return new WP_Error(
+        'rest_forbidden',
+        __( 'This API key has no access to this endpoint.', 'wicket-memberships' ),
+        array( 'status' => rest_authorization_required_code() )
+      );
     }
 
     if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
