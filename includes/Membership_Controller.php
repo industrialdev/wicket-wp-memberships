@@ -2326,9 +2326,9 @@ function get_item_data ( $other_data, $cart_item ) {
       'membership_user_uuid' => $membership['membership_user_uuid'],
       // Woo-less flows (MDP webhook sync, CSV import, test seeds) create
       // memberships with no order/product/subscription context.
-      'membership_parent_order_id' => $membership['membership_parent_order_id'] ?? '',
-      'membership_product_id' => $membership['membership_product_id'] ?? '',
-      'membership_subscription_id' => $membership['membership_subscription_id'] ?? '',
+      'membership_parent_order_id' => $membership['membership_parent_order_id'] ?? null,
+      'membership_product_id' => $membership['membership_product_id'] ?? null,
+      'membership_subscription_id' => $membership['membership_subscription_id'] ?? null,
       'previous_membership_post_id' => $membership['previous_membership_post_id'] ?? '',
       Autorenew_Sync::META_KEY_RESULT => $membership['membership_is_autorenew'] ?? null,
       Autorenew_Sync::META_KEY_REASON => $membership['membership_is_autorenew_reason'] ?? '',
@@ -2564,7 +2564,7 @@ function get_item_data ( $other_data, $cart_item ) {
       'meta_query'     => array(
         array(
           'key'     => 'membership_parent_order_id',
-          'value'   => $membership['membership_parent_order_id'] ?? '',
+          'value'   => $membership['membership_parent_order_id'] ?? null,
           'compare' => '='
         ),
         array(
