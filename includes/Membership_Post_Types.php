@@ -84,9 +84,11 @@ class Membership_Post_Types {
   /**
    * Whether a parsed REST route targets one of the membership post types.
    *
-   * Matches the collection route exactly, or any sub-route beneath it (e.g. `/<base>/123`), so a
-   * single record is protected as tightly as the list. A trailing slash falls into the sub-route
-   * branch and is therefore handled without normalising it away.
+   * Matches the collection route, or any sub-route beneath it (e.g. `/<base>/123`), so a single
+   * record is protected as tightly as the list. The match uses the same rules as WP_REST_Server:
+   * it ignores letter case, and `$` also matches before a final newline. An exact string compare
+   * let `/wp/v2/WICKET_MEMBERSHIP` and `/wp/v2/wicket_membership%0A` past the gate, while the
+   * server still dispatched them to the membership handlers.
    *
    * @param  string         $route  Route as reported by WP_REST_Request::get_route(), e.g. `/wp/v2/foo`.
    * @param  string[]|null  $bases  Base routes to match; defaults to get_protected_rest_bases().
@@ -98,12 +100,9 @@ class Membership_Post_Types {
       return false;
     }
 
-    // WP_REST_Server matches routes without regard to case, so /wp/v2/WICKET_MEMBERSHIP
-    // dispatches to the same handler. The bases are lower case.
-    $route = strtolower( $route );
-
     foreach ( null === $bases ? $this->get_protected_rest_bases() : $bases as $base ) {
-      if ( $route === $base || 0 === strpos( $route, $base . '/' ) ) {
+      // Same delimiters and flags as WP_REST_Server::match_request_to_handler(): `i`, and no `D`.
+      if ( preg_match( '@^' . preg_quote( $base, '@' ) . '(?:/.*)?$@i', $route ) ) {
         return true;
       }
     }
@@ -112,70 +111,37 @@ class Membership_Post_Types {
   }
 
   /**
-   * Recover the REST route WordPress will dispatch for the current request.
+   * The REST route WordPress dispatches for the current request.
    *
-   * Needed because some consumers run before (or outside) route dispatch and have no
-   * WP_REST_Request to ask — notably WooCommerce's `woocommerce_rest_is_request_to_rest_api`
-   * filter, which receives no arguments and matches on `$_SERVER['REQUEST_URI']` itself.
+   * Needed because WooCommerce's `woocommerce_rest_is_request_to_rest_api` filter receives no
+   * arguments and has no WP_REST_Request to ask.
    *
-   * Returns a route only for a request that WordPress serves as REST: a query `rest_route` on a
-   * REST request, or a path that starts with the REST prefix under the home path. WooCommerce
-   * authenticates on `determine_current_user` for every request, but the key's read/write limit
-   * and restrict_membership_rest_access() run only on REST dispatch. A route returned for an
-   * admin-ajax or admin-post request would log the key in as its owner with no limit.
+   * Returns a route only for a request that WordPress serves as REST, read from the `rest_route`
+   * query var that WordPress dispatches. WooCommerce authenticates on `determine_current_user` for
+   * every request, but the key's read/write limit and restrict_membership_rest_access() run only on
+   * REST dispatch. A route returned for any other request (admin-ajax, admin-post, or a `/wp-json/`
+   * path on a plain-permalink site) would log the key in as its owner with no limit.
+   *
+   * On the first `determine_current_user` call, WordPress has not parsed the request yet, so the
+   * route is empty. WooCommerce runs authenticate() again from `rest_authentication_errors`, inside
+   * REST dispatch, when the route is known.
+   *
+   * wp_is_rest_endpoint() includes wp_is_serving_rest_request() and is also true during an internal
+   * rest_do_request(). That adds no route: WordPress sets the `rest_route` query var only on a
+   * request it serves as REST.
    *
    * @return string  Route with a leading slash, e.g. `/wp/v2/wicket_membership`; empty string when
-   *                 the request is not a REST request, or carries a POST `rest_route`.
+   *                 the request is not a REST request.
    */
   private function get_requested_rest_route() {
-    // WP::parse_request() lets a POST `rest_route` override the URI. A key has no need for it, and
-    // the URI would then name a route other than the one WordPress dispatches.
-    if ( isset( $_POST['rest_route'] ) ) {
+    global $wp;
+
+    if ( ! wp_is_rest_endpoint() || ! ( $wp instanceof \WP ) || empty( $wp->query_vars['rest_route'] ) || ! is_string( $wp->query_vars['rest_route'] ) ) {
       return '';
     }
 
-    // A query `rest_route` also overrides the path, but WordPress reads it only on REST requests.
-    // Before parse_request() this is not yet known, so the route stays empty here. WooCommerce
-    // runs authenticate() again from `rest_authentication_errors`, when it is known.
-    if ( isset( $_GET['rest_route'] ) ) {
-      if ( ! wp_is_rest_endpoint() || ! is_string( $_GET['rest_route'] ) ) {
-        return '';
-      }
-
-      // Only compared, never output. Sanitizing could make it differ from the dispatched route.
-      return '/' . ltrim( wp_unslash( $_GET['rest_route'] ), '/' );
-    }
-
-    if ( empty( $_SERVER['REQUEST_URI'] ) ) {
-      return '';
-    }
-
-    $path = wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH );
-
-    if ( ! is_string( $path ) || '' === $path ) {
-      return '';
-    }
-
-    // Remove the home path, so subdirectory installs (/subsite/wp-json/...) resolve. The REST
-    // prefix must then start the path: a prefix anywhere else (admin-ajax.php/wp-json/...) is not
-    // a REST request. rest_get_url_prefix() is filterable, so no literal.
-    $home_path = untrailingslashit( (string) wp_parse_url( home_url(), PHP_URL_PATH ) );
-
-    if ( '' !== $home_path ) {
-      if ( 0 !== strpos( $path, $home_path . '/' ) ) {
-        return '';
-      }
-
-      $path = substr( $path, strlen( $home_path ) );
-    }
-
-    $prefix = '/' . trailingslashit( rest_get_url_prefix() );
-
-    if ( 0 !== strpos( $path, $prefix ) ) {
-      return '';
-    }
-
-    return '/' . ltrim( substr( $path, strlen( $prefix ) ), '/' );
+    // Only compared, never output. Sanitizing could make it differ from the dispatched route.
+    return '/' . ltrim( $wp->query_vars['rest_route'], '/' );
   }
 
   /**
