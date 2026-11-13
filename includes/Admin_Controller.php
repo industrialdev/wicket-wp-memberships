@@ -1495,34 +1495,21 @@ class Admin_Controller {
       if ( $membership_seats < 1 ) {
         $membership_seats = null;
       }
-      $base_version_supports_grant_owner_assignment = version_compare( $_ENV['WICKET_BASE_PLUGIN_VERSION'], '2.0.108', '>' );
-      // Link the old org membership as the predecessor so the base plugin copies its existing
-      // seat assignments forward (we are recreating the membership with the same seat count).
-      // grant_owner_assignment, however, follows the NEW tier's configured value.
-      if ( $base_version_supports_grant_owner_assignment ) {
-        $response = wicket_assign_organization_membership(
-              $owner_uuid,
-              $organization_uuid,
-              $membership_tier_uuid,
-              $membership_starts_at,
-              $membership_ends_at,
-              $membership_seats,
-              $membership_grace_period_days,
-              $old_membership_wicket_uuid, // previous_membership_uuid: triggers copy_previous_assignments
-              $membership_tier->is_grant_owner_assignment()
-            );
-      } else {
-        $response = wicket_assign_organization_membership(
-              $owner_uuid,
-              $organization_uuid,
-              $membership_tier_uuid,
-              $membership_starts_at,
-              $membership_ends_at,
-              $membership_seats,
-              $membership_grace_period_days,
-              $old_membership_wicket_uuid // previous_membership_uuid: triggers copy_previous_assignments
-            );
-      }
+      // Link the old org membership as the predecessor, but never copy its seat assignments:
+      // the new tier can have a different seat type or limit (WWID-2998). The old seats end
+      // with the old membership. The owner seat follows the NEW tier's setting.
+      $response = wicket_assign_organization_membership(
+        $owner_uuid,
+        $organization_uuid,
+        $membership_tier_uuid,
+        $membership_starts_at,
+        $membership_ends_at,
+        $membership_seats,
+        $membership_grace_period_days,
+        $old_membership_wicket_uuid, // previous_membership_uuid: links the predecessor record
+        $membership_tier->is_grant_owner_assignment(),
+        false // copy_previous_assignments
+      );
     } else {
       // Link the old person membership as the predecessor for MDP record continuity,
       // mirroring the org path above and Membership_Controller::create_mdp_record().
