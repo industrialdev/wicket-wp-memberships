@@ -84,9 +84,11 @@ class Membership_Post_Types {
   /**
    * Whether a parsed REST route targets one of the membership post types.
    *
-   * Matches the collection route exactly, or any sub-route beneath it (e.g. `/<base>/123`), so a
-   * single record is protected as tightly as the list. A trailing slash falls into the sub-route
-   * branch and is therefore handled without normalising it away.
+   * Matches the collection route, or any sub-route beneath it (e.g. `/<base>/123`), so a single
+   * record is protected as tightly as the list. The match uses the same rules as WP_REST_Server:
+   * it ignores letter case, and `$` also matches before a final newline. An exact string compare
+   * let `/wp/v2/WICKET_MEMBERSHIP` and `/wp/v2/wicket_membership%0A` past the gate, while the
+   * server still dispatched them to the membership handlers.
    *
    * @param  string         $route  Route as reported by WP_REST_Request::get_route(), e.g. `/wp/v2/foo`.
    * @param  string[]|null  $bases  Base routes to match; defaults to get_protected_rest_bases().
@@ -99,7 +101,8 @@ class Membership_Post_Types {
     }
 
     foreach ( null === $bases ? $this->get_protected_rest_bases() : $bases as $base ) {
-      if ( $route === $base || 0 === strpos( $route, $base . '/' ) ) {
+      // Same delimiters and flags as WP_REST_Server::match_request_to_handler(): `i`, and no `D`.
+      if ( preg_match( '@^' . preg_quote( $base, '@' ) . '(?:/.*)?$@i', $route ) ) {
         return true;
       }
     }
@@ -108,51 +111,37 @@ class Membership_Post_Types {
   }
 
   /**
-   * Recover the REST route WordPress will dispatch for the current request.
+   * The REST route WordPress dispatches for the current request.
    *
-   * Needed because some consumers run before (or outside) route dispatch and have no
-   * WP_REST_Request to ask — notably WooCommerce's `woocommerce_rest_is_request_to_rest_api`
-   * filter, which receives no arguments and matches on `$_SERVER['REQUEST_URI']` itself.
+   * Needed because WooCommerce's `woocommerce_rest_is_request_to_rest_api` filter receives no
+   * arguments and has no WP_REST_Request to ask.
    *
-   * Follows the WP::parse_request() order: a `rest_route` argument in the POST body, then in the
-   * query string, then the path under the REST prefix.
+   * Returns a route only for a request that WordPress serves as REST, read from the `rest_route`
+   * query var that WordPress dispatches. WooCommerce authenticates on `determine_current_user` for
+   * every request, but the key's read/write limit and restrict_membership_rest_access() run only on
+   * REST dispatch. A route returned for any other request (admin-ajax, admin-post, or a `/wp-json/`
+   * path on a plain-permalink site) would log the key in as its owner with no limit.
+   *
+   * On the first `determine_current_user` call, WordPress has not parsed the request yet, so the
+   * route is empty. WooCommerce runs authenticate() again from `rest_authentication_errors`, inside
+   * REST dispatch, when the route is known.
+   *
+   * wp_is_rest_endpoint() includes wp_is_serving_rest_request() and is also true during an internal
+   * rest_do_request(). That adds no route: WordPress sets the `rest_route` query var only on a
+   * request it serves as REST.
    *
    * @return string  Route with a leading slash, e.g. `/wp/v2/wicket_membership`; empty string when
-   *                 the request is not a REST request at all.
+   *                 the request is not a REST request.
    */
   private function get_requested_rest_route() {
-    // A `rest_route` argument overrides the path, and WP::parse_request() reads the POST body
-    // before the query string. Follow the same order, or a membership URI with another route in
-    // the body would open key auth for the route WordPress actually dispatches. The raw value is
-    // only compared, never output, so it is not sanitized: sanitizing could make it differ from
-    // the route WordPress dispatches.
-    foreach ( array( $_POST, $_GET ) as $params ) {
-      if ( isset( $params['rest_route'] ) ) {
-        return is_string( $params['rest_route'] ) ? '/' . ltrim( wp_unslash( $params['rest_route'] ), '/' ) : '';
-      }
-    }
+    global $wp;
 
-    if ( empty( $_SERVER['REQUEST_URI'] ) ) {
+    if ( ! wp_is_rest_endpoint() || ! ( $wp instanceof \WP ) || empty( $wp->query_vars['rest_route'] ) || ! is_string( $wp->query_vars['rest_route'] ) ) {
       return '';
     }
 
-    $path = wp_parse_url( wp_unslash( $_SERVER['REQUEST_URI'] ), PHP_URL_PATH );
-
-    if ( ! is_string( $path ) || '' === $path ) {
-      return '';
-    }
-
-    // Locate the prefix by search rather than assuming position 0, so subdirectory installs
-    // (/subsite/wp-json/...) resolve. rest_get_url_prefix() is used instead of a literal because
-    // the prefix is filterable.
-    $needle = '/' . trailingslashit( rest_get_url_prefix() );
-    $pos    = strpos( $path, $needle );
-
-    if ( false === $pos ) {
-      return '';
-    }
-
-    return '/' . ltrim( substr( $path, $pos + strlen( $needle ) ), '/' );
+    // Only compared, never output. Sanitizing could make it differ from the dispatched route.
+    return '/' . ltrim( $wp->query_vars['rest_route'], '/' );
   }
 
   /**
@@ -243,8 +232,9 @@ class Membership_Post_Types {
    * single-record sub-routes.
    *
    * Every caller must be logged in and hold 'manage_options'. A request that presents a
-   * WooCommerce API key must also use an allowlisted key on a key-reachable route; this holds
-   * however WooCommerce came to authenticate the key.
+   * WooCommerce API key must also use an allowlisted key on a key-reachable route, and may only
+   * read; this holds however WooCommerce came to authenticate the key. OAuth-signed requests are
+   * refused, because the key in them cannot be checked.
    *
    * @see get_protected_rest_bases()  Shared route list, also used by the URI-based matcher.
    * @see get_api_key_rest_bases()    The subset WooCommerce API keys may reach.
@@ -266,15 +256,27 @@ class Membership_Post_Types {
       return $result;
     }
 
+    // get_key_id_for_request() finds only Basic and query-string keys. WooCommerce also accepts
+    // OAuth-signed keys on a wc/ URI, and a `rest_route` override could bring one here unchecked.
+    if ( Api_Key_Access::request_has_oauth_params() ) {
+      return new WP_Error(
+        'rest_forbidden',
+        __( 'This API key has no access to this endpoint.', 'wicket-memberships' ),
+        array( 'status' => rest_authorization_required_code() )
+      );
+    }
+
     // A WooCommerce key passes only when it is allowlisted and the route is key-reachable. This
     // check sees the dispatched route. allow_woocommerce_key_auth() sees only the request URI, and
     // WooCommerce authenticates any key on a wc/ URI, so a `rest_route` override could otherwise
-    // reach these routes with any admin-owned key.
+    // reach these routes with any admin-owned key. Keys only read: a wp/v2 write skips the
+    // plugin's own membership logic (MDP sync, status changes, subscription links).
     $key_id = Api_Key_Access::get_key_id_for_request();
 
     if ( null !== $key_id && (
       ! in_array( $key_id, Api_Key_Access::get_allowed_key_ids(), true )
       || ! $this->is_protected_rest_route( $route, $this->get_api_key_rest_bases() )
+      || ! in_array( $request->get_method(), array( 'GET', 'HEAD' ), true )
     ) ) {
       return new WP_Error(
         'rest_forbidden',
