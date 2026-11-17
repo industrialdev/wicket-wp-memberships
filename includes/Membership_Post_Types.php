@@ -2044,7 +2044,7 @@ class Membership_Post_Types {
     foreach ( $calendar_items as $key => $item ) {
       if ( ! empty( $item['start_date'] ) ) {
         try {
-          $calendar_items[ $key ]['start_date'] = Utilities::get_mdp_day_start( $item['start_date'] )->format( 'c' );
+          $calendar_items[ $key ]['start_date'] = Utilities::get_mdp_day_start( $this->get_season_boundary_day( $item['start_date'], false ) )->format( 'c' );
         } catch ( \InvalidArgumentException $e ) {
           // Leave the raw, unparseable value in place. The validate_callback's
           // strtotime()/empty() checks below will reject it with a normal 400
@@ -2054,7 +2054,7 @@ class Membership_Post_Types {
 
       if ( ! empty( $item['end_date'] ) ) {
         try {
-          $calendar_items[ $key ]['end_date'] = Utilities::get_mdp_day_end( $item['end_date'] )->format( 'c' );
+          $calendar_items[ $key ]['end_date'] = Utilities::get_mdp_day_end( $this->get_season_boundary_day( $item['end_date'], true ) )->format( 'c' );
         } catch ( \InvalidArgumentException $e ) {
           // Same rationale as start_date above.
         }
@@ -2062,6 +2062,51 @@ class Membership_Post_Types {
     }
 
     return $calendar_items;
+  }
+
+  /**
+   * Resolve the MDP calendar day a season boundary timestamp stands for.
+   *
+   * A season start is meant to be MDP midnight and a season end MDP 23:59:59,
+   * but the admin UI computes those instants with its own bundled tz data and
+   * older seasons were stored under older tz rules. When those rules disagree
+   * with the server's (e.g. America/Edmonton dropping its winter UTC-7 offset),
+   * the instant lands an hour or so past the intended boundary. Truncating it
+   * to its server-side day would then move an end into the next day, or a
+   * start into the previous one, and the season gap/overlap checks reject the
+   * save. Snapping to the nearest day boundary absorbs any drift under 12 hours.
+   *
+   * @param string $date_string Bare Y-m-d date or full ISO 8601 timestamp.
+   * @param bool   $is_end      True for a season end date, false for a start date.
+   *
+   * @throws \InvalidArgumentException If $date_string can't be parsed as a date.
+   *
+   * @return string The calendar day in Y-m-d, in the MDP timezone.
+   */
+  private function get_season_boundary_day( $date_string, $is_end ) {
+    $date_string = trim( (string) $date_string );
+
+    // A bare date already names the calendar day; there is no instant to drift.
+    if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date_string ) ) {
+      return $date_string;
+    }
+
+    try {
+      $mdp_date = new \DateTime( $date_string );
+    } catch ( \Exception $e ) {
+      throw new \InvalidArgumentException( "Unparseable date string: {$date_string}", 0, $e );
+    }
+
+    $mdp_date->setTimezone( Utilities::get_mdp_timezone() );
+    $hour = (int) $mdp_date->format( 'G' );
+
+    if ( $is_end && $hour < 12 ) {
+      $mdp_date->modify( '-1 day' );
+    } elseif ( ! $is_end && $hour >= 12 ) {
+      $mdp_date->modify( '+1 day' );
+    }
+
+    return $mdp_date->format( 'Y-m-d' );
   }
 
 }
