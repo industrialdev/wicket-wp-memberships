@@ -5,7 +5,7 @@ audience: end-user
 
 # Connect an Integration to Membership Data
 
-Another system — a finance package, a reporting tool, a CRM — can read and update membership records on this site automatically. There are two ways to let it in, and you choose based on what the integration already does.
+Another system — a finance package, a reporting tool, a CRM — can read membership records on this site automatically. An Application Password can also update them. There are two ways to let it in, and you choose based on what the integration already does.
 
 Only administrators can grant either kind of access, and an integration only ever sees membership data if you deliberately give it a credential.
 
@@ -16,7 +16,7 @@ Only administrators can grant either kind of access, and an integration only eve
 | Best for | A tool that only needs membership data | A tool that already connects to your store |
 | You create it under | A user's profile | WooCommerce settings |
 | Extra step on the memberships settings page | No | **Yes** — you must tick the key |
-| What it can reach | Everything that user can reach | Your store, plus membership data once ticked |
+| What it can reach | Everything that user can reach | Your store, plus read-only membership data once ticked |
 | Turn it off from | The user's profile | Either place |
 
 **If you are not sure, use an Application Password.** It is the simpler of the two and does not touch your store settings.
@@ -66,9 +66,7 @@ This takes **two steps**: the key must exist in WooCommerce, and you must tick i
 2. Click **Add key**.
 3. Give it a description you will recognise — this is the name you will see on the memberships settings page.
 4. Set **User** to an administrator account. This matters: see *Why is a key not working?* below.
-5. Set **Permissions**:
-   - **Read** if the integration only needs to look at membership data.
-   - **Read/Write** if it also needs to create or change memberships.
+5. Set **Permissions** to what the integration needs for your store. For membership data, a key can only ever read, even when set to **Read/Write**.
 6. Click **Generate API key** and pass the consumer key and secret to whoever is configuring the integration. **They are shown only once.**
 
 ### Tick the Key
@@ -115,13 +113,13 @@ Work through these in order. The symptom is usually an authentication or permiss
 
 **It was recreated after being ticked.** A replacement key is a different key and will not be ticked. Tick the new one.
 
-**It only has read access.** A key set to **Read** can look at membership data but cannot change it. If the integration fails only when saving, check **Permissions** in WooCommerce and create a **Read/Write** key if it needs one.
+**It is trying to save.** A WooCommerce key can only read membership data, whatever its **Permissions**. An integration that must create or change memberships needs an Application Password instead.
 
 ---
 
 ## What Access Covers
 
-Either credential reaches membership records, membership configurations and membership tiers — the same information you can see under the **Memberships** menu. A WooCommerce API key cannot reach membership bundle data.
+Either credential reaches membership records, membership configurations and membership tiers — the same information you can see under the **Memberships** menu. A WooCommerce API key can only read them, and cannot reach membership bundle data.
 
 Neither affects staff signing in to the site normally.
 
