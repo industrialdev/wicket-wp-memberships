@@ -242,6 +242,10 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'add_membership_expires_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_membership_expires_at' ), 10, 2 );
       add_action( 'wicket_wipe_next_payment_date', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_wicket_wipe_next_payment_date' ), 10, 2 );
       add_action( 'wicket_force_set_next_payment_date', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_wicket_force_set_next_payment_date' ), 10, 2 );
+      // Form Flow renews through its form: stop WCS recalculating a term-end payment date
+      add_filter( 'woocommerce_subscription_calculated_next_payment_date', array( __NAMESPACE__.'\\Subscription_Manager', 'block_form_flow_next_payment' ), 10, 2 );
+      // ...and remove one already on a Form Flow subscription when it is saved (admin edit, My Account toggle)
+      add_action( 'woocommerce_update_order', array( __NAMESPACE__.'\\Subscription_Manager', 'clear_form_flow_next_payment_on_save' ), 20, 1 );
 
       //expire current membership when new one starts
       add_action( 'expire_old_membership_on_new_starts_at', array ( __NAMESPACE__.'\\Membership_Controller', 'catch_expire_current_membership' ), 10, 2 );
