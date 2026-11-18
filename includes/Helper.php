@@ -603,6 +603,12 @@ class Helper {
       return 'clear';
     }
 
+    // Form Flow renews through its form, never through a term-end charge: clear the date whether
+    // the subscription is automatic or manual. Instalments within the term keep their date.
+    if ( self::is_form_flow_renewal( $membership ) ) {
+      return self::is_instalment_subscription( $subscription, $membership['membership_tier_post_id'] ?? 0 ) ? false : 'clear';
+    }
+
     $is_autopay_enabled = $subscription->get_requires_manual_renewal() ? false : true;
 
     if( !empty( $membership['membership_next_tier_subscription_renewal'] ) || $is_autopay_enabled ) {
@@ -652,6 +658,106 @@ class Helper {
            */
     }    
     return $has_next_payment_date;
+  }
+
+  /**
+   * Whether a membership renews through a Form Flow: a renewal form page and no
+   * subscription-renewal flag. Reads the membership record, not the tier, so a per-membership
+   * renewal override is respected (same test as terminate_previous_form_flow_subscription()).
+   *
+   * @param  array $membership  Membership data with `membership_next_tier_form_page_id` and
+   *                            `membership_next_tier_subscription_renewal`.
+   * @return bool
+   */
+  public static function is_form_flow_renewal( $membership ) {
+    return ! empty( $membership['membership_next_tier_form_page_id'] )
+      && empty( $membership['membership_next_tier_subscription_renewal'] );
+  }
+
+  /**
+   * Whether a subscription bills in instalments: more than one payment within one membership
+   * term, for example monthly or quarterly billing on an annual term. Instalments are owed within
+   * the term, so they keep their next payment date and automatic charging. A subscription that
+   * bills once per term, or less often, is a term-end charge instead.
+   *
+   * The term comes from the tier's membership config. When the tier or its config cannot be
+   * resolved, falls back to monthly interval-1 billing, the rule update_membership_subscription()
+   * and Subscription_Manager::drop_superseded_next_payment() use.
+   *
+   * @param  \WC_Subscription $subscription  The subscription to check.
+   * @param  int              $tier_post_id  Membership tier post ID, or 0 when unknown.
+   * @return bool
+   */
+  public static function is_instalment_subscription( $subscription, $tier_post_id = 0 ) {
+    $term = self::get_tier_term( $tier_post_id );
+
+    if ( empty( $term ) ) {
+      return 'month' === $subscription->get_billing_period() && 1 == $subscription->get_billing_interval();
+    }
+
+    return self::is_billing_cycle_shorter_than_term(
+      (string) $subscription->get_billing_period(),
+      (int) $subscription->get_billing_interval(),
+      $term['period_type'],
+      $term['period_count']
+    );
+  }
+
+  /**
+   * Whether one billing cycle is shorter than one membership term.
+   *
+   * Compares calendar lengths from a fixed start date, so mixed units compare correctly
+   * (3 months against 1 year, 1 year against 2 years).
+   *
+   * @param  string $billing_period    Billing period: day, week, month, or year.
+   * @param  int    $billing_interval  Billing periods per cycle.
+   * @param  string $term_period       Term period: day, week, month, or year.
+   * @param  int    $term_count        Term periods per term.
+   * @return bool  True when the subscription bills more than once per term.
+   */
+  public static function is_billing_cycle_shorter_than_term( $billing_period, $billing_interval, $term_period, $term_count ) {
+    $units = [ 'day', 'week', 'month', 'year' ];
+
+    // Unknown units or empty counts cannot be compared: treat as one payment per term.
+    if ( ! in_array( $billing_period, $units, true ) || ! in_array( $term_period, $units, true )
+      || $billing_interval < 1 || $term_count < 1 ) {
+      return false;
+    }
+
+    $start        = new \DateTimeImmutable( '2001-01-01 00:00:00', new \DateTimeZone( 'UTC' ) );
+    $billing_end  = $start->modify( '+' . $billing_interval . ' ' . $billing_period );
+    $term_end     = $start->modify( '+' . $term_count . ' ' . $term_period );
+
+    return $billing_end < $term_end;
+  }
+
+  /**
+   * The membership term length for a tier, from its membership config.
+   *
+   * @param  int $tier_post_id  Membership tier post ID.
+   * @return array{period_type: string, period_count: int}|null  Null when the tier or its config
+   *         cannot be resolved.
+   */
+  public static function get_tier_term( $tier_post_id ) {
+    if ( empty( $tier_post_id ) ) {
+      return null;
+    }
+
+    $tier   = new Membership_Tier( $tier_post_id );
+    $config = ! empty( $tier->tier_data ) ? $tier->get_config() : false;
+    if ( empty( $config ) ) {
+      return null;
+    }
+
+    $period = $config->get_period_data();
+    if ( empty( $period['period_type'] ) || empty( $period['period_count'] ) ) {
+      return null;
+    }
+
+    return [
+      'period_type' => (string) $period['period_type'],
+      'period_count' => (int) $period['period_count'],
+    ];
   }
 
   /**

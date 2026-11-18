@@ -132,4 +132,167 @@ class Subscription_Manager {
 
     return true;
   }
+
+  /**
+   * Filter callback for `woocommerce_subscription_calculated_next_payment_date`.
+   *
+   * WooCommerce Subscriptions recalculates the next payment date each time a subscription becomes
+   * active with no date, or with one less than 2 hours away: the first payment, a paid renewal
+   * order, or an admin reactivation (WC_Subscription::update_status()). For a Form Flow
+   * membership that date is a term-end renewal that skips the form, so return 0 and WooCommerce
+   * sets none.
+   *
+   * Instalments within the term keep their calculated date. Bundle memberships are left alone:
+   * bundles apply their own next payment rule (Membership_Bundle).
+   *
+   * @param  string|int        $next_payment  Calculated date ('Y-m-d H:i:s'), or 0 when none.
+   * @param  \WC_Subscription  $subscription  Subscription the date was calculated for.
+   *
+   * @return string|int  The calculated date, or 0 for a Form Flow term-end subscription.
+   */
+  public static function block_form_flow_next_payment( $next_payment, $subscription ) {
+    if ( empty( $next_payment ) || ! is_a( $subscription, 'WC_Subscription' ) ) {
+      return $next_payment;
+    }
+
+    if ( ! self::is_form_flow_term_end_subscription( $subscription ) ) {
+      return $next_payment;
+    }
+
+    Utilities::wc_log_mship_error( [ 'Blocked calculated next payment date on Form Flow subscription', [ $subscription->get_id(), $next_payment ] ] );
+
+    return 0;
+  }
+
+  /**
+   * Action callback for `woocommerce_update_order`: removes the next payment date from a Form
+   * Flow term-end subscription whenever it is saved.
+   *
+   * The other guards stop a date being written or calculated. This one removes a date that is
+   * already there: one set before the fix, typed in by an admin, or left when a member uses the
+   * My Account auto-renew toggle. Only linked memberships are checked, so subscriptions with no
+   * membership pay no tier lookup on every save.
+   *
+   * @param  int $order_id  ID of the saved order or subscription.
+   *
+   * @return void
+   */
+  public static function clear_form_flow_next_payment_on_save( $order_id ): void {
+    // Removing the date saves the subscription again, which fires this hook again.
+    static $running = false;
+
+    if ( $running || ! function_exists( 'wcs_is_subscription' ) || ! wcs_is_subscription( $order_id ) ) {
+      return;
+    }
+
+    $sub = wcs_get_subscription( $order_id );
+    if ( empty( $sub ) || empty( $sub->get_time( 'next_payment' ) )
+      || ! self::is_form_flow_term_end_subscription( $sub, false ) ) {
+      return;
+    }
+
+    $running = true;
+    try {
+      // WooCommerce reads a 0 date as a delete, and unschedules the renewal payment.
+      $sub->update_dates( [ 'next_payment' => 0 ] );
+      $sub->add_order_note( 'Wicket removed the next payment date: this membership renews through its renewal form.' );
+    } catch ( \Exception $e ) {
+      Utilities::wc_log_mship_error( [ 'Failed to remove next payment date from Form Flow subscription', [ $sub->get_id(), $e->getMessage() ] ] );
+    } finally {
+      $running = false;
+    }
+  }
+
+  /**
+   * Whether a subscription pays for a Form Flow membership with one payment per term, so any
+   * next payment date is a term-end renewal that skips the form. Instalments within the term are
+   * not term-end charges.
+   *
+   * @param  \WC_Subscription  $sub                     Subscription to check.
+   * @param  bool              $allow_product_fallback  Use the product's tier when no membership is linked.
+   *
+   * @return bool
+   */
+  public static function is_form_flow_term_end_subscription( \WC_Subscription $sub, bool $allow_product_fallback = true ): bool {
+    $tier_post_id = self::get_form_flow_tier_post_id( $sub, $allow_product_fallback );
+
+    return null !== $tier_post_id && ! Helper::is_instalment_subscription( $sub, $tier_post_id );
+  }
+
+  /**
+   * Whether a subscription pays for a Form Flow membership.
+   *
+   * @param  \WC_Subscription  $sub  Subscription to check.
+   *
+   * @return bool  True for an individual Form Flow membership; false otherwise, including bundles.
+   */
+  public static function is_form_flow_subscription( \WC_Subscription $sub ): bool {
+    return null !== self::get_form_flow_tier_post_id( $sub );
+  }
+
+  /**
+   * The tier of the Form Flow membership a subscription pays for.
+   *
+   * Reads the newest membership linked to the subscription, so a per-membership renewal override
+   * is respected. Before the first payment no membership exists yet, so it can fall back to the
+   * tier of the subscription's products.
+   *
+   * @param  \WC_Subscription  $sub                     Subscription to check.
+   * @param  bool              $allow_product_fallback  Use the product's tier when no membership is linked.
+   *
+   * @return int|null  Tier post ID (0 when the membership has none), or null when the subscription
+   *                   is not an individual Form Flow membership.
+   */
+  private static function get_form_flow_tier_post_id( \WC_Subscription $sub, bool $allow_product_fallback = true ): ?int {
+    $membership_post_ids = get_posts( [
+      'post_type' => 'wicket_membership',
+      'post_status' => 'publish',
+      'numberposts' => 1,
+      'orderby' => 'ID',
+      'order' => 'DESC',
+      'meta_query' => [
+        [ 'key' => 'membership_subscription_id', 'value' => $sub->get_id(), 'compare' => '=' ],
+      ],
+      'fields' => 'ids',
+    ] );
+
+    if ( ! empty( $membership_post_ids ) ) {
+      $membership_post_id = $membership_post_ids[0];
+
+      if ( ! empty( get_post_meta( $membership_post_id, 'membership_bundle_id', true ) ) ) {
+        return null;
+      }
+
+      $is_form_flow = Helper::is_form_flow_renewal( [
+        'membership_next_tier_form_page_id' => get_post_meta( $membership_post_id, 'membership_next_tier_form_page_id', true ),
+        'membership_next_tier_subscription_renewal' => get_post_meta( $membership_post_id, 'membership_next_tier_subscription_renewal', true ),
+      ] );
+
+      return $is_form_flow ? (int) get_post_meta( $membership_post_id, 'membership_tier_post_id', true ) : null;
+    }
+
+    if ( ! $allow_product_fallback ) {
+      return null;
+    }
+
+    foreach ( $sub->get_items() as $item ) {
+      $product_id = $item->get_variation_id() ?: $item->get_product_id();
+      if ( function_exists( 'wicket_get_multilang_product_id' ) ) {
+        $product_data = wicket_get_multilang_product_id( $product_id, 'en' );
+        if ( ! empty( $product_data['was_translated'] ) ) {
+          $product_id = $product_data['translated'];
+        }
+      }
+
+      $tier = Membership_Tier::get_tier_by_product_id( $product_id );
+      // A membership product on a Form Flow tier that has a renewal form to send the member to.
+      if ( ! empty( $tier->tier_data )
+        && 'form_flow' === $tier->get_tier_renewal_type()
+        && ! empty( $tier->get_next_tier_form_page_id() ) ) {
+        return (int) $tier->get_membership_tier_post_id();
+      }
+    }
+
+    return null;
+  }
 }

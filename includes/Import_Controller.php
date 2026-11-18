@@ -447,11 +447,17 @@ class Import_Controller {
       //make sure this happens before setting dates, woo subscriptions makes changes based on existing dates when its status changes
       $subscription->update_status('active');
 
-      $dates['next_payment'] = $next_payment_date_mysqltime;
       $dates['end'] = $end_date_mysqltime;
-      if($dates['next_payment'] == $dates['end']) {
-        //add 1 second to end date so it is always after next payment date
-        $dates['end'] = date ('Y-m-d H:i:s', strtotime( $dates['end']. " + 1 second"));
+      // Form Flow renews through its form, so it gets no term-end payment date.
+      // Activation above may have set a calculated date before the membership was linked, so remove it.
+      if( Helper::is_form_flow_renewal( $membership ) ) {
+        $subscription->delete_date( 'next_payment' );
+      } else {
+        $dates['next_payment'] = $next_payment_date_mysqltime;
+        if($dates['next_payment'] == $dates['end']) {
+          //add 1 second to end date so it is always after next payment date
+          $dates['end'] = date ('Y-m-d H:i:s', strtotime( $dates['end']. " + 1 second"));
+        }
       }
       $subscription->update_dates($dates);
 

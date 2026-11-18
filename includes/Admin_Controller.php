@@ -864,6 +864,8 @@ class Admin_Controller {
     $wicket_response = $Membership_Controller->update_mdp_record( $membership, $data );
 
     $membership['membership_subscription_id'] = $membership_post['membership_subscription_id'][0];
+    // has_next_payment_date() needs the tier to tell instalments from a term-end charge.
+    $membership['membership_tier_post_id'] = $membership_post['membership_tier_post_id'][0] ?? 0;
     $membership['membership_next_tier_id'] = $data['membership_next_tier_id'];
     $membership['membership_next_tier_form_page_id'] = $data['membership_next_tier_form_page_id'];
     $membership['membership_next_tier_subscription_renewal'] = $data['membership_next_tier_subscription_renewal'];
