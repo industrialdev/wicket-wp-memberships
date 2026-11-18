@@ -45,6 +45,9 @@ class Autorenew {
     // One-line-per-check, intentionally: mirrors the real renewal process flow, gate by gate and increases readability.
     if ( $result = self::check_subscription_active( $subscription ) ) return $result;
     if ( $result = self::check_not_staging_site( $subscription ) ) return $result;
+    // Must also run before check_free_subscription(): WCS only creates a renewal order when the
+    // next_payment date fires, so without one even a $0 subscription never renews.
+    if ( $result = self::check_next_payment_scheduled( $subscription ) ) return $result;
     // Must run before check_not_manual_renewal(): WCS's own process_renewal() auto-completes a
     // $0 renewal order unconditionally (payment_complete()), never consulting is_manual() at
     // completion time — a free subscription still renews even when flagged manual.
@@ -109,6 +112,31 @@ class Autorenew {
     $retry_timestamp = $subscription->get_time( 'payment_retry', 'gmt' );
 
     return ! empty( $retry_timestamp ) && $retry_timestamp > time();
+  }
+
+  /**
+   * WCS only creates a renewal order (and charges for it) when the subscription's `next_payment`
+   * date fires. With no `next_payment` date there is no scheduled renewal, so nothing will
+   * auto-renew, however the payment side is set up (e.g. form-flow tiers, whose renewal date
+   * is deliberately cleared).
+   *
+   * Skipped while an automatic retry is pending: that is a renewal already in progress, driven by
+   * `payment_retry` rather than `next_payment`.
+   *
+   * @param  \WC_Subscription $subscription  The subscription to check.
+   * @return array{result: bool, reason: string|null}|null  A final result if no next payment is
+   *         scheduled, null to continue to the next check.
+   */
+  private static function check_next_payment_scheduled( $subscription ) {
+    if ( ! empty( $subscription->get_time( 'next_payment' ) ) ) {
+      return null;
+    }
+
+    if ( ! self::has_pending_automatic_retry( $subscription ) ) {
+      return [ 'result' => false, 'reason' => __( 'Subscription has no next payment date scheduled.', 'wicket-memberships' ) ];
+    }
+
+    return null;
   }
 
   /**
