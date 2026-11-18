@@ -10,6 +10,16 @@ defined( 'ABSPATH' ) || exit;
 
 class Utilities {
 
+  /**
+   * Hideable View Subscription actions: setting key => [ WooCommerce Subscriptions action key, checkbox label ].
+   */
+  public const HIDEABLE_SUBSCRIPTION_ACTIONS = [
+    'wicket_mship_hide_subscription_cancel'      => [ 'cancel', 'Cancel' ],
+    'wicket_mship_hide_subscription_reactivate'  => [ 'reactivate', 'Reactivate' ],
+    'wicket_mship_hide_subscription_resubscribe' => [ 'resubscribe', 'Resubscribe' ],
+    'wicket_mship_hide_subscription_renew_now'   => [ 'subscription_renewal_early', 'Renew now' ],
+  ];
+
   private $membership_cpt_slug = '';
 
   public function __construct() {
@@ -724,16 +734,14 @@ class Utilities {
   }
 
   /**
-   * Remove the Cancel, Reactivate and Resubscribe actions from the member's View Subscription page
-   * when their Hide Subscription Self-Serve settings are on.
+   * Remove the Cancel, Reactivate, Resubscribe and Renew now actions from the member's View Subscription page
+   * when their hide settings are on.
    *
    * Only hides the buttons; admins can still change subscriptions in WooCommerce.
    *
    * @since 1.0.123
    *
-   * @see Settings_Fields::wicket_mship_hide_subscription_cancel()
-   * @see Settings_Fields::wicket_mship_hide_subscription_reactivate()
-   * @see Settings_Fields::wicket_mship_hide_subscription_resubscribe()
+   * @see Settings_Fields::wicket_mship_hide_subscription_actions()
    *
    * @param  array  $actions  Subscription actions from wcs_view_subscription_actions, keyed by action.
    *
@@ -745,14 +753,7 @@ class Utilities {
     }
 
     $options = get_option( 'wicket_membership_plugin_options' );
-    // Setting key => WooCommerce Subscriptions action key.
-    $hideable = [
-      'wicket_mship_hide_subscription_cancel'      => 'cancel',
-      'wicket_mship_hide_subscription_reactivate'  => 'reactivate',
-      'wicket_mship_hide_subscription_resubscribe' => 'resubscribe',
-    ];
-
-    foreach ( $hideable as $setting => $action ) {
+    foreach ( self::HIDEABLE_SUBSCRIPTION_ACTIONS as $setting => [ $action ] ) {
       if ( ! empty( $options[ $setting ] ) ) {
         unset( $actions[ $action ] );
       }

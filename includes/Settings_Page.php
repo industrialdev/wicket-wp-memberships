@@ -272,7 +272,7 @@ class Settings_Page {
     $base_link = '<a href="' . esc_url( admin_url( 'admin.php?page=wicket-settings&tab=integrations' ) ) . '">Hide membership categories / product single pages</a>';
 
     echo '<div class="notice notice-warning inline"><p><strong>Saving this page changes which products are hidden.</strong> ';
-    echo 'The ' . $base_link . ' redirects currently use the legacy Membership Categories in Wicket Settings. After you save here, they use the Membership Categories on the General tab.</p>';
+    echo 'The ' . $base_link . ' redirects currently use the legacy Membership Categories in Wicket Settings. After you save here, they use the Membership Product Categories on the General tab.</p>';
     echo '<p>Will start redirecting: ' . $names( $start ) . '<br>Will stop redirecting: ' . $names( $stop ) . '</p></div>';
   }
 
