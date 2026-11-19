@@ -2701,7 +2701,7 @@ function get_item_data ( $other_data, $cart_item ) {
    * @param  int|null $user_id  WP user ID; defaults to the current user when null.
    * @param  string   $status   Optional membership status to restrict the lookup to.
    *
-   * @return array{early_renewal:array,grace_period:array,pending_approval:array,debug:array,membership_exists:array}
+   * @return array{early_renewal:array,grace_period:array,pending_approval:array,group_owner:array,debug:array,membership_exists:array}
    */
   public function get_membership_callouts( $user_id = null, $status = "" ) {
     $membership_exists = [];
@@ -2948,7 +2948,6 @@ function get_item_data ( $other_data, $cart_item ) {
         }
       }
 
-      unset($membership_data['subscription_renewal']);
       if(!empty($next_tier_subscription_renewal)) {
         $the_order = null;
         //We are using subscription renewals to maintain the membership
