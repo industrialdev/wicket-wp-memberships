@@ -2694,12 +2694,14 @@ function get_item_data ( $other_data, $cart_item ) {
    *
    * Compares each membership's dates and subscription next-payment time against now to
    * decide which callout, if any, it belongs to, and skips ones autopay will renew.
+   * Each membership is judged on its own data and its own subscription only; per-membership
+   * loop state starts empty on every pass.
    * Emits HTML debug comments when WICKET_MEMBERSHIPS_DEBUG_ACC is set.
    *
    * @param  int|null $user_id  WP user ID; defaults to the current user when null.
    * @param  string   $status   Optional membership status to restrict the lookup to.
    *
-   * @return array{early_renewal:array,grace_period:array,pending_approval:array,debug:array,membership_exists:array}
+   * @return array{early_renewal:array,grace_period:array,pending_approval:array,group_owner:array,debug:array,membership_exists:array}
    */
   public function get_membership_callouts( $user_id = null, $status = "" ) {
     $membership_exists = [];
@@ -2773,7 +2775,16 @@ function get_item_data ( $other_data, $cart_item ) {
     );
     $memberships = get_posts( $args );
     foreach( $memberships as &$membership) {
+      // Per-membership state. Each of these is set only on some paths through the loop and
+      // read later in the same pass, so without a reset a membership reads the previous
+      // membership's values: a free autorenewing subscription on one membership hid the
+      // renewal callout of the next membership that has no subscription.
       $membership_is_renewal = false;
+      $membership_data = [];
+      $callout = [];
+      $sub = null;
+      $is_autopay_enabled = false;
+      $renewal_link_url = null;
       $membership_data['ID'] = $membership->ID;
 
       $meta_data = get_post_meta( $membership->ID );
@@ -2937,7 +2948,6 @@ function get_item_data ( $other_data, $cart_item ) {
         }
       }
 
-      unset($membership_data['subscription_renewal']);
       if(!empty($next_tier_subscription_renewal)) {
         $the_order = null;
         //We are using subscription renewals to maintain the membership
