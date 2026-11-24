@@ -71,6 +71,13 @@ class Membership_Controller {
    */
   const PRORATION_LINE_META = '_wicket_mship_proration';
 
+  /**
+   * admin-post.php action of the grace-period renewal button.
+   *
+   * @see Membership_Controller::handle_grace_renewal_request()
+   */
+  const GRACE_RENEWAL_ACTION = 'wicket_mship_grace_renewal';
+
   /** True once a membership write has queued the member list cache flush for this request. */
   private static $member_list_cache_stale = false;
 
@@ -537,7 +544,16 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Get memberships with config from tier by products on the order
+   * Get memberships with config from tier by products on the order.
+   *
+   * An item that carries `_membership_post_id_renew` is processed as a renewal of that
+   * membership post, which becomes `previous_membership_post_id` of the new record.
+   *
+   * @see atlas://packages/wicket-wp-memberships/engineering/subscription-renewal-flow.md
+   *
+   * @param \WC_Abstract_Order $order Order being processed.
+   *
+   * @return array Membership data arrays, one for each membership product on the order.
    */
   private function get_memberships_data_from_subscription_products( $order ) {
     $membership_current = null;
@@ -796,6 +812,7 @@ function get_item_data ( $other_data, $cart_item ) {
    * @return void
    *
    * @see Membership_Controller::get_memberships_data_from_subscription_products()
+   * @see atlas://packages/wicket-wp-memberships/engineering/subscription-renewal-flow.md
    */
   public static function catch_order_completed( $order_id ) {
     $order = $order_id instanceof \WC_Abstract_Order ? $order_id : wc_get_order( $order_id );
@@ -2285,7 +2302,19 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Create the WP Membership Record
+   * Create the WP Membership Record.
+   *
+   * Also stamps the new membership post ID on the subscription item as
+   * `_membership_post_id_renew`, so the next renewal order of that subscription renews it.
+   *
+   * @see Membership_Controller::wicket_update_subscription_meta_membership_post_id()
+   * @see atlas://packages/wicket-wp-memberships/engineering/subscription-renewal-flow.md
+   *
+   * @param array      $membership             Membership data from the processed order.
+   * @param string     $membership_wicket_uuid MDP membership UUID.
+   * @param bool       $skip_approval          True to skip the tier approval step.
+   *
+   * @return int Membership post ID (the existing record when one matches); 0 when the insert fails.
    */
   public function create_local_membership_record( $membership, $membership_wicket_uuid, $skip_approval = false ) {
     //Utilities::wc_log_mship_error(['create_local_membership_record', $membership, $membership_wicket_uuid, $skip_approval]);
@@ -2433,6 +2462,7 @@ function get_item_data ( $other_data, $cart_item ) {
    * If we are reusing the same subscription we need to change it from the last post id from the last renewal to the current one
    *
    * @see Helper::is_in_membership_category()
+   * @see atlas://packages/wicket-wp-memberships/engineering/subscription-renewal-flow.md
    *
    * @param  int    $membership_post_id   Membership post ID to stamp on the subscription items.
    * @param  array  $membership           Membership data, including membership_subscription_id.
@@ -2690,6 +2720,128 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
+   * Build the grace-period renewal button URL for a subscription-renewal membership.
+   *
+   * The URL points to handle_grace_renewal_request() through admin-post.php. The nonce
+   * is bound to the membership post and the current user.
+   *
+   * @see Membership_Controller::handle_grace_renewal_request()
+   *
+   * @param int $membership_post_id Membership post ID.
+   *
+   * @return string admin-post.php URL with the action, membership post ID, and nonce.
+   */
+  public static function get_grace_renewal_url( int $membership_post_id ): string {
+    return add_query_arg( [
+      'action'             => self::GRACE_RENEWAL_ACTION,
+      'membership_post_id' => $membership_post_id,
+      '_wpnonce'           => wp_create_nonce( self::GRACE_RENEWAL_ACTION . '_' . $membership_post_id ),
+    ], admin_url( 'admin-post.php' ) );
+  }
+
+  /**
+   * Send the member to the payment page of their grace-period renewal order.
+   *
+   * Runs on the grace-period callout button click (admin_post). It reuses a payable
+   * (pending or failed) renewal order of the subscription when one exists, whatever the
+   * subscription status: an admin may have created that order with modified products and
+   * set the subscription back to active. Otherwise, inside the grace period, it creates
+   * the renewal order. In both cases the subscription is put on-hold first. A second click
+   * finds the order the first click created, so it adds no new order. Any failed check
+   * sends the member back to the page they came from.
+   *
+   * Does not write `_membership_post_id_renew`: the renewal process owns that item meta.
+   *
+   * @see Membership_Controller::get_grace_renewal_url()
+   * @see atlas://packages/wicket-wp-memberships/engineering/subscription-renewal-flow.md
+   *
+   * @return void Redirects and exits.
+   */
+  public static function handle_grace_renewal_request(): void {
+    $membership_post_id = isset( $_GET['membership_post_id'] ) ? absint( $_GET['membership_post_id'] ) : 0;
+    $back_url = wp_get_referer() ?: home_url( '/' );
+
+    $nonce = isset( $_GET['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_GET['_wpnonce'] ) ) : '';
+    if (
+      empty( $membership_post_id )
+      || ! wp_verify_nonce( $nonce, self::GRACE_RENEWAL_ACTION . '_' . $membership_post_id )
+      || (int) get_post_meta( $membership_post_id, 'user_id', true ) !== get_current_user_id()
+      || ! function_exists( 'wcs_get_subscription' )
+    ) {
+      wp_safe_redirect( $back_url );
+      exit;
+    }
+
+    $membership = array_map( fn( $values ) => $values[0], get_post_meta( $membership_post_id ) );
+    $subscription = \wcs_get_subscription( $membership['membership_subscription_id'] ?? 0 );
+    if ( empty( $subscription ) ) {
+      wp_safe_redirect( $back_url );
+      exit;
+    }
+
+    foreach ( $subscription->get_related_orders( 'all', 'renewal' ) as $renewal_order ) {
+      if ( $renewal_order->has_status( [ 'pending', 'failed' ] ) ) {
+        // WooCommerce Subscriptions refuses payment of a renewal order unless its
+        // subscription is on-hold or pending, and staff may have set it back to active.
+        if ( ! $subscription->has_status( 'on-hold' ) ) {
+          $subscription->update_status( 'on-hold', __( 'Membership plugin set subscription on-hold so its pending renewal order can be paid.', 'wicket-memberships' ) );
+        }
+        wp_safe_redirect( $renewal_order->get_checkout_payment_url() );
+        exit;
+      }
+    }
+
+    // A stale page can still show the button after the grace period ends; renewing then
+    // is no longer allowed, so no order is created.
+    $current_time = time();
+    if (
+      $current_time < strtotime( $membership['membership_ends_at'] ?? '' )
+      || $current_time >= strtotime( $membership['membership_expires_at'] ?? '' )
+    ) {
+      wp_safe_redirect( $back_url );
+      exit;
+    }
+
+    if ( ! $subscription->has_status( 'on-hold' ) ) {
+      $subscription->update_status( 'on-hold', __( 'Membership plugin set subscription on-hold generating a pending renewal order.', 'wicket-memberships' ) );
+    }
+    $renewal_order = \wcs_create_renewal_order( $subscription );
+    if ( ! $renewal_order instanceof \WC_Order ) {
+      Utilities::wc_log_mship_error( [ 'handle_grace_renewal_request: wcs_create_renewal_order failed', [
+        'membership_post_id' => $membership_post_id,
+        'subscription_id'    => $subscription->get_id(),
+      ] ] );
+      wp_safe_redirect( $back_url );
+      exit;
+    }
+
+    $parent_order = wc_get_order( $membership['membership_parent_order_id'] ?? 0 );
+    if ( ! empty( $parent_order ) ) {
+      $parent_order->add_order_note( 'Subscription renewal order ID#' . $renewal_order->get_id() . ' generated by Membership Plugin.' );
+    }
+
+    wp_safe_redirect( $renewal_order->get_checkout_payment_url() );
+    exit;
+  }
+
+  /**
+   * Send a logged-out click on the grace-period button to the login page.
+   *
+   * Runs on admin_post_nopriv: the member's session ended between loading the page and
+   * clicking. Without this, admin-post.php answers with an empty 400 page. After login the
+   * member returns to the page they came from, which shows a fresh button. The old nonce is
+   * bound to the ended session, so returning to the handler URL would fail its check.
+   *
+   * @see Membership_Controller::handle_grace_renewal_request()
+   *
+   * @return void Redirects and exits.
+   */
+  public static function handle_grace_renewal_request_logged_out(): void {
+    wp_safe_redirect( wp_login_url( wp_get_referer() ?: home_url( '/' ) ) );
+    exit;
+  }
+
+  /**
    * Build the renewal callouts (early renewal, grace period, pending approval) for a user.
    *
    * Compares each membership's dates and subscription next-payment time against now to
@@ -2697,6 +2849,10 @@ function get_item_data ( $other_data, $cart_item ) {
    * Each membership is judged on its own data and its own subscription only; per-membership
    * loop state starts empty on every pass.
    * Emits HTML debug comments when WICKET_MEMBERSHIPS_DEBUG_ACC is set.
+   * Read-only for orders and subscription status: the grace-period subscription renewal
+   * button links to handle_grace_renewal_request(), which acts only on click.
+   *
+   * @see atlas://packages/wicket-wp-memberships/engineering/subscription-renewal-flow.md
    *
    * @param  int|null $user_id  WP user ID; defaults to the current user when null.
    * @param  string   $status   Optional membership status to restrict the lookup to.
@@ -2954,48 +3110,42 @@ function get_item_data ( $other_data, $cart_item ) {
         if ( ! function_exists( 'wcs_get_subscription' ) ) {
           continue;
         }
-        $current_subscription = \wcs_get_subscription( $membership_json_data['membership_subscription_id'] );
+        // The membership post meta is the one source of the subscription ID for this branch,
+        // the autopay check above, and handle_grace_renewal_request().
+        $current_subscription = \wcs_get_subscription( $membership_data['meta']['membership_subscription_id'] ?? 0 );
         if(empty($current_subscription)) {
           continue;
         }
-        $renewal_orders = $current_subscription->get_related_orders('renewal');
-        foreach ($renewal_orders as $order_id) {
-          $the_order = wc_get_order($order_id);
-          $order_status = $the_order->get_status();
-          $subscription_status = $current_subscription->get_status();
-          if(($order_status == 'pending' || $order_status == 'failed') && $subscription_status == 'on-hold') {
-            $renewal_link_url = $the_order->get_checkout_payment_url();
-            break;
-          }
-        }
-
-        if( empty($renewal_link_url) && strtotime($membership_data['meta']['membership_ends_at']) > $current_time ) {
-          $renewal_link_url = \wcs_get_early_renewal_url( $current_subscription );
-          // Extract just the query string variables from the URL
-          $query_string = '';
-          if ($renewal_link_url) {
-            $parts = parse_url($renewal_link_url);
-            if (isset($parts['query'])) {
-              $query_string = $parts['query'];
-            }
-          }
-          $renewal_link_url = wc_get_cart_url() . '?' . $query_string;
-          $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
-        } elseif( empty($renewal_link_url) && $current_time < strtotime($membership_data['meta']['membership_expires_at']) /* !empty( $the_order) /*&& $the_order->ID != $membership_data['meta']['membership_parent_order_id']*/) {
-          //$the_order->update_status('on-hold', __('Order status changed generating a pending renewal order.'));
-          $current_subscription->update_status('on-hold', __('Membership plugin set subscription on-hold generating a pending renewal order.'));
-          \wcs_create_renewal_order($current_subscription);
+        if( strtotime($membership_data['meta']['membership_ends_at']) > $current_time ) {
           $renewal_orders = $current_subscription->get_related_orders('renewal');
           foreach ($renewal_orders as $order_id) {
             $the_order = wc_get_order($order_id);
-            $parent_order = wc_get_order($membership_data['meta']['membership_parent_order_id']);
-            if(!empty($parent_order)) {
-              $parent_order->add_order_note("Subscription renewal order ID#".$order_id->get_id()." generated by Membership Plugin.");
+            $order_status = $the_order->get_status();
+            $subscription_status = $current_subscription->get_status();
+            if(($order_status == 'pending' || $order_status == 'failed') && $subscription_status == 'on-hold') {
+              $renewal_link_url = $the_order->get_checkout_payment_url();
+              break;
             }
-            break;
           }
-          $renewal_link_url = $the_order->get_checkout_payment_url();
-          $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
+
+          if( empty($renewal_link_url) ) {
+            $renewal_link_url = \wcs_get_early_renewal_url( $current_subscription );
+            // Extract just the query string variables from the URL
+            $query_string = '';
+            if ($renewal_link_url) {
+              $parts = parse_url($renewal_link_url);
+              if (isset($parts['query'])) {
+                $query_string = $parts['query'];
+              }
+            }
+            $renewal_link_url = wc_get_cart_url() . '?' . $query_string;
+            $this->wicket_update_subscription_meta_membership_post_id(  $membership_data['ID'], $membership_data['meta'] );
+          }
+        } elseif( $current_time < strtotime($membership_data['meta']['membership_expires_at']) ) {
+          // Grace period: the callout renders on every Account Centre load, including staff
+          // "Switch To" visits, so it always links to the handler. Finding or creating the
+          // renewal order waits for the member to click the button.
+          $renewal_link_url = self::get_grace_renewal_url( (int) $membership_data['ID'] );
         }
 
         $membership_data['subscription_renewal'] = [
@@ -3003,8 +3153,8 @@ function get_item_data ( $other_data, $cart_item ) {
           'permalink' => $renewal_link_url,
         ];
         //if we have a subcription_id and renewing into the same tier we pass the subscription to the renewal callout
-        if( !empty( $membership_json_data['membership_subscription_id'] ) && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
-          $membership_data['next_tier']['next_subscription_id'] = $membership_json_data['membership_subscription_id'];
+        if( !empty( $membership_data['meta']['membership_subscription_id'] ) && $next_tier_id == $membership_json_data['membership_tier_post_id'] ) {
+          $membership_data['next_tier']['next_subscription_id'] = $membership_data['meta']['membership_subscription_id'];
         }
       } else if( !empty($next_tier_form_page_id) ) {
         //we are using a form page flow to renew the membership
