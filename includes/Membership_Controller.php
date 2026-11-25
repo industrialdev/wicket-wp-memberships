@@ -2186,7 +2186,11 @@ function get_item_data ( $other_data, $cart_item ) {
    *
    * Status (delayed / active / grace_period / expired) is derived from now against the
    * start, end and expiry dates, unless the incoming status is cancelled. Missing dates
-   * fall back to the stored meta. Also refreshes the stored autorenew status.
+   * fall back to the stored meta. Grace period needs grace days above 0: the incoming
+   * membership_grace_period_days is used first, then the stored meta. Also refreshes the
+   * stored autorenew status.
+   *
+   * @see atlas://packages/wicket-wp-memberships/bugfix/grace-status-expired-on-admin-save.md
    *
    * @param  int   $membership_post_id  The wicket_membership post ID.
    * @param  array $meta_data           Meta fields to write; only the fields being changed.
@@ -2223,7 +2227,13 @@ function get_item_data ( $other_data, $cart_item ) {
           $expiry_at = strtotime( "+{$grace_period_days} days", $ends_at );
         }
       }
-      $grace_period_days = isset( $grace_period_days ) ? $grace_period_days : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
+      // Creation and import never store grace days on the post, so the caller's value
+      // wins; the post meta is only the fallback.
+      if ( ! isset( $grace_period_days ) ) {
+        $grace_period_days = isset( $meta_data['membership_grace_period_days'] )
+          ? (int) $meta_data['membership_grace_period_days']
+          : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
+      }
 
       if ( $starts_at && $ends_at ) {
         if ( $now < $starts_at ) {
