@@ -2,6 +2,7 @@ import { __ } from "@wordpress/i18n";
 import { useState, useEffect, useId } from "react";
 import {
   Button,
+  CheckboxControl,
   Flex,
   FlexItem,
   FlexBlock,
@@ -35,6 +36,7 @@ const ManageTierProducts = ({
   productsInUse = "",
   productVariationsInUse = [],
   productListLabel = "",
+  prorationEnabled = false,
 }) => {
   const componentId = useId();
 
@@ -263,6 +265,8 @@ const ManageTierProducts = ({
       newProducts = products.map((product, index) => {
         if (index === currentProductIndex) {
           return {
+            // Keep keys the modal does not edit, such as the prorate flag.
+            ...product,
             product_id: tempProduct.product_id,
             max_seats: tempProduct.max_seats,
             variation_id: tempProduct.variation_id,
@@ -355,6 +359,18 @@ const ManageTierProducts = ({
                   <th className="manage-column column-columnname" scope="col">
                     {__("Variation", "wicket-memberships")}
                   </th>
+                  {prorationEnabled && (
+                    <th
+                      className="manage-column column-columnname"
+                      scope="col"
+                      title={__(
+                        "Members who join mid-season pay a prorated first payment. Renewals charge full price.",
+                        "wicket-memberships",
+                      )}
+                    >
+                      {__("Prorate", "wicket-memberships")}
+                    </th>
+                  )}
                   <th className="check-column"></th>
                 </tr>
               </thead>
@@ -379,6 +395,24 @@ const ManageTierProducts = ({
                     <td className="column-columnname">
                       {product.variation_id ? `#${product.variation_id}` : "-"}
                     </td>
+                    {prorationEnabled && (
+                      <td className="column-columnname">
+                        <CheckboxControl
+                          aria-label={__("Prorate", "wicket-memberships")}
+                          checked={product.prorate === true}
+                          __nextHasNoMarginBottom={true}
+                          onChange={(value) => {
+                            saveProductChanges(
+                              products.map((item, itemIndex) =>
+                                itemIndex === index
+                                  ? { ...item, prorate: value }
+                                  : item,
+                              ),
+                            );
+                          }}
+                        />
+                      </td>
+                    )}
                     <td>
                       <Button
                         onClick={() => {

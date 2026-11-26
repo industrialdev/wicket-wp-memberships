@@ -303,9 +303,8 @@ class Membership_Config {
     $is_new_membership = empty( $membership );
 
     if (!$is_new_membership) {
-      // For renewal: day after current membership ends in MDP timezone
-      $utc_date = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
-      $utc_date->modify( '+1 day' );
+      // Step a day on the MDP calendar: a UTC +1 day is 23 or 25 MDP hours across a DST change.
+      $utc_date = Utilities::get_mdp_day_start( $this->mdp_local_ymd( $membership['membership_ends_at'], '+1 day' ) );
     } else {
       // For new membership: today at midnight in MDP timezone
       $utc_date = Utilities::get_mdp_day_start('now');
@@ -321,9 +320,8 @@ class Membership_Config {
     $is_new_membership = empty($membership);
 
     if (!$is_new_membership) {
-      // For renewal: day after current membership ends in MDP timezone
-      $utc_date = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
-      $utc_date->modify( '+1 day' );
+      // Step a day on the MDP calendar: a UTC +1 day is 23 or 25 MDP hours across a DST change.
+      $utc_date = Utilities::get_mdp_day_start( $this->mdp_local_ymd( $membership['membership_ends_at'], '+1 day' ) );
     } else {
       // For new membership: today at midnight in MDP timezone
       $utc_date = Utilities::get_mdp_day_start('now');
@@ -342,9 +340,8 @@ class Membership_Config {
 
     // Create membership start and default end in MDP timezone
     if ( ! $is_new_membership ) {
-      // For renewal: day after current membership ends in MDP timezone
-      $membership_start_dt = Utilities::get_mdp_day_start( $membership['membership_ends_at'] );
-      $membership_start_dt->modify( '+1 day' );
+      // Step a day on the MDP calendar: a UTC +1 day is 23 or 25 MDP hours across a DST change.
+      $membership_start_dt = Utilities::get_mdp_day_start( $this->mdp_local_ymd( $membership['membership_ends_at'], '+1 day' ) );
       $membership_start_dt->setTimezone($mdp_timezone);
       
       $membership_default_end_dt = clone $membership_start_dt;
@@ -450,15 +447,18 @@ class Membership_Config {
       $period_type  = !in_array( $cycle_data['anniversary_data']["period_type"], ['year','month','day'] )
                         ? 'year' : $cycle_data['anniversary_data']["period_type"];      
       // Count the period from the start's MDP calendar day; its UTC day is a day early east of UTC.
-      $the_end_date = $this->mdp_local_ymd( $dates['start_date'], '+' . $period_count . ' ' . $period_type );
+      // Terms start at 00:00:00 and end at 23:59:59, so end the day before the anniversary;
+      // the renewal then starts on the anniversary itself and keeps the start day.
+      $the_end_date = $this->mdp_local_ymd( $dates['start_date'], '+' . $period_count . ' ' . $period_type . ' -1 day' );
       if( in_array( $period_type, ['year', 'month'])
           && (! empty($cycle_data['anniversary_data']['align_end_dates_enabled']) && $cycle_data['anniversary_data']['align_end_dates_enabled'] !== false ) ) {
         switch( $cycle_data['anniversary_data']["align_end_dates_type"] ) {
+          // These snap from the anniversary itself; the day before would pull a start on the 1st or 15th back a month.
           case 'first-day-of-month':
-            $the_end_date = date("Y-m-1", strtotime($the_end_date));
+            $the_end_date = date("Y-m-01", strtotime($the_end_date . ' +1 day'));
             break;
           case '15th-of-month':
-            $the_end_date = date("Y-m-15", strtotime($the_end_date));
+            $the_end_date = date("Y-m-15", strtotime($the_end_date . ' +1 day'));
             break;
           case 'last-day-of-month':
             $the_end_date = date("Y-m-t", strtotime($the_end_date));
@@ -581,16 +581,19 @@ class Membership_Config {
         ? 'year' : $cycle_data['anniversary_data']['period_type'];
 
       // Count the period from the start's MDP calendar day; its UTC day is a day early east of UTC.
-      $the_end_date = $this->mdp_local_ymd( $dates['start_date'], '+' . $period_count . ' ' . $period_type );
+      // Terms start at 00:00:00 and end at 23:59:59, so end the day before the anniversary;
+      // the renewal then starts on the anniversary itself and keeps the start day.
+      $the_end_date = $this->mdp_local_ymd( $dates['start_date'], '+' . $period_count . ' ' . $period_type . ' -1 day' );
       if ( in_array( $period_type, [ 'year', 'month' ], true )
         && ! empty( $cycle_data['anniversary_data']['align_end_dates_enabled'] )
         && $cycle_data['anniversary_data']['align_end_dates_enabled'] !== false ) {
         switch ( $cycle_data['anniversary_data']['align_end_dates_type'] ) {
+          // These snap from the anniversary itself; the day before would pull a start on the 1st or 15th back a month.
           case 'first-day-of-month':
-            $the_end_date = date( 'Y-m-1', strtotime( $the_end_date ) );
+            $the_end_date = date( 'Y-m-01', strtotime( $the_end_date . ' +1 day' ) );
             break;
           case '15th-of-month':
-            $the_end_date = date( 'Y-m-15', strtotime( $the_end_date ) );
+            $the_end_date = date( 'Y-m-15', strtotime( $the_end_date . ' +1 day' ) );
             break;
           case 'last-day-of-month':
             $the_end_date = date( 'Y-m-t', strtotime( $the_end_date ) );
@@ -640,6 +643,149 @@ class Membership_Config {
       }
     }
     return null;
+  }
+
+  /**
+   * Whether new purchases on this config are prorated: a calendar cycle with proration enabled.
+   *
+   * A missing proration key reads as off, so configs saved before proration keep full price.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   *
+   * @since 1.1.0
+   *
+   * @return bool
+   */
+  public function is_proration_enabled(): bool {
+    return $this->get_cycle_type() === 'calendar'
+      && ( $this->cycle_data['proration']['enabled'] ?? false ) === true;
+  }
+
+  /**
+   * The calendar season a new purchase on $date is priced against.
+   *
+   * Exposed so checkout can record the season next to the ratio on the order line.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   *
+   * @since 1.1.0
+   *
+   * @param  string $date  Purchase date (any DateTime format; a bare Y-m-d is an MDP calendar day).
+   *
+   * @return array|null  [ 'start' => 'Y-m-d', 'end' => 'Y-m-d' ] in MDP calendar days, or null when no season contains $date.
+   */
+  public function get_proration_season( string $date = 'now' ): ?array {
+    $seasons = $this->get_calendar_seasons();
+    if ( empty( $seasons ) ) {
+      return null;
+    }
+
+    $mdp_timezone = Utilities::get_mdp_timezone();
+    $purchase_dt  = Utilities::get_mdp_day_start( $date )->setTimezone( $mdp_timezone );
+
+    // Same rule as get_seasonal_end_date(): ignore the active flag, last match wins. The price
+    // must cover the same season the membership term is cut to.
+    $season = null;
+    foreach ( $seasons as $candidate ) {
+      $season_start_mdp = ( new \DateTime( $candidate['start_date'] ) )->setTimezone( $mdp_timezone );
+      $season_end_mdp   = ( new \DateTime( $candidate['end_date'] ) )->setTimezone( $mdp_timezone );
+      if ( $purchase_dt >= $season_start_mdp && $purchase_dt <= $season_end_mdp ) {
+        $season = [ 'start' => $season_start_mdp->format( 'Y-m-d' ), 'end' => $season_end_mdp->format( 'Y-m-d' ) ];
+      }
+    }
+
+    return $season;
+  }
+
+  /**
+   * The share of the full price owed for a new purchase on $date.
+   *
+   * Daily pays for the days left in the season, counting the purchase day. Weekly, monthly,
+   * quarterly and semi-annually cut the season into 7-day or 1/3/6-month buckets from its start
+   * and pay for the buckets left, counting the one the purchase falls in. Annually pays in full.
+   * Returns 1.0 when proration is off, the cycle is not calendar, or no season contains $date.
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   *
+   * @since 1.1.0
+   *
+   * @param  string $date  Purchase date (any DateTime format; a bare Y-m-d is an MDP calendar day).
+   *
+   * @return float  Ratio in (0, 1].
+   */
+  public function get_proration_ratio( string $date = 'now' ): float {
+    if ( ! $this->is_proration_enabled() ) {
+      return 1.0;
+    }
+
+    $season = $this->get_proration_season( $date );
+    if ( $season === null ) {
+      return 1.0;
+    }
+
+    // Count MDP calendar days on UTC midnights: a DST change makes one MDP day 23 or 25 hours
+    // long, which would otherwise drop or add a day.
+    $start_day    = new \DateTime( $season['start'], new \DateTimeZone( 'UTC' ) );
+    $end_day      = new \DateTime( $season['end'], new \DateTimeZone( 'UTC' ) );
+    $purchase_day = new \DateTime(
+      Utilities::get_mdp_day_start( $date )->setTimezone( Utilities::get_mdp_timezone() )->format( 'Y-m-d' ),
+      new \DateTimeZone( 'UTC' )
+    );
+
+    $rate = $this->cycle_data['proration']['rate'] ?? '';
+    switch ( $rate ) {
+      case 'daily':
+        $total_days     = $start_day->diff( $end_day )->days + 1;
+        $remaining_days = $purchase_day->diff( $end_day )->days + 1;
+
+        return (float) ( $remaining_days / $total_days );
+
+      case 'weekly':
+      case 'monthly':
+      case 'quarterly':
+      case 'semi_annually':
+        $months_per_bucket = [ 'monthly' => 1, 'quarterly' => 3, 'semi_annually' => 6 ];
+        $start_year        = (int) $start_day->format( 'Y' );
+        $start_month       = (int) $start_day->format( 'n' );
+        $start_dom         = (int) $start_day->format( 'j' );
+
+        // Walk bucket start dates until one passes the season end; the last bucket is clipped to
+        // the season end. The member pays for the whole bucket they join in.
+        $total_buckets  = 0;
+        $current_bucket = 0;
+        for ( $k = 0; ; $k++ ) {
+          if ( $rate === 'weekly' ) {
+            $bucket_start = ( clone $start_day )->modify( '+' . ( 7 * $k ) . ' days' );
+          } else {
+            // Count each boundary from the season start and clamp to the month's last day, so a
+            // Jan 31 season steps to Feb 28 and then Mar 31, not Mar 3 (PHP's +1 month overflow).
+            $month_index  = ( $start_month - 1 ) + $k * $months_per_bucket[ $rate ];
+            $bucket_start = new \DateTime(
+              sprintf( '%04d-%02d-01', $start_year + intdiv( $month_index, 12 ), $month_index % 12 + 1 ),
+              new \DateTimeZone( 'UTC' )
+            );
+            $bucket_start->setDate(
+              (int) $bucket_start->format( 'Y' ),
+              (int) $bucket_start->format( 'n' ),
+              min( $start_dom, (int) $bucket_start->format( 't' ) )
+            );
+          }
+
+          if ( $bucket_start > $end_day ) {
+            break;
+          }
+
+          $total_buckets++;
+          if ( $bucket_start <= $purchase_day ) {
+            $current_bucket = $total_buckets;
+          }
+        }
+
+        return (float) ( ( $total_buckets - $current_bucket + 1 ) / $total_buckets );
+
+      default:
+        return 1.0;
+    }
   }
 
   public function is_multitier_renewal() {

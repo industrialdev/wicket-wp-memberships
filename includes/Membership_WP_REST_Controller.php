@@ -477,24 +477,30 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
     return rest_ensure_response( $results );
   }
 
+  /**
+   * Consume the MDP person merge webhook and move the merged person's memberships to the winner.
+   *
+   * A merge request must carry a valid HMAC-SHA256 signature of the raw body, checked in
+   * constant time. The MDP test ping (`"test": true`, sent when an endpoint is created or its
+   * URL changes) gets a 200 so the MDP accepts the endpoint; it changes no data.
+   * A failed check returns a generic 401. The response and the log never carry the
+   * signature, the expected HMAC or the payload (WWID-2750).
+   *
+   * @param  \WP_REST_Request $request  Webhook request with the `X-WicketEvents-Signature` header.
+   * @return \WP_REST_Response
+   */
   public function memberships_merge_webhook_consumer( \WP_REST_Request $request ) {
     $header = 'X-WicketEvents-Signature';
     $signature = $request->get_header( $header );
     $response = new WP_REST_Response(['error' => 'Authentication error.'], 401);
-    if(!empty($signature)) { 
+    if(!empty($signature)) {
       $mship_options = get_option( 'wicket_membership_plugin_options' );
       $key = $mship_options['wicket_mship_membership_merge_key'];
-      $payload = file_get_contents('php://input');
-      $error = 'Authentication error: '.$signature;
-      if(wicket_get_option('wicket_admin_settings_environment') != 'prod') {
-        $debug = true;
-        $error .= ' | '. hash_hmac('sha256', $payload, $key).' | '.$payload;
-      }
-      $response = new WP_REST_Response( ['error' => $error], 401);
+      $payload = $request->get_body();
       $test_request = json_decode($payload);
       if(!empty($test_request->test)) {
         $response = new WP_REST_Response(['success' => 'Caught a test request'], 200);
-      } else if( !empty($payload) && $signature == hash_hmac('sha256', $payload, $key) ) {
+      } else if( !empty($payload) && hash_equals( hash_hmac('sha256', $payload, $key), $signature ) ) {
         $merge_data = json_decode($payload, true);
         $merge_data = $merge_data['events'][0];
         $merge_from = $merge_data['relationships']['source_person']['data']['id'];
@@ -510,23 +516,12 @@ class Membership_WP_REST_Controller extends \WP_REST_Controller {
         }  
       }  
     }
-    if(!empty($debug)) {
-      Utilities::wc_log_mship_error( ['Merge Webhook Run' => [
-        'signature' => $signature, 
-        'payload' => $payload, 
-        'merge_data' => $merge_data, 
-        'merge_from' => $merge_from,
-        'merge_to' => $merge_to,
-        'response' => $response->get_data()]
-      ] );
-    } else {
-      Utilities::wc_log_mship_error( ['Merge Webhook Run' => [
-        'merge_from' => $merge_from,
-        'merge_to' => $merge_to,
-        'response' => $response->get_data()]
-      ] );
-    }
-    return rest_ensure_response( $response );      
+    Utilities::wc_log_mship_error( ['Merge Webhook Run' => [
+      'merge_from' => $merge_from,
+      'merge_to' => $merge_to,
+      'response' => $response->get_data()]
+    ] );
+    return rest_ensure_response( $response );
   }
 
   public function delete_all_person_memberships( \WP_REST_Request $request ) {

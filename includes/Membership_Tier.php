@@ -389,14 +389,20 @@ class Membership_Tier {
   }
 
   /**
-   * Get the config
+   * Get the tier's linked membership config.
    *
-   * @return Membership_Config
+   * A tier can outlive its config: a permanently deleted config (including one WordPress purges
+   * from the trash) leaves the tier's config_id pointing at no post.
+   *
+   * @return Membership_Config|false  The config, or false when the tier has no config or the
+   *                                  config post no longer exists.
    */
   public function get_config() {
     $config_id = $this->get_config_id();
 
-    if ( ! $config_id ) {
+    // Membership_Config's constructor throws on a missing post; that is uncaught in cart
+    // calculations and fatals the cart, so report the missing config as no config.
+    if ( ! $config_id || ! get_post( $config_id ) ) {
       return false;
     }
 
@@ -510,6 +516,52 @@ class Membership_Tier {
     }
 
     return false;
+  }
+
+  /**
+   * Whether a new purchase of $product_id on this tier is prorated.
+   *
+   * True only when the product's entry has prorate = true and the linked config has proration
+   * enabled on a calendar cycle. A missing prorate key reads as false. The first entry that
+   * matches wins, the same rule as get_tier_by_product_id().
+   *
+   * @see atlas://plans/feature-configurable-proration.md
+   *
+   * @since 1.1.0
+   *
+   * @param  int $product_id  Product or variation ID.
+   *
+   * @return bool
+   */
+  public function is_product_prorated( int $product_id ): bool {
+    $products_data = $this->get_products_data();
+    if ( empty( $products_data ) || ! is_array( $products_data ) ) {
+      return false;
+    }
+
+    // get_tier_by_product_id() narrows product_data to the one entry it matched. Wrap that entry
+    // so a tier from either lookup reads the same.
+    if ( isset( $products_data['product_id'] ) ) {
+      $products_data = [ $products_data ];
+    }
+
+    $prorate = false;
+    foreach ( $products_data as $product_data ) {
+      if ( ( ! empty( $product_data['variation_id'] ) && (int) $product_data['variation_id'] === $product_id )
+        || (int) ( $product_data['product_id'] ?? 0 ) === $product_id ) {
+        $prorate = ( $product_data['prorate'] ?? false ) === true;
+        break;
+      }
+    }
+
+    if ( ! $prorate ) {
+      return false;
+    }
+
+    // Turning proration off on the config leaves the tier flags stored; the config decides.
+    $config = $this->get_config();
+
+    return $config instanceof Membership_Config && $config->is_proration_enabled();
   }
 
   /**

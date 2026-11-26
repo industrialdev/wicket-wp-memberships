@@ -143,8 +143,34 @@ const CreateMembershipConfig = ({
         // 	end_date: ''
         // }
       ],
+      proration: {
+        enabled: false,
+        rate: "", // daily/weekly/monthly/quarterly/semi_annually/annually
+      },
     },
   });
+
+  // Configs saved before proration existed have no proration key; read them as off.
+  const proration = {
+    enabled: false,
+    rate: "",
+    ...(form.cycle_data.proration ?? {}),
+  };
+
+  /**
+   * Merge proration changes into the form's cycle data.
+   *
+   * @param {Object} changes Proration keys to overwrite.
+   */
+  const setProration = (changes) => {
+    setForm({
+      ...form,
+      cycle_data: {
+        ...form.cycle_data,
+        proration: { ...proration, ...changes },
+      },
+    });
+  };
 
   const [tempForm, setTempForm] = useState(form);
 
@@ -176,6 +202,15 @@ const CreateMembershipConfig = ({
       newErrors.push(
         __("Membership Configuration Name is required", "wicket-memberships"),
       );
+      isValid = false;
+    }
+
+    if (
+      form.cycle_data.cycle_type === "calendar" &&
+      proration.enabled === true &&
+      proration.rate === ""
+    ) {
+      newErrors.push(__("Proration Rate is required", "wicket-memberships"));
       isValid = false;
     }
 
@@ -363,7 +398,17 @@ const CreateMembershipConfig = ({
         status: "publish",
         renewal_window_data: form.renewal_window_data,
         late_fee_window_data: form.late_fee_window_data,
-        cycle_data: form.cycle_data,
+        cycle_data: {
+          ...form.cycle_data,
+          // The API rejects proration on anniversary cycles. Clearing it only here keeps
+          // the admin's choice if they switch the cycle back before saving.
+          proration: {
+            enabled:
+              form.cycle_data.cycle_type === "calendar" &&
+              proration.enabled === true,
+            rate: proration.rate,
+          },
+        },
         multi_tier_renewal: form.multi_tier_renewal,
       },
     })
@@ -911,6 +956,68 @@ const CreateMembershipConfig = ({
                       </tbody>
                     </table>
                   </FormFlex>
+
+                  {/* Proration */}
+                  <BorderedBox>
+                    {/* Stacked, not side by side: the checkbox help text would squeeze the select. */}
+                    <CheckboxControl
+                      checked={proration.enabled === true}
+                      label={__("Enable Proration", "wicket-memberships")}
+                      help={__(
+                        "Members who join mid-season pay only for the rest of the season. Their renewals charge full price.",
+                        "wicket-memberships",
+                      )}
+                      __nextHasNoMarginBottom={true}
+                      onChange={(value) => setProration({ enabled: value })}
+                    />
+                    <FormFlex>
+                      <FlexBlock>
+                        <CustomDisabled isDisabled={proration.enabled !== true}>
+                          <SelectControl
+                            label={__("Proration Rate", "wicket-memberships")}
+                            value={proration.rate}
+                            help={__(
+                              "Daily charges for the exact days left (pay for what you use). Weekly, Monthly, Quarterly, and Semi-Annually charge the full period the member joins in. Annually charges full price.",
+                              "wicket-memberships",
+                            )}
+                            __nextHasNoMarginBottom={true}
+                            onChange={(value) => setProration({ rate: value })}
+                            options={[
+                              {
+                                label: __("Select a rate", "wicket-memberships"),
+                                value: "",
+                                disabled: true,
+                              },
+                              {
+                                label: __("Daily (recommended)", "wicket-memberships"),
+                                value: "daily",
+                              },
+                              {
+                                label: __("Weekly", "wicket-memberships"),
+                                value: "weekly",
+                              },
+                              {
+                                label: __("Monthly", "wicket-memberships"),
+                                value: "monthly",
+                              },
+                              {
+                                label: __("Quarterly", "wicket-memberships"),
+                                value: "quarterly",
+                              },
+                              {
+                                label: __("Semi-Annually", "wicket-memberships"),
+                                value: "semi_annually",
+                              },
+                              {
+                                label: __("Annually", "wicket-memberships"),
+                                value: "annually",
+                              },
+                            ]}
+                          />
+                        </CustomDisabled>
+                      </FlexBlock>
+                    </FormFlex>
+                  </BorderedBox>
                 </>
               )}
             </BorderedBox>

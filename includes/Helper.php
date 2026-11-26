@@ -87,7 +87,9 @@ class Helper {
     $post_meta = get_post_meta( $post->get_id() );
     foreach($post_meta as $key => $val) {
     if( str_starts_with( $key, '_wicket_membership_')) {
-        echo '<br>'.$post->get_id().'<strong>'.$key.':</strong><pre>';var_dump( json_decode( maybe_unserialize( $val[0] ), true) ); echo '</pre>';
+        echo '<details class="wicket-order-debug-dump"><summary>' . esc_html( $post->get_id() . $key ) . '</summary><pre>';
+        var_dump( json_decode( maybe_unserialize( $val[0] ), true) );
+        echo '</pre></details>';
       }
     }
   }

@@ -2,6 +2,7 @@
 namespace Wicket_Memberships;
 
 use Wicket_Memberships\Helper;
+use Wicket_Memberships\Api_Key_Access;
 use WP_Error;
 
 defined( 'ABSPATH' ) || exit;
@@ -34,16 +35,209 @@ class Membership_Post_Types {
 
     // Gate the membership CPT REST endpoints to authenticated administrators
     add_filter('rest_pre_dispatch', [ $this, 'restrict_membership_rest_access' ], 10, 3);
+
+    // Let WooCommerce authenticate approved API keys on those same endpoints. Does nothing until
+    // a key is selected on the settings page, and nothing if WooCommerce is inactive.
+    add_filter('woocommerce_rest_is_request_to_rest_api', [ $this, 'allow_woocommerce_key_auth' ]);
+  }
+
+  /**
+   * The wp/v2 REST base routes for all four membership post types.
+   *
+   * Single source of truth for "which routes are ours", used by the capability gate. The API key
+   * route list is derived from it, so a route can never be key-reachable without being gated.
+   *
+   * @see is_protected_rest_route()  Matcher for the parsed-route form.
+   * @see get_api_key_rest_bases()   The subset WooCommerce API keys may reach.
+   *
+   * @return string[]  Collection routes, e.g. `/wp/v2/wicket_membership`.
+   */
+  private function get_protected_rest_bases() {
+    return array(
+      '/wp/v2/' . $this->membership_cpt_slug,
+      '/wp/v2/' . $this->membership_config_cpt_slug,
+      '/wp/v2/' . $this->membership_tier_cpt_slug,
+      // Bundle config was left off this list when it was originally added — same
+      // show_in_rest=>true CPT shape as the other three, same unauthenticated exposure.
+      '/wp/v2/' . $this->membership_bundle_config_cpt_slug,
+    );
+  }
+
+  /**
+   * The wp/v2 REST base routes that allowlisted WooCommerce API keys may reach.
+   *
+   * Bundle data is excluded: a bundle is a composite of the bundle post, its owner, subscription,
+   * config and member records, so exposing it to keys is a separate requirement.
+   *
+   * @see atlas://proposals/feature-membership-bundle-api-key-access.md
+   * @see is_api_key_rest_request_uri()  The only consumer.
+   *
+   * @return string[]  Collection routes, e.g. `/wp/v2/wicket_membership`.
+   */
+  private function get_api_key_rest_bases() {
+    return array_values( array_diff(
+      $this->get_protected_rest_bases(),
+      array( '/wp/v2/' . $this->membership_bundle_config_cpt_slug )
+    ) );
+  }
+
+  /**
+   * Whether a parsed REST route targets one of the membership post types.
+   *
+   * Matches the collection route, or any sub-route beneath it (e.g. `/<base>/123`), so a single
+   * record is protected as tightly as the list. The match uses the same rules as WP_REST_Server:
+   * it ignores letter case, and `$` also matches before a final newline. An exact string compare
+   * let `/wp/v2/WICKET_MEMBERSHIP` and `/wp/v2/wicket_membership%0A` past the gate, while the
+   * server still dispatched them to the membership handlers.
+   *
+   * @param  string         $route  Route as reported by WP_REST_Request::get_route(), e.g. `/wp/v2/foo`.
+   * @param  string[]|null  $bases  Base routes to match; defaults to get_protected_rest_bases().
+   *
+   * @return bool  True when the route belongs to one of the base routes.
+   */
+  private function is_protected_rest_route( $route, $bases = null ) {
+    if ( ! is_string( $route ) || '' === $route ) {
+      return false;
+    }
+
+    foreach ( null === $bases ? $this->get_protected_rest_bases() : $bases as $base ) {
+      // Same delimiters and flags as WP_REST_Server::match_request_to_handler(): `i`, and no `D`.
+      if ( preg_match( '@^' . preg_quote( $base, '@' ) . '(?:/.*)?$@i', $route ) ) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * The REST route WordPress dispatches for the current request.
+   *
+   * Needed because WooCommerce's `woocommerce_rest_is_request_to_rest_api` filter receives no
+   * arguments and has no WP_REST_Request to ask.
+   *
+   * Returns a route only for a request that WordPress serves as REST, read from the `rest_route`
+   * query var that WordPress dispatches. WooCommerce authenticates on `determine_current_user` for
+   * every request, but the key's read/write limit and restrict_membership_rest_access() run only on
+   * REST dispatch. A route returned for any other request (admin-ajax, admin-post, or a `/wp-json/`
+   * path on a plain-permalink site) would log the key in as its owner with no limit.
+   *
+   * On the first `determine_current_user` call, WordPress has not parsed the request yet, so the
+   * route is empty. WooCommerce runs authenticate() again from `rest_authentication_errors`, inside
+   * REST dispatch, when the route is known.
+   *
+   * wp_is_rest_endpoint() includes wp_is_serving_rest_request() and is also true during an internal
+   * rest_do_request(). That adds no route: WordPress sets the `rest_route` query var only on a
+   * request it serves as REST.
+   *
+   * @return string  Route with a leading slash, e.g. `/wp/v2/wicket_membership`; empty string when
+   *                 the request is not a REST request.
+   */
+  private function get_requested_rest_route() {
+    global $wp;
+
+    if ( ! wp_is_rest_endpoint() || ! ( $wp instanceof \WP ) || empty( $wp->query_vars['rest_route'] ) || ! is_string( $wp->query_vars['rest_route'] ) ) {
+      return '';
+    }
+
+    // Only compared, never output. Sanitizing could make it differ from the dispatched route.
+    return '/' . ltrim( $wp->query_vars['rest_route'], '/' );
+  }
+
+  /**
+   * Whether the current request URI targets a route that WooCommerce API keys may reach.
+   *
+   * URI-based counterpart to is_protected_rest_route(), for callers that have no WP_REST_Request.
+   *
+   * @see get_api_key_rest_bases()
+   *
+   * @return bool  True when the raw request URI resolves to a key-reachable membership route.
+   */
+  private function is_api_key_rest_request_uri() {
+    return $this->is_protected_rest_route( $this->get_requested_rest_route(), $this->get_api_key_rest_bases() );
+  }
+
+  /**
+   * Let WooCommerce authenticate an approved API key on the membership CPT endpoints.
+   *
+   * WooCommerce refuses to authenticate anything outside its own namespaces: authenticate()
+   * returns early unless is_request_to_rest_api() is true, which only matches URIs containing
+   * `wp-json/wc/` or `wp-json/wc-`. A consumer key sent to `/wp/v2/wicket_membership` is therefore
+   * never even inspected, and the request reaches restrict_membership_rest_access() as an
+   * anonymous user. This filter is the sole seam WooCommerce provides for widening that.
+   *
+   * Returning true here does not grant access — it only lets WooCommerce *attempt* authentication.
+   * The key's secret, its read/read_write scope, and the caller's `manage_options` capability are
+   * all still enforced downstream, unchanged.
+   *
+   * Conditions are ordered cheapest-first; only the last touches the database. The filter runs on
+   * most requests (WooCommerce calls it from `determine_current_user`), so the common path must
+   * exit on a superglobal read.
+   *
+   * Never returns a hard false: the incoming value is passed through on every failure, so
+   * WooCommerce's own `true` for genuine `wc/` routes survives untouched.
+   *
+   * @see \Wicket_Memberships\Api_Key_Access                     Key lookup and credential parsing.
+   * @see restrict_membership_rest_access()                      The capability gate this feeds.
+   * @see atlas://packages/wicket-wp-memberships/engineering/membership-cpt-rest-access.md  The full contract.
+   *
+   * @param  bool  $is_wc_request  WooCommerce's own determination for this request.
+   *
+   * @return bool  True to let WooCommerce authenticate this request; otherwise $is_wc_request.
+   */
+  public function allow_woocommerce_key_auth( $is_wc_request ) {
+    // Already one of WooCommerce's own routes — nothing to add, and we must never downgrade it.
+    if ( $is_wc_request ) {
+      return $is_wc_request;
+    }
+
+    // 1. SSL only. WooCommerce would otherwise fall through to OAuth 1.0a over plain HTTP; by
+    // failing here the request never reaches that branch at all.
+    if ( ! is_ssl() ) {
+      return $is_wc_request;
+    }
+
+    // 2. A WooCommerce-shaped credential is present. Cheap early-out that keeps Application
+    // Password requests (which occupy the same Basic header slot) off the rest of this path.
+    if ( null === Api_Key_Access::get_request_consumer_key() ) {
+      return $is_wc_request;
+    }
+
+    // 3. The request targets a key-reachable membership route (bundle data excluded).
+    if ( ! $this->is_api_key_rest_request_uri() ) {
+      return $is_wc_request;
+    }
+
+    // 4. Refuse OAuth outright — Basic over TLS is the only supported transport.
+    if ( Api_Key_Access::request_has_oauth_params() ) {
+      return $is_wc_request;
+    }
+
+    // 5. The key is on the administrator's allowlist. Only this step queries.
+    $key_id = Api_Key_Access::get_key_id_for_request();
+
+    if ( null === $key_id || ! in_array( $key_id, Api_Key_Access::get_allowed_key_ids(), true ) ) {
+      return $is_wc_request;
+    }
+
+    return true;
   }
 
   /**
    * Restrict the auto-generated wp/v2 REST endpoints for the membership post
    * types to authenticated administrators.
    *
-   * Covers the membership config, tier, and bundle config post types (all
-   * registered with 'show_in_rest' => true). Authentication may be via cookie + nonce or via an
-   * Application Password (header auth, no nonce required); access additionally
-   * requires the 'manage_options' capability.
+   * Covers all four membership post types (membership records, configs, tiers and bundle
+   * configs, all registered with 'show_in_rest' => true), both their collection routes and
+   * single-record sub-routes.
+   *
+   * Every caller must be logged in and hold 'manage_options'. A request that presents a
+   * WooCommerce API key must also use an allowlisted key on a key-reachable route, and may only
+   * read; this holds however WooCommerce came to authenticate the key. OAuth-signed requests are
+   * refused, because the key in them cannot be checked.
+   *
+   * @see get_protected_rest_bases()  Shared route list, also used by the URI-based matcher.
+   * @see get_api_key_rest_bases()    The subset WooCommerce API keys may reach.
    *
    * @param mixed            $result  Response to replace the requested version with, or null.
    * @param \WP_REST_Server  $server  Server instance.
@@ -57,26 +251,38 @@ class Membership_Post_Types {
     }
 
     $route = $request->get_route();
-    $protected_bases = array(
-      '/wp/v2/' . $this->membership_cpt_slug,
-      '/wp/v2/' . $this->membership_config_cpt_slug,
-      '/wp/v2/' . $this->membership_tier_cpt_slug,
-      // Bundle config was left off this list when it was originally added — same
-      // show_in_rest=>true CPT shape as the other three, same unauthenticated exposure.
-      '/wp/v2/' . $this->membership_bundle_config_cpt_slug,
-    );
 
-    $is_protected = false;
-    foreach ( $protected_bases as $base ) {
-      // Match the collection route exactly or any sub-route (e.g. /<base>/123).
-      if ( $route === $base || 0 === strpos( $route, $base . '/' ) ) {
-        $is_protected = true;
-        break;
-      }
+    if ( ! $this->is_protected_rest_route( $route ) ) {
+      return $result;
     }
 
-    if ( ! $is_protected ) {
-      return $result;
+    // get_key_id_for_request() finds only Basic and query-string keys. WooCommerce also accepts
+    // OAuth-signed keys on a wc/ URI, and a `rest_route` override could bring one here unchecked.
+    if ( Api_Key_Access::request_has_oauth_params() ) {
+      return new WP_Error(
+        'rest_forbidden',
+        __( 'This API key has no access to this endpoint.', 'wicket-memberships' ),
+        array( 'status' => rest_authorization_required_code() )
+      );
+    }
+
+    // A WooCommerce key passes only when it is allowlisted and the route is key-reachable. This
+    // check sees the dispatched route. allow_woocommerce_key_auth() sees only the request URI, and
+    // WooCommerce authenticates any key on a wc/ URI, so a `rest_route` override could otherwise
+    // reach these routes with any admin-owned key. Keys only read: a wp/v2 write skips the
+    // plugin's own membership logic (MDP sync, status changes, subscription links).
+    $key_id = Api_Key_Access::get_key_id_for_request();
+
+    if ( null !== $key_id && (
+      ! in_array( $key_id, Api_Key_Access::get_allowed_key_ids(), true )
+      || ! $this->is_protected_rest_route( $route, $this->get_api_key_rest_bases() )
+      || ! in_array( $request->get_method(), array( 'GET', 'HEAD' ), true )
+    ) ) {
+      return new WP_Error(
+        'rest_forbidden',
+        __( 'This API key has no access to this endpoint.', 'wicket-memberships' ),
+        array( 'status' => rest_authorization_required_code() )
+      );
     }
 
     if ( ! is_user_logged_in() || ! current_user_can( 'manage_options' ) ) {
@@ -415,6 +621,30 @@ class Membership_Post_Types {
 
               }
 
+              // Proration prices a join against the season, so it only exists on calendar cycles.
+              // A missing key means off, which keeps configs saved before proration at full price.
+              if ( isset( $value['proration'] ) ) {
+                if ( ! is_array( $value['proration'] ) ) {
+                  $errors->add( 'rest_invalid_param_proration', __( 'The proration data must be an object.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                } else {
+                  $proration_enabled = $value['proration']['enabled'] ?? false;
+
+                  if ( ! is_bool( $proration_enabled ) ) {
+                    $errors->add( 'rest_invalid_param_proration_enabled', __( 'Proration enabled must be true or false.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+
+                  if ( $proration_enabled === true ) {
+                    if ( $value['cycle_type'] !== 'calendar' ) {
+                      $errors->add( 'rest_invalid_param_proration_cycle_type', __( 'Proration is only available for calendar cycles.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                    }
+
+                    if ( ! in_array( $value['proration']['rate'] ?? '', [ 'daily', 'weekly', 'monthly', 'quarterly', 'semi_annually', 'annually' ], true ) ) {
+                      $errors->add( 'rest_invalid_param_proration_rate', __( 'The proration rate must be daily, weekly, monthly, quarterly, semi-annually, or annually.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                    }
+                  }
+                }
+              }
+
               if ( $errors->has_errors() ) {
                 return $errors;
               }
@@ -457,6 +687,17 @@ class Membership_Post_Types {
                 ),
                 'end_date' => array(
                   'type' => 'string',
+                ),
+              ),
+            ),
+            'proration' => array(
+              'type' => 'object',
+              'properties' => array(
+                'enabled' => array(
+                  'type' => 'boolean',
+                ),
+                'rate' => array(
+                  'type' => 'string', // daily/weekly/monthly/quarterly/semi_annually/annually
                 ),
               ),
             ),
@@ -773,6 +1014,12 @@ class Membership_Post_Types {
                     $errors->add( 'rest_invalid_param_product_data', __( 'Variation ID must be set for variable subscription products.', 'wicket-memberships' ), array( 'status' => 400 ) );
                   }
 
+                  // A missing prorate key reads as false. The flag stays valid while the config has
+                  // proration off; Membership_Tier::is_product_prorated() ignores it then.
+                  if ( array_key_exists( 'prorate', $product ) && ! is_bool( $product['prorate'] ) ) {
+                    $errors->add( 'rest_invalid_param_product_data', __( 'Prorate must be true or false.', 'wicket-memberships' ), array( 'status' => 400 ) );
+                  }
+
                 }
 
                 // Validate if all product variations are unique
@@ -884,6 +1131,9 @@ class Membership_Post_Types {
                 ),
                 'max_seats' => array(
                   'type' => 'integer',
+                ),
+                'prorate' => array(
+                  'type' => 'boolean',
                 ),
               ),
             ),
@@ -1976,7 +2226,7 @@ class Membership_Post_Types {
     foreach ( $calendar_items as $key => $item ) {
       if ( ! empty( $item['start_date'] ) ) {
         try {
-          $calendar_items[ $key ]['start_date'] = Utilities::get_mdp_day_start( $item['start_date'] )->format( 'c' );
+          $calendar_items[ $key ]['start_date'] = Utilities::get_mdp_day_start( $this->get_season_boundary_day( $item['start_date'], false ) )->format( 'c' );
         } catch ( \InvalidArgumentException $e ) {
           // Leave the raw, unparseable value in place. The validate_callback's
           // strtotime()/empty() checks below will reject it with a normal 400
@@ -1986,7 +2236,7 @@ class Membership_Post_Types {
 
       if ( ! empty( $item['end_date'] ) ) {
         try {
-          $calendar_items[ $key ]['end_date'] = Utilities::get_mdp_day_end( $item['end_date'] )->format( 'c' );
+          $calendar_items[ $key ]['end_date'] = Utilities::get_mdp_day_end( $this->get_season_boundary_day( $item['end_date'], true ) )->format( 'c' );
         } catch ( \InvalidArgumentException $e ) {
           // Same rationale as start_date above.
         }
@@ -1994,6 +2244,51 @@ class Membership_Post_Types {
     }
 
     return $calendar_items;
+  }
+
+  /**
+   * Resolve the MDP calendar day a season boundary timestamp stands for.
+   *
+   * A season start is meant to be MDP midnight and a season end MDP 23:59:59,
+   * but the admin UI computes those instants with its own bundled tz data and
+   * older seasons were stored under older tz rules. When those rules disagree
+   * with the server's (e.g. America/Edmonton dropping its winter UTC-7 offset),
+   * the instant lands an hour or so past the intended boundary. Truncating it
+   * to its server-side day would then move an end into the next day, or a
+   * start into the previous one, and the season gap/overlap checks reject the
+   * save. Snapping to the nearest day boundary absorbs any drift under 12 hours.
+   *
+   * @param string $date_string Bare Y-m-d date or full ISO 8601 timestamp.
+   * @param bool   $is_end      True for a season end date, false for a start date.
+   *
+   * @throws \InvalidArgumentException If $date_string can't be parsed as a date.
+   *
+   * @return string The calendar day in Y-m-d, in the MDP timezone.
+   */
+  private function get_season_boundary_day( $date_string, $is_end ) {
+    $date_string = trim( (string) $date_string );
+
+    // A bare date already names the calendar day; there is no instant to drift.
+    if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date_string ) ) {
+      return $date_string;
+    }
+
+    try {
+      $mdp_date = new \DateTime( $date_string );
+    } catch ( \Exception $e ) {
+      throw new \InvalidArgumentException( "Unparseable date string: {$date_string}", 0, $e );
+    }
+
+    $mdp_date->setTimezone( Utilities::get_mdp_timezone() );
+    $hour = (int) $mdp_date->format( 'G' );
+
+    if ( $is_end && $hour < 12 ) {
+      $mdp_date->modify( '-1 day' );
+    } elseif ( ! $is_end && $hour >= 12 ) {
+      $mdp_date->modify( '+1 day' );
+    }
+
+    return $mdp_date->format( 'Y-m-d' );
   }
 
 }

@@ -118,6 +118,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		return mdpTiers.length > 0 && membershipConfigOptions.length > 0;
 	}
 
+	// Gates the per-product Prorate checkbox on the linked config.
+	const isConfigProrated = membershipConfigOptions.find(option => option.value === form.config_id)?.prorationEnabled === true;
+
 	const handleSubmit = (e) => {
 		e.preventDefault();
 
@@ -160,7 +163,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			return {
 				product_id: product.product_id,
 				max_seats: parseInt(product.max_seats) === 0 ? -1 : product.max_seats,
-				variation_id: product.variation_id
+				variation_id: product.variation_id,
+				// Saved even while the config does not prorate, so turning it back on restores the flags.
+				prorate: product.prorate === true
 			}
 		});
 
@@ -508,7 +513,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
         }
 				return {
 					label: `${decodedTitle} | ID: ${config.id} ${multitier}`,
-					value: config.id
+					value: config.id,
+					// Same rule as Membership_Config::is_proration_enabled().
+					prorationEnabled: config.cycle_data?.cycle_type === 'calendar' && config.cycle_data?.proration?.enabled === true
 				}
 			});
 
@@ -542,7 +549,8 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 					return {
 						product_id: product.product_id,
 						max_seats: parseInt(product.max_seats) === -1 ? 0 : product.max_seats,
-						variation_id: product.variation_id
+						variation_id: product.variation_id,
+						prorate: product.prorate === true
 					}
 				});
 
@@ -1041,6 +1049,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 												limit={99}
 												productsInUse={productsInUse}
 												productVariationsInUse={productVariationsInUseArray}
+												prorationEnabled={isConfigProrated}
 												productListLabel={__('Granted Via', 'wicket-memberships')}
 											/>
 										</>
@@ -1093,6 +1102,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 															products={form.product_data}
 															productsInUse={productsInUse}
 															productVariationsInUse={productVariationsInUseArray}
+															prorationEnabled={isConfigProrated}
 														/>
 													</>
 												)}
@@ -1105,6 +1115,7 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 															products={form.product_data}
 															productsInUse={productsInUse}
 															productVariationsInUse={productVariationsInUseArray}
+															prorationEnabled={isConfigProrated}
 															productListLabel={'Seats Data'}
 														/>
 													</>
