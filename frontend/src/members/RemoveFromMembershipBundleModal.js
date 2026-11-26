@@ -48,12 +48,12 @@ const RemoveFromMembershipBundleModal = ({
   onRequestClose,
   onSuccess,
 }) => {
-  const [mode, setMode]           = useState(MODE_CANCEL);
+  const [mode, setMode]           = useState(MODE_KEEP);
   const [error, setError]         = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   const resetState = () => {
-    setMode(MODE_CANCEL);
+    setMode(MODE_KEEP);
     setError(null);
     setSubmitting(false);
   };
@@ -116,8 +116,8 @@ const RemoveFromMembershipBundleModal = ({
         label={__("Action", "wicket-memberships")}
         value={mode}
         options={[
-          { label: __("Cancel membership immediately", "wicket-memberships"), value: MODE_CANCEL },
           { label: __("Keep as individual member", "wicket-memberships"), value: MODE_KEEP },
+          { label: __("Cancel membership immediately", "wicket-memberships"), value: MODE_CANCEL },
         ]}
         onChange={(val) => setMode(val)}
       />
