@@ -3062,7 +3062,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
       //TODO: previous post ID may not exist on membership record and only be on order meta
       if(empty($membership->previous_membership_post_id)) {
-        $order_membership_meta = $this->get_membership_array_from_order_and_product_id( $membership_data['meta']['membership_parent_order_id'], $membership_data['meta']['membership_product_id']);
+        $order_membership_meta = $this->get_membership_array_from_order_and_product_id( $membership_data['meta']['membership_parent_order_id'] ?? null, $membership_data['meta']['membership_product_id'] ?? null );
         if(!empty($order_membership_meta['previous_membership_post_id'])) {
           $membership_is_renewal = $order_membership_meta['previous_membership_post_id'];
         }
@@ -3341,7 +3341,7 @@ function get_item_data ( $other_data, $cart_item ) {
         //If we are not going to a page we can fallback to use all products as links
         $next_tier = new Membership_Tier( $next_tier_id );
         $membership_data['next_tier'] = $next_tier->tier_data;
-        $membership_data['next_tier']['next_product_id'] = $membership_json_data['membership_product_id'];
+        $membership_data['next_tier']['next_product_id'] = $membership_json_data['membership_product_id'] ?? null;
         //if it is *NOT* renewing into the same tier then account center will SHOW A DIRECT add_to_cart FOR EACH PRODUCT assigned to the next tier
         //TODO: This may be identified as a bug but it is a result of the rules we have been given
         //Multiple products assign to a tier vs. assigning this tier to be a sequential next tier for callout
