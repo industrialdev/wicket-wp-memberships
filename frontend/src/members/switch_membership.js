@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { __ } from '@wordpress/i18n';
 import { SelectWpStyled, LabelWpStyled } from '../shared/styled_elements';
-import { Button, Icon } from '@wordpress/components';
-import { WC_PRODUCT_TYPES } from '../shared/constants';
-import { fetchWcProducts, fetchProductVariations, fetchTiers } from '../shared/services/api';
+import { Button, Icon, Notice } from '@wordpress/components';
+import { fetchProductVariations, fetchTiers } from '../shared/services/api';
 import { switchMembership as switchMembershipApi } from '../shared/services/api';
+import { fetchSwitchTargetProducts } from '../shared/services/switch_products';
 
 const SwitchMembership = ({ membership }) => {
   const [switchOption, setSwitchOption] = useState(null);
@@ -16,6 +16,17 @@ const SwitchMembership = ({ membership }) => {
   const [productVariations, setProductVariations] = useState({}); // { product_id: [] }
   const [selectedProductId, setSelectedProductId] = useState(null);
   const [selectedVariationId, setSelectedVariationId] = useState(null);
+  // Variation ids linked to the CURRENT tier — hidden from the variation picker so a switch
+  // cannot land on the variation the member is already on, while other variations of the same
+  // parent product (which may belong to other tiers) stay selectable.
+  const [excludedVariationIds, setExcludedVariationIds] = useState(new Set());
+  const [selectedOrderStatus, setSelectedOrderStatus] = useState('checkout-draft');
+  // Switch outcome: an error stops the switch; warnings mean it completed but needs attention, so the
+  // admin reads them before continuing to the new membership.
+  const [isSwitching, setIsSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState(null);
+  const [switchWarnings, setSwitchWarnings] = useState([]);
+  const [completedRedirectUrl, setCompletedRedirectUrl] = useState(null);
   const didMountRef = useRef(false);
 
   useEffect(() => {
@@ -24,20 +35,14 @@ const SwitchMembership = ({ membership }) => {
 
   const getAllWcProducts = async () => {
     setIsLoadingProducts(true);
-    const promises = WC_PRODUCT_TYPES.map((type) =>
-      fetchWcProducts({
-        status: 'publish',
-        per_page: 100,
-        type: type,
-      })
-    );
     try {
-      const results = await Promise.all(promises);
-      const options = results.flat().map((product) => ({
-        label: `${product.name} | ID: ${product.id}`,
-        value: product.id,
-        type: product.type
-      }));
+      // Same-family filtering + current-tier self-exclusion live in the shared helper, which the
+      // tier editor's self-serve switch target picker also calls.
+      const { options, excludedVariationIds: currentTierVariationIds } = await fetchSwitchTargetProducts({
+        membershipType: membership && membership.data && membership.data.membership_type,
+        currentTierPostId: membership && membership.data && membership.data.membership_tier_post_id,
+      });
+      setExcludedVariationIds(currentTierVariationIds);
       setWcProductOptions(options);
     } catch (error) {
       setWcProductOptions([]);
@@ -79,7 +84,7 @@ const SwitchMembership = ({ membership }) => {
     // Only show tiers that match the current membership's type so an individual
     // membership cannot be switched to an organization tier (and vice versa).
     const membershipType = membership && membership.data && membership.data.membership_type;
-    fetchTiers({ search: inputValue, per_page: -1 })
+    fetchTiers({ search: inputValue, per_page: 100 })
       .then((response) => {
         const options = (Array.isArray(response) ? response : [])
           .filter((tier) => {
@@ -103,15 +108,32 @@ const SwitchMembership = ({ membership }) => {
 
  const handleSwitchMembership = async (switchType, postId) => {
     if (!membership || !membership.ID || !postId || !switchType) return;
+    setIsSwitching(true);
+    setSwitchError(null);
     try {
-      const response = await switchMembershipApi(membership.ID, postId, switchType);
+      const response = await switchMembershipApi(membership.ID, postId, switchType, switchType === 'order' ? selectedOrderStatus : null);
+      const warnings = (response && Array.isArray(response.warnings)) ? response.warnings : [];
+      if (warnings.length > 0) {
+        // The switch is done; hold the redirect so the warnings are read.
+        setSwitchWarnings(warnings);
+        setCompletedRedirectUrl(response.redirect_url || null);
+        setIsSwitching(false);
+        return;
+      }
       if (response && response.redirect_url) {
         window.location.href = response.redirect_url;
+        return;
       }
+      setIsSwitching(false);
     } catch (e) {
-      console.error('Switch membership failed', e);
+      // apiFetch rejects with the response body; the switch returns its reason in `error`.
+      setSwitchError((e && (e.error || e.message)) || __('The switch could not be completed.', 'wicket-memberships'));
+      setIsSwitching(false);
     }
   };
+
+  // Once the switch has completed (with warnings) it must not be submitted again.
+  const switchCompleted = switchWarnings.length > 0;
 
   return (
     <div style={{ marginBottom: '16px' }}>
@@ -125,8 +147,7 @@ const SwitchMembership = ({ membership }) => {
         <SelectWpStyled
           options={[
             { label: __('Create Membership', 'wicket-memberships'), value: 'create_membership' },
-            /* Create Order intentionally hidden — tier-only switch. Do not remove; see SWITCH_INTEGRATION_MIGRATE_IMPLEMENTATION.md */
-            /* { label: __('Create Order', 'wicket-memberships'), value: 'create_order' } */
+            { label: __('Create Order', 'wicket-memberships'), value: 'create_order' },
           ]}
           value={switchOption}
           onChange={selected => {
@@ -212,7 +233,10 @@ const SwitchMembership = ({ membership }) => {
                       isLoading={productVariations[selectedProductId] === undefined}
                       menuPortalTarget={typeof window !== 'undefined' ? document.body : null}
                       styles={{ menuPortal: provided => ({ ...provided, zIndex: 100001 }) }}
-                      options={productVariations[selectedProductId] ? productVariations[selectedProductId].map((variation) => ({
+                      options={productVariations[selectedProductId] ? productVariations[selectedProductId]
+                        // Hide the current tier's variation; other variations of this parent stay selectable.
+                        .filter((variation) => !excludedVariationIds.has(variation.id))
+                        .map((variation) => ({
                         label: `${variation.name} (#${variation.id})`,
                         value: variation.id
                       })) : []}
@@ -228,13 +252,51 @@ const SwitchMembership = ({ membership }) => {
               }
               return null;
             })()}
+            <div style={{ marginTop: '20px' }}>
+              <LabelWpStyled>{__('Order Status', 'wicket-memberships')}</LabelWpStyled>
+              <SelectWpStyled
+                options={[
+                  { label: __('Draft', 'wicket-memberships'), value: 'checkout-draft' },
+                  { label: __('Pending payment', 'wicket-memberships'), value: 'pending' },
+                ]}
+                value={{ label: selectedOrderStatus === 'pending' ? __('Pending payment', 'wicket-memberships') : __('Draft', 'wicket-memberships'), value: selectedOrderStatus }}
+                isSearchable={false}
+                isClearable={false}
+                onChange={(opt) => setSelectedOrderStatus(opt ? opt.value : 'checkout-draft')}
+              />
+            </div>
           </div>
+        )}
+
+        {switchError && (
+          <Notice status="error" isDismissible={false} style={{ marginTop: '20px' }}>
+            {switchError}
+          </Notice>
+        )}
+
+        {switchCompleted && (
+          <Notice status="warning" isDismissible={false} style={{ marginTop: '20px' }}>
+            <p><strong>{__('The membership was switched, but some things need your attention:', 'wicket-memberships')}</strong></p>
+            <ul style={{ listStyle: 'disc', paddingLeft: '20px' }}>
+              {switchWarnings.map((warning, index) => (
+                <li key={index}>{warning}</li>
+              ))}
+            </ul>
+            {completedRedirectUrl && (
+              <Button variant="secondary" onClick={() => { window.location.href = completedRedirectUrl; }}>
+                {__('Continue to the new membership', 'wicket-memberships')}
+              </Button>
+            )}
+          </Notice>
         )}
 
         <Button
           style={{ marginTop: '20px'}}
           variant="primary"
+          isBusy={isSwitching}
           disabled={
+            isSwitching ||
+            switchCompleted ||
             (switchOption && switchOption.value === 'create_order' &&
               (!selectedProductId ||
                 (wcProductOptions.find(option => option.value === selectedProductId)?.type === 'variable-subscription' && !selectedVariationId)
