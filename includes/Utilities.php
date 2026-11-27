@@ -1123,6 +1123,11 @@ function wicket_sub_org_select_callback( $subscription ) {
     } else if(isset($_REQUEST['membership_post_id_renew']) && !empty($_REQUEST['membership_post_id_renew'])) {
       $subscription_id = get_post_meta( intval($_REQUEST['membership_post_id_renew']), 'membership_subscription_id', true );
     }
+    // Form Flow renews through its form, so there is no auto-renew choice to offer.
+    $membership_post_id = empty($_REQUEST['subscription_id']) && !empty($_REQUEST['membership_post_id_renew']) ? intval($_REQUEST['membership_post_id_renew']) : 0;
+    if( self::is_form_flow_toggle_target( $subscription_id ?? 0, $membership_post_id ) ) {
+      return '';
+    }
     if(!empty($subscription_id)) {
       // Use the single source of truth for autorenew status rather than the raw manual-renewal
       // flag, so the checkbox reflects whether the subscription will really auto-renew.
@@ -1140,6 +1145,41 @@ function wicket_sub_org_select_callback( $subscription ) {
     </label>
     <?php
     return ob_get_clean();
+  }
+
+  /**
+   * Whether the auto-renew toggle targets a Form Flow membership.
+   *
+   * A renewal link carries the membership being renewed, so its own record decides. Otherwise the
+   * subscription decides. With neither, the toggle only saves the member's general preference and
+   * is not a Form Flow target. Instalments within the term are not a target either: they stay
+   * automatic, so the member keeps the choice.
+   *
+   * @param  int $subscription_id     Subscription the toggle acts on, or 0.
+   * @param  int $membership_post_id  Membership from `membership_post_id_renew`, or 0.
+   * @return bool
+   */
+  private static function is_form_flow_toggle_target( $subscription_id, $membership_post_id = 0 ) {
+    if ( empty( $subscription_id ) && ! empty( $membership_post_id ) ) {
+      $subscription_id = get_post_meta( $membership_post_id, 'membership_subscription_id', true );
+    }
+
+    $subscription = ! empty( $subscription_id ) && function_exists( 'wcs_get_subscription' )
+      ? wcs_get_subscription( $subscription_id )
+      : false;
+
+    if ( ! empty( $membership_post_id ) ) {
+      $is_form_flow = Helper::is_form_flow_renewal( [
+        'membership_next_tier_form_page_id' => get_post_meta( $membership_post_id, 'membership_next_tier_form_page_id', true ),
+        'membership_next_tier_subscription_renewal' => get_post_meta( $membership_post_id, 'membership_next_tier_subscription_renewal', true ),
+      ] );
+      $tier_post_id = (int) get_post_meta( $membership_post_id, 'membership_tier_post_id', true );
+
+      // A Form Flow target unless the subscription bills in instalments within the term.
+      return $is_form_flow && ! ( ! empty( $subscription ) && Helper::is_instalment_subscription( $subscription, $tier_post_id ) );
+    }
+
+    return ! empty( $subscription ) && Subscription_Manager::is_form_flow_term_end_subscription( $subscription );
   }
 
   /**
@@ -1299,6 +1339,11 @@ function wicket_sub_org_select_callback( $subscription ) {
       // user unless the caller holds manage_woocommerce.
       if (intval($subscription->get_customer_id()) !== $user_id && !current_user_can('manage_woocommerce')) {
         wp_send_json_error(['message' => 'You are not allowed to change this subscription.'], 403);
+      }
+      // The toggle is hidden for Form Flow; refuse a direct request too. Turning it off stays allowed.
+      $membership_post_id = !isset($_POST['subscription_id']) && isset($_POST['membership_post_id_renew']) ? intval($_POST['membership_post_id_renew']) : 0;
+      if ($enabled == 'yes' && self::is_form_flow_toggle_target($subscription_id, $membership_post_id)) {
+        wp_send_json_error(['message' => 'Auto-renew is not available for memberships that renew through a form.'], 400);
       }
       $subscription_renewal_boolean = $enabled == 'yes' ? 'false' : 'true'; //reverse to set manual_renewal_enabeld;
       $subscription->update_meta_data('_requires_manual_renewal', $subscription_renewal_boolean);
