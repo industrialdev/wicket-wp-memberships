@@ -113,14 +113,43 @@ class Membership_Controller {
   }
 
   //COLLECT CART ITEM FIELDS ON ADD TO CART
+  /**
+   * Render the debug-only cart id fields on the single product page.
+   *
+   * Diagnostics only: hooked on `woocommerce_before_add_to_cart_button` and registered solely when
+   * `$_ENV['WICKET_MEMBERSHIPS_DEBUG_CART_IDS']` is set, so it never renders in production. Exposes
+   * the cart-carried ids (org, renew, switch) so they can be inspected and overridden by hand.
+   *
+   * @return void
+   */
   function product_add_on() {
     //change to hidden fields and remove 'woocommerce_get_item_data' filter to hide data
     $value = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field( $_REQUEST['org_uuid'] ) : '';
     echo '<div><label>org_uuid</label><p><input type="text" name="org_uuid" value="' . $value . '"></p></div>';
     $value = isset( $_REQUEST['membership_post_id_renew'] )  && !is_array($_REQUEST['membership_post_id_renew']) ? sanitize_text_field( $_REQUEST['membership_post_id_renew'] ) : '';
     echo '<div><label>membership_post_id_renew</label><p><input type="text" name="membership_post_id_renew" value="' . $value . '"></p></div>';
+    $value = isset( $_REQUEST['membership_post_id_switch'] ) && !is_array($_REQUEST['membership_post_id_switch']) ? sanitize_text_field( $_REQUEST['membership_post_id_switch'] ) : '';
+    echo '<div><label>membership_post_id_switch</label><p><input type="text" name="membership_post_id_switch" value="' . $value . '"></p></div>';
 }
 
+/**
+ * Lift the membership query-string values onto the cart item.
+ *
+ * Filters `woocommerce_add_cart_item_data` (priority 25). Whatever is stored here is copied onto the
+ * order line item by add_order_item_meta() once the order is placed, which is how a member-initiated
+ * renewal or self-serve switch reaches the order-processing pipeline.
+ *
+ * Note `membership_post_id_switch` originates from a client-editable query string; it is NOT
+ * validated here. The authoritative ownership gate lives in the order-based switch trigger
+ * (should_trigger_order_switch()), which runs after payment.
+ *
+ * @param  array $cart_item_meta  Cart item meta being accumulated by WooCommerce.
+ * @param  int   $product_id      WC product id being added to the cart; unused, required by the filter.
+ *
+ * @return array  The cart item meta with any membership ids added.
+ *
+ * @see Membership_Controller::add_order_item_meta() Copies these values onto the order line item.
+ */
 function add_cart_item_data( $cart_item_meta, $product_id ) {
     if ( isset( $_REQUEST ['org_uuid'] ) ) {
       $cart_item_meta[ 'org_uuid' ] = isset( $_REQUEST['org_uuid'] ) ? sanitize_text_field ( $_REQUEST['org_uuid'] ): "" ;
@@ -131,9 +160,28 @@ function add_cart_item_data( $cart_item_meta, $product_id ) {
       $cart_item_meta[ 'membership_post_id_renew' ] = $renew_id;
     }
 
+    // Self-serve switch: the member arrives from the Account Centre callout with the membership they
+    // are replacing in the URL. The !is_array() guard mirrors the renew block — an array-valued query
+    // var would blow up sanitize_text_field().
+    if( isset( $_REQUEST['membership_post_id_switch']) && !is_array($_REQUEST['membership_post_id_switch'])) {
+      $switch_id = sanitize_text_field( $_REQUEST['membership_post_id_switch'] );
+      $cart_item_meta[ 'membership_post_id_switch' ] = $switch_id;
+    }
+
     return $cart_item_meta;
 }
 
+/**
+ * Expose the debug-only cart ids in the cart and checkout item tables.
+ *
+ * Diagnostics only: filters `woocommerce_get_item_data` and is registered solely when
+ * `$_ENV['WICKET_MEMBERSHIPS_DEBUG_CART_IDS']` is set.
+ *
+ * @param  array $other_data  Existing item data rows; unused, this method returns its own set.
+ * @param  array $cart_item   The cart item whose membership ids should be displayed.
+ *
+ * @return array  Rows of { name, display } for each membership id present on the cart item.
+ */
 function get_item_data ( $other_data, $cart_item ) {
     $data = [];
     if(!empty($cart_item['org_uuid'])) {
@@ -142,9 +190,29 @@ function get_item_data ( $other_data, $cart_item ) {
     if(!empty($cart_item['membership_post_id_renew'])) {
       $data[] = array( 'name' => 'membership_post_id_renew', 'display'  => $cart_item['membership_post_id_renew'] );
     }
+    if(!empty($cart_item['membership_post_id_switch'])) {
+      $data[] = array( 'name' => 'membership_post_id_switch', 'display'  => $cart_item['membership_post_id_switch'] );
+    }
     return $data;
 }
 
+  /**
+   * Copy the membership cart-item values onto the order line item.
+   *
+   * Hooked on `woocommerce_add_order_item_meta`. Each value is written under an underscore-prefixed
+   * key so it is hidden from the customer-facing order display. `_membership_post_id_switch` is the
+   * marker the order-based switch trigger reads once the order reaches `processing`.
+   *
+   * Every write is guarded by an empty() check on the existing meta so re-entry (WooCommerce can fire
+   * this more than once for a line) cannot duplicate the values.
+   *
+   * @param  int   $item_id  WC order item id being written to.
+   * @param  mixed $values   The cart item the order line was built from; non-arrays are ignored.
+   *
+   * @return void
+   *
+   * @see Membership_Controller::get_memberships_data_from_subscription_products() Reads `_membership_post_id_switch`.
+   */
   function add_order_item_meta ( $item_id, $values ) {
     if(is_array($values)) {
       if( !empty( $values['org_uuid'] ) && empty( wc_get_order_item_meta( $item_id, '_org_uuid', true ) ) ) {
@@ -156,7 +224,63 @@ function get_item_data ( $other_data, $cart_item ) {
           wc_add_order_item_meta( $item_id, '_membership_post_id_renew', $values['membership_post_id_renew'] );
         }
       }
+
+      // Self-serve switch marker — the only value the switch trigger keys off.
+      if ( !empty( $values['membership_post_id_switch'] ) ) {
+        if ( empty( wc_get_order_item_meta( $item_id, '_membership_post_id_switch', true ) ) ) {
+          wc_add_order_item_meta( $item_id, '_membership_post_id_switch', $values['membership_post_id_switch'] );
+        }
+      }
     }
+  }
+
+  /**
+   * Decide whether an order line item should fire the order-based tier switch.
+   *
+   * Pure guard combining the §4/§9 conditions so the decision is unit-testable in isolation from the
+   * WooCommerce processing loop:
+   *  - the switch marker is present (this is a switch line, not a renewal/new purchase),
+   *  - the paying order's customer OWNS the membership being switched (self-serve security gate),
+   *  - the target tier is the SAME family as the membership being switched — an individual membership
+   *    switches only to an individual tier, an organization membership only to an organization tier
+   *    (§8.0 same-family rule; supersedes the earlier individual-only rule §9.6),
+   *  - the membership being switched is still switchable (§9.8 status backstop; the primary re-entry
+   *    guard is the §9.9 meta hand-off performed inside the switch method).
+   *
+   * Ownership is passed in already resolved rather than looked up here, so this stays a pure function
+   * with no WordPress calls.
+   *
+   * @param  mixed  $switch_meta             Value of _membership_post_id_switch on the line item.
+   * @param  string $target_tier_type        Resolved target tier type ('individual' | 'organization').
+   * @param  string $membership_status       Current membership_status of the membership identified by $switch_meta.
+   * @param  string $source_membership_type  Type of the membership being switched ('individual' | 'organization').
+   * @param  bool   $order_owns_membership   True when the order's customer is the membership's owner.
+   * @return bool   True when the switch trigger should run for this line item.
+   */
+  public function should_trigger_order_switch( $switch_meta, $target_tier_type, $membership_status, $source_membership_type, $order_owns_membership ) {
+    if ( empty( $switch_meta ) ) {
+      return false;
+    }
+    // Ownership gate — on the self-serve path _membership_post_id_switch comes from a client-editable
+    // query string, and a switch CANCELS the membership it names, so an unowned id must never proceed.
+    // Admin-produced switch orders set customer = owner and therefore pass unchanged.
+    if ( ! $order_owns_membership ) {
+      return false;
+    }
+    // Same-family only: the target tier's type must be a real membership type AND match the switched
+    // membership's own type. A non-tier product resolves to a falsy/blank $target_tier_type and is
+    // rejected here; a cross-family target (org tier for an individual membership, or vice-versa) is
+    // rejected too (§8.0 — supersedes the former individual-only check §9.6).
+    if ( ! in_array( $target_tier_type, [ 'individual', 'organization' ], true )
+         || $target_tier_type !== $source_membership_type ) {
+      return false;
+    }
+    // Backstop: a membership already switched is cancelled, so a re-cycle would fail this check.
+    return in_array(
+      $membership_status,
+      [ Wicket_Memberships::STATUS_ACTIVE, Wicket_Memberships::STATUS_GRACE, Wicket_Memberships::STATUS_DELAYED ],
+      true
+    );
   }
 
   /**
@@ -546,14 +670,23 @@ function get_item_data ( $other_data, $cart_item ) {
   /**
    * Get memberships with config from tier by products on the order.
    *
+   * Walks every subscription line on the order and resolves each product to its membership tier.
+   * A line carrying `_membership_post_id_switch` is diverted to the order-based tier switch (subject
+   * to should_trigger_order_switch()) and never enters the normal creation pipeline; every other line
+   * is turned into the membership payload the caller creates records from. A failed switch is logged
+   * and noted on the order and its subscription; a switch that completed with warnings notes them on
+   * the order. When a switch order is re-cycled, its line is skipped:
+   * the switch already created the membership.
+   *
    * An item that carries `_membership_post_id_renew` is processed as a renewal of that
    * membership post, which becomes `previous_membership_post_id` of the new record.
    *
+   * @param  \WC_Abstract_Order $order  The paid order being processed.
+   *
+   * @return array  Membership payloads keyed for downstream record creation.
+   *
+   * @see Membership_Controller::should_trigger_order_switch() Gate applied to switch lines.
    * @see atlas://packages/wicket-wp-memberships/engineering/subscription-renewal-flow.md
-   *
-   * @param \WC_Abstract_Order $order Order being processed.
-   *
-   * @return array Membership data arrays, one for each membership product on the order.
    */
   private function get_memberships_data_from_subscription_products( $order ) {
     $membership_current = null;
@@ -579,6 +712,78 @@ function get_item_data ( $other_data, $cart_item ) {
           }
           $membership_tier = Membership_Tier::get_tier_by_product_id( $product_id );
           if( !empty( $membership_tier->tier_data )) {
+              // --- Order-based tier switch trigger (ORDER_BASED_SWITCH_DESIGN.md §5) ---
+              // A switch line carries _membership_post_id_switch = the membership to replace. The
+              // purchased product on this same line already resolved to $membership_tier (:246), so
+              // the target tier is in hand. A switch is NOT a renewal: fire the existing admin switch
+              // and skip the normal creation pipeline for this line (§9.7).
+              $membership_post_id_switch = wc_get_order_item_meta( $item->get_id(), '_membership_post_id_switch', true );
+              if ( ! empty( $membership_post_id_switch ) ) {
+                $switch_membership_status = get_post_meta( $membership_post_id_switch, 'membership_status', true );
+                // Source membership's own type drives the same-family guard (§8.0): org switches only to
+                // org, individual only to individual.
+                $switch_membership_type   = get_post_meta( $membership_post_id_switch, 'membership_type', true );
+                // Ownership: the paying order's customer must be the membership's owner. Defends the
+                // self-serve (client-controlled) query var; the admin producer already sets
+                // customer = owner, so those orders pass. Guest checkout resolves to 0 and never matches.
+                $switch_membership_owner_id = self::get_user_id_from_membership_post( $membership_post_id_switch );
+                $order_customer_id          = (int) $order->get_customer_id();
+                $order_owns_membership      = ( $switch_membership_owner_id > 0 && $switch_membership_owner_id === $order_customer_id );
+                if ( $this->should_trigger_order_switch( $membership_post_id_switch, $membership_tier->get_tier_type(), $switch_membership_status, $switch_membership_type, $order_owns_membership ) ) {
+                  // Same method the admin REST switch calls; pass the paying order id for §9.5 linkage
+                  // + §9.9 meta hand-off. Instance call — the method is non-static (design delta D1).
+                  $switch_response = ( new Admin_Controller() )->create_switch_membership(
+                    $membership_post_id_switch,
+                    $membership_tier->get_membership_tier_post_id(),
+                    null,
+                    $order_id
+                  );
+                  // A failed switch leaves a paid order and an active subscription with no membership
+                  // attached; surface it in the log and on both records so an admin can resolve it.
+                  $switch_data = $switch_response instanceof \WP_REST_Response ? $switch_response->get_data() : [];
+                  if ( empty( $switch_data['success'] ) ) {
+                    Utilities::wc_log_mship_error( [ 'Order-based switch failed: paid order and subscription have no membership', [
+                      'order_id'        => $order_id,
+                      'subscription_id' => $subscription_id,
+                      'switch_post_id'  => $membership_post_id_switch,
+                      'error'           => $switch_data['error'] ?? '',
+                      'wicket_api_error'=> $switch_data['wicket_api_error'] ?? '',
+                    ] ] );
+                    $switch_failure_note = sprintf(
+                      /* translators: 1: membership post ID being switched, 2: error message. */
+                      __( 'Membership switch failed for membership #%1$d: %2$s The order is paid but no new membership was created. Review this order and its subscription.', 'wicket-memberships' ),
+                      (int) $membership_post_id_switch,
+                      $switch_data['error'] ?? ''
+                    );
+                    $order->add_order_note( $switch_failure_note );
+                    $subscription->add_order_note( $switch_failure_note );
+                  } elseif ( ! empty( $switch_data['warnings'] ) ) {
+                    // No admin sees this response, so its warnings go on the paid order instead.
+                    $order->add_order_note(
+                      '<strong>' . esc_html__( 'Membership switch completed with problems that need attention:', 'wicket-memberships' ) . '</strong><br>'
+                      . implode( '<br>', array_map( 'esc_html', $switch_data['warnings'] ) )
+                    );
+                  }
+                } else {
+                  // Guard failed (owner mismatch, cross-family/non-tier target, non-switchable status,
+                  // or already switched): log and skip, never fall through to build a normal/renewal
+                  // membership for a switch line. owner_id/order_customer_id are logged so a blocked
+                  // tampering attempt is auditable.
+                  Utilities::wc_log_mship_error( [ 'Order-based switch skipped', [
+                    'order_id'          => $order_id,
+                    'switch_post_id'    => $membership_post_id_switch,
+                    'tier_type'         => $membership_tier->get_tier_type(),
+                    'source_type'       => $switch_membership_type,
+                    'status'            => $switch_membership_status,
+                    'owner_id'          => $switch_membership_owner_id,
+                    'order_customer_id' => $order_customer_id,
+                  ] ] );
+                }
+                // Whether fired or skipped, a switch line never enters the creation pipeline (§9.7).
+                continue;
+              }
+              // --- end switch trigger ---
+
               // Only override _requires_manual_renewal when the setting is enabled (default on).
               // Disabled to prevent this from stomping auto-renew on WCS renewal orders.
               if($membership_tier->tier_data['renewal_type'] != 'subscription' && $_ENV['WICKET_MSHIP_AUTORENEW_OVERRIDE']) {
@@ -607,6 +812,15 @@ function get_item_data ( $other_data, $cart_item ) {
                 $membership_current = $this->get_membership_array_from_user_meta_by_post_id( $membership_post_id_renew, $membership_user_id );
                 Utilities::wc_log_mship_error( ['processing order - membership_current object from user meta ', $membership_current]);
                 if(/*empty($membership_current['membership_parent_order_id']) ||*/ $membership_current['membership_parent_order_id'] == $order_id) {
+                  // A switch order re-cycled: the switch already created this membership with inherited
+                  // dates, which the status-cycle rebuild below would not match, creating a duplicate.
+                  if ( self::order_is_switch_order( $order ) ) {
+                    Utilities::wc_log_mship_error( [ 'Switch order status re-cycled; membership already created, skipping', [
+                      'order_id'           => $order_id,
+                      'membership_post_id' => $membership_post_id_renew,
+                    ] ] );
+                    continue;
+                  }
                   //this is just an order having their status cycled so we should not create a renewal order on it BUT because
                   //we are storing the current renewal id on the current subscription item we need to prevent it processing a renewal
                   unset($membership_post_id_renew);
@@ -709,6 +923,30 @@ function get_item_data ( $other_data, $cart_item ) {
         }
       }
       return $memberships;
+  }
+
+  /**
+   * Whether an order paid for a tier switch.
+   *
+   * The switch order's own line items keep `_membership_post_id_switch` as a permanent record (only the
+   * subscription's lines are handed off to `_membership_post_id_renew`), and renewal orders copy the
+   * subscription's lines, so only the original switch order carries it.
+   *
+   * @since 1.0.123
+   *
+   * @param  \WC_Abstract_Order $order  The order being processed.
+   *
+   * @return bool  True when any line item carries the switch marker.
+   *
+   * @see Admin_Controller::handoff_switch_meta_to_renewal()
+   */
+  private static function order_is_switch_order( $order ) {
+    foreach ( $order->get_items() as $item_id => $item ) {
+      if ( wc_get_order_item_meta( $item_id, '_membership_post_id_switch', true ) ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -2203,7 +2441,11 @@ function get_item_data ( $other_data, $cart_item ) {
    *
    * Status (delayed / active / grace_period / expired) is derived from now against the
    * start, end and expiry dates, unless the incoming status is cancelled. Missing dates
-   * fall back to the stored meta. Also refreshes the stored autorenew status.
+   * fall back to the stored meta. Grace period needs grace days above 0: the incoming
+   * membership_grace_period_days is used first, then the stored meta. Also refreshes the
+   * stored autorenew status.
+   *
+   * @see atlas://packages/wicket-wp-memberships/bugfix/grace-status-expired-on-admin-save.md
    *
    * @param  int   $membership_post_id  The wicket_membership post ID.
    * @param  array $meta_data           Meta fields to write; only the fields being changed.
@@ -2240,7 +2482,13 @@ function get_item_data ( $other_data, $cart_item ) {
           $expiry_at = strtotime( "+{$grace_period_days} days", $ends_at );
         }
       }
-      $grace_period_days = isset( $grace_period_days ) ? $grace_period_days : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
+      // Creation and import never store grace days on the post, so the caller's value
+      // wins; the post meta is only the fallback.
+      if ( ! isset( $grace_period_days ) ) {
+        $grace_period_days = isset( $meta_data['membership_grace_period_days'] )
+          ? (int) $meta_data['membership_grace_period_days']
+          : (int) get_post_meta( $membership_post_id, 'membership_grace_period_days', true );
+      }
 
       if ( $starts_at && $ends_at ) {
         if ( $now < $starts_at ) {
@@ -2842,22 +3090,32 @@ function get_item_data ( $other_data, $cart_item ) {
   }
 
   /**
-   * Build the renewal callouts (early renewal, grace period, pending approval) for a user.
+   * Get Memberships in Renewal Periods.
+   *
+   * Builds the callout buckets the Account Centre renders for a member: `early_renewal`,
+   * `grace_period`, `pending_approval` and `switch`. Called directly by the ACC (not over REST), so
+   * the returned shape is a cross-plugin contract — every bucket key is always present, including on
+   * the `WICKET_MSHIP_DISABLE_RENEWALS` early return, so the consumer can read them unconditionally.
+   *
+   * `group_owner` is always empty (reserved). With `WICKET_MSHIP_SECTION_CALLOUT_SUPPRESSION`, section
+   * early-renewal and grace callouts drop when an active primary covers a later term (WWID-2837).
    *
    * Compares each membership's dates and subscription next-payment time against now to
    * decide which callout, if any, it belongs to, and skips ones autopay will renew.
    * Each membership is judged on its own data and its own subscription only; per-membership
    * loop state starts empty on every pass.
    * Emits HTML debug comments when WICKET_MEMBERSHIPS_DEBUG_ACC is set.
+   *
    * Read-only for orders and subscription status: the grace-period subscription renewal
    * button links to handle_grace_renewal_request(), which acts only on click.
    *
    * @see atlas://packages/wicket-wp-memberships/engineering/subscription-renewal-flow.md
    *
-   * @param  int|null $user_id  WP user ID; defaults to the current user when null.
-   * @param  string   $status   Optional membership status to restrict the lookup to.
+   * @param  int|null $user_id  WP user to build callouts for; defaults to the current user.
+   * @param  string   $status   Optional membership_status filter; empty means the default set
+   *                            (active, delayed, grace_period, pending).
    *
-   * @return array{early_renewal:array,grace_period:array,pending_approval:array,group_owner:array,debug:array,membership_exists:array}
+   * @return array{early_renewal: array, grace_period: array, pending_approval: array, switch: array, group_owner: array, debug: array, membership_exists: array}
    */
   public function get_membership_callouts( $user_id = null, $status = "" ) {
     $membership_exists = [];
@@ -2866,6 +3124,7 @@ function get_item_data ( $other_data, $cart_item ) {
     $early_renewal = [];
     $grace_period = [];
     $pending_approval = [];
+    $switch = [];
     $group_owner_callouts = [];
     $debug = [];
     $multi_tier_renewals = [];
@@ -2952,7 +3211,7 @@ function get_item_data ( $other_data, $cart_item ) {
 
       //TODO: previous post ID may not exist on membership record and only be on order meta
       if(empty($membership->previous_membership_post_id)) {
-        $order_membership_meta = $this->get_membership_array_from_order_and_product_id( $membership_data['meta']['membership_parent_order_id'], $membership_data['meta']['membership_product_id']);
+        $order_membership_meta = $this->get_membership_array_from_order_and_product_id( $membership_data['meta']['membership_parent_order_id'] ?? null, $membership_data['meta']['membership_product_id'] ?? null );
         if(!empty($order_membership_meta['previous_membership_post_id'])) {
           $membership_is_renewal = $order_membership_meta['previous_membership_post_id'];
         }
@@ -3001,6 +3260,49 @@ function get_item_data ( $other_data, $cart_item ) {
 
       $membership_data['next_tier'] = false;
       $membership_data['form_page'] = false;
+
+      // --- Self-serve switch callout (Track B, B3) ---
+      // $membership_data is reused across loop iterations, so clear both destination keys first —
+      // same reason the subscription_renewal key is unset below. Guarantees exactly one destination
+      // key per emitted entry and stops a switch-enabled membership leaking its destination onto the
+      // next membership's early_renewal/grace_period entry.
+      unset( $membership_data['switch_target'], $membership_data['switch_form_page'] );
+      // Status is checked explicitly against ACTIVE because the query above deliberately returns a
+      // broader set (active/delayed/grace/pending). Switching is offered on active memberships only.
+      // This runs BEFORE the renewal-specific `continue`s further down (autopay, already-renewed,
+      // form-page/next-tier skips) so that every active switch-enabled membership yields an entry
+      // regardless of where it sits in its renewal cycle.
+      if ( $membership->membership_status == Wicket_Memberships::STATUS_ACTIVE
+           && $Membership_Tier->is_self_serve_switch_enabled() ) {
+        // Config is read live from the CURRENT tier, never snapshotted onto the membership, so an
+        // admin toggling switching on or off takes effect immediately for existing memberships.
+        if ( $Membership_Tier->get_switch_type() === 'specific_tier' ) {
+          $membership_data['switch_target'] = [
+            'product_id'   => (int) $Membership_Tier->get_switch_target_product_id(),
+            // A simple-subscription target has no variation; the accessor returns false, which the
+            // cast turns into the 0 the contract specifies.
+            'variation_id' => (int) $Membership_Tier->get_switch_target_variation_id(),
+          ];
+        } elseif ( $Membership_Tier->get_switch_type() === 'form_flow' ) {
+          $switch_form_flow_page_id = $Membership_Tier->get_switch_form_flow_page_id();
+          $membership_data['switch_form_page'] = [
+            'title'     => get_the_title( $switch_form_flow_page_id ),
+            'permalink' => get_permalink( $switch_form_flow_page_id ),
+            'page_id'   => $switch_form_flow_page_id,
+          ];
+        }
+
+        $switch[] = [
+          'membership' => $membership_data,
+          'callout'    => [
+            'type'         => 'switch',
+            'header'       => $Membership_Tier->get_switch_callout_header( $iso_code ),
+            'content'      => $Membership_Tier->get_switch_callout_content( $iso_code ),
+            'button_label' => $Membership_Tier->get_switch_callout_button_label( $iso_code ),
+          ],
+        ];
+      }
+      // --- end self-serve switch callout ---
 
       if ( $membership->membership_status == 'pending') {
         $callout['type'] = 'pending_approval';
@@ -3182,7 +3484,7 @@ function get_item_data ( $other_data, $cart_item ) {
         //If we are not going to a page we can fallback to use all products as links
         $next_tier = new Membership_Tier( $next_tier_id );
         $membership_data['next_tier'] = $next_tier->tier_data;
-        $membership_data['next_tier']['next_product_id'] = $membership_json_data['membership_product_id'];
+        $membership_data['next_tier']['next_product_id'] = $membership_json_data['membership_product_id'] ?? null;
         //if it is *NOT* renewing into the same tier then account center will SHOW A DIRECT add_to_cart FOR EACH PRODUCT assigned to the next tier
         //TODO: This may be identified as a bug but it is a result of the rules we have been given
         //Multiple products assign to a tier vs. assigning this tier to be a sequential next tier for callout
@@ -3261,8 +3563,17 @@ function get_item_data ( $other_data, $cart_item ) {
     $grace_period     = array_merge( $grace_period,     $owner_callouts['grace_period']     ?? [] );
     $pending_approval = array_merge( $pending_approval, $owner_callouts['pending_approval'] ?? [] );
 
+    // Independent kill switch for the switch callout: an Account Centre build that predates the
+    // switch consumer renders the bucket's copy but cannot build its button, so this lets a site
+    // suppress it without also disabling renewals. The key is still emitted (empty) either way.
+    if(!empty($_ENV['WICKET_MSHIP_DISABLE_SWITCH'])) {
+      $switch = [];
+    }
+
     if(!empty($_ENV['WICKET_MSHIP_DISABLE_RENEWALS'])) {
-      return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'group_owner' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
+      // Switching is not a renewal, but the key is still emitted (empty) so the ACC can read the
+      // bucket unconditionally on both return paths.
+      return ['early_renewal' => [], 'grace_period' => [], 'pending_approval' => [], 'switch' => [], 'group_owner' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
     }
 
     if( !empty( $_ENV['WICKET_MSHIP_SECTION_CALLOUT_SUPPRESSION'] ) ) {
@@ -3276,7 +3587,7 @@ function get_item_data ( $other_data, $cart_item ) {
       );
     }
 
-    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'group_owner' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
+    return ['early_renewal' => $early_renewal, 'grace_period' => $grace_period, 'pending_approval' => $pending_approval, 'switch' => $switch, 'group_owner' => [], 'debug' => $debug, 'membership_exists' => $membership_exists ];
   }
 
   /**

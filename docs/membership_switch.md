@@ -24,16 +24,31 @@ Switching a membership moves a member from their current tier to a different one
 
 When it finishes, the page opens the new membership so you can confirm everything looks correct.
 
+If the switch worked but something needs your attention, a yellow message lists what to check (for example, the member's old subscription could not be cancelled). Read it, then click **Continue to the new membership**. If the switch could not be done at all, a red message explains why and nothing is changed.
+
 ## What Happens
 
 - A new membership is created on the tier you chose.
 - The **end date stays the same** as the original membership.
 - The grace period follows the **new tier's** settings, so the expiry date may shift slightly if the new tier has a different grace period.
 - The original membership is **cancelled** immediately.
+- If the member pays through a subscription, they get a **new subscription** for the new tier, and the old one is cancelled. The new subscription:
+  - uses the member's saved payment method and automatic-renewal setting;
+  - bills next when the member's next payment is due, at the **new tier's price**;
+  - keeps the old subscription's status if it was **on hold** or **pending cancellation**.
+- Any **unpaid renewal invoice** on the old subscription is cancelled, so the member can't pay for the tier they left.
+- If the old subscription also pays for **another membership**, it isn't cancelled. Only the switched membership is removed from it, and from any unpaid renewal invoice, so the other membership keeps billing.
+- The member keeps the time they have already paid for. There is no refund or extra charge for the switch.
+- If you switch with **Create Order** instead, the same happens to the old subscription once the member pays the order. The order's subscription becomes their billing for the new tier.
 
 ## Tips and Warnings
 
 - The switch takes effect **right away**.
 - Switching is **not reversible in one click.** To undo it you would switch back to the original tier, which cancels the new membership and creates another. Confirm the target tier before completing the switch.
 - If the tier you want does not appear in the list, check that it is the **same type** (individual or organization) as the membership you are switching.
+- If the switch stops with a message that the tier has **no subscription product**, link a subscription product to that tier first. Members who pay through a subscription can only switch to a tier the new subscription can bill for.
+- Cancelling the old subscription sends the usual cancellation email to your store admin, and any automated "subscription cancelled" emails you have set up for members.
 - If the **Manage Membership** button will not open, check that the membership is active and has already started.
+- If a paid switch order shows a note that the **membership switch failed**, the member has paid but has no new membership. Check the order and its subscription before taking further action.
+- If a member's subscription shows an **ACTION REQUIRED** note after a switch, a subscription for the new tier could not be created. Their existing subscription now renews the new membership but still charges the old tier's price. Change its product to the new tier's product, or create a new subscription and cancel the old one.
+- A paid switch order with a note that the switch **completed with problems** lists what to check, the same way the yellow message does.
