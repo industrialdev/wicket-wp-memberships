@@ -273,6 +273,9 @@ if ( ! class_exists( 'Wicket_Memberships' ) ) {
       add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'wicket_membership_register_settings' ));
       add_action( 'admin_init', array( __NAMESPACE__.'\\Settings' , 'handle_manual_action_links' ));
       add_action( 'admin_post_wicket_mship_bundle_resync', array( __NAMESPACE__.'\\Settings' , 'handle_bundle_resync_request' ));
+      //grace-period renewal callout button: creates the renewal order on click, not on page load
+      add_action( 'admin_post_' . Membership_Controller::GRACE_RENEWAL_ACTION, array( __NAMESPACE__.'\\Membership_Controller' , 'handle_grace_renewal_request' ));
+      add_action( 'admin_post_nopriv_' . Membership_Controller::GRACE_RENEWAL_ACTION, array( __NAMESPACE__.'\\Membership_Controller' , 'handle_grace_renewal_request_logged_out' ));
       add_action( 'admin_enqueue_scripts', array( __NAMESPACE__.'\\Settings' , 'enqueue_settings_assets' ));
       add_filter( 'admin_body_class', array( __NAMESPACE__.'\\Settings' , 'settings_admin_body_class' ));
 
