@@ -110,7 +110,7 @@ const RemoveFromMembershipBundleModal = ({
         />
       )}
 
-      <p>{__("Do you want to cancel this individual membership or keep the member as an individual?", "wicket-memberships")}</p>
+      <p>{__("Do you want to keep the member as an individual or cancel this individual membership?", "wicket-memberships")}</p>
 
       <SelectControl
         label={__("Action", "wicket-memberships")}
