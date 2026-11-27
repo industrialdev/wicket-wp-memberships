@@ -3,13 +3,14 @@ import { createRoot } from 'react-dom/client';
 import apiFetch from '@wordpress/api-fetch';
 import { useState, useEffect } from 'react';
 import { addQueryArgs } from '@wordpress/url';
-import { TextControl, TextareaControl, Button, Flex, FlexItem, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalText as Text } from '@wordpress/components';
-import ApprovalCalloutModal from './ApprovalCalloutModal';
+import { TextControl, TextareaControl, Button, Flex, FlexItem, Modal, FlexBlock, Notice, SelectControl, CheckboxControl, __experimentalText as Text } from '@wordpress/components';
+import ApprovalCalloutModal, { collectApprovalCalloutIssues } from './ApprovalCalloutModal';
 import styled from 'styled-components';
 import { API_URL, PLUGIN_API_URL, PLUGIN_SETTINGS } from '../shared/constants';
 import he from 'he';
 import { Wrap, ErrorsRow, BorderedBox, LabelWpStyled, SelectWpStyled, ActionRow, CustomDisabled } from '../shared/styled_elements';
-import { fetchMembershipTiers } from '../shared/services/api';
+import { fetchMembershipTiers, fetchProductVariations } from '../shared/services/api';
+import { fetchSwitchTargetProducts } from '../shared/services/switch_products';
 import ManageTierProducts from './manage_products';
 
 const MarginedFlex = styled(Flex)`
@@ -28,11 +29,31 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		{ label: __('Subscription', 'wicket-memberships'), value: 'subscription' }
 	];
 
+	const switchTypeOptions = [
+		{ label: __('Specific Tier', 'wicket-memberships'), value: 'specific_tier' },
+		{ label: __('Form Flow', 'wicket-memberships'), value: 'form_flow' }
+	];
+
 	const [isApprovalCalloutModalOpen, setApprovalCalloutModalOpen] = useState(false);
 	const openApprovalCalloutModal = () => setApprovalCalloutModalOpen(true);
 	const closeApprovalCalloutModal = () => setApprovalCalloutModalOpen(false);
 
+	const [currentSwitchCalloutLocale, setCurrentSwitchCalloutLocale] = useState(languageCodesArray[0]);
+
+	const [isSwitchCalloutModalOpen, setSwitchCalloutModalOpen] = useState(false);
+	const openSwitchCalloutModal = () => setSwitchCalloutModalOpen(true);
+	const closeSwitchCalloutModal = () => setSwitchCalloutModalOpen(false);
+
+	const [switchProductOptions, setSwitchProductOptions] = useState([]); // { label, value, type }
+	const [isLoadingSwitchProducts, setLoadingSwitchProducts] = useState(false);
+	// Variation ids linked to THIS tier — hidden from the target variation picker so the switch
+	// destination cannot be the variation members are already on.
+	const [switchExcludedVariationIds, setSwitchExcludedVariationIds] = useState(new Set());
+	const [switchProductVariations, setSwitchProductVariations] = useState({}); // { product_id: [] }
+
 	const [tierInfo, setTierInfo] = useState(null);
+
+	const [switchCalloutErrors, setSwitchCalloutErrors] = useState([]);
 
 	const [isSubmitting, setSubmitting] = useState(false);
 
@@ -72,8 +93,19 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		product_data: [], // { product_id:, max_seats:, variation_id: }
 		approval_callout_data: {
 			locales: default_locales
+		},
+		self_serve_switch_enabled: false,
+		switch_type: 'specific_tier', // specific_tier, form_flow
+		switch_target_product_id: '',
+		switch_target_variation_id: '',
+		switch_form_flow_page_id: '',
+		switch_callout_data: {
+			locales: default_locales
 		}
 	});
+
+	// Working copy for the switch callout modal; the approval modal keeps its own copy.
+	const [tempForm, setTempForm] = useState(form);
 
 	const getSelectedTierData = () => {
 		if (!form.mdp_tier_uuid) { return null; }
@@ -93,6 +125,33 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 		e.preventDefault();
 
 		// TODO: Frontend data validation here if needed?
+
+		setErrors([]);
+
+		// Callout copy is required in every active language and the REST route rejects the whole
+		// tier when it is short. Checking here names the missing fields without spending a round
+		// trip, and without the save looking like it worked.
+		if (form.approval_required || form.renew_approval_required) {
+			const approvalCalloutIssues = collectApprovalCalloutIssues(form.approval_callout_data, languageCodesArray);
+
+			if (approvalCalloutIssues.length > 0) {
+				setErrors(approvalCalloutIssues);
+				scrollToErrors();
+
+				return;
+			}
+		}
+
+		if (form.self_serve_switch_enabled) {
+			const switchCalloutIssues = validateSwitchCallout(form);
+
+			if (switchCalloutIssues.length > 0) {
+				setErrors(switchCalloutIssues);
+				scrollToErrors();
+
+				return;
+			}
+		}
 
 		setSubmitting(true);
 		console.log('Saving membership tier');
@@ -125,6 +184,23 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			delete newForm.copy_active_assignments_on_renewal;
 		}
 
+		// Self-serve switch: only the destination the selected switch type uses may be persisted —
+		// the REST validate_callback rejects a payload carrying both. With the toggle off, drop the
+		// destination and the callout copy so a disabled tier stores no dead switch config.
+		if (!form.self_serve_switch_enabled) {
+			newForm.switch_target_product_id = '';
+			newForm.switch_target_variation_id = '';
+			newForm.switch_form_flow_page_id = '';
+			// Dropped rather than blanked: a tier with switching off should carry no callout object
+			// at all, so saving one never materializes empty copy on a tier that never had it.
+			delete newForm.switch_callout_data;
+		} else if (form.switch_type === 'specific_tier') {
+			newForm.switch_form_flow_page_id = '';
+		} else if (form.switch_type === 'form_flow') {
+			newForm.switch_target_product_id = '';
+			newForm.switch_target_variation_id = '';
+		}
+
 		apiFetch({
 			path: endpoint,
 			method: 'POST',
@@ -140,16 +216,46 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 				window.location.href = tierListUrl;
 			}
 		}).catch((error) => {
+			// The rejection shape is not guaranteed. A REST validation failure carries
+			// data.params, but a 500, a PHP warning printed ahead of the JSON body, or a dropped
+			// connection carries none of it — and reading error.data.params blindly threw inside
+			// this very handler, which is why a rejected save used to leave the form spinning
+			// with nothing on screen.
 			let newErrors = [];
+			const params = error && error.data ? error.data.params : null;
 
-			Object.keys(error.data.params).forEach((key) => {
-				let errors = error.data.params[key].split(/(?<=[.?!])\s+|\.$/);
-				newErrors = newErrors.concat(errors).filter(sentence => sentence.trim() !== '');
-			})
+			if (params && typeof params === 'object') {
+				Object.keys(params).forEach((key) => {
+					const message = typeof params[key] === 'string' ? params[key] : JSON.stringify(params[key]);
+					const errors = message.split(/(?<=[.?!])\s+|\.$/);
+					newErrors = newErrors.concat(errors).filter(sentence => sentence.trim() !== '');
+				})
+			}
 
-			setErrors(newErrors);
+			// Never fail silently: an unrecognized rejection still has to say something.
+			if (newErrors.length === 0) {
+				newErrors.push(
+					(error && error.message)
+						? error.message
+						: __('The membership tier could not be saved. Please try again.', 'wicket-memberships')
+				);
+			}
+
+			// Notices render above a long form; without this the admin sees only the button
+			// switching back from "Saving now...".
+			setErrors([...new Set(newErrors)]);
 			setSubmitting(false);
+			scrollToErrors();
 		});
+	}
+
+	/**
+	 * Bring the notice row at the top of the form into view.
+	 */
+	const scrollToErrors = () => {
+		if (typeof window === 'undefined') { return; }
+
+		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
   const fetchTierInfo = (tierUuid) => {
@@ -211,10 +317,154 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 	}
 
 	/**
-	 * Reinitialize the approval callout form with the current form data
+	 * Open the approval callout modal; it reloads its working copy from the form on each open.
 	 */
 	const reInitApprovalCallout = () => {
 		openApprovalCalloutModal();
+	}
+
+	/**
+	 * Reinitialize the switch callout form with the current form data
+	 */
+	const reInitSwitchCallout = () => {
+		setSwitchCalloutErrors([]);
+		setTempForm(form)
+		openSwitchCalloutModal();
+	}
+
+	/**
+	 * Read one locale's switch callout copy, tolerating a tier that has none.
+	 *
+	 * Tiers predating self-serve switching have no switch_callout_data at all, and a language added
+	 * to the site after a tier was last saved has no entry inside it. Both cases resolve to an empty
+	 * record so the copy inputs render blank rather than throwing on undefined.
+	 */
+	const getSwitchCalloutLocale = (source, locale) => {
+		if (!source || !source.switch_callout_data || !source.switch_callout_data.locales) { return {}; }
+
+		return source.switch_callout_data.locales[locale] || {};
+	}
+
+	/**
+	 * Write one field of the current locale's switch callout copy onto tempForm, creating the
+	 * switch_callout_data / locales objects on first keystroke when the tier has none.
+	 */
+	const updateSwitchCalloutField = (field, value) => {
+		setTempForm((previous) => ({
+			...previous,
+			switch_callout_data: {
+				...previous.switch_callout_data,
+				locales: {
+					...((previous.switch_callout_data && previous.switch_callout_data.locales) || {}),
+					[currentSwitchCalloutLocale]: {
+						...getSwitchCalloutLocale(previous, currentSwitchCalloutLocale),
+						[field]: value
+					}
+				}
+			}
+		}));
+	}
+
+	/**
+	 * Mirror of the REST rule in Membership_Post_Types::register_membership_tier_cpt_fields():
+	 * every active language needs a header, content and a button label. Returns one message per
+	 * missing field so the admin knows which language tab to open.
+	 *
+	 * @param {object} source form or tempForm — a tier saved before self-serve switching has no
+	 *                        switch_callout_data at all, so read it through getSwitchCalloutLocale().
+	 * @return {string[]} Empty when the callout is complete.
+	 */
+	const validateSwitchCallout = (source) => {
+		const fields = [
+			{ key: 'callout_header', label: __('Callout Header', 'wicket-memberships') },
+			{ key: 'callout_content', label: __('Callout Content', 'wicket-memberships') },
+			{ key: 'callout_button_label', label: __('Button Label', 'wicket-memberships') }
+		];
+
+		const missing = [];
+
+		languageCodesArray.forEach((locale) => {
+			const localeData = getSwitchCalloutLocale(source, locale);
+
+			fields.forEach((field) => {
+				if (String(localeData[field.key] || '').trim() === '') {
+					missing.push(`${field.label} [${locale.toUpperCase()}]`);
+				}
+			});
+		});
+
+		if (missing.length === 0) { return []; }
+
+		return [
+			__('The Self-Serve Switch callout configuration is incomplete, missing:', 'wicket-memberships')
+			+ ' ' + missing.join(', ')
+		];
+	}
+
+	const handleSwitchCalloutSubmit = (e) => {
+		e.preventDefault();
+
+		// Committed either way so a partially filled modal never loses the admin's typing; the
+		// modal simply stays open, with the missing fields named, until the copy is complete.
+		setForm({
+			...form,
+			switch_callout_data: tempForm.switch_callout_data
+		});
+
+		const calloutErrors = validateSwitchCallout(tempForm);
+
+		setSwitchCalloutErrors(calloutErrors);
+
+		if (calloutErrors.length > 0) { return }
+
+		closeSwitchCalloutModal();
+	}
+
+	const handleSwitchTypeChange = (selected) => {
+		// Reset both destinations: only the one belonging to the newly selected type may be saved.
+		setForm({
+			...form,
+			switch_type: selected.value,
+			switch_target_product_id: '',
+			switch_target_variation_id: '',
+			switch_form_flow_page_id: ''
+		});
+	}
+
+	/**
+	 * Fetch variations for the selected switch target product id
+	 */
+	const getSwitchProductVariations = (productId) => {
+		if (!productId || switchProductVariations[productId]) { return; }
+
+		fetchProductVariations(
+			productId,
+			{
+				per_page: 100,
+				status: 'publish'
+			}).then((variations) => {
+			setSwitchProductVariations((previous) => ({
+				...previous,
+				[productId]: variations
+			}));
+		});
+	}
+
+	const handleSwitchTargetProductChange = (selected) => {
+		const productId = selected ? selected.value : '';
+		const product = switchProductOptions.find(option => option.value === productId);
+
+		setForm({
+			...form,
+			switch_target_product_id: productId,
+			switch_target_variation_id: ''
+		});
+
+		// Only a variable subscription needs a second pick; a simple subscription is tier-linked by
+		// its parent product alone.
+		if (product && product.type === 'variable-subscription') {
+			getSwitchProductVariations(productId);
+		}
 	}
 
 	const updateProductData = (productData) => {
@@ -324,6 +574,9 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 				console.log('Initial Renewal Type:');
 				console.log(initialRenewalType);
 
+				// Tiers saved before self-serve switching existed carry none of the switch_* keys. They
+				// are loaded as-is: the switch controls read through guards instead, so nothing is
+				// written back onto a tier the admin never configured for switching.
 				setForm({
 					...post.tier_data,
 					copy_active_assignments_on_renewal: post.tier_data.copy_active_assignments_on_renewal ?? true,
@@ -333,6 +586,37 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 			});
 		}
 	}, []);
+
+	// Load the self-serve switch target products lazily — only once the admin has enabled the switch,
+	// chosen the specific-tier type, and selected an MDP tier (whose type drives the same-family filter).
+	useEffect(() => {
+		const selectedTierData = getSelectedTierData();
+
+		if (!form.self_serve_switch_enabled || form.switch_type !== 'specific_tier' || !selectedTierData) {
+			return;
+		}
+
+		setLoadingSwitchProducts(true);
+
+		fetchSwitchTargetProducts({
+			membershipType: selectedTierData.type,
+			currentTierPostId: postId
+		}).then(({ options, excludedVariationIds }) => {
+			setSwitchProductOptions(options);
+			setSwitchExcludedVariationIds(excludedVariationIds);
+
+			// A saved variable-subscription target needs its variations fetched up front, otherwise the
+			// variation picker renders blank instead of the stored selection.
+			const savedTarget = options.find(option => option.value === form.switch_target_product_id);
+			if (savedTarget && savedTarget.type === 'variable-subscription') {
+				getSwitchProductVariations(savedTarget.value);
+			}
+		}).catch(() => {
+			setSwitchProductOptions([]);
+		}).finally(() => {
+			setLoadingSwitchProducts(false);
+		});
+	}, [form.self_serve_switch_enabled, form.switch_type, form.mdp_tier_uuid, mdpTiers]);
 
 	console.log('MDP Tiers:');
 	console.log(mdpTiers);
@@ -621,6 +905,142 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 										</MarginedFlex>
 									}
 
+									{/* Self-Serve Membership Switch */}
+									<MarginedFlex>
+										<FlexBlock>
+											<BorderedBox>
+												<Flex
+													align='end'
+													justify='start'
+													gap={5}
+													direction={[
+														'column',
+														'row'
+													]}
+												>
+													<FlexItem>
+														<CheckboxControl
+															label={__('Enable Self-Serve Membership Switch', 'wicket-memberships')}
+															/* Coerced: a tier saved before this feature has no such key, and an
+															   undefined `checked` would make this an uncontrolled input. */
+															checked={!!form.self_serve_switch_enabled}
+															onChange={(value) => setForm({ ...form, self_serve_switch_enabled: value })}
+															__nextHasNoMarginBottom={true}
+														/>
+													</FlexItem>
+													<FlexBlock>
+														<CustomDisabled isDisabled={!form.self_serve_switch_enabled}>
+															<LabelWpStyled htmlFor="switch_type">
+																{__('Switch Type', 'wicket-memberships')}
+															</LabelWpStyled>
+															<SelectWpStyled
+																id="switch_type"
+																classNamePrefix="select"
+																/* A tier with no stored switch_type shows the placeholder until the
+																   admin picks one; the destination fields stay hidden until then. */
+																value={switchTypeOptions.find(option => option.value === form.switch_type) || null}
+																isClearable={false}
+																isSearchable={true}
+																options={switchTypeOptions}
+																onChange={handleSwitchTypeChange}
+															/>
+														</CustomDisabled>
+													</FlexBlock>
+													<FlexItem>
+														<Button
+															variant="secondary"
+															disabled={!form.self_serve_switch_enabled}
+															onClick={reInitSwitchCallout}
+														>
+															<span className="dashicons dashicons-screenoptions me-2"></span>&nbsp;
+															{__('Callout Configuration', 'wicket-memberships')}
+														</Button>
+													</FlexItem>
+												</Flex>
+
+												{/* Specific Tier — the switch order buys this product */}
+												{form.self_serve_switch_enabled && form.switch_type === 'specific_tier' && (
+													<MarginedFlex>
+														<FlexBlock>
+															<LabelWpStyled htmlFor="switch_target_product_id">
+																{__('Switch Target Product', 'wicket-memberships')}
+															</LabelWpStyled>
+															<SelectWpStyled
+																id="switch_target_product_id"
+																classNamePrefix="select"
+																value={switchProductOptions.find(option => option.value === form.switch_target_product_id) || null}
+																isClearable={false}
+																isSearchable={true}
+																isLoading={isLoadingSwitchProducts}
+																options={switchProductOptions}
+																onChange={handleSwitchTargetProductChange}
+															/>
+														</FlexBlock>
+													</MarginedFlex>
+												)}
+
+												{/* A variable subscription target needs the exact variation the switch buys */}
+												{form.self_serve_switch_enabled && form.switch_type === 'specific_tier' && (() => {
+													const targetProduct = switchProductOptions.find(option => option.value === form.switch_target_product_id);
+
+													if (!targetProduct || targetProduct.type !== 'variable-subscription') { return null; }
+
+													const variations = switchProductVariations[form.switch_target_product_id];
+													const variationOptions = (variations || [])
+														// Hide this tier's own variation — the switch must land somewhere else.
+														.filter((variation) => !switchExcludedVariationIds.has(variation.id))
+														.map((variation) => ({
+															label: `${variation.name} (#${variation.id})`,
+															value: variation.id
+														}));
+
+													return (
+														<MarginedFlex>
+															<FlexBlock>
+																<LabelWpStyled htmlFor="switch_target_variation_id">
+																	{__('Switch Target Variation', 'wicket-memberships')}
+																</LabelWpStyled>
+																<SelectWpStyled
+																	id="switch_target_variation_id"
+																	classNamePrefix="select"
+																	value={variationOptions.find(option => option.value === form.switch_target_variation_id) || null}
+																	isClearable={false}
+																	isSearchable={true}
+																	isLoading={variations === undefined}
+																	options={variationOptions}
+																	onChange={(selected) => {
+																		setForm({ ...form, switch_target_variation_id: selected ? selected.value : '' });
+																	}}
+																/>
+															</FlexBlock>
+														</MarginedFlex>
+													);
+												})()}
+
+												{/* Form Flow — the callout links members to this page instead of the cart */}
+												{form.self_serve_switch_enabled && form.switch_type === 'form_flow' && (
+													<MarginedFlex>
+														<FlexBlock>
+															<LabelWpStyled htmlFor="switch_form_flow_page">
+																{__('Switch Form Page', 'wicket-memberships')}
+															</LabelWpStyled>
+															<SelectWpStyled
+																id="switch_form_flow_page"
+																classNamePrefix="select"
+																value={wpPagesOptions.find(option => option.value === form.switch_form_flow_page_id) || null}
+																isSearchable={true}
+																options={wpPagesOptions}
+																onChange={(selected) => {
+																	setForm({ ...form, switch_form_flow_page_id: selected.value });
+																}}
+															/>
+														</FlexBlock>
+													</MarginedFlex>
+												)}
+											</BorderedBox>
+										</FlexBlock>
+									</MarginedFlex>
+
 									{getSelectedTierData().type === 'individual' && (
 										<>
 											<ManageTierProducts
@@ -734,7 +1154,65 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 				</Wrap>
 			</div>
 
-			{/* Approval - Callout Modal */}
+			{/* Self-Serve Switch - Callout Modal */}
+			{isSwitchCalloutModalOpen && (
+				<Modal
+					title={__('Self-Serve Switch - Callout Configuration', 'wicket-memberships')}
+					onRequestClose={closeSwitchCalloutModal}
+					style={
+						{
+							maxWidth: '840px',
+							width: '100%'
+						}
+					}
+				>
+					{switchCalloutErrors.length > 0 && (
+						<ErrorsRow>
+							{switchCalloutErrors.map((error) => (
+								<Notice isDismissible={false} key={error} status="warning">{error}</Notice>
+							))}
+						</ErrorsRow>
+					)}
+
+					<form onSubmit={handleSwitchCalloutSubmit}>
+						<SelectControl
+							label={__('Language', 'wicket-memberships')}
+							options={
+								languageCodesArray.map((code) => {
+									return {
+										label: code,
+										value: code
+									}
+								})
+							}
+							value={currentSwitchCalloutLocale}
+							onChange={value => setCurrentSwitchCalloutLocale(value)}
+						/>
+
+						<TextControl
+							label={__('Callout Header', 'wicket-memberships')}
+							onChange={value => updateSwitchCalloutField('callout_header', value)}
+							value={getSwitchCalloutLocale(tempForm, currentSwitchCalloutLocale).callout_header || ''}
+						/>
+
+						<TextareaControl
+							label={__('Callout Content', 'wicket-memberships')}
+							onChange={value => updateSwitchCalloutField('callout_content', value)}
+							value={getSwitchCalloutLocale(tempForm, currentSwitchCalloutLocale).callout_content || ''}
+						/>
+
+						<TextControl
+							label={__('Button Label', 'wicket-memberships')}
+							onChange={value => updateSwitchCalloutField('callout_button_label', value)}
+							value={getSwitchCalloutLocale(tempForm, currentSwitchCalloutLocale).callout_button_label || ''}
+						/>
+
+						<Button variant="primary" type='submit'>
+							{__('Save', 'wicket-memberships')}
+						</Button>
+					</form>
+				</Modal>
+			)}
 			<ApprovalCalloutModal
 				isOpen={ isApprovalCalloutModalOpen }
 				onClose={ closeApprovalCalloutModal }
@@ -742,7 +1220,6 @@ const CreateMembershipTier = ({ tierCptSlug, configCptSlug, tierListUrl, postId,
 				calloutData={ form.approval_callout_data }
 				onSave={ (calloutData) => setForm({ ...form, approval_callout_data: calloutData }) }
 			/>
-
 		</>
 	);
 };
